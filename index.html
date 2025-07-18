@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kostloggen</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                DEFAULT: '#3bab5a',
+                darker: '#2b8646',
+                lighter: '#5cb979',
+                '100': '#ebf7ee',
+                '200': '#c6e8cf',
+              },
+              secondary: {
+                DEFAULT: '#f97316', // Orange 500
+                darker: '#c45a12', // Orange 700 (for hover/active)
+                lighter: '#fa8a3a', // Orange 400
+                '100': '#fff0e5',   // Custom very light orange shade
+                '200': '#ffe0ca',   // Custom light orange shade
+              },
+              accent: {
+                DEFAULT: '#F59E0B', // Amber 500
+                darker: '#D97706', // Amber 600 (for hover/active)
+                lighter: '#FBBF24', // Amber 400
+              },
+              neutral: {
+                light: '#F3F4F6', // Gray 100
+                DEFAULT: '#6B7280', // Gray 500
+                dark: '#000000', // Changed Gray 800 to black
+                darker: '#111827' // Gray 900
+              }
+            },
+            boxShadow: {
+              'soft-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              'soft-xl': '0 20px 25px -5px rgba(0, 0, 0, 0.07), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            }
+            // Removed keyframes and animation sections to simplify config for CDN
+          }
+        }
+      };
+    </script>
+    <style type="text/css">
+      /* Global transition for interactive elements for smoother hover/active states */
+      .interactive-transition, button, .button-like {
+        transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out, opacity 0.15s ease-in-out, transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      }
+      /* Custom scrollbar for better aesthetics on webkit browsers */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #F3F4F6; /* neutral-light */
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #D1D5DB; /* A bit darker than neutral-light */
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #9CA3AF; /* Even darker on hover */
+      }
+
+      /* Re-add necessary keyframes directly if Tailwind config removal breaks critical animations handled by it */
+      /* For example, if ConfettiCelebration relies on Tailwind generated keyframes, it might need to direct CSS here */
+      /* However, for minimal change, we first try removing from JS config */
+       @keyframes confetti-fall {
+        0% { transform: translateY(-10vh) rotateZ(0deg); opacity: 1; }
+        100% { transform: translateY(110vh) rotateZ(720deg); opacity: 0; }
+      }
+      .animate-confetti-fall { /* Ensure this class is used by ConfettiCelebration.tsx if it was relying on Tailwind before */
+        animation-name: confetti-fall;
+        animation-fill-mode: forwards;
+        animation-timing-function: linear;
+      }
+
+       @keyframes fade-slide-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-slide-in { animation: fade-slide-in 0.3s ease-out forwards; }
+      
+      @keyframes fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .animate-fade-in { animation: fade-in 0.2s ease-out forwards; }
+
+      @keyframes scale-in {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .animate-scale-in { animation: scale-in 0.2s ease-out forwards; }
+      
+      @keyframes slide-up-fade-in {
+        from { opacity: 0; transform: translateY(20px) scale(0.95); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+     .animate-slide-up-fade-in { animation: slide-up-fade-in 0.3s ease-out forwards; }
+
+      @keyframes fade-out {
+        from { opacity: 1; }
+        to { opacity: 0; }
+      }
+      .animate-fade-out { animation: fade-out 0.5s ease-out forwards; }
+
+      /* Icon button styles for header */
+      .nav-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        position: relative; /* For notification badge */
+        outline: none; /* remove default button outline */
+      }
+      .icon-wrap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        padding: 4px; /* Reduced padding for smaller icons */
+        transition: box-shadow 0.2s, transform 0.15s ease-in-out;
+      }
+      .nav-btn.active .icon-wrap {
+        box-shadow: 0 0 0 3px #3bab5a; /* primary color */
+      }
+      .nav-btn:active .icon-wrap {
+          transform: scale(0.9);
+      }
+
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "@firebase/app": "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js",
+    "@firebase/auth": "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js",
+    "@firebase/firestore": "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js",
+    "@google/genai": "https://esm.sh/@google/genai@^1.9.0",
+    "async-mutex": "https://esm.sh/async-mutex@^0.5.0",
+    "@zxing/browser": "https://esm.sh/@zxing/browser@^0.1.5",
+    "lucide-react": "https://esm.sh/lucide-react@^0.400.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-neutral-light">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

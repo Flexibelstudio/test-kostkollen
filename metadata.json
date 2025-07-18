@@ -1,0 +1,8 @@
+{
+  "name": "Kostloggen TEST",
+  "description": "En app för att logga mat och följa kursen 'Praktisk Viktkontroll' för bättre hälsovanor.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "prompt": ""
+}
