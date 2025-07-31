@@ -1,0 +1,598 @@
+
+
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import type { User } from '@firebase/auth';
+import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, StreakSaver, Reactions } from '../types';
+import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PencilIcon, ChartLineIcon, SparklesIcon, UserCircleIcon, InformationCircleIcon, CheckIcon, BookOpenIcon, TrophyIcon, BarcodeIcon, UserGroupIcon, ChevronDownIcon, ChevronUpIcon, ShareIcon, HeartIcon, XMarkIcon } from './icons';
+import { User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
+import WeightChart from './WeightChart.tsx'; 
+import { calculateGoalTimeline, TimelineMilestone } from '../utils/timelineUtils.ts';
+import GamificationCard from './GamificationCard.tsx';
+import GoalTimeline from './JourneyGoalTimeline.tsx';
+import ProfileAndGoalEditor from './JourneyProfileEditor.tsx';
+import AchievementsView from './AchievementsView.tsx';
+import { fetchTimelineForCurrentUser } from '../services/firestoreService.ts';
+import { auth } from '../firebase';
+import { playAudio } from '../services/audioService';
+
+
+interface JourneyViewProps {
+  pastDaysData: PastDaysSummaryCollection;
+  weightLogs: WeightLogEntry[];
+  userProfile: UserProfileData;
+  goals: GoalSettings;
+  onSaveProfileAndGoals: (profile: UserProfileData, goals: GoalSettings) => void;
+  onOpenLogWeightModal: () => void;
+  playAudio: (sound: any, volume?: number) => void;
+  viewingDate: Date;
+  setViewingDate: (date: Date) => void;
+  currentDate: Date;
+  initialTab: 'weight' | 'calendar' | 'profile' | 'achievements';
+  highestStreak: number;
+  highestLevelId: string | null;
+  minSafeCalories: number;
+  setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+  achievements: Achievement[];
+  unlockedAchievements: { [id: string]: string };
+  achievementInteractions: { [id: string]: { reactions: Reactions } };
+  journeyAnalysisFeedback: AIStructuredFeedbackResponse | null;
+  onNavigateToMainWithDate: (date: Date) => void;
+  streakSaver: StreakSaver | null;
+}
+type Tab = 'measurements' | 'overview' | 'goals' | 'achievements';
+
+
+const getLocalISODateString = (date: Date): string => {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return "ERROR_INVALID_DATE";
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getStartOfWeek = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay(); 
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+  return new Date(d.setDate(diff));
+};
+
+const addDays = (date: Date, days: number): Date => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
+const getISOWeekNumber = (date: Date): number => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return weekNumber;
+};
+
+const shortDayNamesSwedish = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
+
+const TabButton: React.FC<{label: string, isActive: boolean, onClick: () => void, notificationCount?: number}> = ({ label, isActive, onClick, notificationCount }) => (
+    <button
+      onClick={onClick}
+      role="tab"
+      aria-selected={isActive}
+      className={`relative flex-1 py-4 text-center font-semibold border-b-4 transition-colors duration-200
+        ${isActive 
+          ? 'border-primary text-primary' 
+          : 'border-transparent text-neutral hover:border-primary-lighter'
+        }`}
+    >
+      {label}
+      {notificationCount && notificationCount > 0 && (
+         <span className="absolute top-2 right-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold ring-2 ring-white">
+            {notificationCount > 9 ? '9+' : notificationCount}
+        </span>
+      )}
+    </button>
+);
+
+const CompactStatCard: React.FC<{
+    label: string;
+    value: string;
+    change?: { text: string; colorClass: string };
+    icon: React.ReactElement<{ className?: string }>;
+    iconBgColor: string;
+    iconColor: string;
+}> = ({ label, value, change, icon, iconBgColor, iconColor }) => (
+    <div className="bg-white p-3 sm:p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 flex flex-col flex-1 justify-center text-center">
+        <div className="flex items-center justify-center text-xs sm:text-sm text-neutral gap-2">
+            <div className={`flex-shrink-0 p-1.5 rounded-full ${iconBgColor} ${iconColor}`}>
+                {React.cloneElement(icon, { className: "w-4 h-4" })}
+            </div>
+            <span className="font-semibold">{label}</span>
+        </div>
+        <p className="text-xl sm:text-2xl font-bold text-neutral-dark mt-1 whitespace-nowrap">{value}</p>
+        {change && (
+            <p className={`text-xs sm:text-sm font-semibold ${change.colorClass}`}>{change.text}</p>
+        )}
+    </div>
+);
+
+
+export const JourneyView: React.FC<JourneyViewProps> = (props) => {
+  const { 
+      pastDaysData, weightLogs, userProfile, goals, onSaveProfileAndGoals, 
+      onOpenLogWeightModal, playAudio, 
+      viewingDate, setViewingDate, currentDate,
+      initialTab, highestStreak, highestLevelId, minSafeCalories,
+      setToastNotification, achievements, unlockedAchievements, achievementInteractions, journeyAnalysisFeedback,
+      onNavigateToMainWithDate,
+      streakSaver
+  } = props;
+
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    if(initialTab === 'weight') return 'measurements';
+    if(initialTab === 'calendar') return 'overview';
+    if(initialTab === 'profile') return 'goals';
+    if(initialTab === 'achievements') return 'achievements';
+    return 'measurements';
+  });
+
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [isLoadingTimeline, setIsLoadingTimeline] = useState(true);
+  const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
+
+  
+  const timeline = useMemo(() => calculateGoalTimeline(userProfile), [userProfile]);
+  
+  const validPastDaysArray = useMemo(() => Object.values(pastDaysData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [pastDaysData]);
+  const validPastDaysDataCollection: PastDaysSummaryCollection = useMemo(() => validPastDaysArray.reduce((acc, summary) => ({ ...acc, [summary.date]: summary }), {}), [validPastDaysArray]);
+  
+  const weeksMap = useMemo(() => {
+    const map = new Map<string, (PastDaySummary | null)[]>();
+    if (validPastDaysArray.length > 0) {
+      let earliestDate = new Date(validPastDaysArray[validPastDaysArray.length - 1].date);
+      let latestDate = new Date(validPastDaysArray[0].date);
+      let currentWeekStart = getStartOfWeek(latestDate);
+      const earliestWeekStart = getStartOfWeek(earliestDate);
+      while (currentWeekStart >= earliestWeekStart) {
+        const weekDays: (PastDaySummary | null)[] = Array.from({ length: 7 }, (_, i) => {
+          const day = addDays(currentWeekStart, i);
+          return validPastDaysDataCollection[getLocalISODateString(day)] || null;
+        });
+        map.set(getLocalISODateString(currentWeekStart), weekDays);
+        currentWeekStart = addDays(currentWeekStart, -7);
+      }
+    }
+    return map;
+  }, [validPastDaysArray, validPastDaysDataCollection]);
+  
+  const todayISO = useMemo(() => getLocalISODateString(currentDate), [currentDate]);
+
+  const handleDateSelect = (date: Date) => {
+    playAudio('uiClick');
+    onNavigateToMainWithDate(date);
+  };
+  
+  const latestWeightLog = weightLogs.length > 0 ? weightLogs[weightLogs.length - 1] : null;
+  const previousWeightLog = weightLogs.length > 1 ? weightLogs[weightLogs.length - 2] : null;
+  const firstWeightLog = weightLogs.length > 0 ? weightLogs[0] : null;
+
+  const latestWeight = latestWeightLog?.weightKg ?? userProfile.currentWeightKg;
+  const latestMuscle = latestWeightLog?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg;
+  const latestFat = latestWeightLog?.bodyFatMassKg ?? userProfile.bodyFatMassKg;
+
+  let weightChangeNum: number | undefined;
+  let muscleChangeNum: number | undefined;
+  let fatChangeNum: number | undefined;
+
+  if (latestWeightLog && previousWeightLog) {
+      weightChangeNum = latestWeightLog.weightKg - previousWeightLog.weightKg;
+      if (latestWeightLog.skeletalMuscleMassKg != null && previousWeightLog.skeletalMuscleMassKg != null) {
+          muscleChangeNum = latestWeightLog.skeletalMuscleMassKg - previousWeightLog.skeletalMuscleMassKg;
+      }
+      if (latestWeightLog.bodyFatMassKg != null && previousWeightLog.bodyFatMassKg != null) {
+          fatChangeNum = latestWeightLog.bodyFatMassKg - previousWeightLog.bodyFatMassKg;
+      }
+  }
+
+  const formatChangeWithColor = (
+    change: number | undefined,
+    goalType: GoalType,
+    dataType: 'weight' | 'muscle' | 'fat',
+    measurementMethod: 'inbody' | 'scale' | undefined,
+    muscleChangeForWeight: number | undefined,
+    fatChangeForWeight: number | undefined
+  ): { text: string; colorClass: string } => {
+      if (change === undefined || change === null || isNaN(change)) {
+          return { text: '-', colorClass: 'text-neutral' };
+      }
+  
+      if (Math.abs(change) < 0.05) {
+          return { text: '±0,0 kg', colorClass: 'text-accent' };
+      }
+  
+      const sign = change > 0 ? '+' : '';
+      const formattedValue = `${sign}${change.toFixed(1).replace('.', ',')} kg`;
+  
+      let colorClass = 'text-neutral';
+  
+      switch (dataType) {
+          case 'muscle':
+              if (change > 0) colorClass = 'text-primary-darker'; // always good
+              else if (change < 0) colorClass = 'text-red-600'; // always bad
+              break;
+          case 'fat':
+              if (goalType === 'lose_fat') {
+                  if (change < 0) colorClass = 'text-primary-darker'; // good
+                  else if (change > 0) colorClass = 'text-red-600'; // bad
+              }
+              break;
+          case 'weight':
+              if (measurementMethod === 'inbody') {
+                  if (change < 0 && fatChangeForWeight !== undefined && fatChangeForWeight < 0) {
+                      colorClass = 'text-primary-darker'; // good: weight loss from fat
+                  } else if (change > 0 && muscleChangeForWeight !== undefined && muscleChangeForWeight > 0) {
+                      colorClass = 'text-primary-darker'; // good: weight gain from muscle
+                  } else if (change !== 0) {
+                      colorClass = 'text-red-600'; // bad: weight loss from muscle or gain from fat
+                  }
+              } else { // 'scale'
+                  if (change < 0 && (goalType === 'lose_fat' || userProfile.desiredWeightChangeKg && userProfile.desiredWeightChangeKg < 0)) {
+                      colorClass = 'text-primary-darker';
+                  } else if (change > 0 && (goalType === 'gain_muscle' || userProfile.desiredWeightChangeKg && userProfile.desiredWeightChangeKg > 0)) {
+                      colorClass = 'text-primary-darker';
+                  } else if (change !== 0) {
+                      colorClass = 'text-red-600';
+                  }
+              }
+              break;
+      }
+      
+      return { text: formattedValue, colorClass };
+  };
+
+  const weightChangeDetails = formatChangeWithColor(weightChangeNum, userProfile.goalType, 'weight', userProfile.measurementMethod, muscleChangeNum, fatChangeNum);
+  const muscleChangeDetails = formatChangeWithColor(muscleChangeNum, userProfile.goalType, 'muscle', userProfile.measurementMethod, undefined, undefined);
+  const fatChangeDetails = formatChangeWithColor(fatChangeNum, userProfile.goalType, 'fat', userProfile.measurementMethod, undefined, undefined);
+
+  const { goalProgress, goalProgressText, startValue, targetValue } = useMemo(() => {
+    let start, current, goalChange, goalChangeType;
+
+    if (userProfile.measurementMethod === 'scale') {
+        start = userProfile.goalStartWeight;
+        current = latestWeightLog?.weightKg;
+        goalChange = userProfile.desiredWeightChangeKg || 0;
+        goalChangeType = 'kg';
+    } else { // inbody
+        if (userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0) {
+            start = userProfile.goalStartFatMassKg;
+            current = latestWeightLog?.bodyFatMassKg;
+            goalChange = userProfile.desiredFatMassChangeKg;
+            goalChangeType = 'kg fett';
+        } else if (userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0) {
+            start = userProfile.goalStartMuscleMassKg;
+            current = latestWeightLog?.skeletalMuscleMassKg;
+            goalChange = userProfile.desiredMuscleMassChangeKg;
+            goalChangeType = 'kg muskler';
+        } else { // Fallback to weight if no specific fat/muscle goal is set
+             start = userProfile.goalStartWeight;
+             current = latestWeightLog?.weightKg;
+             goalChange = 0;
+             goalChangeType = 'kg';
+        }
+    }
+    
+    if (start == null || current == null || userProfile.mainGoalCompleted || goalChange === 0) {
+        return { goalProgress: 0, goalProgressText: 'Mål ej satt', startValue: undefined, targetValue: undefined };
+    }
+    
+    const target = start + goalChange;
+    const totalChangeNeeded = start - target;
+    const changeAchieved = start - current;
+
+    if (totalChangeNeeded === 0) {
+        return { goalProgress: 100, goalProgressText: `${start.toFixed(1).replace('.',',')} / ${target.toFixed(1).replace('.',',')} ${goalChangeType.split(' ')[1]}`, startValue: start, targetValue: target };
+    }
+
+    const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
+    const progressClamped = Math.max(0, Math.min(progressRaw, 100));
+
+    return {
+        goalProgress: progressClamped,
+        goalProgressText: `${current.toFixed(1).replace('.',',')} / ${target.toFixed(1).replace('.',',')} ${goalChangeType.split(' ')[1]}`,
+        startValue: start,
+        targetValue: target
+    };
+}, [latestWeightLog, userProfile]);
+
+  const goalDisplayString = useMemo(() => {
+    const { measurementMethod, desiredWeightChangeKg, desiredFatMassChangeKg, desiredMuscleMassChangeKg, goalType, goalCompletionDate } = userProfile;
+    const datePart = goalCompletionDate ? ` till ${new Date(goalCompletionDate+'T00:00:00').toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : '';
+    
+    if (userProfile.mainGoalCompleted) {
+        return "Du har nått ditt mål!";
+    }
+
+    if (measurementMethod === 'scale' && desiredWeightChangeKg) {
+        return `Nå en viktförändring på ${desiredWeightChangeKg > 0 ? '+' : ''}${desiredWeightChangeKg.toFixed(1).replace('.',',')} kg${datePart}`;
+    }
+    const changes = [];
+    if (desiredFatMassChangeKg) {
+        changes.push(`${desiredFatMassChangeKg > 0 ? '+' : ''}${desiredFatMassChangeKg.toFixed(1).replace('.',',')} kg fett`);
+    }
+    if (desiredMuscleMassChangeKg) {
+        changes.push(`${desiredMuscleMassChangeKg > 0 ? '+' : ''}${desiredMuscleMassChangeKg.toFixed(1).replace('.',',')} kg muskler`);
+    }
+    if (changes.length > 0) {
+        return `Nå en förändring på ${changes.join(' och ')}${datePart}`;
+    }
+    
+    const goalTypeDisplayMap: Record<GoalType, string> = {
+        lose_fat: 'Minska fettmassa / vikt',
+        maintain: 'Behålla nuvarande vikt/sammansättning',
+        gain_muscle: 'Öka muskelmassa / vikt',
+    };
+    return goalTypeDisplayMap[goalType];
+  }, [userProfile]);
+
+  return (
+    <>
+      <div className="animate-fade-in">
+            
+        <div className="space-y-6">
+            <section aria-labelledby="journey-summary-heading">
+                <h2 id="journey-summary-heading" className="sr-only">Sammanfattning av resan</h2>
+                <div className="flex flex-row gap-3">
+                    <CompactStatCard 
+                        label="Vikt" 
+                        value={latestWeight ? `${latestWeight.toFixed(1).replace('.',',')} kg` : 'N/A'} 
+                        change={weightChangeDetails}
+                        icon={<UserIcon />} 
+                        iconBgColor="bg-green-100" 
+                        iconColor="text-green-600"
+                    />
+                    {latestMuscle != null && (
+                        <CompactStatCard 
+                            label="Muskler" 
+                            value={latestMuscle ? `${latestMuscle.toFixed(1).replace('.',',')} kg` : 'N/A'} 
+                            change={muscleChangeDetails}
+                            icon={<Dumbbell />}
+                            iconBgColor="bg-orange-100" 
+                            iconColor="text-orange-500"
+                        />
+                    )}
+                    {latestFat != null && (
+                        <CompactStatCard 
+                            label="Fett" 
+                            value={latestFat ? `${latestFat.toFixed(1).replace('.',',')} kg` : 'N/A'} 
+                            change={fatChangeDetails}
+                            icon={<PieChart />}
+                            iconBgColor="bg-yellow-100"
+                            iconColor="text-yellow-500"
+                        />
+                    )}
+                </div>
+                 <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                    <button
+                        onClick={onOpenLogWeightModal}
+                        className="flex-1 px-5 py-3 bg-primary hover:bg-primary-darker text-white font-semibold rounded-lg shadow-soft-lg active:scale-95 interactive-transition flex items-center justify-center"
+                    >
+                        Logga ny mätning
+                    </button>
+                </div>
+            </section>
+
+            <div className="bg-white p-2 sm:p-4 rounded-xl shadow-soft-lg border border-neutral-light">
+              <nav className="border-b border-neutral-light -mx-2 sm:-mx-4 px-2 sm:px-4 mb-4">
+                  <div role="tablist" className="flex items-center justify-around">
+                      <TabButton label="Utveckling" isActive={activeTab === 'measurements'} onClick={() => setActiveTab('measurements')} />
+                      <TabButton label="Översikt" isActive={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
+                      <TabButton label="Mål" isActive={activeTab === 'goals'} onClick={() => setActiveTab('goals')} />
+                      <TabButton label="Bragder" isActive={activeTab === 'achievements'} onClick={() => setActiveTab('achievements')} />
+                  </div>
+              </nav>
+
+              <div className="mt-4">
+                {activeTab === 'measurements' && (
+                    <div className="space-y-4">
+                        <WeightChart data={weightLogs} />
+                        {journeyAnalysisFeedback && (
+                            <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
+                                <button
+                                    onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
+                                    className="w-full flex justify-between items-center text-left mb-2 group"
+                                    aria-expanded={isAnalysisExpanded}
+                                    aria-controls="journey-analysis-panel"
+                                >
+                                    <div className="flex items-center">
+                                        <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
+                                        <div>
+                                            <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">Senaste Analys från Coachen</h3>
+                                            <p className="text-xs text-neutral">
+                                                {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
+                                </button>
+                                {isAnalysisExpanded && (
+                                    <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
+                                        {journeyAnalysisFeedback.sections.map((section, index) => (
+                                            <div key={index} className="pt-3 border-t border-neutral-light/50">
+                                                <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
+                                                    <span className="text-xl mr-2">{section.emoji}</span>
+                                                    {section.title}
+                                                </h4>
+                                                <div className="text-neutral-dark space-y-1 text-sm pl-8">
+                                                    {section.content.split('\n').map((line, lineIdx) => (
+                                                        <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+                
+                {activeTab === 'overview' && (
+                    <div className="space-y-6">
+                        {Array.from(weeksMap.keys()).map(weekStartISO => {
+                            const weekData = weeksMap.get(weekStartISO);
+                            if (!weekData) return null;
+                            const weekNumber = getISOWeekNumber(new Date(weekStartISO));
+                            return (
+                                <div key={weekStartISO}>
+                                    <h4 className="text-base font-semibold text-neutral-dark mb-2">Vecka {weekNumber}</h4>
+                                    <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                                        {weekData.map((summary, index) => {
+                                            const dayDate = addDays(new Date(weekStartISO), index);
+                                            const dayISO = getLocalISODateString(dayDate);
+                                            
+                                            const isFutureDay = dayDate > currentDate;
+                                            const todayISOForComparison = getLocalISODateString(currentDate);
+                                            const viewingDateISOForComparison = getLocalISODateString(viewingDate);
+                                            const isToday = dayISO === todayISOForComparison;
+                                            const isViewingThisDay = dayISO === viewingDateISOForComparison;
+                                            const waterGoalWasMet = summary?.waterGoalMet === true;
+                                            const isSavable = summary && !summary.goalMet && !isToday && !isFutureDay;
+
+                                            let bgColor = 'bg-gray-200';
+                                            let iconColorClass = 'text-gray-700';
+                                            let ariaLabel = `Status för ${dayDate.toLocaleDateString('sv-SE', { weekday: 'long' })}: `;
+
+                                            if (isToday) {
+                                                bgColor = 'bg-secondary/30';
+                                                iconColorClass = 'text-secondary-darker';
+                                                ariaLabel += 'Idag, pågående.';
+                                            } else if (isFutureDay) {
+                                                bgColor = 'bg-gray-100';
+                                                iconColorClass = 'text-gray-400';
+                                                ariaLabel += 'Framtida dag.';
+                                            } else { // It's a past day
+                                                if (summary) {
+                                                    if (summary.goalMet) {
+                                                        bgColor = 'bg-primary/70';
+                                                        iconColorClass = 'text-white';
+                                                        ariaLabel += 'Mål uppnått.';
+                                                    } else {
+                                                        bgColor = 'bg-secondary/70';
+                                                        iconColorClass = 'text-white';
+                                                        ariaLabel += 'Mål ej uppnått.';
+                                                    }
+                                                } else { // Past day, no summary
+                                                    bgColor = 'bg-neutral-light';
+                                                    iconColorClass = 'text-neutral-dark';
+                                                    ariaLabel += 'Ej loggad.';
+                                                }
+                                            }
+
+                                            return (
+                                                <div key={dayISO} className="relative">
+                                                    <button
+                                                        onClick={() => !isFutureDay && handleDateSelect(dayDate)}
+                                                        disabled={isFutureDay}
+                                                        className={`flex flex-col items-center justify-around p-1 rounded-md text-xs sm:text-sm font-medium transition-all aspect-square w-full focus:outline-none
+                                                          ${bgColor} 
+                                                          ${isFutureDay ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-105 active:scale-95'}
+                                                          ${isViewingThisDay ? 'ring-2 ring-offset-1 ring-secondary' : ''}
+                                                          ${isSavable ? 'hover:shadow-lg hover:ring-2 hover:ring-secondary' : ''}
+                                                        `}
+                                                        aria-label={ariaLabel}
+                                                        title={ariaLabel}
+                                                    >
+                                                        <span className={`text-xs font-bold ${iconColorClass}`}>{shortDayNamesSwedish[index]}</span>
+                                                        
+                                                        <div className="flex justify-center items-center w-full px-0.5" style={{ height: '16px' }}>
+                                                            {summary ? (
+                                                                <div className="w-4 h-4 flex items-center justify-center">
+                                                                    {summary.proteinGoalMet && <span role="img" aria-label="Proteinmål uppnått" title="Proteinmål uppnått" className="text-sm">💪</span>}
+                                                                </div>
+                                                            ) : (
+                                                                <div style={{height: '16px'}}></div>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        <span className={`text-lg font-bold ${iconColorClass}`}>{dayDate.getDate()}</span>
+                                                    </button>
+                                                    {waterGoalWasMet && (
+                                                        <div 
+                                                            className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-3/5 h-[3px] bg-blue-400 rounded-full"
+                                                            title="Vattenmål uppnått"
+                                                        ></div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        <GamificationCard goals={goals} minSafeCalories={minSafeCalories} highestStreak={highestStreak} highestLevelId={highestLevelId} streakSaver={streakSaver}/>
+                    </div>
+                )}
+
+                {activeTab === 'goals' && (
+                  <div className="space-y-6">
+                    <section aria-labelledby="current-goal-heading">
+                        <h3 id="current-goal-heading" className="text-xl font-semibold text-neutral-dark mb-3">Ditt Aktuella Mål</h3>
+                        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70">
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                                <p className="text-lg text-neutral-dark font-medium text-center sm:text-left">{goalDisplayString}</p>
+                            </div>
+                            {!userProfile.mainGoalCompleted && (
+                                <div className="mt-3">
+                                    <div className="w-full bg-neutral-light rounded-full h-2.5 shadow-inner">
+                                        <div className="bg-primary h-2.5 rounded-full" style={{ width: `${goalProgress}%` }}></div>
+                                    </div>
+                                     <p className="text-right text-sm font-semibold text-primary-darker mt-1">{goalProgress.toFixed(0)}%</p>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                    <GoalTimeline milestones={timeline.milestones} paceFeedback={timeline.paceFeedback} weightLogs={weightLogs} goalType={userProfile.goalType} currentAppDate={currentDate}/>
+                    <ProfileAndGoalEditor initialProfile={userProfile} initialGoals={goals} onSave={onSaveProfileAndGoals} />
+                    
+                    {userProfile.completedGoals && userProfile.completedGoals.length > 0 && (
+                        <section aria-labelledby="completed-goals-heading">
+                            <h3 id="completed-goals-heading" className="text-xl font-semibold text-neutral-dark mb-3">Uppnådda Huvudmål</h3>
+                            <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3">
+                                {[...userProfile.completedGoals]
+                                    .sort((a, b) => new Date(b.achievedOn).getTime() - new Date(a.achievedOn).getTime())
+                                    .map((goal) => (
+                                        <div key={goal.id} className="p-3 bg-primary-100/60 rounded-lg border border-primary-200">
+                                            <p className="font-semibold text-primary-darker flex items-center">
+                                                <TrophyIcon className="w-5 h-5 mr-2 text-accent" />
+                                                {goal.description}
+                                            </p>
+                                            <p className="text-sm text-neutral-dark pl-7">
+                                                Uppnådd den {new Date(goal.achievedOn).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                            </p>
+                                        </div>
+                                    ))
+                                }
+                            </div>
+                        </section>
+                    )}
+                  </div>
+                )}
+                
+                {activeTab === 'achievements' && (
+                  <AchievementsView 
+                    userProfile={userProfile}
+                    achievements={achievements}
+                    unlockedAchievements={unlockedAchievements}
+                    achievementInteractions={achievementInteractions}
+                    setToastNotification={setToastNotification}
+                  />
+                )}
+
+              </div>
+            </div>
+        </div>
+      </div>
+    </>
+  );
+};
