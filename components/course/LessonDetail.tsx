@@ -216,7 +216,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
 
 
         <section className="mb-8">
-          <h2 className="text-2xl font-semibold text-neutral-dark mb-4">Fokus denna lektion:</h2>
+          <h2 className="text-xl font-semibold text-neutral-dark mb-4">Fokus denna lektion:</h2>
           <ul className="space-y-3">
             {lesson.focusPoints.map(point => (
               <li key={point.id} className="space-y-2">
@@ -272,7 +272,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
         )}
 
         <section className="mb-8">
-          <h2 className="text-2xl font-semibold text-neutral-dark mb-3">{lesson.reflection.question}</h2>
+          <h2 className="text-xl font-semibold text-neutral-dark mb-3">{lesson.reflection.question}</h2>
           <textarea
             value={reflectionAnswer}
             onChange={(e) => setReflectionAnswer(e.target.value)}
