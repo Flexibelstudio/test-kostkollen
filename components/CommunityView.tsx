@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, FC, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { Peppkompis, TimelineEvent, Achievement, Gender, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions } from '../types';
@@ -84,27 +82,43 @@ const BuddyCard: FC<{
     
     const progressPercentage = useMemo(() => {
         if (buddy.mainGoalCompleted) return 100;
-        const start = buddy.goalStartWeight;
-        const current = buddy.currentWeight;
-        if (start == null || current == null) return 0;
-        
-        let goalChange = 0;
-        if (buddy.measurementMethod === 'scale') {
-            goalChange = buddy.desiredWeightChangeKg || 0;
-        } else {
-            goalChange = (buddy.desiredFatMassChangeKg || 0) + (buddy.desiredMuscleMassChangeKg || 0);
-        }
 
-        if (goalChange === 0) return 0;
+        let start, current, goalChange;
+
+        if (buddy.measurementMethod === 'scale') {
+            start = buddy.goalStartWeight;
+            current = buddy.currentWeight;
+            goalChange = buddy.desiredWeightChangeKg || 0;
+        } else { // inbody
+            if (buddy.desiredFatMassChangeKg && buddy.desiredFatMassChangeKg < 0) {
+                start = buddy.goalStartFatMassKg;
+                current = buddy.currentFatMass;
+                goalChange = buddy.desiredFatMassChangeKg;
+            } else if (buddy.desiredMuscleMassChangeKg && buddy.desiredMuscleMassChangeKg > 0) {
+                start = buddy.goalStartMuscleMassKg;
+                current = buddy.currentMuscleMass;
+                goalChange = buddy.desiredMuscleMassChangeKg;
+            } else { // Fallback to weight if no specific fat/muscle goal is set
+                 start = buddy.goalStartWeight;
+                 current = buddy.currentWeight;
+                 goalChange = 0;
+            }
+        }
+        
+        if (start == null || current == null || goalChange === 0) {
+            return 0;
+        }
         
         const target = start + goalChange;
         const totalChangeNeeded = start - target;
         const changeAchieved = start - current;
 
-        if (totalChangeNeeded === 0) return 100;
+        if (totalChangeNeeded === 0) {
+            return 100;
+        }
 
-        const progress = (changeAchieved / totalChangeNeeded) * 100;
-        return Math.max(0, Math.min(progress, 100));
+        const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
+        return Math.max(0, Math.min(progressRaw, 100));
     }, [buddy]);
     
     const goalDescription = useMemo(() => {
@@ -253,11 +267,6 @@ const [activeTab, setActiveTab] = useState<'buddies' | 'search' | 'requests'>(in
             setRequests(reqs.filter(r => r.fromUid !== currentUser.uid));
             setOutgoingRequests(outReqs);
             setAllSearchableUsers(allUsers);
-            
-            if (!reqs.length && !outReqs.length && !allUsers.length) {
-    setToastNotification({ message: "Kunde inte ladda kompisdata.", type: 'error' });
-}
-
         } catch (error) {
             setToastNotification({ message: "Kunde inte ladda kompisdata.", type: 'error' });
         } finally {

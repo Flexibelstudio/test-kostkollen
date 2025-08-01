@@ -426,6 +426,8 @@ export interface BuddyDetails extends Peppkompis {
     
     // For progress bar
     goalStartWeight?: number;
+    goalStartMuscleMassKg?: number;
+    goalStartFatMassKg?: number;
     currentWeight?: number;
     goalType: GoalType;
     mainGoalCompleted?: boolean;

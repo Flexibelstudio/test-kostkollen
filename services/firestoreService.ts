@@ -832,6 +832,8 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
             currentStreak: userData.currentStreak,
             unlockedAchievements: userData.unlockedAchievements || {},
             goalStartWeight: userData.goalStartWeight,
+            goalStartMuscleMassKg: userData.goalStartMuscleMassKg,
+            goalStartFatMassKg: userData.goalStartFatMassKg,
             currentWeight: userData.currentWeightKg,
             goalType: userData.goalType,
             mainGoalCompleted: userData.mainGoalCompleted,
