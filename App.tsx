@@ -5,6 +5,7 @@ import { doc, writeBatch, deleteField, collection } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
+import SplashScreen from './components/SplashScreen';
 
 
 import { NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode, DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level, GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion, AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog, AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection, Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent } from './types.ts';
@@ -1044,8 +1045,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         return;
     }
 
-    setAppStatus(AppStatus.SAVING);
-
     // 1. Generate ID client-side
     const mealLogCollectionRef = collection(db, 'users', currentUser.uid, 'mealLogs');
     const mealLogDocRef = doc(mealLogCollectionRef);
@@ -1130,7 +1129,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setDailyLog(originalDailyLog);
         setWeeklyBank(originalBankState);
     } finally {
-        setAppStatus(AppStatus.IDLE);
         // Reset image analysis state
         setCameraImageForAnalysis(null);
         setImageFileForAnalysis(null);
@@ -2819,7 +2817,7 @@ useEffect(() => {
 
 
   if (authLoading || isDataLoading) {
-    return <LoadingSpinner message={authLoading ? "Autentiserar..." : "Laddar dina data..."} color="white" />;
+    return <SplashScreen />;
   }
 
   if (!currentUser) {

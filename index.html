@@ -120,6 +120,15 @@
       }
       .animate-heart-pop { animation: heart-pop 0.6s ease-out forwards; }
 
+      @keyframes pulse {
+        50% {
+          opacity: .7;
+        }
+      }
+      .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
       /* Icon button styles for header */
       .nav-btn {
         background: none;

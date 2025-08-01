@@ -208,9 +208,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
     } else {
         const existingData = userDoc.data();
         const updateData: any = { 
-            lastLoginAt: serverTimestamp(),
-            role: existingData.role,
-            status: existingData.status,
+            lastLoginAt: serverTimestamp()
         };
         if (fbUser.displayName && existingData.displayName !== fbUser.displayName) {
             updateData.displayName = fbUser.displayName;
@@ -218,6 +216,8 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
         if (fbUser.photoURL && existingData.photoURL !== fbUser.photoURL) {
             updateData.photoURL = fbUser.photoURL;
         }
+        // This update is safe because it only updates login time and profile details from the auth provider.
+        // It does NOT read and write back role/status.
         await updateDoc(userDocRef, updateData);
     }
 }
@@ -336,16 +336,8 @@ export async function addMealLog(userId: string, mealId: string, mealData: Omit<
   
   batch.set(mealLogRef, mealData);
   
-  // Update lastLogDate on the user document
-  // This operation is now safe under typical security rules where a user can update their own document.
-  const userDoc = await getDoc(userDocRef);
-  if (userDoc.exists()) {
-    const { role, status } = userDoc.data();
-    batch.update(userDocRef, { lastLogDate: mealData.dateString, role, status });
-  } else {
-    // This case should ideally not happen for an authenticated user, but as a fallback:
-    batch.update(userDocRef, { lastLogDate: mealData.dateString });
-  }
+  // SAFE UPDATE: Only update the lastLogDate field. Do not read and write back role/status.
+  batch.update(userDocRef, { lastLogDate: mealData.dateString });
   
   await batch.commit();
 }
@@ -448,17 +440,13 @@ export async function updateCommonMeal(userId: string, commonMealId: string, upd
 
 export async function saveProfileAndGoals(userId: string, profile: UserProfileData, goals: GoalSettings) {
     const userDocRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userDocRef);
-    if (!userDoc.exists()) throw new Error("User document not found for saving profile.");
-
-    const { role, status } = userDoc.data();
     
-    const profileToSave: Partial<FirestoreUserDocument> & UserProfileData = {
+    // SAFE UPDATE: Create a payload with only the fields that need to be updated.
+    // Do NOT read and write back `role` and `status`. `updateDoc` will leave them untouched.
+    const dataToUpdate = {
         ...profile,
         goals: goals,
         displayName: profile.name,
-        role: role,
-        status: status,
     };
     
     function noUndefined(obj: any) {
@@ -466,7 +454,7 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
         Object.entries(obj).map(([k, v]) => [k, v === undefined ? null : v])
       );
     }
-    await updateDoc(userDocRef, noUndefined(profileToSave as any));
+    await updateDoc(userDocRef, noUndefined(dataToUpdate as any));
 }
 
 
