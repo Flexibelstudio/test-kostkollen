@@ -481,6 +481,50 @@ const UseStreakSaverModal: React.FC<{
 };
 
 
+const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            if (!event.target?.result) {
+                return reject(new Error("File could not be read."));
+            }
+            const img = new Image();
+            img.src = event.target.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let { width, height } = img;
+
+                if (width > height) {
+                    if (width > maxSize) {
+                        height = Math.round(height * (maxSize / width));
+                        width = maxSize;
+                    }
+                } else {
+                    if (height > maxSize) {
+                        width = Math.round(width * (maxSize / height));
+                        height = maxSize;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    return reject(new Error('Could not get canvas context'));
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                // Get data URL with specified quality and return only the base64 part
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+                resolve(dataUrl.split(',')[1]);
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+};
+
+
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const isProcessingDaysRef = useRef<boolean>(false);
@@ -993,7 +1037,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   }, [goals.calorieGoal]);
 
 
-  const addMealToLog = async (nutritionalInfo: NutritionalInfo, options: { imageFile?: File; base64Image?: string; commonMealId?: string } = {}) => {
+  const addMealToLog = async (nutritionalInfo: NutritionalInfo, options: { base64Image?: string; commonMealId?: string } = {}) => {
     if (!isViewingToday || !currentUser) {
         setToastNotification({ message: "Du kan endast logga måltider för idag.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
@@ -1137,20 +1181,22 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
     };
   
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setImageFileForAnalysis(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64ImageData = (reader.result as string).split(',')[1];
-        if (base64ImageData) {
-          handleImageCapture(base64ImageData, true);
-        }
-      };
-      reader.readAsDataURL(file);
+      setAppStatus(AppStatus.ANALYZING); // Show a generic processing spinner
+      try {
+        const resizedBase64 = await resizeImageForLog(file, 800);
+        setImageFileForAnalysis(file);
+        handleImageCapture(resizedBase64, true);
+      } catch (error) {
+          console.error("Image resize failed:", error);
+          setToastNotification({ message: 'Kunde inte bearbeta bilden.', type: 'error' });
+          setTimeout(() => setToastNotification(null), 3500);
+          setAppStatus(AppStatus.IDLE);
+      }
     }
-    event.target.value = ''; // Reset file input
+    if (event.target) event.target.value = ''; // Reset file input
   };
 
   const handleLogFromModal = (foodInfo: NutritionalInfo | SearchedFoodInfo, options: { saveAsCommon: boolean }) => {
@@ -1166,13 +1212,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     const foodNameToUse = isSearchedFood ? (foodInfo as SearchedFoodInfo).servingDescription : foodInfo.foodItem;
     const fullFoodItemName = isSearchedFood ? `${foodInfo.foodItem} (${(foodInfo as SearchedFoodInfo).servingDescription})` : foodInfo.foodItem;
     
+    // cameraImageForAnalysis will contain the resized base64 string from either camera or upload
     const base64ForUpload = cameraImageForAnalysis ? `data:image/jpeg;base64,${cameraImageForAnalysis}` : undefined;
 
     addMealToLog(
         { ...baseNutritionalInfo, foodItem: fullFoodItemName }, 
         { 
-            imageFile: imageFileForAnalysis, 
-            base64Image: imageFileForAnalysis ? undefined : base64ForUpload,
+            base64Image: base64ForUpload,
             commonMealId: isSearchedFood ? 'text_search' : undefined
         }
     );
@@ -3199,7 +3245,7 @@ useEffect(() => {
                 daySummary={showMotivationModal}
             />
         )}
-        {analysisResultForModal && cameraImageForAnalysis && (
+        {analysisResultForModal && (
             <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setAnalysisResultForModal(null)}>
                 <div onClick={e => e.stopPropagation()}>
                     <ImageAnalysisResultModal 
