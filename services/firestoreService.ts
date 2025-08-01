@@ -815,15 +815,27 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
         
         const userData = userDocSnap.data() as FirestoreUserDocument;
 
+        // Fetch the latest weight log to get the most current data
+        const weightLogsRef = collection(db, 'users', buddy.uid, 'weightLogs');
+        const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
+        const latestLogSnap = await getDocsSafe(latestLogQuery);
+        const latestLog = latestLogSnap.empty ? null : latestLogSnap.docs[0].data() as WeightLogEntry;
+
+        // Use latest log data if available, otherwise fallback to main doc data
+        const currentWeight = latestLog?.weightKg ?? userData.currentWeightKg;
+        const currentMuscleMass = latestLog?.skeletalMuscleMassKg ?? userData.skeletalMuscleMassKg;
+        const currentFatMass = latestLog?.bodyFatMassKg ?? userData.bodyFatMassKg;
+
+
         let totalWeightChange, muscleMassChange, fatMassChange;
-        if (userData.goalStartWeight != null && userData.currentWeightKg != null) {
-            totalWeightChange = userData.currentWeightKg - userData.goalStartWeight;
+        if (userData.goalStartWeight != null && currentWeight != null) {
+            totalWeightChange = currentWeight - userData.goalStartWeight;
         }
-        if (userData.goalStartMuscleMassKg != null && userData.skeletalMuscleMassKg != null) {
-            muscleMassChange = userData.skeletalMuscleMassKg - userData.goalStartMuscleMassKg;
+        if (userData.goalStartMuscleMassKg != null && currentMuscleMass != null) {
+            muscleMassChange = currentMuscleMass - userData.goalStartMuscleMassKg;
         }
-        if (userData.goalStartFatMassKg != null && userData.bodyFatMassKg != null) {
-            fatMassChange = userData.bodyFatMassKg - userData.goalStartFatMassKg;
+        if (userData.goalStartFatMassKg != null && currentFatMass != null) {
+            fatMassChange = currentFatMass - userData.goalStartFatMassKg;
         }
 
         return {
@@ -834,13 +846,13 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
             goalStartWeight: userData.goalStartWeight,
             goalStartMuscleMassKg: userData.goalStartMuscleMassKg,
             goalStartFatMassKg: userData.goalStartFatMassKg,
-            currentWeight: userData.currentWeightKg,
+            currentWeight: currentWeight,
             goalType: userData.goalType,
             mainGoalCompleted: userData.mainGoalCompleted,
             totalWeightChange,
-            currentMuscleMass: userData.skeletalMuscleMassKg,
+            currentMuscleMass: currentMuscleMass,
             muscleMassChange,
-            currentFatMass: userData.bodyFatMassKg,
+            currentFatMass: currentFatMass,
             fatMassChange,
             measurementMethod: userData.measurementMethod,
             desiredWeightChangeKg: userData.desiredWeightChangeKg,
