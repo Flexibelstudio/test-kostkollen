@@ -251,6 +251,7 @@ export interface CourseLesson {
     id: string;
     title: string;
     introduction: string;
+    detailedText?: string;
     focusPoints: { id: string; text: string; cta?: { label: string; action: 'openSpeedDial' | 'navigateToJourneyCalendar' | 'navigateToJourneyGoals' | 'openLogWeightModal'; }; }[];
     tips: { id: string; text: string; }[];
     reflection: { id: string; question: string; };

@@ -1,8 +1,6 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { CourseLesson, UserLessonProgress, UserProfileData, WeightLogEntry, PastDaySummary, AIDataForLessonIntro } from '../../types';
-import { ArrowLeftIcon, CheckCircleIcon, CheckIcon, InformationCircleIcon, SparklesIcon, BookOpenIcon, PlusCircleIcon, ChartLineIcon, XMarkIcon } from '../icons';
+import { ArrowLeftIcon, CheckCircleIcon, CheckIcon, InformationCircleIcon, SparklesIcon, BookOpenIcon, PlusCircleIcon, ChartLineIcon, XMarkIcon, ChevronDownIcon } from '../icons';
 import { getAIPersonalizedLessonIntro } from '../../services/geminiService';
 
 interface LessonDetailProps {
@@ -45,6 +43,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
   const [aiIntro, setAiIntro] = useState<string | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDetailedTextExpanded, setIsDetailedTextExpanded] = useState(false);
 
 
   useEffect(() => {
@@ -166,6 +165,32 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
           )}
           <p className="text-base text-neutral-dark mt-2 text-center">{lesson.introduction}</p>
         </header>
+        
+        {lesson.detailedText && (
+          <div className="my-6 py-4 border-y border-neutral-light/70">
+            <button
+              onClick={() => setIsDetailedTextExpanded(!isDetailedTextExpanded)}
+              className="w-full flex justify-between items-center text-left"
+              aria-expanded={isDetailedTextExpanded}
+              aria-controls={`lesson-detailed-text-${lesson.id}`}
+            >
+              <h3 className="text-xl font-semibold text-neutral-dark">Läs mer om lektionen</h3>
+              <ChevronDownIcon
+                className={`w-6 h-6 text-neutral-dark transition-transform duration-300 ${isDetailedTextExpanded ? 'rotate-180' : ''}`}
+              />
+            </button>
+            <div
+              id={`lesson-detailed-text-${lesson.id}`}
+              className={`overflow-hidden transition-[max-height] duration-500 ease-in-out ${isDetailedTextExpanded ? 'max-h-screen' : 'max-h-0'}`}
+            >
+              <div className="pt-4 text-base text-neutral-dark space-y-3">
+                {lesson.detailedText.split('\n').map((paragraph, index) => (
+                  <p key={index}>{paragraph}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {lesson.specialAction && (
           <section className="mb-8 p-5 bg-primary-100/70 rounded-lg border border-primary-200">
