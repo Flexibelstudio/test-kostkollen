@@ -188,16 +188,8 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, 'name'> {
   email: string | null;
   displayName: string;
   role: UserRole;
-  status: 'pending' | 'approved' | 'active';
+  status: 'pending' | 'approved';
   hasCompletedOnboarding: boolean;
-  subscription?: {
-    active: boolean;
-    type: 'monthly' | null;
-    status: 'active' | 'trialing' | 'past_due' | 'canceled' | null;
-    stripeCustomerId: string | null;
-    stripeSubscriptionId: string | null;
-    currentPeriodEnd: number | null;
-  };
   createdAt: FieldValue;
   lastLoginAt: FieldValue;
   lastLogDate: string | null;
@@ -386,7 +378,7 @@ export interface CoachViewMember {
   name: string;
   email: string;
   role: UserRole;
-  status: 'pending' | 'approved' | 'active';
+  status: 'pending' | 'approved';
   photoURL?: string;
   isCourseActive?: boolean;
   courseInterest?: boolean;

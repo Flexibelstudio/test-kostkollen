@@ -47,6 +47,10 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
   const todayISO = getLocalISODateString(today);
   const viewingDateISO = getLocalISODateString(viewingDate);
 
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayISO = getLocalISODateString(yesterday);
+
   return (
     <div className="mt-4 mb-3 p-3 bg-neutral-light/50 rounded-lg shadow-sm">
       <h4 className="text-sm font-semibold text-neutral-dark mb-2 text-center">Veckoöversikt</h4>
@@ -56,10 +60,12 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
           
           const isFutureDay = day > today;
           const isToday = dayISO === todayISO;
+          const isYesterday = dayISO === yesterdayISO;
+          const isClickable = isToday || isYesterday;
+
           const isViewingThisDay = dayISO === viewingDateISO;
           const summary = pastDaysSummary[dayISO];
           const waterGoalWasMet = summary?.waterGoalMet === true;
-          const isSavable = summary && !summary.goalMet && !isToday && !isFutureDay;
 
           let bgColor = 'bg-gray-200';
           let iconColorClass = 'text-gray-700';
@@ -93,13 +99,13 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
           return (
             <div key={dayISO} className="relative">
               <button
-                onClick={() => !isFutureDay && onDateSelect(day)}
+                onClick={() => isClickable && onDateSelect(day)}
                 disabled={isFutureDay}
                 className={`flex flex-col items-center justify-around p-1 rounded-md text-xs sm:text-sm font-medium transition-all aspect-square w-full focus:outline-none
                   ${bgColor} 
-                  ${isFutureDay ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-105 active:scale-95'}
+                  ${isFutureDay ? 'opacity-60 cursor-not-allowed' : ''}
+                  ${isClickable ? 'cursor-pointer hover:scale-105 active:scale-95 hover:shadow-lg hover:ring-2 hover:ring-secondary' : 'cursor-default'}
                   ${isViewingThisDay ? 'ring-2 ring-offset-1 ring-secondary' : ''}
-                  ${isSavable ? 'hover:shadow-lg hover:ring-2 hover:ring-secondary' : ''}
                 `}
                 aria-label={ariaLabel}
                 title={ariaLabel}

@@ -1,10 +1,8 @@
 // firebase.ts
 import { initializeApp } from "@firebase/app";
 // Import auth persistence functions
-import { getAuth, setPersistence, browserLocalPersistence, connectAuthEmulator } from "@firebase/auth";
-import { getFirestore, enableIndexedDbPersistence, connectFirestoreEmulator } from "@firebase/firestore";
-import { getStorage } from "@firebase/storage";
-import { getFunctions, connectFunctionsEmulator } from "@firebase/functions";
+import { getAuth, setPersistence, browserLocalPersistence } from "@firebase/auth";
+import { getFirestore, enableIndexedDbPersistence } from "@firebase/firestore";
 
 const isMock = new URLSearchParams(window.location.search).get('mock') === 'true';
 
@@ -47,18 +45,9 @@ const app = initializeApp(firebaseConfig);
 // Get and export the auth and firestore instances
 const realAuth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const functions = getFunctions(app); // Get functions instance to connect to emulator
 
-// === NEW CODE TO CONNECT TO EMULATORS IN DEV MODE ===
-// This block must be placed AFTER initializing the services but BEFORE they are used.
-if (window.location.hostname === "localhost") {
-  console.log("DEV MODE: Connecting to Firebase Emulators");
-  connectAuthEmulator(realAuth, "http://localhost:9199");
-  connectFirestoreEmulator(db, "localhost", 8181);
-  connectFunctionsEmulator(functions, "localhost", 5001);
-}
-// =====================================================
+// NOTE: Any logic for connecting to Firebase emulators on localhost has been removed.
+// The app now connects to the production Firebase services by default.
 
 export const auth = isMock ? mockAuth as any : realAuth;
 

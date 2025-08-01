@@ -467,6 +467,39 @@ const [activeTab, setActiveTab] = useState<'buddies' | 'search' | 'requests'>(in
     );
 };
 
+const renderWeightDescription = (description: string) => {
+    const parts = description.split('\n'); // Split by newline
+    return (
+        <div className="space-y-1 mt-2">
+            {parts.map(part => {
+                const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
+                if (!match) {
+                    return <p key={part} className="text-base text-neutral-dark">{part}</p>;
+                }
+                
+                const label = match[1];
+                const value = match[2];
+                const changeStr = match[3];
+                const changeNum = parseFloat(changeStr.replace(',', '.'));
+
+                let colorClass = 'text-accent'; // Neutral/yellow for ±0,0
+                if (changeNum > 0) {
+                    if (label === 'Muskler') colorClass = 'text-primary'; // Green for muscle increase
+                    else colorClass = 'text-red-600'; // Red for weight/fat increase
+                } else if (changeNum < 0) {
+                    if (label === 'Muskler') colorClass = 'text-red-600'; // Red for muscle decrease
+                    else colorClass = 'text-primary'; // Green for weight/fat decrease
+                }
+
+                return (
+                    <p key={label} className="text-base text-neutral-dark">
+                        <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
+                    </p>
+                );
+            })}
+        </div>
+    );
+};
 
 const TimelineEventCard: FC<{
     event: TimelineEvent;
@@ -489,40 +522,6 @@ const TimelineEventCard: FC<{
     };
     
     const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
-
-    const renderWeightDescription = (description: string) => {
-        const parts = description.split(' | ');
-        return (
-            <div className="space-y-1 mt-2">
-                {parts.map(part => {
-                    const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
-                    if (!match) {
-                        return <p key={part} className="text-base text-neutral-dark">{part}</p>;
-                    }
-                    
-                    const label = match[1];
-                    const value = match[2];
-                    const changeStr = match[3];
-                    const changeNum = parseFloat(changeStr.replace(',', '.'));
-
-                    let colorClass = 'text-accent'; // Neutral/yellow for ±0,0
-                    if (changeNum > 0) {
-                        if (label === 'Muskler') colorClass = 'text-primary'; // Green
-                        else colorClass = 'text-red-600'; // Red for weight/fat increase
-                    } else if (changeNum < 0) {
-                        if (label === 'Muskler') colorClass = 'text-red-600'; // Red for muscle decrease
-                        else colorClass = 'text-primary'; // Green for weight/fat decrease
-                    }
-
-                    return (
-                        <p key={label} className="text-base text-neutral-dark">
-                            <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
-                        </p>
-                    );
-                })}
-            </div>
-        );
-    };
 
     return (
     <div id={`event-${event.id}`} className="bg-white p-3 rounded-xl shadow-sm border border-neutral-light/60">

@@ -161,31 +161,31 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
         const yesterdayDateString = getDateUID(yesterday);
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-        const newUserDoc: Omit<FirestoreUserDocument, 'createdAt' | 'lastLoginAt' | 'subscription'> & { createdAt: any, lastLoginAt: any, subscription?: any } = {
+        const newUserDoc: Omit<FirestoreUserDocument, 'createdAt' | 'lastLoginAt'> & { createdAt: any, lastLoginAt: any } = {
             uid: fbUser.uid,
             email: fbUser.email,
             displayName: fbUser.displayName || "Ny användare",
             role: 'member',
-            status: 'approved',
+            status: 'pending',
             hasCompletedOnboarding: false,
             createdAt: serverTimestamp(),
             lastLoginAt: serverTimestamp(),
             lastLogDate: null,
-            photoURL: fbUser.photoURL || null,
+            photoURL: fbUser.photoURL || undefined,
             goals: DEFAULT_GOALS,
             goalType: 'maintain',
-            ageYears: null,
+            ageYears: undefined,
             gender: 'female',
             activityLevel: 'moderate',
-            currentWeightKg: null,
-            heightCm: null,
+            currentWeightKg: undefined,
+            heightCm: undefined,
             measurementMethod: 'inbody',
-            desiredWeightChangeKg: null,
-            skeletalMuscleMassKg: null,
-            bodyFatMassKg: null,
-            desiredFatMassChangeKg: null,
-            desiredMuscleMassChangeKg: null,
-            goalCompletionDate: null,
+            desiredWeightChangeKg: undefined,
+            skeletalMuscleMassKg: undefined,
+            bodyFatMassKg: undefined,
+            desiredFatMassChangeKg: undefined,
+            desiredMuscleMassChangeKg: undefined,
+            goalCompletionDate: undefined,
             isCourseActive: false,
             courseInterest: false,
             currentStreak: 0,
@@ -202,6 +202,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
             notificationSettings: DEFAULT_USER_PROFILE.notificationSettings,
             preferredWeighInDay: 'måndag',
             timezone: timezone,
+            pushSubscriptions: [],
         };
         await setDoc(userDocRef, newUserDoc);
     } else {
@@ -301,7 +302,6 @@ export async function fetchInitialAppData(userId: string) {
         return {
             role: userDocData.role,
             status: userDocData.status,
-            subscription: userDocData.subscription,
             hasCompletedOnboarding: userDocData.hasCompletedOnboarding,
             profile,
             goals: userDocData.goals,
@@ -317,7 +317,8 @@ export async function fetchInitialAppData(userId: string) {
             courseProgress,
             unlockedAchievements: userDocData.unlockedAchievements,
             achievementInteractions,
-            journeyAnalysisFeedback: userDocData.journeyAnalysisFeedback
+            journeyAnalysisFeedback: userDocData.journeyAnalysisFeedback,
+            pushSubscriptions: userDocData.pushSubscriptions ?? [],
         };
 
     } catch (error) {
@@ -516,7 +517,7 @@ export async function savePushSubscription(userId: string, subscription: object)
   }
 }
 
-export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved' | 'active') {
+export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved') {
     const courseProgressRef = doc(db, 'users', userId, 'courseProgress', lessonId);
     await setDoc(courseProgressRef, progress, { merge: true });
     
@@ -578,15 +579,15 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
             email: data.email || 'N/A',
             role: data.role,
             status: data.status,
-            photoURL: data.photoURL ?? null,
+            photoURL: data.photoURL ?? undefined,
             isCourseActive: data.isCourseActive,
             courseInterest: data.courseInterest,
             memberSince: toDateString(data.createdAt), // <<-- här används den
-            lastLogDate: data.lastLogDate ?? null,
+            lastLogDate: data.lastLogDate ?? undefined,
             currentStreak: data.currentStreak,
             goalSummary: goalSummary,
             courseProgressSummary: data.courseProgressSummary,
-            ageYears: data.ageYears ?? null,
+            ageYears: data.ageYears ?? undefined,
             gender: data.gender
         });
     });

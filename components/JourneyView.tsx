@@ -443,6 +443,11 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                             const weekData = weeksMap.get(weekStartISO);
                             if (!weekData) return null;
                             const weekNumber = getISOWeekNumber(new Date(weekStartISO));
+                            
+                            const yesterday = new Date(currentDate);
+                            yesterday.setDate(currentDate.getDate() - 1);
+                            const yesterdayISO = getLocalISODateString(yesterday);
+                            
                             return (
                                 <div key={weekStartISO}>
                                     <h4 className="text-base font-semibold text-neutral-dark mb-2">Vecka {weekNumber}</h4>
@@ -455,9 +460,10 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                             const todayISOForComparison = getLocalISODateString(currentDate);
                                             const viewingDateISOForComparison = getLocalISODateString(viewingDate);
                                             const isToday = dayISO === todayISOForComparison;
+                                            const isYesterday = dayISO === yesterdayISO;
+                                            const isClickable = isToday || isYesterday;
                                             const isViewingThisDay = dayISO === viewingDateISOForComparison;
                                             const waterGoalWasMet = summary?.waterGoalMet === true;
-                                            const isSavable = summary && !summary.goalMet && !isToday && !isFutureDay;
 
                                             let bgColor = 'bg-gray-200';
                                             let iconColorClass = 'text-gray-700';
@@ -492,13 +498,13 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                             return (
                                                 <div key={dayISO} className="relative">
                                                     <button
-                                                        onClick={() => !isFutureDay && handleDateSelect(dayDate)}
+                                                        onClick={() => isClickable && handleDateSelect(dayDate)}
                                                         disabled={isFutureDay}
                                                         className={`flex flex-col items-center justify-around p-1 rounded-md text-xs sm:text-sm font-medium transition-all aspect-square w-full focus:outline-none
                                                           ${bgColor} 
-                                                          ${isFutureDay ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-105 active:scale-95'}
+                                                          ${isFutureDay ? 'opacity-60 cursor-not-allowed' : ''}
+                                                          ${isClickable ? 'cursor-pointer hover:scale-105 active:scale-95 hover:shadow-lg hover:ring-2 hover:ring-secondary' : 'cursor-default'}
                                                           ${isViewingThisDay ? 'ring-2 ring-offset-1 ring-secondary' : ''}
-                                                          ${isSavable ? 'hover:shadow-lg hover:ring-2 hover:ring-secondary' : ''}
                                                         `}
                                                         aria-label={ariaLabel}
                                                         title={ariaLabel}

@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
-import { auth, db, authPersistencePromise, storage, functions } from './firebase';
+import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from '@firebase/auth';
-import { doc, writeBatch, deleteField, collection, onSnapshot } from "@firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "@firebase/storage";
-import { httpsCallable } from "@firebase/functions";
-
+import { doc, writeBatch, deleteField, collection } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
+import PendingApprovalScreen from './components/PendingApprovalScreen';
 
 
 import { NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode, DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level, GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion, AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog, AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection, Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent } from './types.ts';
@@ -86,15 +84,6 @@ type PendingTimelineEvent =
   | { type: 'goal_set', data: { userProfile: UserProfileData } }
   | { type: 'goal_achieved', data: { newLog: WeightLogEntry, goalDescription: string } };
 
-// This is a global declaration for the Stripe object from the CDN script
-declare const Stripe: any;
-
-// --- Stripe Initialization ---
-// VIKTIGT: Använd din PUBLIKA TEST-nyckel här (börjar med pk_test_).
-// Du hittar den i din Stripe Dashboard -> Developers -> API Keys. Se till att "Test mode" är PÅ.
-// Använd INTE din hemliga nyckel (sk_test_...) här.
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_51RquQUKIEWqF8LLJwR8raWguK0ujghO4i2xsumRYWhGAMJMO7gGaXuxUIam3rQLysKBbW2D4KbSBVHgeIVwJ8Wv200zhLG4gAq'; 
-const stripe = Stripe(STRIPE_PUBLISHABLE_KEY);
 
 const urlBase64ToUint8Array = (base64String: string) => {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -491,56 +480,6 @@ const UseStreakSaverModal: React.FC<{
     );
 };
 
-const PaywallScreen: React.FC<{ onActivate: () => void; isLoading: boolean; userEmail: string | null }> = ({ onActivate, isLoading, userEmail }) => (
-  <div className="min-h-screen flex items-center justify-center bg-neutral-light p-4">
-    <div className="bg-white p-8 rounded-xl shadow-soft-xl w-full max-w-lg text-center animate-fade-in">
-      <h2 className="text-3xl font-bold text-neutral-dark mb-3">Aktivera ditt konto</h2>
-      <p className="text-neutral-dark text-lg mb-2">
-        Välkommen {userEmail}! Ditt konto är redo att aktiveras.
-      </p>
-      <p className="text-neutral mb-6">
-        För att få full tillgång till Kostloggen behöver du starta din prenumeration.
-      </p>
-      <div className="bg-primary-100 p-4 rounded-lg border border-primary-200 mb-6">
-        <p className="text-2xl font-bold text-primary-darker">199 kr / månad</p>
-        <p className="text-sm text-neutral-dark">Avsluta när du vill. Inga dolda avgifter.</p>
-      </div>
-      <button
-        onClick={onActivate}
-        disabled={isLoading}
-        className="flex items-center justify-center w-full px-6 py-3 bg-secondary hover:bg-secondary-darker text-white font-semibold rounded-lg shadow-md active:scale-95 transform transition-all disabled:opacity-70"
-      >
-        {isLoading ? (
-          <><div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div> Omdirigerar...</>
-        ) : "Starta prenumeration"}
-      </button>
-    </div>
-  </div>
-);
-
-const ThankYouPage: React.FC<{ userSubscription: FirestoreUserDocument['subscription'] | null }> = ({ userSubscription }) => {
-    useEffect(() => {
-        if (userSubscription?.active) {
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 2500);
-        }
-    }, [userSubscription]);
-
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-light p-4 text-center">
-            <div className="bg-white p-10 rounded-xl shadow-soft-xl max-w-md">
-                <CheckCircleIcon className="w-16 h-16 text-primary mx-auto mb-4" />
-                <h2 className="text-3xl font-bold text-neutral-dark mb-3">Tack för ditt köp!</h2>
-                <p className="text-neutral-dark mb-6">
-                    Ditt konto aktiveras nu. Detta kan ta en liten stund. Sidan kommer att uppdateras automatiskt när allt är klart.
-                </p>
-                <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-primary mx-auto"></div>
-            </div>
-        </div>
-    );
-};
-
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -549,8 +488,7 @@ export const App: React.FC = () => {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [isInitialDataLoaded, setIsInitialDataLoaded] = useState(false);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'active' | null>(null);
-  const [userSubscription, setUserSubscription] = useState<FirestoreUserDocument['subscription'] | null>(null);
+  const [userStatus, setUserStatus] = useState<'pending' | 'approved' | null>(null);
   const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'>('member');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -780,17 +718,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setHasCompletedOnboarding(false);
         setIsInitialDataLoaded(false);
         setUserStatus(null);
-        setUserSubscription(null);
         setPendingRequestsCount(0);
         setJourneyAnalysisFeedback(null);
         setStreakSaver(null);
     }, []);
 
     useEffect(() => {
-        let unsubscribeUserDoc = () => {};
-        
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            unsubscribeUserDoc(); // Unsubscribe from previous user's listener
             setAuthLoading(true);
             
             const persistenceResult = await authPersistencePromise;
@@ -801,85 +735,107 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             if (user) {
                 setCurrentUser(user);
                 setIsDataLoading(true);
-
-                const userDocRef = doc(db, 'users', user.uid);
-                unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const userDocData = docSnap.data() as FirestoreUserDocument;
+                try {
+                    // Ensure user document exists or is created. For new users, this sets status: 'pending'.
+                    await ensureUserProfileInFirestore(user); 
+                    
+                    // Now that we know the document exists, fetch all data.
+                    const appData = await fetchInitialAppData(user.uid);
+                    
+                    if (appData) {
+                        setGoals(appData.goals || DEFAULT_GOALS);
+                        setUserProfile(appData.profile || DEFAULT_USER_PROFILE);
+                        setStreakData({
+                            currentStreak: appData.currentStreak || 0,
+                            lastDateStreakChecked: appData.lastDateStreakChecked || null,
+                        });
+                        setWeeklyBank(appData.weeklyBank || weeklyBank);
+                        setStreakSaver(appData.streakSaver || null);
+                        setHighestStreak(appData.highestStreak || 0);
+                        setHighestLevelId(appData.highestLevelId || null);
+                        setCommonMeals(appData.commonMeals || []);
+                        setWeightLogs(appData.weightLogs || []);
+                        setPastDaysSummary(appData.pastDaySummaries || {});
+                        setUserCourseProgress(appData.courseProgress || {});
+                        setUnlockedAchievements(appData.unlockedAchievements || {});
+                        setAchievementInteractions(appData.achievementInteractions || {});
+                        setHasCompletedOnboarding(appData.hasCompletedOnboarding || false);
+                        setUserRole(appData.role || 'member');
+                        setUserStatus(appData.status || 'pending');
+                        setCurrentInterface('member');
+                        setJourneyAnalysisFeedback(appData.journeyAnalysisFeedback || null);
                         
-                        // Update real-time states
-                        setUserStatus(userDocData.status || 'pending');
-                        setUserRole(userDocData.role || 'member');
-                        setUserSubscription(userDocData.subscription || { active: false, type: null, status: null, stripeCustomerId: null, stripeSubscriptionId: null, currentPeriodEnd: null });
-
-                        // Update other states, especially if it's the first load
-                        if (!isInitialDataLoaded) {
-                             fetchInitialAppData(user.uid).then(appData => {
-                                if (appData) {
-                                    setGoals(appData.goals || DEFAULT_GOALS);
-                                    setUserProfile(appData.profile || DEFAULT_USER_PROFILE);
-                                    setStreakData({ currentStreak: appData.currentStreak || 0, lastDateStreakChecked: appData.lastDateStreakChecked || null });
-                                    setWeeklyBank(appData.weeklyBank || weeklyBank);
-                                    setStreakSaver(appData.streakSaver || null);
-                                    setHighestStreak(appData.highestStreak || 0);
-                                    setHighestLevelId(appData.highestLevelId || null);
-                                    setCommonMeals(appData.commonMeals || []);
-                                    setWeightLogs(appData.weightLogs || []);
-                                    setPastDaysSummary(appData.pastDaySummaries || {});
-                                    setUserCourseProgress(appData.courseProgress || {});
-                                    setUnlockedAchievements(appData.unlockedAchievements || {});
-                                    setAchievementInteractions(appData.achievementInteractions || {});
-                                    setHasCompletedOnboarding(appData.hasCompletedOnboarding || false);
-                                    setJourneyAnalysisFeedback(appData.journeyAnalysisFeedback || null);
-                                    
-                                    if ((appData.role === 'member') && !appData.hasCompletedOnboarding && appData.status === 'approved' && !appData.subscription?.active) {
-                                        setShowUserProfileModal(true);
-                                        setIsProfileModalOnboarding(true);
-                                        setOnboardingStep('form');
-                                    }
-
-                                    setIsInitialDataLoaded(true);
-                                }
-                                setIsDataLoading(false);
-                            }).catch(error => {
-                                console.error("Error loading initial app data:", error);
-                                setToastNotification({ message: 'Ett fel uppstod vid laddning av data.', type: 'error'});
-                                setTimeout(() => setToastNotification(null), 5000);
-                                setIsDataLoading(false);
+                        // Healing logic for users who completed a goal before the `completedGoals` array was introduced.
+                        if (appData.profile.mainGoalCompleted && (!appData.profile.completedGoals || appData.profile.completedGoals.length === 0)) {
+                            console.log("Healing legacy completed goal...");
+                            const legacyGoal: CompletedGoal = {
+                                id: 'legacy_goal_main',
+                                achievedOn: '2024-01-01', // A placeholder date as the real one is unknown
+                                description: 'Tidigare uppnått huvudmål',
+                                startWeight: appData.profile.goalStartWeight || appData.profile.currentWeightKg || 0,
+                                endWeight: appData.profile.currentWeightKg || 0
+                            };
+                            const updatedProfile = { ...appData.profile, completedGoals: [legacyGoal] };
+                            setUserProfile(updatedProfile);
+                            updateUserDocument(user.uid, { completedGoals: [legacyGoal], role: appData.role, status: appData.status }).catch(err => {
+                                console.error("Failed to back-fill legacy goal:", err);
                             });
                         }
+
+
+                        if ((appData.role === 'member') && !appData.hasCompletedOnboarding && appData.status === 'approved') {
+                            setShowUserProfileModal(true);
+                            setIsProfileModalOnboarding(true);
+                            setOnboardingStep('form');
+                        }
+                        
+                        setIsInitialDataLoaded(true); // <-- THIS WAS THE MISSING PIECE
+
                     } else {
-                        // User exists in Auth, but not Firestore. Create document.
-                        ensureUserProfileInFirestore(user);
+                        // This path should now be an actual error, not the new user path.
+                        console.error("Critical error: fetchInitialAppData returned null even though a user document should exist.");
+                        resetAllLocalState();
                     }
-                }, (error) => {
-                    console.error("Error with user document listener:", error);
+                } catch (error: any) {
+                    console.error("Error loading initial app data:", error);
+                    const isOfflineError = error.code === 'unavailable' || (error.message && (error.message.toLowerCase().includes('offline') || error.message.toLowerCase().includes('unavailable')));
+
+                    if (isOfflineError) {
+                        const userErrorMessage = "Du är offline. Appen visar data från cachen.";
+                        setToastNotification({ message: userErrorMessage, type: 'error' });
+                        setTimeout(() => setToastNotification(null), 6000);
+                        setIsInitialDataLoaded(true);
+                    } else {
+                        setToastNotification({ message: 'Ett fel uppstod vid laddning av data.', type: 'error'});
+                        setTimeout(() => setToastNotification(null), 5000);
+                        resetAllLocalState();
+                    }
+                } finally {
                     setIsDataLoading(false);
-                });
-                
+                }
             } else {
                 setCurrentUser(null);
+                setUserRole(null);
+                setUserStatus(null);
+                setCurrentInterface('member');
                 resetAllLocalState();
                 setIsDataLoading(false);
             }
             setAuthLoading(false);
         });
-        return () => {
-            unsubscribe();
-            unsubscribeUserDoc();
-        };
-    }, [resetAllLocalState, isInitialDataLoaded]);
+        return () => unsubscribe();
+    }, [resetAllLocalState]);
 
     // This separate effect handles loading daily data whenever the user or the viewing date changes.
     // It's responsible for fetching logs for the currently selected day.
     useEffect(() => {
-        if (currentUser && isInitialDataLoaded && (userStatus === 'active' || userSubscription?.active)) {
+        if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
             loadDataForDate(currentUser.uid, viewingDate);
         }
-    }, [currentUser, viewingDate, isInitialDataLoaded, loadDataForDate, userStatus, userSubscription]);
+    }, [currentUser, viewingDate, isInitialDataLoaded, loadDataForDate, userStatus]);
 
     useEffect(() => {
-        if (currentUser && (userStatus === 'active' || userSubscription?.active)) {
+        if (currentUser && userStatus === 'approved') {
             const unsubscribeRequests = listenForFriendRequests(currentUser.uid, (requests) => {
                 setPendingRequestsCount(requests.length);
             });
@@ -890,7 +846,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         } else {
             setPendingRequestsCount(0);
         }
-    }, [currentUser, userStatus, userSubscription]);
+    }, [currentUser, userStatus]);
 
     // This effect "heals" past data by adding missing fields, like waterGoalMet.
     // It runs once when data is loaded and checks the last 30 days.
@@ -1056,19 +1012,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     const originalBankState = { ...weeklyBank };
 
     try {
-        // 2. Handle image upload if provided
-        let imageBlob: Blob | null = null;
-        if (options.imageFile) {
-            imageBlob = options.imageFile;
-        } else if (options.base64Image) {
-            const response = await fetch(options.base64Image);
-            imageBlob = await response.blob();
-        }
-
-        if (imageBlob) {
-            const storageRef = ref(storage, `meal_images/${currentUser.uid}/${mealId}.jpg`);
-            await uploadBytes(storageRef, imageBlob);
-            finalImageUrl = await getDownloadURL(storageRef);
+        // 2. Handle image if provided
+        if (options.base64Image) {
+            finalImageUrl = options.base64Image;
         }
 
         // 3. Handle SVG icon fallback
@@ -1426,7 +1372,7 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
         setDailyLog(originalDailyLog);
         setWeeklyBank(originalWeeklyBank);
     }
-  };
+};
 
   const saveCommonMeal = async (mealInfoToSave: NutritionalInfo, name: string) => {
     if (!currentUser) return;
@@ -1508,7 +1454,7 @@ const newCommonMealData: Omit<CommonMeal, 'id'> = {
     }
   };
 
-  const handleSaveProfileAndGoals = async (profileData: UserProfileData, newGoals: GoalSettings) => {
+  const handleSaveProfileAndGoals = async (profileData: UserProfileData, newGoals: GoalSettings, newPhotoDataUrl?: string | null) => {
     if (!currentUser) return;
     setAppStatus(AppStatus.SAVING);
 
@@ -1528,6 +1474,9 @@ const newCommonMealData: Omit<CommonMeal, 'id'> = {
     );
 
     let profileToSave = { ...profileData };
+    if (newPhotoDataUrl) {
+        profileToSave.photoURL = newPhotoDataUrl;
+    }
     profileToSave.completedGoals = previousProfile.completedGoals || [];
 
     if (goalParamsChanged) {
@@ -2822,53 +2771,19 @@ useEffect(() => {
     }
   }, [highestStreak, isInitialDataLoaded, handleUnlockAchievement]);
 
-  const [pathname, setPathname] = useState(window.location.pathname);
-  useEffect(() => {
-    const onPopState = () => setPathname(window.location.pathname);
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, []);
 
-  const handleActivateSubscription = async () => {
-    if (!currentUser) return;
-    setAppStatus(AppStatus.SAVING);
-    try {
-      const createStripeCheckoutSession = httpsCallable(functions, 'createStripeCheckoutSession');
-  
-      const result = await createStripeCheckoutSession();
-      const sessionId = (result.data as any).sessionId;
-  
-      if (!sessionId) {
-        throw new Error("Could not retrieve a checkout session ID.");
-      }
-      
-      await stripe.redirectToCheckout({ sessionId });
-  
-    } catch (error) {
-      console.error("Error activating subscription:", error);
-      setToastNotification({ message: 'Kunde inte starta betalning. Försök igen.', type: 'error' });
-      setTimeout(() => setToastNotification(null), 4000);
-      setAppStatus(AppStatus.IDLE);
-    }
-  };
-
-
-  if (authLoading || (isDataLoading && !isInitialDataLoaded)) {
+  if (authLoading || isDataLoading) {
     return <LoadingSpinner message={authLoading ? "Autentiserar..." : "Laddar dina data..."} color="white" />;
-  }
-
-  if (pathname === '/tack') {
-    return <ThankYouPage userSubscription={userSubscription} />;
   }
 
   if (!currentUser) {
     return <AuthForm onAuthStateChange={setCurrentUser} />;
   }
-  
-  if (userStatus === 'approved' && !userSubscription?.active) {
-    return <PaywallScreen onActivate={handleActivateSubscription} isLoading={appStatus === AppStatus.SAVING} userEmail={currentUser.email} />;
-  }
 
+  if (userStatus === 'pending') {
+    return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} />;
+  }
+  
   if (userRole === 'coach' && currentInterface === 'coach') {
     return <CoachDashboard 
               onLogout={handleLogout} 
@@ -3385,7 +3300,8 @@ onSubscribeToPush={handleSubscribeToPush}
                   Senare
                 </button>
                 <button onClick={handleInstallClick} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md shadow-sm hover:bg-primary-darker active:scale-95 interactive-transition">
-                  <InstallIcon className="w-5 h-5" /> Installera
+                  <InstallIcon className="w-5 h-5" />
+                  Installera
                 </button>
               </div>
             </div>

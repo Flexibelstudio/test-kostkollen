@@ -4,6 +4,7 @@ const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
 const { utcToZonedTime, format } = require('date-fns-tz');
+const cors = require("cors")({ origin: true });
 
 // --- Init Firebase ---
 admin.initializeApp();
@@ -133,6 +134,45 @@ exports.createStripeCheckoutSession = functions.https.onCall(async (data, contex
     logger.error("Stripe session creation failed for user:", uid, error);
     throw new functions.https.HttpsError("internal", "Kunde inte skapa betalningssessionen. Vänligen försök igen.");
   }
+});
+
+exports.createStripeCheckoutSessionHttp = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    const { uid, email } = req.body;
+
+    if (!stripe || !priceId) {
+      logger.error("Stripe is not initialized or priceId is missing.");
+      return res.status(500).send("Betalningssystemet är inte korrekt konfigurerat.");
+    }
+
+    const successUrl = isEmulator
+      ? "http://localhost:5173/tack"
+      : "https://flexibel-kostkollen.web.app/tack";
+    const cancelUrl = isEmulator
+      ? "http://localhost:5173/"
+      : "https://flexibel-kostkollen.web.app/";
+
+    try {
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        customer_email: email,
+        client_reference_id: uid,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+      });
+
+      res.status(200).json({ sessionId: session.id });
+    } catch (error) {
+      logger.error("Stripe session creation failed", error);
+      res.status(500).send("Kunde inte skapa betalningssession.");
+    }
+  });
 });
 
 
