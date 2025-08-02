@@ -107,7 +107,7 @@ self.addEventListener('push', (event) => {
   const options = {
     body: data.body || 'Dags att logga en måltid!',
     icon: data.icon || '/icons/icon-192x192.png',
-    badge: '/icons/icon-96x96.png', // Often used in the notification tray on Android
+    badge: '/icons/badge-96x96.png', // Often used in the notification tray on Android
     data: { url: data.url || '/' }
   };
 

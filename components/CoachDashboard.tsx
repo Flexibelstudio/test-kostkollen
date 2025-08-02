@@ -53,38 +53,11 @@ const GoalAdherenceBadge: React.FC<{ adherence?: CoachViewMember['goalAdherence'
   return <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bgColor} ${textColor}`}>{text}</span>;
 };
 
-const StatusBadge: React.FC<{ status: 'pending' | 'approved' | 'active' }> = ({ status }) => {
-    let bgColor, textColor, text, pulseClass = '';
-
-    switch (status) {
-        case 'pending':
-            bgColor = 'bg-yellow-100';
-            textColor = 'text-yellow-800';
-            text = 'Väntar';
-            pulseClass = 'animate-pulse';
-            break;
-        case 'approved':
-            bgColor = 'bg-blue-100';
-            textColor = 'text-blue-800';
-            text = 'Godkänd';
-            break;
-        case 'active':
-            bgColor = 'bg-primary-100';
-            textColor = 'text-primary-darker';
-            text = 'Aktiv';
-            break;
-        default:
-            bgColor = 'bg-gray-100';
-            textColor = 'text-gray-800';
-            text = 'Okänd';
-    }
-
-    return (
-        <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bgColor} ${textColor} ${pulseClass}`}>
-            {text}
-        </span>
-    );
-};
+const StatusBadge: React.FC<{ status: 'pending' | 'approved' }> = ({ status }) => (
+    <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+      status === 'pending' ? 'bg-yellow-100 text-yellow-800 animate-pulse' : 'bg-primary-100 text-primary-darker'
+    }`}>{status === 'pending' ? 'Väntar' : 'Godkänd'}</span>
+);
 
 const SortableHeader: React.FC<{ column: SortableKeys; label: string; tooltip?: string; sortBy: SortableKeys | null; sortOrder: 'asc' | 'desc'; onSort: (column: SortableKeys) => void; }> = ({ column, label, tooltip, sortBy, sortOrder, onSort }) => (
     <th scope="col" className="px-4 py-3.5 text-left text-xs sm:text-sm font-medium text-neutral-dark uppercase tracking-wider">

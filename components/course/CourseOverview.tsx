@@ -46,6 +46,14 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
   const goToReview = (index: number) => {
     setCurrentReviewIndex(index);
   };
+  
+  let lastUnlockedIndex = -1;
+  for (let i = lessons.length - 1; i >= 0; i--) {
+    if (userProgress[lessons[i].id]?.unlockedAt) {
+      lastUnlockedIndex = i;
+      break;
+    }
+  }
 
 
   return (
@@ -162,12 +170,27 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
           <p className="text-neutral text-center">Inga lektioner tillgängliga just nu.</p>
         ) : (
           <div className="space-y-4">
-            {lessons.map(lesson => {
+            {lessons.map((lesson, index) => {
               const progress = userProgress[lesson.id];
               const isUnlocked = !!userProgress[lesson.id]?.unlockedAt;
               const isLessonCompleted = progress?.isCompleted || false;
               
               if (!isUnlocked) {
+                const isNextLockedLesson = lastUnlockedIndex !== -1 ? index === lastUnlockedIndex + 1 : index === 0;
+
+                let progressFlames = 0;
+                if (isNextLockedLesson) {
+                    const lastUnlockedProgress = lastUnlockedIndex > -1 ? userProgress[lessons[lastUnlockedIndex].id] : null;
+                    const streakAtUnlock = lastUnlockedProgress?.streakAtUnlock ?? 0;
+                    
+                    if (currentStreak >= streakAtUnlock) {
+                        progressFlames = currentStreak - streakAtUnlock;
+                    } else {
+                        progressFlames = currentStreak;
+                    }
+                    progressFlames = Math.max(0, Math.min(7, progressFlames));
+                }
+
                 return (
                   <div
                     key={lesson.id}
@@ -182,12 +205,33 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                         </div>
                         <p className="text-sm text-neutral-dark">{lesson.introduction}</p>
                       </div>
-                      <div className="flex items-center space-x-3 flex-shrink-0 ml-0 sm:ml-4">
-                        <p className="text-sm font-semibold text-accent">
-                          Låses upp efter en ny 7-dagars streak!
-                        </p>
+                      <div className="flex flex-col items-end flex-shrink-0 ml-0 sm:ml-4">
+                          <p className="text-sm font-semibold text-accent text-right">
+                            Låses upp efter en ny 7-dagars streak!
+                          </p>
                       </div>
                     </div>
+                     {isNextLockedLesson && (
+                        <div className="mt-3 pt-3 border-t border-gray-400/50">
+                            <h4 className="text-sm font-semibold text-neutral-dark text-center mb-1">Dina framsteg:</h4>
+                            <div className="flex justify-center items-center gap-1">
+                                {Array.from({ length: 7 }).map((_, i) => (
+                                    <span 
+                                        key={i} 
+                                        className="text-2xl transition-all"
+                                        style={{ 
+                                            opacity: i < progressFlames ? 1 : 0.3, 
+                                            filter: i < progressFlames ? 'none' : 'grayscale(1)',
+                                            transform: i < progressFlames ? 'scale(1.1)' : 'scale(1)',
+                                        }}
+                                        title={`${i + 1} av 7 dagar`}
+                                    >
+                                        🔥
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                   </div>
                 );
               }

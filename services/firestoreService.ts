@@ -171,21 +171,21 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
             createdAt: serverTimestamp(),
             lastLoginAt: serverTimestamp(),
             lastLogDate: null,
-            photoURL: fbUser.photoURL || undefined,
+            photoURL: fbUser.photoURL || null,
             goals: DEFAULT_GOALS,
             goalType: 'maintain',
-            ageYears: undefined,
+            ageYears: null,
             gender: 'female',
             activityLevel: 'moderate',
-            currentWeightKg: undefined,
-            heightCm: undefined,
+            currentWeightKg: null,
+            heightCm: null,
             measurementMethod: 'inbody',
-            desiredWeightChangeKg: undefined,
-            skeletalMuscleMassKg: undefined,
-            bodyFatMassKg: undefined,
-            desiredFatMassChangeKg: undefined,
-            desiredMuscleMassChangeKg: undefined,
-            goalCompletionDate: undefined,
+            desiredWeightChangeKg: null,
+            skeletalMuscleMassKg: null,
+            bodyFatMassKg: null,
+            desiredFatMassChangeKg: null,
+            desiredMuscleMassChangeKg: null,
+            goalCompletionDate: null,
             isCourseActive: false,
             courseInterest: false,
             currentStreak: 0,
@@ -213,11 +213,6 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
         if (fbUser.displayName && existingData.displayName !== fbUser.displayName) {
             updateData.displayName = fbUser.displayName;
         }
-        if (fbUser.photoURL && existingData.photoURL !== fbUser.photoURL) {
-            updateData.photoURL = fbUser.photoURL;
-        }
-        // This update is safe because it only updates login time and profile details from the auth provider.
-        // It does NOT read and write back role/status.
         await updateDoc(userDocRef, updateData);
     }
 }
@@ -385,7 +380,7 @@ export async function addTimelineEvent(
         ...eventData,
         userId: userId,
         userName: userData.displayName,
-        userPhotoURL: userData.photoURL ?? undefined,
+        userPhotoURL: userData.photoURL ?? null,
         gender: userData.gender,
         visibleTo: visibleTo,
         reactions: {},
