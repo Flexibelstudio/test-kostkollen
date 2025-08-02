@@ -146,6 +146,14 @@ export async function initAudio(): Promise<boolean> {
 }
 
 export async function playAudio(soundName: SoundKey, volume: number = 1): Promise<void> {
+  try {
+    if (localStorage.getItem('isSoundMuted') === 'true') {
+      return;
+    }
+  } catch (e) {
+    console.warn("Could not read from localStorage to check mute status.", e);
+  }
+
   const localAudioCtx = getAudioContext();
   if (!localAudioCtx) {
     console.warn(`Cannot play sound '${soundName}': AudioContext is null.`);

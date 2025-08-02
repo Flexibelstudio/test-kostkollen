@@ -228,6 +228,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   const [profile, setProfile] = useState<UserProfileData>(getInitialProfileForState());
   const [newPhotoDataUrl, setNewPhotoDataUrl] = useState<string | null>(null);
+  const [isSoundMuted, setIsSoundMuted] = useState<boolean>(() => {
+    try {
+        return localStorage.getItem('isSoundMuted') === 'true';
+    } catch (e) {
+        console.warn("Could not read sound setting from localStorage.", e);
+        return false;
+    }
+  });
+
 
   useEffect(() => {
     setProfile(getInitialProfileForState());
@@ -297,6 +306,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             [setting]: !(prev.notificationSettings?.[setting] ?? true)
         }
     }));
+  };
+
+  const handleToggleSound = () => {
+    const newMutedState = !isSoundMuted;
+    setIsSoundMuted(newMutedState);
+    try {
+        if (newMutedState) {
+            localStorage.setItem('isSoundMuted', 'true');
+        } else {
+            localStorage.removeItem('isSoundMuted'); // Clean up
+        }
+    } catch (e) {
+        console.warn("Could not write sound setting to localStorage.", e);
+    }
   };
 
 
@@ -639,6 +662,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             description="Tillåt andra att hitta dig för att bli Peppkompisar."
                             checked={profile.isSearchable ?? false}
                             onChange={() => setProfile(prev => ({...prev, isSearchable: !prev.isSearchable}))}
+                         />
+                    </section>
+
+                    <section aria-labelledby="sound-settings-heading">
+                        <h3 id="sound-settings-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Ljud & Feedback</h3>
+                         <ToggleSwitch
+                            id="appSound"
+                            label="App-ljud"
+                            description="Ljudeffekter för klick, notiser och milstolpar."
+                            checked={!isSoundMuted}
+                            onChange={handleToggleSound}
                          />
                     </section>
                     
