@@ -23,6 +23,7 @@ import {
 import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
+import { LOCAL_STORAGE_KEYS } from '../constants';
 
 // --- HELPER FUNCTION ---
 const formatChange = (change: number | undefined, isFirstEntry: boolean, invertColors: boolean = false): { text: string; colorClass: string } => {
@@ -517,9 +518,15 @@ const TimelineEventCard: FC<{
     onTogglePepp: (event: TimelineEvent, emoji: string) => void;
     onAddComment: (event: TimelineEvent, text: string) => Promise<void>;
     onToggleLike: (event: TimelineEvent, commentId: string) => void;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike }) => {
+    lastViewTimestamp: number | null;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, lastViewTimestamp }) => {
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const isEventNew = useMemo(() => {
+        if (lastViewTimestamp === null) return false;
+        return event.timestamp > lastViewTimestamp;
+    }, [event.timestamp, lastViewTimestamp]);
 
     const handleCommentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -533,7 +540,7 @@ const TimelineEventCard: FC<{
     const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
 
     return (
-    <div id={`event-${event.id}`} className="bg-white p-3 rounded-xl shadow-sm border border-neutral-light/60">
+    <div id={`event-${event.id}`} className={`bg-white p-3 rounded-xl shadow-sm border border-neutral-light/60 ${isEventNew ? 'animate-highlight-fade' : ''}`}>
         <div className="flex items-start gap-3">
             <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={40} />
             <div className="flex-1">
@@ -578,8 +585,9 @@ const TimelineEventCard: FC<{
                     const likes = comment.likes || {};
                     const likeCount = Object.keys(likes).length;
                     const userHasLiked = !!likes[currentUser.uid];
+                    const isCommentNew = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp;
                     return (
-                        <div key={comment.id} className="flex items-start gap-2">
+                        <div key={comment.id} className={`flex items-start gap-2 ${isCommentNew ? 'animate-highlight-fade rounded-lg' : ''}`}>
                             <Avatar photoURL={comment.authorPhotoURL} size={28} />
                             <div onDoubleClick={() => onToggleLike(event, comment.id)} className="bg-neutral-light/70 rounded-lg px-3 py-1.5 text-sm flex-1 group relative cursor-pointer">
                                 <p className="font-semibold text-neutral-dark">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
@@ -621,6 +629,7 @@ const TimelineEventCard: FC<{
 
 
 export const CommunityView: React.FC<{ 
+  key: number;
   currentUser: User;
   userProfile: UserProfileData;
   achievements: Achievement[];
@@ -637,35 +646,43 @@ export const CommunityView: React.FC<{
   initialTab = 'flode',
   highlightEventId = null
 }) => {
-  // Använd initialTab här:
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera'>(initialTab);
   const [isLoading, setIsLoading] = useState(true);
-
-    const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
-    const [buddyDetails, setBuddyDetails] = useState<BuddyDetails[]>([]);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [buddyDetails, setBuddyDetails] = useState<BuddyDetails[]>([]);
+  const [lastViewTimestamp, setLastViewTimestamp] = useState<number | null>(null);
     
-    const loadAllData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const [events, details] = await Promise.all([
-                fetchCommunityTimeline(currentUser.uid),
-                fetchBuddyDetailsList(currentUser.uid),
-            ]);
-            setTimelineEvents(events);
-            setBuddyDetails(details);
-        } catch (error) {
-            console.error("Error fetching community data:", error);
-            setToastNotification({ message: 'Kunde inte ladda community-data.', type: 'error' });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [currentUser.uid, setToastNotification]);
+  const loadAllData = useCallback(async () => {
+      setIsLoading(true);
+      try {
+          const [events, details] = await Promise.all([
+              fetchCommunityTimeline(currentUser.uid),
+              fetchBuddyDetailsList(currentUser.uid),
+          ]);
+          setTimelineEvents(events);
+          setBuddyDetails(details);
+      } catch (error) {
+          console.error("Error fetching community data:", error);
+          setToastNotification({ message: 'Kunde inte ladda community-data.', type: 'error' });
+      } finally {
+          setIsLoading(false);
+      }
+  }, [currentUser.uid, setToastNotification]);
 
-    useEffect(() => {
-        loadAllData();
-    }, [loadAllData]);
+  useEffect(() => {
+    const storedTimestamp = localStorage.getItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP);
+    setLastViewTimestamp(parseInt(storedTimestamp || '0', 10));
 
-    useEffect(() => {
+    return () => {
+      localStorage.setItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, Date.now().toString());
+    };
+  }, []);
+
+  useEffect(() => {
+      loadAllData();
+  }, [loadAllData]);
+
+  useEffect(() => {
     if (highlightEventId && timelineEvents.length > 0) {
       const element = document.getElementById(`event-${highlightEventId}`);
       if (element) {
@@ -719,7 +736,6 @@ export const CommunityView: React.FC<{
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
         const originalEvents = timelineEvents;
-        // Optimistic Update
         setTimelineEvents(prevEvents => prevEvents.map(e => {
             if (e.id === event.id) {
                 const newComments = (e.comments || []).map(c => {
@@ -736,7 +752,6 @@ export const CommunityView: React.FC<{
             return e;
         }));
         
-        // Backend call
         try { await toggleLikeOnComment(fromUser, event, commentId); } catch (error) {
             setToastNotification({ message: 'Kunde inte gilla kommentar.', type: 'error' });
             setTimelineEvents(originalEvents);
@@ -756,7 +771,6 @@ export const CommunityView: React.FC<{
             setTimelineEvents(prevEvents => prevEvents.map(e => e.id === event.id ? { ...e, comments: [...(e.comments || []), optimisticComment] } : e));
             const newCommentId = await addCommentToTimelineEvent(event.id, commentData);
             
-            // Update optimistic comment with real ID
             setTimelineEvents(prevEvents => prevEvents.map(e => 
                 e.id === event.id 
                     ? { ...e, comments: (e.comments || []).map(c => c.id === optimisticCommentId ? { ...c, id: newCommentId } : c) } 
@@ -803,6 +817,7 @@ export const CommunityView: React.FC<{
                                     onTogglePepp={handleTogglePepp}
                                     onAddComment={handleAddComment}
                                     onToggleLike={handleToggleLike}
+                                    lastViewTimestamp={lastViewTimestamp}
                                 />
                             ))
                         ) : (

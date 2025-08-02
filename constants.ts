@@ -23,6 +23,7 @@ export const LOCAL_STORAGE_KEYS = {
   RECENT_RECIPE_SEARCHES: 'foodLoggerRecentRecipeSearches_v1',
   LAST_BUDDY_VIEW_TIMESTAMP: 'foodLoggerLastBuddyViewTimestamp_v1',
   LAST_MY_PEPPS_VIEW_TIMESTAMP: 'foodLoggerLastMyPeppsViewTimestamp_v1',
+  LAST_COMMUNITY_VIEW_TIMESTAMP: 'foodLoggerLastCommunityViewTimestamp_v1',
 };
 
 // SVG Icons as Data URIs
