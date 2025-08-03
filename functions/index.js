@@ -63,6 +63,7 @@ exports.onFriendRequestCreated = functions.firestore
       title: "Ny peppkompis-förfrågan! 🎉",
       body: `${request.fromName} vill bli din peppkompis!`,
       icon: "/icons/icon-192x192.png",
+      badge: "/icons/badge-96x96.png",
       data: {
         url: "/?view=community&tab=requests"
       }
@@ -88,6 +89,7 @@ exports.onTimelineEventCreated = functions.firestore
       title: "Ny händelse i flödet!",
       body: `${event.userName} har ${event.title}`,
       icon: "/icons/icon-192x192.png",
+      badge: "/icons/badge-96x96.png",
       data: { // <-- Lägg till detta objekt
         url: `/?view=community&highlight=${eventId}`
       }
@@ -125,6 +127,7 @@ exports.onCommentCreated = functions.firestore
       title: "Ny kommentar! 💬",
       body: `${comment.authorName} kommenterade ditt inlägg: "${eventData.title}"`,
       icon: "/icons/icon-192x192.png",
+      badge: "/icons/badge-96x96.png",
       data: { // <-- Lägg till detta objekt
         url: `/?view=community&highlight=${eventId}`
       }
@@ -253,6 +256,7 @@ exports.scheduledNotificationChecker = functions.pubsub
               title: "💧 Glöm inte vattnet!",
               body: "Kom ihåg att logga ditt vattenintag.",
               icon: "/icons/icon-192x192.png",
+              badge: "/icons/badge-96x96.png",
               data: { url: "/?view=main" }
             })).catch(console.error);
           }
@@ -286,6 +290,7 @@ exports.scheduledNotificationChecker = functions.pubsub
                 title: "🍽️ Middagstips!",
                 body: "Har du loggat dagens mat ännu? Missa inte att fylla i din kostlogg.",
                 icon: "/icons/icon-192x192.png",
+                badge: "/icons/badge-96x96.png",
                 data: { url: "/?view=main" }
               })).catch(console.error);
             }
@@ -311,6 +316,7 @@ exports.scheduledNotificationChecker = functions.pubsub
             title: "⚖️ Dags för vägning!",
             body: "Idag är din planerade vägdag. Kom ihåg att logga din vikt för att följa dina framsteg!",
             icon: "/icons/icon-192x192.png",
+            badge: "/icons/badge-96x96.png",
             data: { url: "/?view=journey&tab=weight" }
           })).catch(console.error);
         }

@@ -1786,7 +1786,7 @@ useEffect(() => {
                   accumulatedStreak++;
                   const streakEventData = {
                       type: 'streak' as const,
-                      timestamp: new Date(dateUID + 'T23:59:59').getTime(),
+                      timestamp: Date.now(),
                       title: `har fått +1 på sin Streak! `,
                       description: `Ny streak: ${accumulatedStreak} dagar i följd.`,
                       icon: ' ',
@@ -2052,14 +2052,28 @@ useEffect(() => {
         if (lastUnlockedProgress?.unlockedAt) {
             const streakAtUnlock = lastUnlockedProgress.streakAtUnlock ?? 0;
             
-            // Condition: 7 new days of streak
-            if (streakData.currentStreak >= streakAtUnlock + 7) {
+            let shouldUnlock = false;
+            
+            // Scenario A: Streak was maintained and has grown by 7 days.
+            if (streakData.currentStreak >= streakAtUnlock) {
+                if (streakData.currentStreak >= streakAtUnlock + 7) {
+                    shouldUnlock = true;
+                }
+            } 
+            // Scenario B: Streak was lost, and a new 7-day streak has been achieved.
+            else { // This condition implies streakData.currentStreak < streakAtUnlock
+                if (streakData.currentStreak >= 7) {
+                    shouldUnlock = true;
+                }
+            }
+
+            if (shouldUnlock) {
                 const nextLessonIndex = lastUnlockedIndex + 1;
 
                 if (nextLessonIndex < courseLessons.length) {
                     const nextLesson = courseLessons[nextLessonIndex];
                     if (!userCourseProgress[nextLesson.id]?.unlockedAt) {
-                        console.log(`Unlocking lesson ${nextLesson.title} due to streak condition.`);
+                        console.log(`Unlocking lesson ${nextLesson.title} due to new streak logic.`);
                         unlockLesson(nextLesson.id, streakData.currentStreak);
                     }
                 }
