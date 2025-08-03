@@ -545,6 +545,7 @@ export const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfileData>(DEFAULT_USER_PROFILE);
 
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date()); // Use the actual current date
+  const [viewMode, setViewMode] = useState<ViewMode>('main');
   const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
   
   const isViewingToday = useMemo(() => {
@@ -581,7 +582,7 @@ export const App: React.FC = () => {
   const [analysisResultForModal, setAnalysisResultForModal] = useState<NutritionalInfo | null>(null);
 
   const [pastDaysSummary, setPastDaysSummary] = useState<PastDaysSummaryCollection>({});
-  const [viewMode, setViewMode] = useState<ViewMode>('main');
+  
   const [journeyInitialTab, setJourneyInitialTab] = useState<'weight' | 'calendar' | 'profile' | 'achievements'>('weight');
 
   const [streakData, setStreakData] = useState<{ currentStreak: number; lastDateStreakChecked: string | null }>({ currentStreak: 0, lastDateStreakChecked: null });
@@ -663,8 +664,10 @@ export const App: React.FC = () => {
   // Community State
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [communityViewKey, setCommunityViewKey] = useState(Date.now());
-const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera'>('flode');
-const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
+  const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera'>('flode');
+  const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
+  const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
+  const previousViewModeRef = useRef<ViewMode>(viewMode);
 
 // PWA Install Prompt State
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
@@ -948,6 +951,25 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
     }, [isInitialDataLoaded, currentUser?.uid, pastDaysSummary, currentDate]);
 
+
+    // Effect for managing Community View timestamp
+    useEffect(() => {
+        const previousViewMode = previousViewModeRef.current;
+        
+        // User is ENTERING community view
+        if (viewMode === 'community' && previousViewMode !== 'community') {
+            const lastTimestamp = getLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, null);
+            setLastCommunityViewTimestamp(lastTimestamp);
+        } 
+        // User is LEAVING community view
+        else if (viewMode !== 'community' && previousViewMode === 'community') {
+            setLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, Date.now());
+            setLastCommunityViewTimestamp(null); // No need to hold it in state when not in view
+        }
+
+        // Update the ref for the next render cycle
+        previousViewModeRef.current = viewMode;
+    }, [viewMode]);
 
   const handleLogout = async () => {
     playAudio('uiClick');
@@ -3170,13 +3192,14 @@ useEffect(() => {
          {viewMode === 'community' && (
             <CommunityView 
               key={communityViewKey}
-    currentUser={currentUser}
-    userProfile={userProfile}
-    achievements={ACHIEVEMENT_DEFINITIONS}
-    setToastNotification={setToastNotification}
-    pendingRequestsCount={pendingRequestsCount}
-    initialTab={communityInitialTab}
-    highlightEventId={highlightEventId}
+              currentUser={currentUser}
+              userProfile={userProfile}
+              achievements={ACHIEVEMENT_DEFINITIONS}
+              setToastNotification={setToastNotification}
+              pendingRequestsCount={pendingRequestsCount}
+              initialTab={communityInitialTab}
+              highlightEventId={highlightEventId}
+              lastViewTimestamp={lastCommunityViewTimestamp}
             />
          )}
         </main>
