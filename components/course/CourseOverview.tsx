@@ -150,9 +150,9 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                       className="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3 bg-green-200 text-green-800 font-semibold rounded-lg shadow-sm cursor-not-allowed"
                     >
                       <CheckCircleIcon className="w-5 h-5 mr-2" />
-                      Intresse anmält, inväntar coach
+                      Inväntar godkännande
                     </button>
-                     <p className="text-xs text-neutral mt-2">Din coach kommer att aktivera kursen och återkomma till dig för betalning.</p>
+                     <p className="text-xs text-neutral mt-2"></p>
                   </div>
                 ) : (
                    <div className="mt-4">

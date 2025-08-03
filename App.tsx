@@ -2222,17 +2222,20 @@ useEffect(() => {
         // Optimistic UI update
         setUserProfile(prev => ({ ...prev, courseInterest: true }));
 
-        // Show toast
-        setToastNotification({ message: "Ditt intresse har anmälts! Din coach återkommer inom kort.", type: "success" });
-        setTimeout(() => setToastNotification(null), 4000);
+        // Show toast - it will be brief, but good to have
+        setToastNotification({ message: "Anmäler intresse & skickar till betalning...", type: "success" });
+        
+        // Update Firestore but don't wait. Let it run in the background.
+        // Add a catch to log errors without blocking the user flow.
+        updateUserDocument(currentUser.uid, { courseInterest: true, role: userRole, status: userStatus })
+            .catch(error => {
+                console.error("Firestore error while setting course interest (non-blocking):", error);
+                // Can't easily inform the user as they are being redirected.
+                // The optimistic UI update will remain, which is acceptable.
+            });
 
-        try {
-            await updateUserDocument(currentUser.uid, { courseInterest: true, role: userRole, status: userStatus });
-        } catch (error) {
-            handleFirestoreError(error, 'anmäla kursintresse');
-            // Rollback on error
-            setUserProfile(prev => ({ ...prev, courseInterest: false }));
-        }
+        // Redirect the user to the payment link.
+        window.location.href = 'https://buy.stripe.com/dRm28s0jcaWSfnjfm38Ra03';
     };
 
   // --- Course CTA Handlers ---
