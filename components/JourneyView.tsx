@@ -1,9 +1,8 @@
 
-
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, StreakSaver, Reactions } from '../types';
-import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PencilIcon, ChartLineIcon, SparklesIcon, UserCircleIcon, InformationCircleIcon, CheckIcon, BookOpenIcon, TrophyIcon, BarcodeIcon, UserGroupIcon, ChevronDownIcon, ChevronUpIcon, ShareIcon, HeartIcon, XMarkIcon } from './icons';
+import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PencilIcon, ChartLineIcon, SparklesIcon, UserCircleIcon, InformationCircleIcon, CheckIcon, BookOpenIcon, TrophyIcon, BarcodeIcon, UserGroupIcon, ChevronDownIcon, ChevronUpIcon, ShareIcon, HeartIcon, XMarkIcon, LifebuoyIcon } from './icons';
 import { User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
 import WeightChart from './WeightChart.tsx'; 
 import { calculateGoalTimeline, TimelineMilestone } from '../utils/timelineUtils.ts';
@@ -145,27 +144,77 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const timeline = useMemo(() => calculateGoalTimeline(userProfile), [userProfile]);
   
   const validPastDaysArray = useMemo(() => Object.values(pastDaysData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [pastDaysData]);
-  const validPastDaysDataCollection: PastDaysSummaryCollection = useMemo(() => validPastDaysArray.reduce((acc, summary) => ({ ...acc, [summary.date]: summary }), {}), [validPastDaysArray]);
   
-  const weeksMap = useMemo(() => {
-    const map = new Map<string, (PastDaySummary | null)[]>();
-    if (validPastDaysArray.length > 0) {
-      let earliestDate = new Date(validPastDaysArray[validPastDaysArray.length - 1].date);
-      let latestDate = new Date(validPastDaysArray[0].date);
-      let currentWeekStart = getStartOfWeek(latestDate);
-      const earliestWeekStart = getStartOfWeek(earliestDate);
-      while (currentWeekStart >= earliestWeekStart) {
-        const weekDays: (PastDaySummary | null)[] = Array.from({ length: 7 }, (_, i) => {
-          const day = addDays(currentWeekStart, i);
-          return validPastDaysDataCollection[getLocalISODateString(day)] || null;
+    const weeksMap = useMemo(() => {
+        const map = new Map<string, (PastDaySummary | null)[]>();
+        if (validPastDaysArray.length === 0) return map;
+
+        const summariesByDate = new Map<string, PastDaySummary>(validPastDaysArray.map(s => [s.date, s]));
+        const firstDateInLog = new Date(validPastDaysArray[validPastDaysArray.length - 1].date + 'T12:00:00Z');
+        const lastDateInLog = new Date(validPastDaysArray[0].date + 'T12:00:00Z');
+
+        let currentWeekStart = getStartOfWeek(lastDateInLog);
+
+        // Ensure we always show the current week, even if it has no logs yet.
+        const currentAppWeekStart = getStartOfWeek(new Date(currentDate));
+        if(currentWeekStart < currentAppWeekStart) {
+            currentWeekStart = currentAppWeekStart;
+        }
+
+        const earliestWeekStart = getStartOfWeek(firstDateInLog);
+
+        while (currentWeekStart >= earliestWeekStart) {
+            const weekDays: (PastDaySummary | null)[] = [];
+            for (let i = 0; i < 7; i++) {
+                const day = addDays(currentWeekStart, i);
+                if (day > currentDate) {
+                    weekDays.push(null); // Future days are null
+                } else {
+                    weekDays.push(summariesByDate.get(getLocalISODateString(day)) || { date: getLocalISODateString(day), goalMet: false, consumedCalories: 0, calorieGoal: 0, proteinGoalMet: false, consumedProtein: 0, proteinGoal: 0, consumedCarbohydrates: 0, carbohydrateGoal: 0, consumedFat: 0, fatGoal: 0, goalType: 'maintain' }); // Provide a stub for unlogged past days
+                }
+            }
+            map.set(getLocalISODateString(currentWeekStart), weekDays);
+            currentWeekStart = addDays(currentWeekStart, -7);
+        }
+        return map;
+    }, [validPastDaysArray, currentDate]);
+
+    const monthlyGroupedSummaries = useMemo(() => {
+        const grouped = new Map<number, Map<number, { weekStartISO: string; weekData: (PastDaySummary | null)[] }[]>>();
+        weeksMap.forEach((weekData, weekStartISO) => {
+            const weekStartDate = new Date(weekStartISO + 'T12:00:00Z');
+            const year = weekStartDate.getFullYear();
+            const month = weekStartDate.getMonth(); // 0-11
+    
+            if (!grouped.has(year)) {
+                grouped.set(year, new Map());
+            }
+            const yearMap = grouped.get(year)!;
+            if (!yearMap.has(month)) {
+                yearMap.set(month, []);
+            }
+            yearMap.get(month)!.push({ weekStartISO, weekData });
         });
-        map.set(getLocalISODateString(currentWeekStart), weekDays);
-        currentWeekStart = addDays(currentWeekStart, -7);
-      }
-    }
-    return map;
-  }, [validPastDaysArray, validPastDaysDataCollection]);
-  
+        return grouped;
+    }, [weeksMap]);
+
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
+    const toggleSection = (key: string) => {
+        playAudio('uiClick');
+        setExpandedSections(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(key)) {
+                newSet.delete(key);
+            } else {
+                newSet.add(key);
+            }
+            return newSet;
+        });
+    };
+
   const todayISO = useMemo(() => getLocalISODateString(currentDate), [currentDate]);
 
   const handleDateSelect = (date: Date) => {
@@ -437,109 +486,136 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                     </div>
                 )}
                 
-                {activeTab === 'overview' && (
-                    <div className="space-y-6">
-                        {Array.from(weeksMap.keys()).map(weekStartISO => {
-                            const weekData = weeksMap.get(weekStartISO);
-                            if (!weekData) return null;
-                            const weekNumber = getISOWeekNumber(new Date(weekStartISO));
-                            
-                            const yesterday = new Date(currentDate);
-                            yesterday.setDate(currentDate.getDate() - 1);
-                            const yesterdayISO = getLocalISODateString(yesterday);
-                            
-                            return (
-                                <div key={weekStartISO}>
-                                    <h4 className="text-base font-semibold text-neutral-dark mb-2">Vecka {weekNumber}</h4>
-                                    <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                                        {weekData.map((summary, index) => {
-                                            const dayDate = addDays(new Date(weekStartISO), index);
-                                            const dayISO = getLocalISODateString(dayDate);
-                                            
-                                            const isFutureDay = dayDate > currentDate;
-                                            const todayISOForComparison = getLocalISODateString(currentDate);
-                                            const viewingDateISOForComparison = getLocalISODateString(viewingDate);
-                                            const isToday = dayISO === todayISOForComparison;
-                                            const isYesterday = dayISO === yesterdayISO;
-                                            const isClickable = isToday || isYesterday;
-                                            const isViewingThisDay = dayISO === viewingDateISOForComparison;
-                                            const waterGoalWasMet = summary?.waterGoalMet === true;
+                {activeTab === 'overview' && (() => {
+                    const monthNames = ["Januari", "Februari", "Mars", "April", "Maj", "Juni", "Juli", "Augusti", "September", "Oktober", "November", "December"];
+                    const sortedYears = Array.from(monthlyGroupedSummaries.keys()).sort((a, b) => b - a);
 
-                                            let bgColor = 'bg-gray-200';
-                                            let iconColorClass = 'text-gray-700';
-                                            let ariaLabel = `Status för ${dayDate.toLocaleDateString('sv-SE', { weekday: 'long' })}: `;
+                    return (
+                        <div className="space-y-6">
+                            {sortedYears.map(year => {
+                                const isCurrentYear = year === currentYear;
+                                const yearKey = `${year}`;
+                                const isYearExpanded = expandedSections.has(yearKey);
+                                const monthsMap = monthlyGroupedSummaries.get(year)!;
+                                const sortedMonths = Array.from(monthsMap.keys()).sort((a, b) => b - a);
 
-                                            if (isToday) {
-                                                bgColor = 'bg-secondary/30';
-                                                iconColorClass = 'text-secondary-darker';
-                                                ariaLabel += 'Idag, pågående.';
-                                            } else if (isFutureDay) {
-                                                bgColor = 'bg-gray-100';
-                                                iconColorClass = 'text-gray-400';
-                                                ariaLabel += 'Framtida dag.';
-                                            } else { // It's a past day
-                                                if (summary) {
-                                                    if (summary.goalMet) {
-                                                        bgColor = 'bg-primary/70';
-                                                        iconColorClass = 'text-white';
-                                                        ariaLabel += 'Mål uppnått.';
-                                                    } else {
-                                                        bgColor = 'bg-secondary/70';
-                                                        iconColorClass = 'text-white';
-                                                        ariaLabel += 'Mål ej uppnått.';
-                                                    }
-                                                } else { // Past day, no summary
-                                                    bgColor = 'bg-neutral-light';
-                                                    iconColorClass = 'text-neutral-dark';
-                                                    ariaLabel += 'Ej loggad.';
-                                                }
-                                            }
+                                const yearContent = (
+                                    <div className={`space-y-4 ${!isCurrentYear ? 'pl-4 border-l-2 border-neutral-light/70 ml-2' : ''}`}>
+                                        {sortedMonths.map(month => {
+                                            const monthKey = `${year}-${month}`;
+                                            const isMonthExpanded = expandedSections.has(monthKey);
+                                            const weeksData = monthsMap.get(month)!;
+                                            const isCurrentMonthInView = year === currentYear && month === currentMonth;
 
                                             return (
-                                                <div key={dayISO} className="relative">
-                                                    <button
-                                                        onClick={() => isClickable && handleDateSelect(dayDate)}
-                                                        disabled={isFutureDay}
-                                                        className={`flex flex-col items-center justify-around p-1 rounded-md text-xs sm:text-sm font-medium transition-all aspect-square w-full focus:outline-none
-                                                          ${bgColor} 
-                                                          ${isFutureDay ? 'opacity-60 cursor-not-allowed' : ''}
-                                                          ${isClickable ? 'cursor-pointer hover:scale-105 active:scale-95 hover:shadow-lg hover:ring-2 hover:ring-secondary' : 'cursor-default'}
-                                                          ${isViewingThisDay ? 'ring-2 ring-offset-1 ring-secondary' : ''}
-                                                        `}
-                                                        aria-label={ariaLabel}
-                                                        title={ariaLabel}
-                                                    >
-                                                        <span className={`text-xs font-bold ${iconColorClass}`}>{shortDayNamesSwedish[index]}</span>
-                                                        
-                                                        <div className="flex justify-center items-center w-full px-0.5" style={{ height: '16px' }}>
-                                                            {summary ? (
-                                                                <div className="w-4 h-4 flex items-center justify-center">
-                                                                    {summary.proteinGoalMet && <span role="img" aria-label="Proteinmål uppnått" title="Proteinmål uppnått" className="text-sm">💪</span>}
-                                                                </div>
-                                                            ) : (
-                                                                <div style={{height: '16px'}}></div>
-                                                            )}
+                                                <div key={monthKey}>
+                                                    {!isCurrentMonthInView && (
+                                                        <button onClick={() => toggleSection(monthKey)} className="w-full flex justify-between items-center text-left p-2 rounded-md hover:bg-neutral-light/70" aria-expanded={isMonthExpanded}>
+                                                            <h4 className="text-xl font-semibold text-neutral-dark">{monthNames[month]}</h4>
+                                                            <ChevronDownIcon className={`w-6 h-6 text-neutral-dark transition-transform ${isMonthExpanded ? 'rotate-180' : ''}`} />
+                                                        </button>
+                                                    )}
+                                                    {(isMonthExpanded || isCurrentMonthInView) && (
+                                                        <div className={`mt-2 space-y-4 animate-fade-in ${isCurrentMonthInView ? '' : 'pl-2'}`}>
+                                                            {weeksData.map((week, weekIndex) => {
+                                                                const weekStartDate = new Date(week.weekStartISO + 'T12:00:00Z');
+                                                                const weekNumber = getISOWeekNumber(weekStartDate);
+                                                                return (
+                                                                    <div key={`${monthKey}-w${weekIndex}`}>
+                                                                        <h5 className="text-base font-semibold text-neutral-dark mb-2">Vecka {weekNumber}</h5>
+                                                                        <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                                                                            {week.weekData.map((summary, index) => {
+                                                                                const dayDate = addDays(weekStartDate, index);
+                                                                                const dayISO = getLocalISODateString(dayDate);
+                                                                                const isFutureDay = dayDate > currentDate;
+                                                                                const isToday = dayISO === todayISO;
+                                                                                const isYesterday = dayISO === getLocalISODateString(addDays(currentDate, -1));
+                                                                                const isClickable = isToday || isYesterday;
+                                                                                const isViewingThisDay = dayISO === getLocalISODateString(viewingDate);
+                                                                                const waterGoalWasMet = summary?.waterGoalMet === true;
+                                                                                const isLogged = summary && summary.consumedCalories > 0;
+
+                                                                                let bgColor = 'bg-gray-200';
+                                                                                let iconColorClass = 'text-gray-700';
+
+                                                                                if (isFutureDay) {
+                                                                                    bgColor = 'bg-gray-100';
+                                                                                    iconColorClass = 'text-gray-400';
+                                                                                } else if (isToday) {
+                                                                                    bgColor = 'bg-secondary/30';
+                                                                                    iconColorClass = 'text-secondary-darker';
+                                                                                } else if (summary?.goalMet) {
+                                                                                    bgColor = 'bg-primary/70';
+                                                                                    iconColorClass = 'text-white';
+                                                                                } else if (isLogged) {
+                                                                                    bgColor = 'bg-secondary/70';
+                                                                                    iconColorClass = 'text-white';
+                                                                                } else {
+                                                                                    bgColor = 'bg-neutral-light';
+                                                                                    iconColorClass = 'text-neutral-dark';
+                                                                                }
+
+                                                                                return (
+                                                                                    <div key={dayISO} className="relative">
+                                                                                        <button onClick={() => isClickable && handleDateSelect(dayDate)} disabled={!isClickable} className={`flex flex-col items-center justify-around p-1 rounded-md text-xs sm:text-sm font-medium transition-all aspect-square w-full focus:outline-none ${bgColor} ${isFutureDay ? 'opacity-60' : ''} ${isClickable ? 'cursor-pointer hover:scale-105 active:scale-95 hover:shadow-lg hover:ring-2 hover:ring-secondary' : 'cursor-default'} ${isViewingThisDay ? 'ring-2 ring-offset-1 ring-secondary' : ''}`}>
+                                                                                            <span className={`text-xs font-bold ${iconColorClass}`}>{shortDayNamesSwedish[index]}</span>
+                                                                                            <div className="flex justify-center items-center w-full px-0.5 space-x-0.5" style={{ height: '16px' }}>
+                                                                                                {summary && (
+                                                                                                    <>
+                                                                                                        <div className="w-4 h-4 flex items-center justify-center">
+                                                                                                            {summary.proteinGoalMet && <span role="img" aria-label="Proteinmål uppnått" title="Proteinmål uppnått" className="text-sm">💪</span>}
+                                                                                                        </div>
+                                                                                                        <div className="w-4 h-4 flex items-center justify-center">
+                                                                                                            {summary.savedBy === 'streakSaver' && <LifebuoyIcon className="w-4 h-4 text-secondary" title="Streak räddad"/>}
+                                                                                                        </div>
+                                                                                                    </>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            <span className={`text-lg font-bold ${iconColorClass}`}>{dayDate.getDate()}</span>
+                                                                                        </button>
+                                                                                        {waterGoalWasMet && <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-3/5 h-[3px] bg-blue-400 rounded-full" title="Vattenmål uppnått"></div>}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
-                                                        
-                                                        <span className={`text-lg font-bold ${iconColorClass}`}>{dayDate.getDate()}</span>
-                                                    </button>
-                                                    {waterGoalWasMet && (
-                                                        <div 
-                                                            className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-3/5 h-[3px] bg-blue-400 rounded-full"
-                                                            title="Vattenmål uppnått"
-                                                        ></div>
                                                     )}
                                                 </div>
-                                            );
+                                            )
                                         })}
                                     </div>
-                                </div>
-                            );
-                        })}
-                        <GamificationCard goals={goals} minSafeCalories={minSafeCalories} highestStreak={highestStreak} highestLevelId={highestLevelId} streakSaver={streakSaver}/>
-                    </div>
-                )}
+                                );
 
+                                if (isCurrentYear) {
+                                    return <div key={yearKey}>{yearContent}</div>;
+                                } else {
+                                    return (
+                                        <div key={yearKey}>
+                                            <button onClick={() => toggleSection(yearKey)} className="w-full flex justify-between items-center text-left p-2 rounded-md hover:bg-neutral-light/70" aria-expanded={isYearExpanded}>
+                                                <h3 className="text-2xl font-bold text-neutral-dark">{year}</h3>
+                                                <ChevronDownIcon className={`w-6 h-6 text-neutral-dark transition-transform ${isYearExpanded ? 'rotate-180' : ''}`} />
+                                            </button>
+                                            {isYearExpanded && <div className="mt-2 animate-fade-in">{yearContent}</div>}
+                                        </div>
+                                    );
+                                }
+                            })}
+
+                            <GamificationCard
+                                goals={goals}
+                                minSafeCalories={minSafeCalories}
+                                highestStreak={highestStreak}
+                                highestLevelId={highestLevelId}
+                                streakSaver={streakSaver}
+                            />
+
+                        </div>
+                    );
+                })()}
+                
                 {activeTab === 'goals' && (
                   <div className="space-y-6">
                     <section aria-labelledby="current-goal-heading">
