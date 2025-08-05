@@ -147,7 +147,7 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
   const { userProfile, userGoals, userName, mentalWellbeing, isOnboarding } = data;
     
   const wellbeingDataString = `
-- Stressnivå: ${mentalWellbeing.stressLevel || 'Ej angivet'} (1=låg, 5=hög)
+- Stressnivå: ${mentalWellbeing.stressLevel || 'Ej angivet'} (1=hög, 5=låg)
 - Energinivå: ${mentalWellbeing.energyLevel || 'Ej angivet'} (1=låg, 5=hög)
 - Sömnkvalitet: ${mentalWellbeing.sleepQuality || 'Ej angivet'} (1=dålig, 5=bra)
 - Humör: ${mentalWellbeing.mood || 'Ej angivet'} (1=dåligt, 5=bra)`;

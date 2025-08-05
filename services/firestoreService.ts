@@ -534,7 +534,6 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
     const q = query(usersRef, orderBy("createdAt", "desc"));
     const snapshot = await getDocsSafe(q);
 
-    // Lägg denna funktion HÄR, före forEach!
     const toDateString = (createdAt: any): string => {
         if (!createdAt) return 'Okänt';
         if (typeof createdAt.toDate === 'function') {
@@ -547,8 +546,7 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
         return 'Okänt';
     };
 
-    const members: CoachViewMember[] = [];
-    snapshot.forEach(doc => {
+    const membersPromises = snapshot.docs.map(async (doc) => {
         const data = doc.data() as FirestoreUserDocument;
 
         let goalSummary = "Ej satt";
@@ -556,7 +554,11 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
         else if (data.goalType === 'lose_fat') goalSummary = `${data.desiredFatMassChangeKg || data.desiredWeightChangeKg || ''} kg fett`;
         else if (data.goalType === 'gain_muscle') goalSummary = `${data.desiredMuscleMassChangeKg || data.desiredWeightChangeKg || ''} kg muskler`;
 
-        members.push({
+        const buddiesRef = collection(db, "users", data.uid, "buddies");
+        const buddiesSnapshot = await getDocsSafe(buddiesRef);
+        const numberOfBuddies = buddiesSnapshot.size;
+
+        return {
             id: data.uid,
             name: data.displayName,
             email: data.email || 'N/A',
@@ -565,16 +567,18 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
             photoURL: data.photoURL ?? undefined,
             isCourseActive: data.isCourseActive,
             courseInterest: data.courseInterest,
-            memberSince: toDateString(data.createdAt), // <<-- här används den
+            memberSince: toDateString(data.createdAt),
             lastLogDate: data.lastLogDate ?? undefined,
             currentStreak: data.currentStreak,
             goalSummary: goalSummary,
             courseProgressSummary: data.courseProgressSummary,
             ageYears: data.ageYears ?? undefined,
-            gender: data.gender
-        });
+            gender: data.gender,
+            numberOfBuddies: numberOfBuddies,
+        };
     });
 
+    const members = await Promise.all(membersPromises);
     return members;
 }
 

@@ -1222,14 +1222,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   const handleLogFromModal = (foodInfo: NutritionalInfo | SearchedFoodInfo, options: { saveAsCommon: boolean }) => {
     const isSearchedFood = 'servingDescription' in foodInfo;
     const baseNutritionalInfo: NutritionalInfo = {
-        foodItem: foodInfo.foodItem,
+        foodItem: foodInfo.foodItem, // this will be overwritten, but it's fine
         calories: foodInfo.calories,
         protein: foodInfo.protein,
         carbohydrates: foodInfo.carbohydrates,
         fat: foodInfo.fat
     };
     
-    const foodNameToUse = isSearchedFood ? (foodInfo as SearchedFoodInfo).servingDescription : foodInfo.foodItem;
     const fullFoodItemName = isSearchedFood ? `${foodInfo.foodItem} (${(foodInfo as SearchedFoodInfo).servingDescription})` : foodInfo.foodItem;
     
     // cameraImageForAnalysis will contain the resized base64 string from either camera or upload
@@ -1244,9 +1243,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     );
 
     if (options.saveAsCommon) {
+      // FIX: Use the full descriptive name for both the common meal's name and its internal foodItem property.
       saveCommonMeal(
-        { ...baseNutritionalInfo, foodItem: foodNameToUse || 'Okänt val' },
-        foodNameToUse || 'Okänt val'
+        { ...baseNutritionalInfo, foodItem: fullFoodItemName || 'Okänt val' },
+        fullFoodItemName || 'Okänt val'
       );
     }
     setAnalysisResultForModal(null);

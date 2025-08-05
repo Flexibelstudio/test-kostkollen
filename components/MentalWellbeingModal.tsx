@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { XMarkIcon } from './icons';
 
 export interface MentalWellbeingData {
-  stressLevel: number | null; // 1=low stress, 5=high stress
+  stressLevel: number | null; // 1=high stress, 5=low stress
   energyLevel: number | null; // 1=low energy, 5=high energy
   sleepQuality: number | null; // 1=bad sleep, 5=good sleep
   mood: number | null; // 1=bad mood, 5=good mood
@@ -36,7 +36,7 @@ const MentalWellbeingModal: React.FC<MentalWellbeingModalProps> = ({ show, onClo
   if (!show) return null;
 
   const EMOJI_SETS = {
-    stress: ['😌', '😊', '😐', '😟', '😩'], // Low to High stress
+    stress: ['😩', '😟', '😐', '😊', '😌'], // High to Low stress
     energy: ['😩', '😟', '😐', '😊', '😁'], // Low to High energy
     sleep: ['😴', '😟', '😐', '😊', '😌'],   // Bad to Good sleep
     mood: ['😩', '😟', '😐', '😊', '😁'],    // Bad to Good mood
