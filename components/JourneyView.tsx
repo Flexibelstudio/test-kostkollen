@@ -170,7 +170,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                 if (day > currentDate) {
                     weekDays.push(null); // Future days are null
                 } else {
-                    weekDays.push(summariesByDate.get(getLocalISODateString(day)) || { date: getLocalISODateString(day), goalMet: false, consumedCalories: 0, calorieGoal: 0, proteinGoalMet: false, consumedProtein: 0, proteinGoal: 0, consumedCarbohydrates: 0, carbohydrateGoal: 0, consumedFat: 0, fatGoal: 0, goalType: 'maintain' }); // Provide a stub for unlogged past days
+                    weekDays.push(summariesByDate.get(getLocalISODateString(day)) || null); // Return null for unlogged past days
                 }
             }
             map.set(getLocalISODateString(currentWeekStart), weekDays);
@@ -533,8 +533,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                                                 const isClickable = isToday || isYesterday;
                                                                                 const isViewingThisDay = dayISO === getLocalISODateString(viewingDate);
                                                                                 const waterGoalWasMet = summary?.waterGoalMet === true;
-                                                                                const isLogged = summary && summary.consumedCalories > 0;
-
+                                                                                
                                                                                 let bgColor = 'bg-gray-200';
                                                                                 let iconColorClass = 'text-gray-700';
 
@@ -544,15 +543,19 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                                                 } else if (isToday) {
                                                                                     bgColor = 'bg-secondary/30';
                                                                                     iconColorClass = 'text-secondary-darker';
-                                                                                } else if (summary?.goalMet) {
-                                                                                    bgColor = 'bg-primary/70';
-                                                                                    iconColorClass = 'text-white';
-                                                                                } else if (isLogged) {
-                                                                                    bgColor = 'bg-secondary/70';
-                                                                                    iconColorClass = 'text-white';
-                                                                                } else {
-                                                                                    bgColor = 'bg-neutral-light';
-                                                                                    iconColorClass = 'text-neutral-dark';
+                                                                                } else { // Past day
+                                                                                    if (summary) {
+                                                                                        if (summary.goalMet) {
+                                                                                            bgColor = 'bg-primary/70';
+                                                                                            iconColorClass = 'text-white';
+                                                                                        } else {
+                                                                                            bgColor = 'bg-secondary/70';
+                                                                                            iconColorClass = 'text-white';
+                                                                                        }
+                                                                                    } else { // Past day, no summary
+                                                                                        bgColor = 'bg-neutral-light';
+                                                                                        iconColorClass = 'text-neutral-dark';
+                                                                                    }
                                                                                 }
 
                                                                                 return (
