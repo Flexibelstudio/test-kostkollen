@@ -281,7 +281,7 @@ const FriendManagementView: FC<{
         const nonFriends = allSearchableUsers.filter(user => !buddyUids.has(user.uid));
 
         const query = searchQuery.trim().toLowerCase();
-        if (!query) return nonFriends;
+        if (!query) return [];
         
         return nonFriends.filter(user => 
             user.name.toLowerCase().includes(query) || 

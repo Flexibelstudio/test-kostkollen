@@ -867,6 +867,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 setUserStatus(null);
                 setCurrentInterface('member');
                 resetAllLocalState();
+                setViewMode('main');
                 setIsDataLoading(false);
             }
             setAuthLoading(false);
