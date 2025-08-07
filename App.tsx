@@ -2200,7 +2200,7 @@ useEffect(() => {
                 type: 'course' as const,
                 timestamp: Date.now(),
                 title: `har slutfört "${lesson.title}" `,
-                description: `Du har slutfört en lektion i kursen "Praktisk Viktkontroll".`,
+                description: "Ett stort steg framåt i kursen 'Praktisk Viktkontroll'!",
                 icon: ' ',
                 relatedDocId: `course_${lessonId}`
             };
