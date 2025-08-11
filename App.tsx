@@ -3380,6 +3380,9 @@ onSubscribeToPush={handleSubscribeToPush}
         {appStatus === AppStatus.SAVING && (
             <LoadingSpinner message="Sparar..." />
         )}
+        {appStatus === AppStatus.PROCESSING_DAY_END && (
+            <LoadingSpinner message="Summerar och synkroniserar dina framsteg..." />
+        )}
         {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
         <ConfettiCelebration isActive={showConfetti} />
 
