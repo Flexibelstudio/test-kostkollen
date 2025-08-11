@@ -124,22 +124,34 @@ const setLocalStorageItem = <T,>(key: string, value: T): void => {
 
 
 const getWeekInfo = (date: Date): { weekId: string; startDate: string; endDate: string } => {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())); 
-  const dayUTC = d.getUTCDay(); 
-  const diffToMondayUTC = d.getUTCDate() - dayUTC + (dayUTC === 0 ? -6 : 1); 
-  
+  // This part correctly finds the Monday of the week for the given date.
+  // It uses UTC to avoid timezone issues.
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayUTC = d.getUTCDay(); // 0 for Sunday, 1 for Monday, etc.
+  // Calculate the difference to get to the previous Monday
+  const diffToMondayUTC = d.getUTCDate() - dayUTC + (dayUTC === 0 ? -6 : 1);
   const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diffToMondayUTC));
-  const sunday = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + 6));
 
-  const year = monday.getUTCFullYear();
-  
-  const firstDayOfYear = new Date(Date.UTC(year, 0, 1));
-  const pastDaysOfYear = (monday.getTime() - firstDayOfYear.getTime()) / 86400000;
-  const weekNumber = Math.ceil((pastDaysOfYear + firstDayOfYear.getUTCDay() + (firstDayOfYear.getUTCDay() === 0 ? 7 : 1) -1 ) / 7);
+  // Create Sunday from the calculated Monday
+  const sunday = new Date(monday.getTime());
+  sunday.setUTCDate(monday.getUTCDate() + 6);
 
+  // --- START: Robust ISO 8601 Week Number Calculation ---
+  // A copy of the original date is needed as the calculation modifies it.
+  const targetDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  // Set to the Thursday of the week. ISO week day number: 1 (Mon) to 7 (Sun)
+  const dayNum = targetDate.getUTCDay() || 7;
+  targetDate.setUTCDate(targetDate.getUTCDate() + 4 - dayNum);
+  // Get the year of that Thursday, which is the ISO week-numbering year.
+  const year = targetDate.getUTCFullYear();
+  // Get the first day of that year
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  // Calculate the week number
+  const weekNo = Math.ceil((((targetDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  // --- END: Robust ISO Week Number Calculation ---
 
   return {
-    weekId: `${year}-W${String(weekNumber).padStart(2, '0')}`,
+    weekId: `${year}-W${String(weekNo).padStart(2, '0')}`,
     startDate: monday.toISOString().split('T')[0],
     endDate: sunday.toISOString().split('T')[0],
   };
@@ -1024,16 +1036,18 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
 
   useEffect(() => {
-    const { weekId: currentWeekId } = getWeekInfo(currentDate);
-    if (weeklyBank.weekId !== currentWeekId && currentUser) {
-        console.log(`New week detected (${currentWeekId} vs ${weeklyBank.weekId}). Resetting weekly calorie bank and streak saver.`);
-        const newBank = { weekId: currentWeekId, bankedCalories: 0, startDate: getWeekInfo(currentDate).startDate, endDate: getWeekInfo(currentDate).endDate };
-        const newStreakSaver = { available: true, weekId: currentWeekId };
-        setWeeklyBank(newBank);
-        setStreakSaver(newStreakSaver);
-        updateUserDocument(currentUser.uid, { weeklyBank: newBank, streakSaver: newStreakSaver, role: userRole, status: userStatus });
+    if (currentUser && isInitialDataLoaded) {
+        const { weekId: currentWeekId } = getWeekInfo(currentDate);
+        if (weeklyBank.weekId !== currentWeekId) {
+            console.log(`New week detected (${currentWeekId} vs ${weeklyBank.weekId}). Resetting weekly calorie bank and streak saver.`);
+            const newBank = { weekId: currentWeekId, bankedCalories: 0, startDate: getWeekInfo(currentDate).startDate, endDate: getWeekInfo(currentDate).endDate };
+            const newStreakSaver = { available: true, weekId: currentWeekId };
+            setWeeklyBank(newBank);
+            setStreakSaver(newStreakSaver);
+            updateUserDocument(currentUser.uid, { weeklyBank: newBank, streakSaver: newStreakSaver, role: userRole, status: userStatus });
+        }
     }
-  }, [currentDate, weeklyBank.weekId, currentUser, userRole, userStatus]);
+  }, [currentDate, weeklyBank.weekId, currentUser, userRole, userStatus, isInitialDataLoaded]);
 
 
     useEffect(() => {
