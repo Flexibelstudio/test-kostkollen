@@ -8,7 +8,7 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // ---- VAPID-nycklar ----
-const vapidPublicKey = "BAZ9uP6JoKPu2ah3IGboVbSqUvRJF2dBAsUgfVqVYezguVIftFE_ZrIKpQmoHtA0RVMscEuGHdMZiLZn1UmSE90";
+const vapidPublicKey = "BHOuvp3U93hH9SFOOfxo2KvxqWwk47jb2e0hBb_EWaFGwdpld4yozWYKFvkCPRWdt_u0UcbOV__JLwRfhjI8kE4";
 const vapidPrivateKey = functions.config().webpush ? functions.config().webpush.private_key : null;
 
 if (vapidPrivateKey) {
