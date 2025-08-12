@@ -156,9 +156,9 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
     const currentWeekInfo = getWeekInfo(new Date());
 
     if (!userDoc.exists()) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayDateString = getDateUID(yesterday);
+        const dayBeforeYesterday = new Date();
+        dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
+        const dayBeforeYesterdayDateString = getDateUID(dayBeforeYesterday);
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
         const newUserDoc: Omit<FirestoreUserDocument, 'createdAt' | 'lastLoginAt'> & { createdAt: any, lastLoginAt: any } = {
@@ -189,7 +189,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
             isCourseActive: false,
             courseInterest: false,
             currentStreak: 0,
-            lastDateStreakChecked: yesterdayDateString,
+            lastDateStreakChecked: dayBeforeYesterdayDateString,
             highestStreak: 0,
             highestLevelId: null,
             weeklyBank: { weekId: currentWeekInfo.weekId, bankedCalories: 0, startDate: currentWeekInfo.startDate, endDate: currentWeekInfo.endDate},
@@ -1020,7 +1020,7 @@ export async function fetchTimelineForCurrentUser(currentUserId: string, achieve
         if (currentLog.bodyFatMassKg != null) descriptionParts.push(`Fett: ${currentLog.bodyFatMassKg.toFixed(1)}kg (${formatChange(fatChange)})`);
 
         return {
-            id: currentLog.id, type: 'weight', timestamp: currentLog.loggedAt, title: `Ny mätning loggad`,
+            id: currentLog.id, type: 'weight', timestamp: currentLog.loggedAt, title: `har loggat en ny mätning`,
             description: descriptionParts.join(' | '), icon: '⚖️', reactions: currentLog.reactions || {}, comments: [],
             relatedDocPath: `users/${currentUserId}/weightLogs/${currentLog.id}`, ...currentUserInfo
         };

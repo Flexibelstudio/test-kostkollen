@@ -132,6 +132,60 @@ export const mockJourneyFeedback: AIStructuredFeedbackResponse = {
     ]
 };
 
+export const mockCoachViewMembers: CoachViewMember[] = [
+    {
+        id: 'mockUser123',
+        name: 'Mock Användare',
+        email: 'test@example.com',
+        role: 'member',
+        status: 'approved',
+        isCourseActive: true,
+        courseInterest: false,
+        memberSince: new Date(Date.now() - 30 * 86400000).toLocaleDateString('sv-SE'),
+        lastLogDate: getDateUID(yesterday),
+        currentStreak: 5,
+        goalSummary: '-5 kg fett',
+        goalAdherence: 'good',
+        courseProgressSummary: { started: true, completedLessons: 1, totalLessons: courseLessons.length },
+        weeklyWeightChange: -0.5,
+        ageYears: 32,
+        gender: 'male',
+        numberOfBuddies: 1,
+    },
+    {
+        id: 'pendingUser456',
+        name: 'Väntande Användare',
+        email: 'pending@example.com',
+        role: 'member',
+        status: 'pending',
+        isCourseActive: false,
+        courseInterest: true,
+        memberSince: new Date().toLocaleDateString('sv-SE'),
+        lastLogDate: undefined,
+        currentStreak: 0,
+        goalSummary: 'Ej satt',
+        goalAdherence: 'inactive',
+        ageYears: 28,
+        gender: 'female',
+    },
+    {
+        id: 'coachUser789',
+        name: 'Coach C',
+        email: 'coach@example.com',
+        role: 'coach',
+        status: 'approved',
+        isCourseActive: false,
+        courseInterest: false,
+        memberSince: new Date(Date.now() - 365 * 86400000).toLocaleDateString('sv-SE'),
+        lastLogDate: undefined,
+        currentStreak: 0,
+        goalSummary: 'Bibehålla',
+        goalAdherence: 'inactive',
+        ageYears: 45,
+        gender: 'male',
+    }
+];
+
 export const mockFirestoreUser: FirestoreUserDocument = {
     uid: MOCK_USER_ID,
     email: 'test@example.com',
@@ -158,7 +212,7 @@ export const mockFirestoreUser: FirestoreUserDocument = {
     desiredMuscleMassChangeKg: 0,
     goalCompletionDate: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0],
     currentStreak: 5,
-    lastDateStreakChecked: getDateUID(yesterday),
+    lastDateStreakChecked: getDateUID(twoDaysAgo),
     highestStreak: 10,
     highestLevelId: 'level1',
     weeklyBank: mockWeeklyBank,
@@ -178,14 +232,8 @@ export const mockFirestoreUser: FirestoreUserDocument = {
     goalStartWeight: 76.5,
     completedGoals: [],
     notificationSettings: DEFAULT_USER_PROFILE.notificationSettings,
+    preferredWeighInDay: 'måndag',
 };
-
-export const mockCoachViewMembers: CoachViewMember[] = [
-    { id: 'coach1', name: 'Mikael Coach', email: 'mikael@test.com', role: 'coach', status: 'approved', isCourseActive: false, memberSince: '2024-01-01', lastLogDate: getDateUID(yesterday), currentStreak: 100, goalSummary: 'Coach', proteinGoalMetPercentage7d: 100, goalAdherence: 'good', ageYears: 40, gender: 'male' },
-    { id: 'member1', name: 'Anna Andersson', email: 'anna@test.com', role: 'member', status: 'approved', isCourseActive: true, memberSince: '2024-01-15', lastLogDate: getDateUID(yesterday), currentStreak: 12, goalSummary: '-8 kg fett', proteinGoalMetPercentage7d: 85, goalAdherence: 'good', courseProgressSummary: { started: true, completedLessons: 3, totalLessons: 12 }, weeklyWeightChange: -0.7, ageYears: 28, gender: 'female' },
-    { id: 'member2', name: 'Bengt Bengtsson', email: 'bengt@test.com', role: 'member', status: 'pending', isCourseActive: false, memberSince: '2024-03-01', lastLogDate: undefined, currentStreak: 0, goalSummary: 'Ej satt', proteinGoalMetPercentage7d: 0, ageYears: 45, gender: 'male' },
-    { id: 'member3', name: 'Cecilia Ceder', email: 'cecilia@test.com', role: 'member', status: 'approved', isCourseActive: false, memberSince: '2024-02-20', lastLogDate: getDateUID(twoDaysAgo), currentStreak: 0, goalSummary: 'Bibehålla', proteinGoalMetPercentage7d: 30, goalAdherence: 'poor', weeklyWeightChange: 0.2, ageYears: 35, gender: 'female' }
-];
 
 export const mockInitialState = {
     userProfile: mockUserProfile,
