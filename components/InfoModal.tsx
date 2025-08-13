@@ -1,5 +1,5 @@
 import React from 'react';
-import { InformationCircleIcon, XMarkIcon, CameraIcon, UploadIcon, SearchIcon, FireIcon, CheckCircleIcon, LeafIcon, ProteinIcon, BarcodeIcon, TrophyIcon, LifebuoyIcon } from './icons.tsx';
+import { InformationCircleIcon, XMarkIcon, CameraIcon, UploadIcon, SearchIcon, FireIcon, CheckCircleIcon, LeafIcon, ProteinIcon, BarcodeIcon, TrophyIcon, LifebuoyIcon, UserGroupIcon } from './icons.tsx';
 
 interface InfoModalProps {
   onClose: () => void;
@@ -81,6 +81,10 @@ const InfoModal: React.FC<InfoModalProps> = ({ onClose, userName }) => {
         
         <FeatureItem icon={<TrophyIcon className="w-6 h-6 text-accent" />} title="Bragder och Belöningar">
           Lås upp 'Bragder' genom att nå milstolpar som att hålla en lång streak, slutföra kursen eller nå dina övergripande mål. Visa dina framsteg under "Min Resa" och fira dina framgångar!
+        </FeatureItem>
+
+        <FeatureItem icon={<UserGroupIcon className="w-6 h-6 text-purple-600" />} title="Community & Peppkompisar">
+          Hälsa är en resa som är bättre tillsammans! I Community-vyn kan du hitta och lägga till 'Peppkompisar'. Se varandras framsteg, dela bragder och skicka peppande reaktioner och kommentarer. Stötta varandra och nå era mål tillsammans!
         </FeatureItem>
 
         <FeatureItem icon={<span className="text-2xl w-6 text-center">🧠</span>} title="Din AI Coach">
