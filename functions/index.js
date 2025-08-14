@@ -2,13 +2,13 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
-const { utcToZonedTime, format } = require('date-fns-tz');
+const dateFnsTz = require('date-fns-tz');
 
 admin.initializeApp();
 const db = admin.firestore();
 
 // ---- VAPID-nycklar ----
-const vapidPublicKey = "BHOuvp3U93hH9SFOOfxo2KvxqWwk47jb2e0hBb_EWaFGwdpld4yozWYKFvkCPRWdt_u0UcbOV__JLwRfhjI8kE4";
+const vapidPublicKey = "BHOuvp3U93hH9SFOOfxo2Kwk47jb2e0hBb_EWaFGwdpld4yozWYKFvkCPRWdt_u0UcbOV__JLwRfhjI8kE4";
 const vapidPrivateKey = functions.config().webpush ? functions.config().webpush.private_key : null;
 
 if (vapidPrivateKey) {
@@ -229,9 +229,9 @@ exports.scheduledNotificationChecker = functions.pubsub
 
       if (!user.timezone) continue;
 
-      const localTime = utcToZonedTime(new Date(), user.timezone);
+      const localTime = dateFnsTz.utcToZonedTime(new Date(), user.timezone);
       const localHour = localTime.getHours();
-      const todayDateString = format(localTime, "yyyy-MM-dd");
+      const todayDateString = dateFnsTz.format(localTime, "yyyy-MM-dd");
 
       // --- VATTENPÅMINNELSE: kl 12 ---
       if (
@@ -277,7 +277,7 @@ exports.scheduledNotificationChecker = functions.pubsub
 
       // --- VÄGNINGS-PÅMINNELSE: kl 8 på föredragen dag ---
       const preferredDay = (user.preferredWeighInDay || 'monday').toLowerCase();
-      const dayOfWeek = format(localTime, 'EEEE', { timeZone: user.timezone }).toLowerCase();
+      const dayOfWeek = dateFnsTz.format(localTime, 'EEEE', { timeZone: user.timezone }).toLowerCase();
 
       if (
         localHour === 8 &&

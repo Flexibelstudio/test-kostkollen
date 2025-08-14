@@ -8,7 +8,7 @@ import PendingApprovalScreen from './components/PendingApprovalScreen';
 import SplashScreen from './components/SplashScreen';
 
 
-import { NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode, DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level, GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion, AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog, AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection, Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent } from './types.ts';
+import { NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode, DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level, GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion, AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog, AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection, Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent, BuddyDetails } from './types.ts';
 import { DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML, DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD, PIGGY_BANK_ICON_SVG, CALORIES_PER_GRAM, MAX_RECENT_RECIPE_SEARCHES, MAX_INGREDIENT_IMAGES, ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG } from './constants.ts';
 import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion, getRecipesFromIngredientsImage, getDetailedJourneyAnalysis } from './services/geminiService.ts';
 import { getFoodInfoFromBarcode } from './services/openFoodFactsService.ts';
@@ -34,7 +34,9 @@ import {
     listenForFriendRequests,
     getDocSafe,
 savePushSubscription,
-    addTimelineEvent
+    addTimelineEvent,
+    fetchCommunityTimeline,
+    fetchBuddyDetailsList
 } from "./services/firestoreService"; 
 import WaterLogger from './components/WaterLogger.tsx';
 import ProgressDisplay from './components/ProgressDisplay.tsx';
@@ -673,13 +675,17 @@ export const App: React.FC = () => {
   const [pendingAnalysisData, setPendingAnalysisData] = useState<{ updatedLogs: WeightLogEntry[] } | null>(null);
   const [pendingTimelineEvent, setPendingTimelineEvent] = useState<PendingTimelineEvent | null>(null);
   
-  // Community State
+  // --- Community State ---
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [communityViewKey, setCommunityViewKey] = useState(Date.now());
   const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera'>('flode');
   const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
   const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
   const previousViewModeRef = useRef<ViewMode>(viewMode);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [buddyDetails, setBuddyDetails] = useState<BuddyDetails[]>([]);
+  const [communityNotificationCount, setCommunityNotificationCount] = useState(0);
+  const [isLoadingCommunityData, setIsLoadingCommunityData] = useState(true);
 
 // PWA Install Prompt State
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
@@ -779,6 +785,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setIsInitialDataLoaded(false);
         setUserStatus(null);
         setPendingRequestsCount(0);
+        setCommunityNotificationCount(0);
+        setTimelineEvents([]);
+        setBuddyDetails([]);
         setJourneyAnalysisFeedback(null);
         setStreakSaver(null);
     }, []);
@@ -965,7 +974,52 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }, [isInitialDataLoaded, currentUser?.uid, pastDaysSummary, currentDate]);
 
 
-    // Effect for managing Community View timestamp
+    const loadCommunityData = useCallback(async () => {
+        if (!currentUser) return;
+        setIsLoadingCommunityData(true);
+        try {
+            const [events, details] = await Promise.all([
+                fetchCommunityTimeline(currentUser.uid),
+                fetchBuddyDetailsList(currentUser.uid),
+            ]);
+            setTimelineEvents(events);
+            setBuddyDetails(details);
+
+            const lastViewed = getLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, null);
+            if (lastViewed && viewMode !== 'community') {
+                const updatedEventIds = new Set<string>();
+                events.forEach(event => {
+                    let hasNewActivity = false;
+                    if (event.userId !== currentUser.uid && event.timestamp > lastViewed) {
+                        hasNewActivity = true;
+                    }
+                    (event.comments || []).forEach(comment => {
+                        if (comment.authorUid !== currentUser.uid && comment.timestamp > lastViewed) {
+                            hasNewActivity = true;
+                        }
+                    });
+
+                    if (hasNewActivity) {
+                        updatedEventIds.add(event.id);
+                    }
+                });
+                setCommunityNotificationCount(updatedEventIds.size);
+            }
+        } catch (error) {
+            console.error("Error loading community data in App:", error);
+            setToastNotification({ message: 'Kunde inte ladda community-data.', type: 'error' });
+        } finally {
+            setIsLoadingCommunityData(false);
+        }
+    }, [currentUser, viewMode, setToastNotification]);
+
+    useEffect(() => {
+        if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
+            loadCommunityData();
+        }
+    }, [currentUser, isInitialDataLoaded, userStatus, loadCommunityData]);
+
+    // Effect for managing Community View timestamp and notifications
     useEffect(() => {
         const previousViewMode = previousViewModeRef.current;
         
@@ -973,14 +1027,14 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         if (viewMode === 'community' && previousViewMode !== 'community') {
             const lastTimestamp = getLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, null);
             setLastCommunityViewTimestamp(lastTimestamp);
-        } 
-        // User is LEAVING community view
-        else if (viewMode !== 'community' && previousViewMode === 'community') {
+            
+            // Clear the notification badge immediately
+            setCommunityNotificationCount(0); 
+            
+            // Set the *new* "last visited" timestamp for future calculations
             setLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, Date.now());
-            setLastCommunityViewTimestamp(null); // No need to hold it in state when not in view
         }
-
-        // Update the ref for the next render cycle
+        
         previousViewModeRef.current = viewMode;
     }, [viewMode]);
 
@@ -2939,11 +2993,13 @@ useEffect(() => {
     const iconSize = 24;
     const iconStrokeWidth = 1.5;
 
+    const totalNotificationCount = pendingRequestsCount + communityNotificationCount;
+
     const navItems = [
       { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); } },
       { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { playAudio('uiClick'); setJourneyInitialTab('weight'); setViewMode('journey'); } },
       { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { playAudio('uiClick'); setViewMode('courseOverview');} },
-      { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { playAudio('uiClick'); if (viewMode === 'community') { setCommunityViewKey(Date.now()); } setViewMode('community'); }, notificationCount: pendingRequestsCount },
+      { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { playAudio('uiClick'); if (viewMode === 'community') { setCommunityViewKey(Date.now()); } setViewMode('community'); }, notificationCount: totalNotificationCount },
     ];
 
 
@@ -3218,6 +3274,10 @@ useEffect(() => {
               initialTab={communityInitialTab}
               highlightEventId={highlightEventId}
               lastViewTimestamp={lastCommunityViewTimestamp}
+              timelineEvents={timelineEvents}
+              buddyDetails={buddyDetails}
+              isLoading={isLoadingCommunityData}
+              onDataChanged={loadCommunityData}
             />
          )}
         </main>
