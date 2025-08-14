@@ -1,14 +1,13 @@
-// A name for our cache
+// ====== CACHE ======
 const CACHE_NAME = 'kostloggen-cache-v2';
 
-// The list of files to cache on service worker installation
 const URLS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/index.css',
 
-  // Icons from the manifest
+  // Ikoner
   '/favicon.png',
   '/icons/icon-72x72.png',
   '/icons/icon-96x96.png',
@@ -19,159 +18,120 @@ const URLS_TO_CACHE = [
   '/icons/icon-384x384.png',
   '/icons/icon-512x512.png',
 
-  // CDN scripts and modules from importmap
+  // CDN/externa moduler (valfritt att cachea)
   'https://cdn.tailwindcss.com',
-  "https://esm.sh/react@^19.1.0",
-  "https://esm.sh/react-dom@^19.1.0/client",
-  "https://esm.sh/react@^19.1.0/jsx-runtime",
-  "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js",
-  "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js",
-  "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js",
-  "https://www.gstatic.com/firebasejs/10.10.0/firebase-storage.js",
-  "https://esm.sh/@google/genai@^1.9.0",
-  "https://esm.sh/async-mutex@^0.5.0",
-  "https://esm.sh/@zxing/browser@^0.1.5",
-  "https://esm.sh/lucide-react@^0.400.0"
+  'https://esm.sh/react@^19.1.0',
+  'https://esm.sh/react-dom@^19.1.0/client',
+  'https://esm.sh/react@^19.1.0/jsx-runtime',
+  'https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js',
+  'https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js',
+  'https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js',
+  'https://www.gstatic.com/firebasejs/10.10.0/firebase-storage.js',
+  'https://esm.sh/@google/genai@^1.9.0',
+  'https://esm.sh/async-mutex@^0.5.0',
+  'https://esm.sh/@zxing/browser@^0.1.5',
+  'https://esm.sh/lucide-react@^0.400.0'
 ];
 
-// Install event: Open a cache and add all of the app shell files to it
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache and caching app shell');
-        return cache.addAll(URLS_TO_CACHE);
-      })
-      .catch(error => {
-        console.error('Failed to cache app shell during install:', error);
-      })
+      .then((cache) => cache.addAll(URLS_TO_CACHE))
+      .catch(err => console.error('SW install: cache misslyckades', err))
   );
 });
 
-// Activate event: Clean up any old caches that are no longer needed
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
+  const keep = [CACHE_NAME];
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
+    caches.keys().then(names =>
+      Promise.all(names.map(n => keep.includes(n) ? undefined : caches.delete(n)))
+    )
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
+      return fetch(event.request);
+    }).catch(err => {
+      // Fallback för SPA vid offline navigering
+      if (event.request.mode === 'navigate') return caches.match('/index.html');
+      throw err;
     })
   );
 });
 
-// Fetch event: Intercept network requests and serve from cache if available
-self.addEventListener('fetch', (event) => {
-  // We only cache GET requests
-  if (event.request.method !== 'GET') {
-    return;
-  }
-  
-  event.respondWith(
-    caches.match(event.request)
-      .then((cachedResponse) => {
-        // If the resource is in the cache, return it.
-        if (cachedResponse) {
-          return cachedResponse;
-        }
+// ====== PUSH NOTIFICATIONS ======
 
-        // If it's not in the cache, fetch it from the network.
-        // We don't cache Firestore or other API calls here.
-        // Firestore's SDK handles its own offline persistence.
-        return fetch(event.request);
-      })
-      .catch(error => {
-        console.error('Fetch error:', error);
-        // For navigation requests (e.g., refreshing the page offline),
-        // if the fetch fails, fall back to the cached index.html.
-        // This is crucial for SPA functionality offline.
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
-      })
-  );
-});
-
-// --- PUSH NOTIFICATION HANDLING ---
-
-// This listener handles push events that arrive when the app is in the background or closed.
-// It's the core of background notifications.
-self.addEventListener('push', (event) => {
-  console.log('[Service Worker] Push Received.');
-  
-  let data;
+// Robust tolkning av inkommande payload
+function parsePush(event) {
+  let payload = {};
   try {
-    data = event.data ? event.data.json() : {};
-  } catch (e) {
-    console.error('[Service Worker] Push event could not parse data.', e);
-    data = {};
+    // Försök läsa JSON
+    payload = event.data ? event.data.json() : {};
+  } catch (_) {
+    // Som fallback, försök tolka som text
+    try { payload = JSON.parse(event.data.text()); } catch (_e) { payload = {}; }
   }
 
-  const title = data.title || 'Kostloggen';
-  const options = {
-    body: data.body || 'Du har en ny notis!',
-    icon: data.icon || '/icons/icon-192x192.png',
-    badge: '/icons/badge-96x96.png', // Often used in the notification tray on Android
-    // Pass the URL and other data to the notification click handler
-    data: data.data || { url: '/' } // The payload from our function is nested under a 'data' property
-  };
+  const n = payload.notification || {};
+  const d = payload.data || payload; // stöd för platt struktur
 
-  // Tell the browser to show the notification.
+  const title = payload.title || n.title || 'Kostloggen';
+  const body  = payload.body  || n.body  || 'Du har en ny notis!';
+  const icon  = payload.icon  || n.icon  || '/icons/icon-192x192.png';
+  const url   = d.url || '/';
+
+  // valfria actions (om ni skickar actions i data)
+  const actions = d.actions || n.actions || undefined;
+
+  return {
+    title,
+    options: {
+      body,
+      icon,
+      badge: '/icons/badge-96x96.png',
+      data: { url, raw: payload },
+      actions
+    }
+  };
+}
+
+// Visa notis vid push när sidan är i bakgrunden/stängd
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push mottagen');
+  const { title, options } = parsePush(event);
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// This listener handles what happens when a user clicks on the notification.
+// Öppna/fokusera appen vid klick på notisen
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const url = (event.notification && event.notification.data && event.notification.data.url) || '/';
 
-  const urlToOpen = new URL(
-    event.notification.data?.url || '/',
-    self.location.origin
-  ).href;
-
-  const promiseChain = clients.matchAll({
-    type: 'window',
-    includeUncontrolled: true
-  }).then((windowClients) => {
-    let matchingClient = null;
-
-    // Check if there's a focused window client first.
-    for (const client of windowClients) {
-      if (client.focused) {
-        matchingClient = client;
-        break;
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientsArr => {
+      // Fokusera en redan öppen flik om möjligt
+      for (const c of clientsArr) {
+        try {
+          if (c.url && c.url.startsWith(self.location.origin)) {
+            c.focus();
+            // Navigera varsamt om vi vill till en specifik sida
+            if (url && url !== '/' && !c.url.endsWith(url)) c.navigate(url);
+            return;
+          }
+        } catch (_) {}
       }
-    }
+      // Annars öppna en ny
+      return clients.openWindow(url);
+    })
+  );
+});
 
-    // If not, check for any visible window client.
-    if (!matchingClient) {
-      for (const client of windowClients) {
-         if (client.visibilityState === "visible") {
-            matchingClient = client;
-            break;
-         }
-      }
-    }
-    
-    // If still no matching client, take the first available client.
-    if (!matchingClient && windowClients.length > 0) {
-        matchingClient = windowClients[0];
-    }
-
-
-    if (matchingClient) {
-      // If we found an open tab, navigate it to the URL and focus it.
-      return matchingClient.navigate(urlToOpen).then((client) => client?.focus());
-    } else {
-      // If we didn't find an open tab, open a new one.
-      return clients.openWindow(urlToOpen);
-    }
-  });
-
-  event.waitUntil(promiseChain);
+// (valfritt) hantera stängning
+self.addEventListener('notificationclose', () => {
+  // plats för ev. analytics
 });
