@@ -2088,6 +2088,75 @@ useEffect(() => {
   }
 }, []);
 
+  // This useEffect will run once when the app loads and the user is authenticated.
+  // It will silently check for and correct any outdated push notification subscriptions.
+  useEffect(() => {
+    const ensureValidSubscription = async () => {
+        if (!currentUser || !isInitialDataLoaded || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+            return;
+        }
+
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            let subscription = await registration.pushManager.getSubscription();
+
+            if (subscription) {
+                const keyArrayBuffer = subscription.options.applicationServerKey;
+                if (keyArrayBuffer) {
+                    // Convert ArrayBuffer to URL-safe Base64 string for comparison
+                    const existingKey = btoa(String.fromCharCode.apply(null, new Uint8Array(keyArrayBuffer)))
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=+$/, '');
+                    
+                    const currentKey = VAPID_PUBLIC_KEY.replace(/=+$/, '');
+
+                    if (existingKey !== currentKey) {
+                        console.log("Stale push subscription key found. Unsubscribing.");
+                        await subscription.unsubscribe();
+                        subscription = null; // Set to null so the next block re-subscribes
+                    }
+                } else {
+                    console.log("Subscription found without a key. Unsubscribing.");
+                    await subscription.unsubscribe();
+                    subscription = null;
+                }
+            }
+
+            // If there's no subscription at this point, try to create one if permission is granted
+            if (!subscription) {
+                const permissionState = await registration.pushManager.permissionState({ userVisibleOnly: true });
+                if (permissionState === 'granted') {
+                    console.log("Permission is granted. Attempting to subscribe automatically.");
+                    const newSubscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                    });
+                    
+                    const subscriptionObject = JSON.parse(JSON.stringify(newSubscription));
+                    
+                    const userDoc = await getDocSafe(doc(db, "users", currentUser.uid));
+                    const existingSubscriptions = userDoc.exists() ? userDoc.data().pushSubscriptions || [] : [];
+                    const isAlreadySaved = existingSubscriptions.some((sub: any) => sub.endpoint === subscriptionObject.endpoint);
+                    
+                    if (!isAlreadySaved) {
+                        await savePushSubscription(currentUser.uid, subscriptionObject);
+                        console.log("New push subscription created and saved automatically.");
+                    } else {
+                        console.log("New push subscription already exists on backend. Skipping save.");
+                    }
+                } else {
+                    console.log(`Permission state is '${permissionState}'. Skipping automatic subscription.`);
+                }
+            }
+        } catch (error) {
+            console.error("Error ensuring valid push subscription:", error);
+        }
+    };
+
+    ensureValidSubscription();
+  }, [currentUser, isInitialDataLoaded]);
+
   const closeModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
     playAudio('uiClick');
     modalSetter(false);
