@@ -66,67 +66,72 @@ self.addEventListener('fetch', (event) => {
 
 // ====== PUSH NOTIFICATIONS ======
 
-// Robust tolkning av inkommande payload
-function parsePush(event) {
-  let payload = {};
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push-händelse mottagen.', event.data ? event.data.text() : 'Ingen payload.');
+
+  let payload;
   try {
-    // Försök läsa JSON
-    payload = event.data ? event.data.json() : {};
-  } catch (_) {
-    // Som fallback, försök tolka som text
-    try { payload = JSON.parse(event.data.text()); } catch (_e) { payload = {}; }
+    payload = event.data.json();
+  } catch (e) {
+    payload = { title: "Ny Notis", body: event.data.text() };
   }
 
-  const n = payload.notification || {};
-  const d = payload.data || payload; // stöd för platt struktur
-
-  const title = payload.title || n.title || 'Kostloggen';
-  const body  = payload.body  || n.body  || 'Du har en ny notis!';
-  const icon  = payload.icon  || n.icon  || '/icons/icon-192x192.png';
-  const url   = d.url || '/';
-
-  // valfria actions (om ni skickar actions i data)
-  const actions = d.actions || n.actions || undefined;
-
-  return {
-    title,
-    options: {
-      body,
-      icon,
-      badge: '/icons/badge-96x96.png',
-      data: { url, raw: payload },
-      actions
-    }
+  const notification = payload.notification || payload;
+  const title = notification.title || "Kostloggen";
+  const options = {
+    body: notification.body || "Du har fått en ny notis!",
+    icon: notification.icon || '/icons/icon-192x192.png',
+    badge: notification.badge || '/icons/badge-96x96.png',
+    data: payload.data || { url: '/' }
   };
-}
+  
+  const promiseChain = self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true
+  }).then(windowClients => {
+    let clientIsVisible = false;
+    for (const client of windowClients) {
+      if (client.visibilityState === "visible") {
+        clientIsVisible = true;
+        client.postMessage({
+          message: 'push-received-in-foreground',
+          notification: { title, ...options }
+        });
+        break;
+      }
+    }
+    
+    if (clientIsVisible) {
+      console.log('[SW] Appen är i förgrunden, skickar meddelande istället för notis.');
+      return;
+    }
 
-// Visa notis vid push när sidan är i bakgrunden/stängd
-self.addEventListener('push', (event) => {
-  console.log('[SW] Push mottagen');
-  const { title, options } = parsePush(event);
-  event.waitUntil(self.registration.showNotification(title, options));
+    console.log('[SW] Appen är i bakgrunden, visar systemnotis.');
+    return self.registration.showNotification(title, options);
+  });
+
+  event.waitUntil(promiseChain);
 });
 
-// Öppna/fokusera appen vid klick på notisen
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification && event.notification.data && event.notification.data.url) || '/';
+  const url = (event.notification.data && event.notification.data.url) || '/';
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientsArr => {
-      // Fokusera en redan öppen flik om möjligt
-      for (const c of clientsArr) {
-        try {
-          if (c.url && c.url.startsWith(self.location.origin)) {
-            c.focus();
-            // Navigera varsamt om vi vill till en specifik sida
-            if (url && url !== '/' && !c.url.endsWith(url)) c.navigate(url);
-            return;
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          client.focus();
+          const targetUrl = new URL(url, self.location.origin).href;
+          if (client.url !== targetUrl && 'navigate' in client) {
+            client.navigate(targetUrl);
           }
-        } catch (_) {}
+          return;
+        }
       }
-      // Annars öppna en ny
-      return clients.openWindow(url);
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
     })
   );
 });

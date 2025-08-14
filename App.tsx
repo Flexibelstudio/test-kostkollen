@@ -693,7 +693,7 @@ export const App: React.FC = () => {
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-        setToastNotification({ message: 'Pushnotiser stöds inte av din webbläsaare eller så har något gått fel.', type: 'error' });
+        setToastNotification({ message: 'Pushnotiser stöds inte av din webbläsare eller så har något gått fel.', type: 'error' });
         setTimeout(() => setToastNotification(null), 4000);
         return false;
     }
@@ -714,6 +714,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         });
         
         const subscriptionObject = JSON.parse(JSON.stringify(subscription));
+        console.log('Push Subscription Object (för felsökning):', subscriptionObject); // Added for debugging
 
         await savePushSubscription(currentUser.uid, subscriptionObject);
         setToastNotification({ message: 'Pushnotiser är nu aktiverade!', type: 'success' });
@@ -727,6 +728,26 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
   };
   
+  // In-app notification listener for push events when app is in foreground
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.message === 'push-received-in-foreground') {
+        const { title, body } = event.data.notification;
+        const toastMessage = body ? `${title}: ${body}` : title;
+        setToastNotification({ message: toastMessage, type: 'success' });
+        playAudio('logSuccess', 0.8);
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+    };
+  }, []); // Empty dependency array ensures this runs once.
+
   const handleFirestoreError = (error: any, operation: string) => {
     console.error(`Firestore error during ${operation}:`, error);
     let message = `Kunde inte ${operation}.`;
