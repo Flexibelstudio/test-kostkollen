@@ -8,10 +8,16 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // ---- VAPID-nycklar ----
-const vapidPublicKey = "BHOuvp3U93hH9SFOOfxo2Kwk47jb2e0hBb_EWaFGwdpld4yozWYKFvkCPRWdt_u0UcbOV__JLwRfhjI8kE4";
+// Båda nycklarna hämtas nu från Firebase config för bättre säkerhet och hantering.
+const vapidPublicKey = functions.config().webpush ? functions.config().webpush.public_key : null;
 const vapidPrivateKey = functions.config().webpush ? functions.config().webpush.private_key : null;
 
-if (vapidPrivateKey) {
+if (vapidPublicKey && vapidPrivateKey) {
+    logger.log("Webpush VAPID keys loaded from Firebase config", {
+        publicKeyLength: vapidPublicKey.length,
+        privateKeyLength: vapidPrivateKey.length
+    });
+
     try {
         webpush.setVapidDetails(
           "mailto:din-email@example.com", // Uppdatera denna med din kontakt-email
@@ -22,13 +28,13 @@ if (vapidPrivateKey) {
         logger.error("VAPID details configuration failed at startup:", error);
     }
 } else {
-    logger.warn("WEBPUSH_PRIVATE_KEY is not set in functions config. Push notifications will be disabled.");
+    logger.warn("WEBPUSH keys are not set in functions config. Push notifications will be disabled.");
 }
 
 // ---- Hjälpfunktion för pushnotiser ----
 async function sendNotificationToUser(userId, payload, notificationType) {
-  if (!vapidPrivateKey) {
-      logger.warn(`Skipping notification for ${userId} because WEBPUSH_PRIVATE_KEY is not configured.`);
+  if (!vapidPrivateKey || !vapidPublicKey) {
+      logger.warn(`Skipping notification for ${userId} because WEBPUSH keys are not configured.`);
       return;
   }
   const userDocRef = db.collection("users").doc(userId);
