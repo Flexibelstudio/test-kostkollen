@@ -97,23 +97,35 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Push Notification Event Listener
+// --- PUSH NOTIFICATION HANDLING ---
+
+// This listener handles push events that arrive when the app is in the background or closed.
+// It's the core of background notifications.
 self.addEventListener('push', (event) => {
   console.log('[Service Worker] Push Received.');
   
-  const data = event.data ? event.data.json() : {};
+  let data;
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    console.error('[Service Worker] Push event could not parse data.', e);
+    data = {};
+  }
 
   const title = data.title || 'Kostloggen';
   const options = {
-    body: data.body || 'Dags att logga en måltid!',
+    body: data.body || 'Du har en ny notis!',
     icon: data.icon || '/icons/icon-192x192.png',
     badge: '/icons/badge-96x96.png', // Often used in the notification tray on Android
-    data: { url: data.url || '/' }
+    // Pass the URL and other data to the notification click handler
+    data: data.data || { url: '/' } // The payload from our function is nested under a 'data' property
   };
 
+  // Tell the browser to show the notification.
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+// This listener handles what happens when a user clicks on the notification.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
