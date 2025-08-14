@@ -5,7 +5,7 @@ export const GEMINI_MODEL_NAME_TEXT = 'gemini-2.5-flash';
 // VAPID public key for web push notifications.
 // IMPORTANT: Replace this with your own generated key pair for production.
 // You can generate keys using a library like 'web-push'.
-export const VAPID_PUBLIC_KEY = 'BHOuvp3U93hH9SFOOfxo2KvxqWwk47jb2e0hBb_EWaFGwdpld4yozWYKFvkCPRWdt_u0UcbOV__JLwRfhjI8kE4';
+export const VAPID_PUBLIC_KEY = 'BHOuvp3U93hH9SFOfxo2KvxgWwk47jb2e0hBb_EWaFGwdpId4yozWYKFvkCPRWWdt_u0UcbOV__JLwRfhjl8kE4';
 
 
 export const DEFAULT_GOALS: GoalSettings = {
