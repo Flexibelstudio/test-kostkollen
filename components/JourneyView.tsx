@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, StreakSaver, Reactions } from '../types';
@@ -541,7 +540,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                                                     bgColor = 'bg-gray-100';
                                                                                     iconColorClass = 'text-gray-400';
                                                                                 } else if (isToday) {
-                                                                                    bgColor = 'bg-secondary-200 border-2 border-secondary';
+                                                                                    bgColor = 'bg-secondary/30';
                                                                                     iconColorClass = 'text-secondary-darker';
                                                                                 } else { // Past day
                                                                                     if (summary) {

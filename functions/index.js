@@ -2,7 +2,6 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
-const dateFnsTz = require('date-fns-tz');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -222,85 +221,122 @@ exports.removeMutualFriends = functions.firestore
     }
   });
 
-  // --- SCHEMALAGD PUSHNOTIS-FUNKTION FÖR PÅMINNELSER ---
+// --- SCHEMALAGD PUSHNOTIS-FUNKTION (SVERIGE-TID) ---
+const TZ = "Europe/Stockholm";
+
+/**
+ * Gets the current time details in Swedish time zone.
+ * @return {{hour: number, dateString: string, weekday: string}}
+ */
+function stockholmNow() {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    weekday: "long",
+  });
+  const parts = fmt.formatToParts(now);
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+
+  const yyyy = get("year");
+  const mm = get("month");
+  const dd = get("day");
+  const hour = parseInt(get("hour"), 10);
+  const weekday = (get("weekday") || "").toLowerCase(); // ex. "torsdag"
+
+  return {
+    hour, // 0..23 i svensk tid
+    dateString: `${yyyy}-${mm}-${dd}`, // "YYYY-MM-DD" i svensk tid
+    weekday, // "måndag"..."söndag"
+  };
+}
 
 exports.scheduledNotificationChecker = functions.pubsub
-  .schedule('every 1 hours')
-  .onRun(async (context) => {
-    const usersSnapshot = await db.collection('users').get();
+    .schedule("every 1 hours")
+    .onRun(async (context) => {
+      const usersSnapshot = await db.collection("users").get();
 
-    for (const userDoc of usersSnapshot.docs) {
-      const user = userDoc.data();
-      const userId = userDoc.id;
+      for (const userDoc of usersSnapshot.docs) {
+        const user = userDoc.data();
+        const userId = userDoc.id;
 
-      if (!user.timezone) continue;
+        const {
+          hour: localHour,
+          dateString: todayDateString,
+          weekday: dayOfWeek,
+        } = stockholmNow();
 
-      const localTime = dateFnsTz.utcToZonedTime(new Date(), user.timezone);
-      const localHour = localTime.getHours();
-      const todayDateString = dateFnsTz.format(localTime, "yyyy-MM-dd");
+        // --- VATTENPÅMINNELSE: kl 12 ---
+        if (
+          localHour === 12 &&
+          user.lastWaterReminderSent !== todayDateString
+        ) {
+          const waterLog = await db.collection("users").doc(userId)
+              .collection("waterLogs").doc(todayDateString).get();
+          const needsWaterReminder = !waterLog.exists ||
+              (waterLog.exists && (waterLog.data().waterLoggedMl || 0) <= 0);
 
-      // --- VATTENPÅMINNELSE: kl 12 ---
-      if (
-        localHour === 12 &&
-        user.lastWaterReminderSent !== todayDateString
-      ) {
-        const waterLog = await db.collection('users').doc(userId).collection('waterLogs').doc(todayDateString).get();
-        let needsWaterReminder = !waterLog.exists || (waterLog.exists && waterLog.data().waterLoggedMl <= 0);
+          if (needsWaterReminder) {
+            const payload = {
+              title: "💧 Glöm inte vattnet!",
+              body: "Kom ihåg att logga ditt vattenintag.",
+              icon: "/icons/icon-192x192.png",
+              badge: "/icons/badge-96x96.png",
+              data: {url: "/?view=main"},
+            };
+            await sendNotificationToUser(userId, payload, "waterReminder");
+            await db.collection("users").doc(userId)
+                .update({lastWaterReminderSent: todayDateString});
+          }
+        }
 
-        if (needsWaterReminder) {
+        // --- MATPÅMINNELSE: kl 18 ---
+        if (
+          localHour === 18 &&
+          user.lastFoodReminderSent !== todayDateString
+        ) {
+          const mealLogsQuery = db.collection("users").doc(userId)
+              .collection("mealLogs").where("dateString", "==", todayDateString)
+              .limit(1);
+          const mealLogsSnapshot = await mealLogsQuery.get();
+
+          if (mealLogsSnapshot.empty) {
+            const payload = {
+              title: "🍽️ Middagstips!",
+              body: "Har du loggat dagens mat ännu? Missa inte att fylla i din kostlogg.",
+              icon: "/icons/icon-192x192.png",
+              badge: "/icons/badge-96x96.png",
+              data: {url: "/?view=main"},
+            };
+            await sendNotificationToUser(userId, payload, "foodReminder");
+            await db.collection("users").doc(userId)
+                .update({lastFoodReminderSent: todayDateString});
+          }
+        }
+
+        // --- VÄGNINGS-PÅMINNELSE: kl 8 på föredragen dag ---
+        const preferredDay = (user.preferredWeighInDay || "måndag").toLowerCase();
+
+        if (
+          localHour === 8 &&
+          dayOfWeek === preferredDay &&
+          user.lastWeighInReminderSent !== todayDateString
+        ) {
           const payload = {
-            title: "💧 Glöm inte vattnet!",
-            body: "Kom ihåg att logga ditt vattenintag.",
+            title: "⚖️ Dags för vägning!",
+            body: `Idag är din planerade vägdag (${user.preferredWeighInDay}). Kom ihåg att logga din vikt!`,
             icon: "/icons/icon-192x192.png",
             badge: "/icons/badge-96x96.png",
-            data: { url: "/?view=main" }
+            data: {url: "/?view=journey"},
           };
-          await sendNotificationToUser(userId, payload, "waterReminder");
-          await db.collection('users').doc(userId).update({ lastWaterReminderSent: todayDateString });
+          await sendNotificationToUser(userId, payload, "weighInReminder");
+          await db.collection("users").doc(userId)
+              .update({lastWeighInReminderSent: todayDateString});
         }
       }
-
-      // --- MATPÅMINNELSE: kl 18 ---
-      if (
-        localHour === 18 &&
-        user.lastFoodReminderSent !== todayDateString
-      ) {
-        const mealLogsQuery = db.collection('users').doc(userId).collection('mealLogs').where('dateString', '==', todayDateString).limit(1);
-        const mealLogsSnapshot = await mealLogsQuery.get();
-
-        if (mealLogsSnapshot.empty) {
-          const payload = {
-            title: "🍽️ Middagstips!",
-            body: "Har du loggat dagens mat ännu? Missa inte att fylla i din kostlogg.",
-            icon: "/icons/icon-192x192.png",
-            badge: "/icons/badge-96x96.png",
-            data: { url: "/?view=main" }
-          };
-          await sendNotificationToUser(userId, payload, "foodReminder");
-          await db.collection('users').doc(userId).update({ lastFoodReminderSent: todayDateString });
-        }
-      }
-
-      // --- VÄGNINGS-PÅMINNELSE: kl 8 på föredragen dag ---
-      const preferredDay = (user.preferredWeighInDay || 'monday').toLowerCase();
-      const dayOfWeek = dateFnsTz.format(localTime, 'EEEE', { timeZone: user.timezone }).toLowerCase();
-
-      if (
-        localHour === 8 &&
-        dayOfWeek === preferredDay &&
-        user.lastWeighInReminderSent !== todayDateString
-      ) {
-        const payload = {
-          title: "⚖️ Dags för vägning!",
-          body: `Idag är din planerade vägdag (${user.preferredWeighInDay}). Kom ihåg att logga din vikt!`,
-          icon: "/icons/icon-192x192.png",
-          badge: "/icons/badge-96x96.png",
-          data: { url: "/?view=journey" }
-        };
-        await sendNotificationToUser(userId, payload, "weighInReminder");
-        await db.collection('users').doc(userId).update({ lastWeighInReminderSent: todayDateString });
-      }
-
-    }
-    return null;
-  });
+      return null;
+    });
