@@ -1003,13 +1003,20 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 fetchCommunityTimeline(currentUser.uid),
                 fetchBuddyDetailsList(currentUser.uid),
             ]);
-            setTimelineEvents(events);
+    
+            // Filter events to only show own and current buddies' events.
+            const buddyUids = new Set(details.map(buddy => buddy.uid));
+            const filteredEvents = events.filter(event => 
+                event.userId === currentUser.uid || buddyUids.has(event.userId)
+            );
+    
+            setTimelineEvents(filteredEvents);
             setBuddyDetails(details);
 
             const lastViewed = getLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, null);
             if (lastViewed && viewMode !== 'community') {
                 const updatedEventIds = new Set<string>();
-                events.forEach(event => {
+                filteredEvents.forEach(event => {
                     let hasNewActivity = false;
                     if (event.userId !== currentUser.uid && event.timestamp > lastViewed) {
                         hasNewActivity = true;

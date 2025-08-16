@@ -246,10 +246,10 @@ exports.onCommentCreated = functions.firestore
 
 // ---- Kompis-hanteringsfunktioner ----
 
-// 4. Lägg till kompisar vid accepterad förfrågan
+// 4. Lägg till kompisar och RADERA FÖRFRÅGAN vid accepterad förfrågan
 exports.addMutualFriends = functions.firestore
   .document("peppkompisRequests/{requestId}")
-  .onUpdate(async (change) => {
+  .onUpdate(async (change, context) => {
     const before = change.before.data();
     const after = change.after.data();
 
@@ -283,37 +283,40 @@ exports.addMutualFriends = functions.firestore
         await db.collection("users").doc(fromUserId).collection("buddies").doc(toUserId).set(buddyForFrom);
         await db.collection("users").doc(toUserId).collection("buddies").doc(fromUserId).set(buddyForTo);
         logger.log(`Vänskap skapad mellan ${fromUserId} och ${toUserId}`);
+
+        // Ta bort förfrågan efter att vänskapen skapats.
+        const requestId = context.params.requestId;
+        await db.collection("peppkompisRequests").doc(requestId).delete();
+        logger.log(`Raderade vänförfrågan ${requestId} efter att den accepterats.`);
       } catch (error) {
-        logger.error("Fel vid skapande av vänskap:", error);
+        logger.error("Fel vid skapande av vänskap och radering av förfrågan:", error);
       }
     }
   });
 
-// 5. Ta bort kompisar om vänskap tas bort
-exports.removeMutualFriends = functions.firestore
-  .document("peppkompisRequests/{requestId}")
-  .onUpdate(async (change) => {
-    const before = change.before.data();
-    const after = change.after.data();
+// 5. Ta bort speglad vänrelation när en användare tar bort en kompis.
+// Denna ersätter den gamla 'removeMutualFriends' som var felaktigt implementerad.
+exports.onBuddyRemoved = functions.firestore
+  .document("users/{userId}/buddies/{buddyId}")
+  .onDelete(async (snapshot, context) => {
+    const { userId, buddyId } = context.params;
 
-    if (
-      before.status === "accepted" &&
-      (after.status === "removed" || after.status === "declined")
-    ) {
-      const fromUserId = after.fromUid;
-      const toUserId = after.toUid;
+    logger.log(`Användare ${userId} tog bort ${buddyId} som kompis. Försöker ta bort speglad relation.`);
 
-      try {
-        await db.collection("users").doc(fromUserId).collection("buddies").doc(toUserId).delete();
-        await db.collection("users").doc(toUserId).collection("buddies").doc(fromUserId).delete();
-        logger.log(
-          `Vänskap mellan ${fromUserId} och ${toUserId} togs bort pga status: ${after.status}`
-        );
-      } catch (error) {
-        logger.error("Fel vid borttagning av vänskap:", error);
+    const reciprocalBuddyRef = db.collection("users").doc(buddyId).collection("buddies").doc(userId);
+
+    try {
+      await reciprocalBuddyRef.delete();
+      logger.log(`Tog bort ${userId} från ${buddyId}s kompislista.`);
+    } catch (error) {
+      if (error.code === 5) { // Kod 5 är NOT_FOUND, vilket är ok.
+         logger.log(`Speglad vänrelation fanns inte redan för ${buddyId} -> ${userId}. Ingen åtgärd behövs.`);
+         return;
       }
+      logger.error(`Misslyckades med att ta bort speglad vänrelation för ${buddyId} -> ${userId}`, error);
     }
   });
+
 
 // --- SCHEMALAGD PUSHNOTIS-FUNKTION (SVERIGE-TID) ---
 const TZ = "Europe/Stockholm";

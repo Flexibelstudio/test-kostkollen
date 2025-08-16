@@ -891,26 +891,21 @@ export async function updateFriendRequestStatus(request: PeppkompisRequest, stat
     const requestRef = doc(db, 'peppkompisRequests', request.id);
 
     if (status === 'accepted') {
-        // As per user's architecture, frontend updates the status to trigger a backend Cloud Function.
-        // The Cloud Function is responsible for creating the reciprocal friendship.
+        // Frontend uppdaterar statusen för att trigga en Cloud Function i backend.
+        // Cloud Functionen ansvarar för att skapa den ömsesidiga vänskapen och sedan radera förfrågan.
         await updateDoc(requestRef, { status: "accepted" });
     } else { // 'declined'
-        // For declining, deleting the request document is the most straightforward action.
+        // Vid avslag raderas förfrågningsdokumentet direkt.
         await deleteDoc(requestRef);
     }
 }
 
 export async function removeBuddy(currentUserId: string, buddyUid: string): Promise<void> {
-    // A user can only write to their own documents.
-    // This function will only remove the buddy from the current user's list.
-    // The symmetrical relationship on the other user's side will remain until they
-    // also remove the buddy. This is a client-side limitation; a Cloud Function
-    // would be needed for a fully symmetrical deletion. The original implementation
-    // attempted a symmetrical delete which causes permission errors.
-    const batch = writeBatch(db);
+    // Raderar kompisen från den nuvarande användarens subcollection.
+    // Denna åtgärd triggar 'onBuddyRemoved' Cloud Function, som sedan
+    // raderar den symmetriska relationen (tar bort den nuvarande användaren från kompisens lista).
     const currentUserBuddyRef = doc(db, `users/${currentUserId}/buddies/${buddyUid}`);
-    batch.delete(currentUserBuddyRef);
-    await batch.commit();
+    await deleteDoc(currentUserBuddyRef);
 }
 
 export async function fetchFriendRequests(userId: string): Promise<PeppkompisRequest[]> {
