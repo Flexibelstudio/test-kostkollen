@@ -512,6 +512,21 @@ export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis)
         ? `Stress: ${senasteVälbefinnande.stressLevel || 'N/A'}, Energi: ${senasteVälbefinnande.energyLevel || 'N/A'}, Sömn: ${senasteVälbefinnande.sleepQuality || 'N/A'}, Humör: ${senasteVälbefinnande.mood || 'N/A'}`
         : 'Ej loggat';
 
+    // Conditional prompt parts based on measurement method
+    const measurementMethod = userProfile.measurementMethod;
+    let bodyCompositionContentPrompt: string;
+    let bodyCompositionDataPrompt: string;
+
+    if (measurementMethod === 'inbody') {
+        bodyCompositionContentPrompt = "Beskriv viktutveckling och muskelmassa. Lyft att stabil muskelmassa vid fettminskning är ett styrketecken. Använd \\n för nya rader.";
+        bodyCompositionDataPrompt = `- Muskelmassa (senaste): ${muskelmassa?.toFixed(1) || 'Ej mätt'} kg
+- Muskeltrend: ${muskelTrend}
+- Fettmassa (senaste): ${fettmassa?.toFixed(1) || 'Ej mätt'} kg`;
+    } else { // 'scale' or undefined
+        bodyCompositionContentPrompt = "Beskriv viktutvecklingen baserat på de loggade mätningarna. Kommentera trenden (ner, upp, stabil) och hur den relaterar till användarens mål utan att nämna specifik muskel- eller fettmassa. Använd \\n för nya rader.";
+        bodyCompositionDataPrompt = "";
+    }
+
     const kursFeedbackPrompt = isCourseActive
       ? `Användaren HAR tillgång till kursen 'Praktisk Viktkontroll'. Koppla dina insikter till relevanta koncept från kursen. Om användaren t.ex. har en platå, kan du referera till Lektion 7 ('Bryt en platå'). Om de är inkonsekventa, nämn Lektion 4 ('Hantera utmaningar').`
       : `Användaren har INTE tillgång till kursen. Föreslå den som ett bra nästa steg om du identifierar ett tydligt problem (t.ex. en platå). Formulera det så här: 'För att få extra verktyg för att hantera [problemet], kan kursen 'Praktisk Viktkontroll' vara till stor hjälp.'`;
@@ -531,7 +546,7 @@ Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med 
     {
       "emoji": "📉",
       "title": "Kroppssammansättning & trend",
-      "content": "Beskriv viktutveckling och muskelmassa. Lyft att stabil muskelmassa vid fettminskning är ett styrketecken. Använd \\n för nya rader."
+      "content": "${bodyCompositionContentPrompt}"
     },
     {
       "emoji": "🧠",
@@ -572,9 +587,7 @@ Användarens data:
 - Antal kostinloggningar (senaste 30d): ${antalKostloggar}
 - Startvikt: ${startvikt?.toFixed(1) || 'Ej satt'} kg
 - Senaste vikt: ${senasteVikt?.toFixed(1) || 'Ej satt'} kg
-- Muskelmassa (senaste): ${muskelmassa?.toFixed(1) || 'Ej mätt'} kg
-- Muskeltrend: ${muskelTrend}
-- Fettmassa (senaste): ${fettmassa?.toFixed(1) || 'Ej mätt'} kg
+${bodyCompositionDataPrompt}
 - Senaste välbefinnande: ${mentalWellbeingDataString}
 - Kalorimål uppnått: ${antalDagarKalorimål} av ${totalaDagar} dagar
 - Proteinmål uppnått: ${antalDagarProteinmål} av ${totalaDagar} dagar

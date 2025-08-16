@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, FC, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { Peppkompis, TimelineEvent, Achievement, Gender, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions } from '../types';
 import { 
-    fetchCommunityTimeline,
     fetchBuddyDetailsList,
     searchForBuddies,
     sendFriendRequest,
@@ -532,7 +531,7 @@ const TimelineEventCard: FC<{
     };
     
     const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
-    const isNewEvent = lastViewTimestamp !== null && event.timestamp > lastViewTimestamp;
+    const isNewEvent = lastViewTimestamp !== null && event.timestamp > lastViewTimestamp && event.userId !== currentUser.uid;
 
     return (
     <div id={`event-${event.id}`} className={`p-3 rounded-xl shadow-sm border transition-colors duration-500 ease-out ${isNewEvent ? 'bg-green-100/60 border-green-200' : 'bg-white border-neutral-light/60'}`}>
@@ -580,7 +579,7 @@ const TimelineEventCard: FC<{
                     const likes = comment.likes || {};
                     const likeCount = Object.keys(likes).length;
                     const userHasLiked = !!likes[currentUser.uid];
-                    const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp;
+                    const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
 
                     return (
                         <div key={comment.id} className="flex items-start gap-2">
@@ -632,8 +631,12 @@ export const CommunityView: React.FC<{
   pendingRequestsCount: number;
   initialTab?: 'flode' | 'hantera';
   highlightEventId?: string | null;
+  timelineEvents: TimelineEvent[];
+  buddyDetails: BuddyDetails[];
+  isLoading: boolean;
+  onDataChanged: () => void;
   lastViewTimestamp: number | null;
-}> = ({
+}> = ({ 
   currentUser,
   userProfile,
   achievements,
@@ -641,81 +644,26 @@ export const CommunityView: React.FC<{
   pendingRequestsCount,
   initialTab = 'flode',
   highlightEventId = null,
+  timelineEvents,
+  buddyDetails,
+  isLoading,
+  onDataChanged,
   lastViewTimestamp
 }) => {
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera'>(initialTab);
-  const [isLoading, setIsLoading] = useState(true);
-
-    const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
-    const [buddyDetails, setBuddyDetails] = useState<BuddyDetails[]>([]);
-    
-    const loadAllData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const [events, details] = await Promise.all([
-                fetchCommunityTimeline(currentUser.uid),
-                fetchBuddyDetailsList(currentUser.uid),
-            ]);
-            setTimelineEvents(events);
-            setBuddyDetails(details);
-        } catch (error) {
-            console.error("Error fetching community data:", error);
-            setToastNotification({ message: 'Kunde inte ladda community-data.', type: 'error' });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [currentUser.uid, setToastNotification]);
-
-    useEffect(() => {
-        loadAllData();
-    }, [loadAllData]);
-
-    useEffect(() => {
-    if (highlightEventId && timelineEvents.length > 0) {
-      const element = document.getElementById(`event-${highlightEventId}`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.add('ring-4', 'ring-offset-2', 'ring-secondary', 'transition-all', 'duration-1000', 'ease-out');
-        setTimeout(() => {
-          element.classList.remove('ring-4', 'ring-offset-2', 'ring-secondary');
-        }, 2500);
-      }
-    }
-}, [highlightEventId, timelineEvents]);
     
     const handleTogglePepp = async (event: TimelineEvent, newEmoji: string) => {
         if (!event.id) return;
         playAudio('uiClick', 0.6);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
-        const originalEvents = timelineEvents;
-        setTimelineEvents(prevEvents => prevEvents.map(e => {
-            if (e.id === event.id) {
-                const newReactions = JSON.parse(JSON.stringify(e.reactions || {}));
-                let previousReactionEmoji: string | null = null;
-                for (const emoji in newReactions) {
-                    if (newReactions[emoji]?.[fromUser.uid]) {
-                        previousReactionEmoji = emoji; break;
-                    }
-                }
-                if (previousReactionEmoji) {
-                    delete newReactions[previousReactionEmoji][fromUser.uid];
-                    if (Object.keys(newReactions[previousReactionEmoji]).length === 0) {
-                        delete newReactions[previousReactionEmoji];
-                    }
-                }
-                if (previousReactionEmoji !== newEmoji) {
-                    if (!newReactions[newEmoji]) newReactions[newEmoji] = {};
-                    newReactions[newEmoji][fromUser.uid] = fromUser.name;
-                }
-                return { ...e, reactions: newReactions };
-            }
-            return e;
-        }));
-
-        try { await togglePeppOnTimelineEvent(fromUser, event, newEmoji); } catch (error) {
+        // Optimistic update is now handled in App.tsx to avoid prop drilling issues
+        try { 
+            await togglePeppOnTimelineEvent(fromUser, event, newEmoji); 
+            onDataChanged(); // Trigger a refetch to get the latest state
+        } catch (error) {
             setToastNotification({ message: 'Kunde inte skicka reaktion.', type: 'error' });
-            setTimelineEvents(originalEvents);
+            onDataChanged(); // Refetch to revert to original state
         }
     };
     
@@ -723,28 +671,12 @@ export const CommunityView: React.FC<{
         playAudio('uiClick', 0.5);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
-        const originalEvents = timelineEvents;
-        // Optimistic Update
-        setTimelineEvents(prevEvents => prevEvents.map(e => {
-            if (e.id === event.id) {
-                const newComments = (e.comments || []).map(c => {
-                    if (c.id === commentId) {
-                        const newLikes = { ...(c.likes || {}) };
-                        if (newLikes[fromUser.uid]) delete newLikes[fromUser.uid];
-                        else newLikes[fromUser.uid] = fromUser.name;
-                        return { ...c, likes: newLikes };
-                    }
-                    return c;
-                });
-                return { ...e, comments: newComments };
-            }
-            return e;
-        }));
-        
-        // Backend call
-        try { await toggleLikeOnComment(fromUser, event, commentId); } catch (error) {
+        try { 
+            await toggleLikeOnComment(fromUser, event, commentId); 
+            onDataChanged();
+        } catch (error) {
             setToastNotification({ message: 'Kunde inte gilla kommentar.', type: 'error' });
-            setTimelineEvents(originalEvents);
+            onDataChanged();
         }
     };
     
@@ -755,17 +687,38 @@ export const CommunityView: React.FC<{
         const commentData: Omit<TimelineComment, 'id'> = { authorUid: currentUser.uid, authorName: userProfile.name || 'Användare', authorPhotoURL: userProfile.photoURL, text: text.trim(), timestamp: clientTimestamp, likes: {} };
         
         try {
-            const optimisticComment: TimelineComment = { ...commentData, id: `local-${clientTimestamp}` };
-            setTimelineEvents(prevEvents => prevEvents.map(e => e.id === event.id ? { ...e, comments: [...(e.comments || []), optimisticComment] } : e));
             await addCommentToTimelineEvent(event.id, commentData);
+            onDataChanged();
         } catch (error) {
             setToastNotification({ message: 'Kunde inte lägga till kommentar.', type: 'error' });
-            setTimelineEvents(prevEvents => prevEvents.map(e => e.id === event.id ? { ...e, comments: (e.comments || []).filter(c => c.id !== `local-${clientTimestamp}`) } : e));
+            onDataChanged();
         }
     };
     
+    const newEventsCount = useMemo(() => {
+        if (!lastViewTimestamp) return 0;
+        const updatedEventIds = new Set<string>();
+        timelineEvents.forEach(event => {
+            let hasNewActivity = false;
+            if (event.userId !== currentUser.uid && event.timestamp > lastViewTimestamp) {
+                hasNewActivity = true;
+            }
+            (event.comments || []).forEach(comment => {
+                if (comment.authorUid !== currentUser.uid && comment.timestamp > lastViewTimestamp) {
+                    hasNewActivity = true;
+                }
+            });
+
+            if (hasNewActivity) {
+                updatedEventIds.add(event.id);
+            }
+        });
+        return updatedEventIds.size;
+    }, [timelineEvents, lastViewTimestamp, currentUser.uid]);
+
+
     const tabs = [
-        { key: 'flode', label: 'Flöde', notificationCount: 0 },
+        { key: 'flode', label: 'Flöde', notificationCount: newEventsCount },
         { key: 'hantera', label: 'Kompisar', notificationCount: pendingRequestsCount },
     ];
     
@@ -815,7 +768,7 @@ export const CommunityView: React.FC<{
                         currentUser={currentUser} 
                         userProfile={userProfile}
                         setToastNotification={setToastNotification}
-                        onDataChanged={loadAllData}
+                        onDataChanged={onDataChanged}
                         buddyDetails={buddyDetails}
                         achievements={achievements}
                         initialTab={initialTab === 'hantera' ? 'requests' : 'buddies'}

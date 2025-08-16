@@ -30,7 +30,25 @@ if (vapidPublicKey && vapidPrivateKey) {
     logger.warn("WEBPUSH keys are not set in functions config. Push notifications will be disabled.");
 }
 
-// ---- Hjälpfunktion för pushnotiser ----
+// ---- Hjälpfunktioner för pushnotiser ----
+
+/**
+ * Finds all coach and admin user IDs.
+ * @return {Promise<string[]>} A promise that resolves to an array of UIDs.
+ */
+async function getCoachAndAdminIds() {
+    const coachesSnapshot = await db.collection("users").where("role", "==", "coach").get();
+    const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
+
+    const coachIds = coachesSnapshot.docs.map((doc) => doc.id);
+    const adminIds = adminsSnapshot.docs.map((doc) => doc.id);
+
+    // Use a Set to ensure unique IDs if a user is both coach and admin (unlikely but safe)
+    const allIds = new Set([...coachIds, ...adminIds]);
+
+    return Array.from(allIds);
+}
+
 async function sendNotificationToUser(userId, payload, notificationType) {
   if (!vapidPrivateKey || !vapidPublicKey) {
       logger.warn(`Skipping notification for ${userId} because WEBPUSH keys are not configured.`);
@@ -66,6 +84,76 @@ async function sendNotificationToUser(userId, payload, notificationType) {
 
 // ---- Notis-funktioner ----
 
+// 0. Notiser till Coach
+exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
+    const { email, displayName } = user;
+    const name = displayName || email || "En ny användare";
+
+    logger.log(`New user registered: ${name} (${email})`);
+
+    const payload = {
+      notification: {
+        title: "Ny Medlem! 🎉",
+        body: `${name} har registrerat sig och väntar på godkännande.`,
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        data: {
+          url: "/" // Coach dashboard is at root, toggled in UI
+        }
+      }
+    };
+
+    const coachIds = await getCoachAndAdminIds();
+    if (coachIds.length === 0) {
+        logger.warn("No coaches or admins found to notify about new user.");
+        return;
+    }
+
+    const notificationPromises = coachIds.map((id) =>
+        sendNotificationToUser(id, payload, "newEvents") // Reusing 'newEvents' setting for coach
+    );
+
+    await Promise.all(notificationPromises);
+});
+
+exports.onCourseInterest = functions.firestore
+  .document("users/{userId}")
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Check if courseInterest changed from false/undefined to true
+    if (after.courseInterest === true && before.courseInterest !== true) {
+        const name = after.displayName || "En medlem";
+        logger.log(`Course interest shown by: ${name} (ID: ${change.after.id})`);
+
+        const payload = {
+          notification: {
+            title: "Intresse för kurs! 🎓",
+            body: `${name} har visat intresse för kursen 'Praktisk Viktkontroll'.`,
+            icon: "/icons/icon-192x192.png",
+            badge: "/icons/badge-96x96.png",
+            data: {
+              url: "/" // Coach dashboard
+            }
+          }
+        };
+
+        const coachIds = await getCoachAndAdminIds();
+        if (coachIds.length === 0) {
+            logger.warn("No coaches or admins found to notify about course interest.");
+            return;
+        }
+
+        const notificationPromises = coachIds.map((id) =>
+            sendNotificationToUser(id, payload, "newEvents") // Reusing 'newEvents' setting for coach
+        );
+
+        await Promise.all(notificationPromises);
+    }
+  });
+
+
 // 1. Peppkompisförfrågan skapad (notis)
 exports.onFriendRequestCreated = functions.firestore
   .document("peppkompisRequests/{requestId}")
@@ -74,12 +162,14 @@ exports.onFriendRequestCreated = functions.firestore
     if (!request) return;
 
     const payload = {
-      title: "Ny peppkompis-förfrågan! 🎉",
-      body: `${request.fromName} vill bli din peppkompis!`,
-      icon: "/icons/icon-192x192.png",
-      badge: "/icons/badge-96x96.png",
-      data: {
-        url: "/?view=community&tab=requests"
+      notification: {
+        title: "Ny peppkompis-förfrågan! 🎉",
+        body: `${request.fromName} vill bli din peppkompis!`,
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        data: {
+          url: "/?view=community&tab=requests"
+        }
       }
     };
 
@@ -97,15 +187,17 @@ exports.onTimelineEventCreated = functions.firestore
     const buddiesSnapshot = await buddiesRef.get();
     if (buddiesSnapshot.empty) return;
 
-    const eventId = snapshot.id; 
+    const eventId = snapshot.id;
 
     const payload = {
-      title: "Ny händelse i flödet!",
-      body: `${event.userName} ${event.title}`,
-      icon: "/icons/icon-192x192.png",
-      badge: "/icons/badge-96x96.png",
-      data: {
-        url: `/?view=community&highlight=${eventId}`
+      notification: {
+        title: "Ny händelse i flödet!",
+        body: `${event.userName} ${event.title}`,
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        data: {
+          url: `/?view=community&highlight=${eventId}`
+        }
       }
     };
 
@@ -138,18 +230,20 @@ exports.onCommentCreated = functions.firestore
     if (comment.authorUid === eventOwnerId) return;
 
     const payload = {
-      title: "Ny kommentar! 💬",
-      body: `${comment.authorName} kommenterade ditt inlägg: "${eventData.title}"`,
-      icon: "/icons/icon-192x192.png",
-      badge: "/icons/badge-96x96.png",
-      data: {
-        url: `/?view=community&highlight=${eventId}`
+      notification: {
+        title: "Ny kommentar! 💬",
+        body: `${comment.authorName} kommenterade ditt inlägg: "${eventData.title}"`,
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        data: {
+          url: `/?view=community&highlight=${eventId}`
+        }
       }
     };
 
     await sendNotificationToUser(eventOwnerId, payload, "comments");
   });
-  
+
 // ---- Kompis-hanteringsfunktioner ----
 
 // 4. Lägg till kompisar vid accepterad förfrågan
@@ -282,11 +376,13 @@ exports.scheduledNotificationChecker = functions.pubsub
 
           if (needsWaterReminder) {
             const payload = {
-              title: "💧 Glöm inte vattnet!",
-              body: "Kom ihåg att logga ditt vattenintag.",
-              icon: "/icons/icon-192x192.png",
-              badge: "/icons/badge-96x96.png",
-              data: {url: "/?view=main"},
+              notification: {
+                title: "💧 Glöm inte vattnet!",
+                body: "Kom ihåg att logga ditt vattenintag.",
+                icon: "/icons/icon-192x192.png",
+                badge: "/icons/badge-96x96.png",
+                data: {url: "/?view=main"},
+              }
             };
             await sendNotificationToUser(userId, payload, "waterReminder");
             await db.collection("users").doc(userId)
@@ -306,11 +402,13 @@ exports.scheduledNotificationChecker = functions.pubsub
 
           if (mealLogsSnapshot.empty) {
             const payload = {
-              title: "🍽️ Middagstips!",
-              body: "Har du loggat dagens mat ännu? Missa inte att fylla i din kostlogg.",
-              icon: "/icons/icon-192x192.png",
-              badge: "/icons/badge-96x96.png",
-              data: {url: "/?view=main"},
+              notification: {
+                title: "🍽️ Middagstips!",
+                body: "Har du loggat dagens mat ännu? Missa inte att fylla i din kostlogg.",
+                icon: "/icons/icon-192x192.png",
+                badge: "/icons/badge-96x96.png",
+                data: {url: "/?view=main"},
+              }
             };
             await sendNotificationToUser(userId, payload, "foodReminder");
             await db.collection("users").doc(userId)
@@ -327,11 +425,13 @@ exports.scheduledNotificationChecker = functions.pubsub
           user.lastWeighInReminderSent !== todayDateString
         ) {
           const payload = {
-            title: "⚖️ Dags för vägning!",
-            body: `Idag är din planerade vägdag (${user.preferredWeighInDay}). Kom ihåg att logga din vikt!`,
-            icon: "/icons/icon-192x192.png",
-            badge: "/icons/badge-96x96.png",
-            data: {url: "/?view=journey"},
+            notification: {
+              title: "⚖️ Dags för vägning!",
+              body: `Idag är din planerade vägdag (${user.preferredWeighInDay}). Kom ihåg att logga din vikt!`,
+              icon: "/icons/icon-192x192.png",
+              badge: "/icons/badge-96x96.png",
+              data: {url: "/?view=journey"},
+            }
           };
           await sendNotificationToUser(userId, payload, "weighInReminder");
           await db.collection("users").doc(userId)
