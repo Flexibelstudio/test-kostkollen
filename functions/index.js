@@ -430,7 +430,7 @@ exports.scheduledNotificationChecker = functions.pubsub
           const payload = {
             notification: {
               title: "⚖️ Dags för vägning!",
-              body: `Idag är din planerade vägdag (${user.preferredWeighInDay}). Kom ihåg att logga din vikt!`,
+              body: `Idag är din planerade vägdag. Kom ihåg att logga din vikt!`,
               icon: "/icons/icon-192x192.png",
               badge: "/icons/badge-96x96.png",
               data: {url: "/?view=journey"},

@@ -2886,6 +2886,16 @@ useEffect(() => {
     playAudio('levelUp');
 
     try {
+        const streakEventData = {
+            type: 'streak' as const,
+            timestamp: Date.now(),
+            title: `har fått +1 på sin Streak!`,
+            description: `Ny streak: ${newStreak} dagar i följd.`,
+            icon: ' ',
+            relatedDocId: `streak_${dayToSave.date}`
+        };
+        await addTimelineEvent(currentUser.uid, streakEventData);
+
         const batch = writeBatch(db);
         const summaryRef = doc(db, 'users', currentUser.uid, 'pastDaySummaries', dayToSave.date);
         batch.update(summaryRef, { goalMet: true, savedBy: 'streakSaver', streakForThisDay: newStreak });
@@ -2907,6 +2917,7 @@ useEffect(() => {
 
     } catch (error) {
         handleFirestoreError(error, 'använda streakräddare');
+        // Rollback optimistic update
         setPastDaysSummary(prev => ({ ...prev, [dayToSave.date]: dayToSave }));
         setStreakSaver(streakSaver);
         setStreakData(prev => ({...prev, currentStreak: streakData.currentStreak}));
