@@ -3372,6 +3372,7 @@ useEffect(() => {
               highlightEventId={highlightEventId}
               lastViewTimestamp={lastCommunityViewTimestamp}
               timelineEvents={timelineEvents}
+              setTimelineEvents={setTimelineEvents}
               buddyDetails={buddyDetails}
               isLoading={isLoadingCommunityData}
               onDataChanged={loadCommunityData}

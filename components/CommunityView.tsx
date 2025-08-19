@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, FC, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { Peppkompis, TimelineEvent, Achievement, Gender, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions } from '../types';
 import { 
-    fetchBuddyDetailsList,
     searchForBuddies,
     sendFriendRequest,
     updateFriendRequestStatus,
@@ -12,7 +11,6 @@ import {
     togglePeppOnTimelineEvent,
     addCommentToTimelineEvent,
     toggleLikeOnComment,
-    fetchBuddies,
     cancelFriendRequest
 } from '../services/firestoreService';
 import { 
@@ -632,6 +630,7 @@ export const CommunityView: React.FC<{
   initialTab?: 'flode' | 'hantera';
   highlightEventId?: string | null;
   timelineEvents: TimelineEvent[];
+  setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
   buddyDetails: BuddyDetails[];
   isLoading: boolean;
   onDataChanged: () => void;
@@ -645,6 +644,7 @@ export const CommunityView: React.FC<{
   initialTab = 'flode',
   highlightEventId = null,
   timelineEvents,
+  setTimelineEvents,
   buddyDetails,
   isLoading,
   onDataChanged,
@@ -657,13 +657,37 @@ export const CommunityView: React.FC<{
         playAudio('uiClick', 0.6);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
-        // Optimistic update is now handled in App.tsx to avoid prop drilling issues
+        const originalEvents = timelineEvents;
+        setTimelineEvents(prevEvents => prevEvents.map(e => {
+            if (e.id === event.id) {
+                const newReactions: Reactions = JSON.parse(JSON.stringify(e.reactions || {}));
+                let previousReactionEmoji: string | null = null;
+                for (const emojiKey in newReactions) {
+                    if (newReactions[emojiKey]?.[fromUser.uid]) {
+                        previousReactionEmoji = emojiKey;
+                        break;
+                    }
+                }
+                if (previousReactionEmoji) {
+                    delete newReactions[previousReactionEmoji][fromUser.uid];
+                    if (Object.keys(newReactions[previousReactionEmoji]).length === 0) {
+                        delete newReactions[previousReactionEmoji];
+                    }
+                }
+                if (previousReactionEmoji !== newEmoji) {
+                    if (!newReactions[newEmoji]) newReactions[newEmoji] = {};
+                    newReactions[newEmoji][fromUser.uid] = fromUser.name;
+                }
+                return { ...e, reactions: newReactions };
+            }
+            return e;
+        }));
+
         try { 
             await togglePeppOnTimelineEvent(fromUser, event, newEmoji); 
-            onDataChanged(); // Trigger a refetch to get the latest state
         } catch (error) {
             setToastNotification({ message: 'Kunde inte skicka reaktion.', type: 'error' });
-            onDataChanged(); // Refetch to revert to original state
+            setTimelineEvents(originalEvents);
         }
     };
     
@@ -671,12 +695,26 @@ export const CommunityView: React.FC<{
         playAudio('uiClick', 0.5);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
-        try { 
-            await toggleLikeOnComment(fromUser, event, commentId); 
-            onDataChanged();
-        } catch (error) {
+        const originalEvents = timelineEvents;
+        setTimelineEvents(prevEvents => prevEvents.map(e => {
+            if (e.id === event.id) {
+                const newComments = (e.comments || []).map(c => {
+                    if (c.id === commentId) {
+                        const newLikes = { ...(c.likes || {}) };
+                        if (newLikes[fromUser.uid]) delete newLikes[fromUser.uid];
+                        else newLikes[fromUser.uid] = fromUser.name;
+                        return { ...c, likes: newLikes };
+                    }
+                    return c;
+                });
+                return { ...e, comments: newComments };
+            }
+            return e;
+        }));
+        
+        try { await toggleLikeOnComment(fromUser, event, commentId); } catch (error) {
             setToastNotification({ message: 'Kunde inte gilla kommentar.', type: 'error' });
-            onDataChanged();
+            setTimelineEvents(originalEvents);
         }
     };
     
@@ -684,14 +722,38 @@ export const CommunityView: React.FC<{
         if (!text.trim()) return;
         playAudio('uiClick');
         const clientTimestamp = Date.now();
-        const commentData: Omit<TimelineComment, 'id'> = { authorUid: currentUser.uid, authorName: userProfile.name || 'Användare', authorPhotoURL: userProfile.photoURL, text: text.trim(), timestamp: clientTimestamp, likes: {} };
+        const optimisticComment: TimelineComment = { 
+            id: `local-${clientTimestamp}`, 
+            authorUid: currentUser.uid, 
+            authorName: userProfile.name || 'Användare', 
+            authorPhotoURL: userProfile.photoURL, 
+            text: text.trim(), 
+            timestamp: clientTimestamp, 
+            likes: {} 
+        };
         
+        const originalEvents = timelineEvents;
+        setTimelineEvents(prevEvents => prevEvents.map(e => 
+            e.id === event.id ? { ...e, comments: [...(e.comments || []), optimisticComment] } : e
+        ));
+
         try {
-            await addCommentToTimelineEvent(event.id, commentData);
-            onDataChanged();
+            const newCommentId = await addCommentToTimelineEvent(event.id, { 
+                authorUid: optimisticComment.authorUid, 
+                authorName: optimisticComment.authorName, 
+                authorPhotoURL: optimisticComment.authorPhotoURL, 
+                text: optimisticComment.text, 
+                timestamp: optimisticComment.timestamp 
+            });
+            setTimelineEvents(prevEvents => prevEvents.map(e => {
+                if (e.id === event.id) {
+                    return { ...e, comments: (e.comments || []).map(c => c.id === optimisticComment.id ? { ...c, id: newCommentId } : c) };
+                }
+                return e;
+            }));
         } catch (error) {
             setToastNotification({ message: 'Kunde inte lägga till kommentar.', type: 'error' });
-            onDataChanged();
+            setTimelineEvents(originalEvents);
         }
     };
     

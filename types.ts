@@ -190,8 +190,8 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, 'name'> {
   role: UserRole;
   status: 'pending' | 'approved';
   hasCompletedOnboarding: boolean;
-  createdAt: FieldValue;
-  lastLoginAt: FieldValue;
+  createdAt: Timestamp;
+  lastLoginAt: Timestamp;
   lastLogDate: string | null;
   goals: GoalSettings;
   currentStreak: number;

@@ -482,7 +482,7 @@ export async function setPastDaySummary(userId: string, dateUID: string, summary
     await setDoc(summaryRef, summary, { merge: true });
 }
 
-export async function updateUserDocument(userId: string, data: Partial<FirestoreUserDocument>) {
+export async function updateUserDocument(userId: string, data: { [key: string]: any }) {
     const userDocRef = doc(db, 'users', userId);
     await updateDoc(userDocRef, data);
 }
