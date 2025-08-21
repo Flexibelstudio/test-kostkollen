@@ -254,6 +254,7 @@ const FriendManagementView: FC<{
     const [activeTab, setActiveTab] = useState<'buddies' | 'search' | 'requests'>(initialTab);
     const [buddyToRemove, setBuddyToRemove] = useState<Peppkompis | null>(null);
     const [showInviteOptionsModal, setShowInviteOptionsModal] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
 
 
     const fetchData = useCallback(async () => {
@@ -276,16 +277,15 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    const inviteText = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
+
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
         playAudio('uiClick');
-        const inviteUrl = "https://app.kostloggen.se";
-        const inviteText = `Hej! Jag använder en app som heter Kostloggen.se för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: ${inviteUrl}`;
         
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: 'Gå med mig i Kostloggen!',
                     text: inviteText,
                 });
             } catch (error) {
@@ -298,15 +298,11 @@ const FriendManagementView: FC<{
     };
     
     const handleCopyToClipboard = async () => {
-        setShowInviteOptionsModal(false);
         playAudio('uiClick');
-        const inviteUrl = "https://app.kostloggen.se";
-        const inviteText = `Hej! Jag använder en app som heter Kostloggen.se för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: ${inviteUrl}`;
-        
         try {
             await navigator.clipboard.writeText(inviteText);
-            setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
-            setTimeout(() => setToastNotification(null), 3000);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000); // Reset feedback after 2s
         } catch (error) {
             console.error('Error copying to clipboard:', error);
             setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
@@ -540,13 +536,17 @@ const FriendManagementView: FC<{
                             <button onClick={handleShareViaApp} className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm">
                                 <ShareIcon className="w-5 h-5 mr-2" /> Dela via app
                             </button>
-                             <p className="text-xs text-neutral text-center">Obs: Vissa appar som Messenger ignorerar texten och visar bara en länk.</p>
-                            <button onClick={handleCopyToClipboard} className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm">
-                                <PencilIcon className="w-5 h-5 mr-2" /> Kopiera inbjudningstext
+                             <p className="text-xs text-neutral text-center">Obs: Vissa appar som Messenger kan ignorera texten.</p>
+                            <button
+                                onClick={handleCopyToClipboard}
+                                disabled={isCopied}
+                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm disabled:bg-green-100 disabled:text-green-700"
+                            >
+                                <PencilIcon className="w-5 h-5 mr-2" /> {isCopied ? 'Kopierad!' : 'Kopiera inbjudningstext'}
                             </button>
                         </div>
                          <button onClick={() => setShowInviteOptionsModal(false)} className="mt-4 w-full py-2 text-sm text-neutral hover:underline">
-                            Avbryt
+                            Stäng
                         </button>
                     </div>
                 </div>
