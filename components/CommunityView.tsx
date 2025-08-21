@@ -273,6 +273,35 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    const handleInviteFriend = async () => {
+        playAudio('uiClick');
+        const shareData = {
+            title: 'Gå med mig i Kostloggen!',
+            text: `Hej! Jag använder en app som heter Kostloggen.se för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLäs mer och kom igång här:`,
+            url: window.location.origin,
+        };
+
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+            } catch (error) {
+                console.error('Error sharing:', error);
+                if (error instanceof DOMException && error.name !== 'AbortError') {
+                    setToastNotification({ message: 'Kunde inte dela inbjudan.', type: 'error' });
+                }
+            }
+        } else {
+            // Fallback for browsers that don't support Web Share API
+            try {
+                await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+                setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
+            } catch (error) {
+                console.error('Error copying to clipboard:', error);
+                setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
+            }
+        }
+    };
+
     const searchResults = useMemo(() => {
         const buddyUids = new Set(buddyDetails.map(b => b.uid));
         const nonFriends = allSearchableUsers.filter(user => !buddyUids.has(user.uid));
@@ -393,7 +422,23 @@ const FriendManagementView: FC<{
             case 'search':
                 return (
                     <div className="animate-fade-in space-y-4">
-                         <input type="search" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-md bg-white" placeholder="Sök på namn eller e-post..." autoFocus/>
+                         <button
+                            onClick={handleInviteFriend}
+                            className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
+                        >
+                            Bjud in en vän
+                        </button>
+                        <div className="relative">
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                             <input 
+                                type="search" 
+                                value={searchQuery} 
+                                onChange={e => setSearchQuery(e.target.value)} 
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white"
+                                placeholder="Sök bland användare..."
+                                autoFocus
+                            />
+                        </div>
                         <div className="space-y-2">
                             {searchResults.map(user => {
                                 const isBuddy = buddyDetails.some(b => b.uid === user.uid);
@@ -410,6 +455,9 @@ const FriendManagementView: FC<{
                                     </div>
                                 );
                             })}
+                             {searchQuery && searchResults.length === 0 && (
+                                <p className="text-sm text-neutral text-center py-4">Inga användare matchade din sökning.</p>
+                            )}
                         </div>
                     </div>
                 );
@@ -622,6 +670,7 @@ const TimelineEventCard: FC<{
 
 
 export const CommunityView: React.FC<{ 
+  key: number;
   currentUser: User;
   userProfile: UserProfileData;
   achievements: Achievement[];

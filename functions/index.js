@@ -430,7 +430,7 @@ exports.scheduledNotificationChecker = functions.pubsub
           const payload = {
             notification: {
               title: "⚖️ Dags för vägning!",
-              body: `Idag är din planerade vägdag. Kom ihåg att logga din vikt!`,
+              body: `Idag är din planerade vägdag (${user.preferredWeighInDay}). Kom ihåg att logga din vikt!`,
               icon: "/icons/icon-192x192.png",
               badge: "/icons/badge-96x96.png",
               data: {url: "/?view=journey"},
@@ -443,3 +443,37 @@ exports.scheduledNotificationChecker = functions.pubsub
       }
       return null;
     });
+
+// ---- DATABAS-BACKUP (SCHEMALAGD EXPORT) ----
+// Denna funktion kräver att Cloud Functionens service-konto har rollen
+// "Cloud Datastore Import Export Admin" i IAM & Admin API.
+// Du måste också skapa en Google Cloud Storage-bucket med namnet
+// gs://<DITT-PROJEKT-ID>-backups i ditt Google Cloud-projekt.
+const {Firestore} = require("@google-cloud/firestore");
+const firestoreClient = new Firestore();
+
+exports.scheduledFirestoreExport = functions.pubsub
+  .schedule("0 3 * * *")
+  .timeZone("Europe/Stockholm")
+  .onRun(async (context) => {
+    const projectId = admin.app().options.projectId;
+    const databaseName = firestoreClient.databasePath(projectId, "(default)");
+    const bucket = `gs://${projectId}-backups`;
+
+    logger.log(`Startar schemalagd backup av Firestore-databasen '${databaseName}' till bucket '${bucket}'`);
+
+    try {
+      const responses = await firestoreClient.exportDocuments({
+        name: databaseName,
+        outputUriPrefix: bucket,
+        // Lämna collectionIds tomt för att exportera hela databasen.
+        // collectionIds: []
+      });
+      const response = responses[0];
+      logger.log(`Export-operation startad: ${response["name"]}`);
+      return null;
+    } catch (error) {
+      logger.error("Fel vid start av Firestore-export:", error);
+      throw new Error("Export-operationen misslyckades.");
+    }
+  });
