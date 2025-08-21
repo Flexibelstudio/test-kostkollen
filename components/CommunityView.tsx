@@ -275,25 +275,24 @@ const FriendManagementView: FC<{
 
     const handleInviteFriend = async () => {
         playAudio('uiClick');
-        const shareData = {
-            title: 'Gå med mig i Kostloggen!',
-            text: `Hej! Jag använder en app som heter Kostloggen.se för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLäs mer och kom igång här:`,
-            url: window.location.origin,
-        };
-
+        const shareText = `Hej! Jag använder en app som heter Kostloggen.se för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: ${window.location.origin}`;
+        
         if (navigator.share) {
             try {
-                await navigator.share(shareData);
+                await navigator.share({
+                    title: 'Gå med mig i Kostloggen!',
+                    text: shareText,
+                    url: window.location.origin,
+                });
             } catch (error) {
-                console.error('Error sharing:', error);
-                if (error instanceof DOMException && error.name !== 'AbortError') {
+                if (!(error instanceof DOMException && error.name === 'AbortError')) {
+                    console.error('Error sharing:', error);
                     setToastNotification({ message: 'Kunde inte dela inbjudan.', type: 'error' });
                 }
             }
         } else {
-            // Fallback for browsers that don't support Web Share API
             try {
-                await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+                await navigator.clipboard.writeText(shareText);
                 setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
             } catch (error) {
                 console.error('Error copying to clipboard:', error);
@@ -422,7 +421,7 @@ const FriendManagementView: FC<{
             case 'search':
                 return (
                     <div className="animate-fade-in space-y-4">
-                         <button
+                        <button
                             onClick={handleInviteFriend}
                             className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
                         >
