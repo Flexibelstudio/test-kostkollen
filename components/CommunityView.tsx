@@ -275,25 +275,27 @@ const FriendManagementView: FC<{
 
     const handleInviteFriend = async () => {
         playAudio('uiClick');
-        const shareText = `Hej! Jag använder en app som heter Kostloggen.se för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: ${window.location.origin}`;
+        const inviteText = "Hej! Jag använder en app som heter Kostloggen.se för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se";
+        const inviteTitle = "Gå med mig i Kostloggen!";
         
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: 'Gå med mig i Kostloggen!',
-                    text: shareText,
-                    url: window.location.origin,
+                    title: inviteTitle,
+                    text: inviteText,
                 });
             } catch (error) {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
                     console.error('Error sharing:', error);
                     setToastNotification({ message: 'Kunde inte dela inbjudan.', type: 'error' });
+                    setTimeout(() => setToastNotification(null), 3000);
                 }
             }
         } else {
             try {
-                await navigator.clipboard.writeText(shareText);
+                await navigator.clipboard.writeText(inviteText);
                 setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
+                setTimeout(() => setToastNotification(null), 3000);
             } catch (error) {
                 console.error('Error copying to clipboard:', error);
                 setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
