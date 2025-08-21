@@ -275,13 +275,13 @@ const FriendManagementView: FC<{
 
     const handleInviteFriend = async () => {
         playAudio('uiClick');
-        const inviteText = "Hej! Jag använder en app som heter Kostloggen.se för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se";
-        const inviteTitle = "Gå med mig i Kostloggen!";
+        const inviteText = `Hej! Jag använder en app som heter Kostloggen.se för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
         
         if (navigator.share) {
             try {
+                // By removing the 'title', we increase the chance that apps like Messenger and Instagram
+                // will treat the content as plain text rather than a link preview, thus including the full message.
                 await navigator.share({
-                    title: inviteTitle,
                     text: inviteText,
                 });
             } catch (error) {
