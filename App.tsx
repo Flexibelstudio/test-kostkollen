@@ -73,6 +73,7 @@ import MentalWellbeingModal, { MentalWellbeingData } from './components/MentalWe
 import BmrTdeeInfoModal from './components/BmrTdeeInfoModal.tsx';
 import OnboardingCompletionScreen from './components/OnboardingCompletionScreen.tsx';
 import { CommunityView } from './components/CommunityView.tsx';
+import IosInstallPrompt from './components/IosInstallPrompt.tsx';
 
 
 
@@ -690,6 +691,7 @@ export const App: React.FC = () => {
 // PWA Install Prompt State
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showIosInstallPrompt, setShowIosInstallPrompt] = useState(false);
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -2043,7 +2045,7 @@ useEffect(() => {
     }
   }, []);
 
-// PWA Install Prompt Logic
+// PWA Install Prompt Logic (for Android/Desktop)
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       // Prevent the mini-infobar from appearing on mobile
@@ -2062,6 +2064,21 @@ useEffect(() => {
     };
   }, []);
 
+  // PWA Install Prompt Logic (for iOS)
+  useEffect(() => {
+    const isIos = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isInStandaloneMode = () => window.matchMedia('(display-mode: standalone)').matches;
+    const isSafariOnIos = () => isIos() && navigator.vendor && navigator.vendor.indexOf('Apple') > -1 && !navigator.userAgent.match(/CriOS/i);
+    const hasDismissedPrompt = localStorage.getItem('iosInstallPromptDismissed') === 'true';
+  
+    if (isSafariOnIos() && !isInStandaloneMode() && !hasDismissedPrompt) {
+      const timer = setTimeout(() => {
+        setShowIosInstallPrompt(true);
+      }, 4000); // 4-second delay
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   const handleInstallClick = async () => {
     if (!installPromptEvent) {
       return;
@@ -2074,6 +2091,15 @@ useEffect(() => {
     // We've used the prompt, and can't use it again, so clear it.
     setInstallPromptEvent(null);
     setShowInstallBanner(false);
+  };
+  
+  const handleCloseIosInstallPrompt = () => {
+    setShowIosInstallPrompt(false);
+    try {
+      localStorage.setItem('iosInstallPromptDismissed', 'true');
+    } catch (error) {
+      console.warn('Could not save iOS prompt dismissal to localStorage:', error);
+    }
   };
 
 
@@ -2929,7 +2955,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -2941,7 +2967,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3113,7 +3139,7 @@ useEffect(() => {
 
   return (
     <>
-      <div className="min-h-screen bg-neutral-light flex flex-col items-center pb-20"> {/* Added padding-bottom for the banner */}
+      <div className="min-h-screen bg-neutral-light flex flex-col items-center pb-28"> {/* Increased padding-bottom for the banners */}
         {persistenceWarning && (
             <div className="w-full bg-yellow-400 text-yellow-900 p-3 text-center sticky top-0 z-[1000] shadow-md">
                 <p className="font-bold"> Varning för Offlineläge</p>
@@ -3555,7 +3581,7 @@ onSubscribeToPush={handleSubscribeToPush}
         {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
         <ConfettiCelebration isActive={showConfetti} />
 
-        {/* PWA Install Banner */}
+        {/* PWA Install Banners */}
         {showInstallBanner && (
           <div className="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
             <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
@@ -3577,6 +3603,9 @@ onSubscribeToPush={handleSubscribeToPush}
               </div>
             </div>
           </div>
+        )}
+        {showIosInstallPrompt && (
+          <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />
         )}
       </div>
     </>

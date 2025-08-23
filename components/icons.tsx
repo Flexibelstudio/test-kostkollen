@@ -261,6 +261,14 @@ export const ShareIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, 
   </svg>
 );
 
+export const IosShareIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className || "w-6 h-6"} {...props}>
+    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+    <polyline points="16 6 12 2 8 6" />
+    <line x1="12" x2="12" y1="2" y2="15" />
+  </svg>
+);
+
 export const TrophyIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9a9.75 9.75 0 0 0 9 0Z" />
@@ -289,8 +297,9 @@ export const HeartIcon: React.FC<React.SVGProps<SVGSVGElement> & { title?: strin
   </svg>
 );
 
-export const LifebuoyIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+export const LifebuoyIcon: React.FC<React.SVGProps<SVGSVGElement> & { title?: string }> = ({ className, title, ...props }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+        {title && <title>{title}</title>}
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Zm.002-4.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M17.614 6.253 6.386 17.747M17.614 17.747 6.386 6.253" />
     </svg>
