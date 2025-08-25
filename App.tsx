@@ -1119,21 +1119,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   }, [currentDate]);
 
 
-  useEffect(() => {
-    if (currentUser && isInitialDataLoaded) {
-        const { weekId: currentWeekId } = getWeekInfo(currentDate);
-        if (weeklyBank.weekId !== currentWeekId) {
-            console.log(`New week detected (${currentWeekId} vs ${weeklyBank.weekId}). Resetting weekly calorie bank and streak saver.`);
-            const newBank = { weekId: currentWeekId, bankedCalories: 0, startDate: getWeekInfo(currentDate).startDate, endDate: getWeekInfo(currentDate).endDate };
-            const newStreakSaver = { available: true, weekId: currentWeekId };
-            setWeeklyBank(newBank);
-            setStreakSaver(newStreakSaver);
-            updateUserDocument(currentUser.uid, { weeklyBank: newBank, streakSaver: newStreakSaver, role: userRole, status: userStatus });
-        }
-    }
-  }, [currentDate, weeklyBank.weekId, currentUser, userRole, userStatus, isInitialDataLoaded]);
-
-
     useEffect(() => {
         // Persist recent recipe searches to local storage
         setLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, recentRecipeSearches);
@@ -1799,6 +1784,7 @@ useEffect(() => {
 
         let accumulatedStreak = baseStreak;
         let accumulatedBank = weeklyBank.bankedCalories;
+        let finalStreakSaver = streakSaver ? { ...streakSaver } : null;
         let accumulatedHighestStreak = highestStreak;
         const newSummaries: PastDaysSummaryCollection = {};
         let latestProcessedDateUID = lastChecked!;
@@ -1810,8 +1796,9 @@ useEffect(() => {
           const { weekId: currentProcessingWeekId } = getWeekInfo(date);
 
           if (currentProcessingWeekId !== lastProcessedWeekId) {
-            accumulatedBank = 0; 
-            totalBankedInLoop = 0; 
+            accumulatedBank = 0;
+            totalBankedInLoop = 0;
+            finalStreakSaver = { available: true, weekId: currentProcessingWeekId };
           }
           lastProcessedWeekId = currentProcessingWeekId;
 
@@ -1939,11 +1926,21 @@ useEffect(() => {
           latestProcessedDateUID = dateUID;
         }
 
+        const finalWeekInfo = getWeekInfo(new Date(latestProcessedDateUID));
+        const finalBankObject = {
+            weekId: finalWeekInfo.weekId,
+            bankedCalories: accumulatedBank,
+            startDate: finalWeekInfo.startDate,
+            endDate: finalWeekInfo.endDate,
+        };
+
         setStreakData({
           currentStreak: accumulatedStreak,
           lastDateStreakChecked: latestProcessedDateUID,
         });
-        setWeeklyBank((prev) => ({ ...prev, bankedCalories: accumulatedBank }));
+        setWeeklyBank(finalBankObject);
+        setStreakSaver(finalStreakSaver);
+
         if (accumulatedHighestStreak > highestStreak) {
           setHighestStreak(accumulatedHighestStreak);
         }
@@ -1952,7 +1949,8 @@ useEffect(() => {
         await updateUserDocument(currentUser.uid, {
           currentStreak: accumulatedStreak,
           lastDateStreakChecked: latestProcessedDateUID,
-          weeklyBank: { ...weeklyBank, bankedCalories: accumulatedBank },
+          weeklyBank: finalBankObject,
+          streakSaver: finalStreakSaver,
           highestStreak: accumulatedHighestStreak,
           role: userRole,
           status: userStatus,
