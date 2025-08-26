@@ -1,11 +1,7 @@
-
-
 import React, { useState, useEffect, useMemo, FC, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { Peppkompis, TimelineEvent, Achievement, Gender, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions } from '../types';
 import { 
-    fetchCommunityTimeline,
-    fetchBuddyDetailsList,
     searchForBuddies,
     sendFriendRequest,
     updateFriendRequestStatus,
@@ -15,12 +11,12 @@ import {
     togglePeppOnTimelineEvent,
     addCommentToTimelineEvent,
     toggleLikeOnComment,
-    fetchBuddies,
     cancelFriendRequest
 } from '../services/firestoreService';
 import { 
     HeartIcon, 
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ChevronDownIcon, ArrowRightIcon,
+    ShareIcon, PencilIcon,
 } from './icons';
 import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
 import { playAudio } from '../services/audioService';
@@ -84,27 +80,43 @@ const BuddyCard: FC<{
     
     const progressPercentage = useMemo(() => {
         if (buddy.mainGoalCompleted) return 100;
-        const start = buddy.goalStartWeight;
-        const current = buddy.currentWeight;
-        if (start == null || current == null) return 0;
-        
-        let goalChange = 0;
-        if (buddy.measurementMethod === 'scale') {
-            goalChange = buddy.desiredWeightChangeKg || 0;
-        } else {
-            goalChange = (buddy.desiredFatMassChangeKg || 0) + (buddy.desiredMuscleMassChangeKg || 0);
-        }
 
-        if (goalChange === 0) return 0;
+        let start, current, goalChange;
+
+        if (buddy.measurementMethod === 'scale') {
+            start = buddy.goalStartWeight;
+            current = buddy.currentWeight;
+            goalChange = buddy.desiredWeightChangeKg || 0;
+        } else { // inbody
+            if (buddy.desiredFatMassChangeKg && buddy.desiredFatMassChangeKg < 0) {
+                start = buddy.goalStartFatMassKg;
+                current = buddy.currentFatMass;
+                goalChange = buddy.desiredFatMassChangeKg;
+            } else if (buddy.desiredMuscleMassChangeKg && buddy.desiredMuscleMassChangeKg > 0) {
+                start = buddy.goalStartMuscleMassKg;
+                current = buddy.currentMuscleMass;
+                goalChange = buddy.desiredMuscleMassChangeKg;
+            } else { // Fallback to weight if no specific fat/muscle goal is set
+                 start = buddy.goalStartWeight;
+                 current = buddy.currentWeight;
+                 goalChange = 0;
+            }
+        }
+        
+        if (start == null || current == null || goalChange === 0) {
+            return 0;
+        }
         
         const target = start + goalChange;
         const totalChangeNeeded = start - target;
         const changeAchieved = start - current;
 
-        if (totalChangeNeeded === 0) return 100;
+        if (totalChangeNeeded === 0) {
+            return 100;
+        }
 
-        const progress = (changeAchieved / totalChangeNeeded) * 100;
-        return Math.max(0, Math.min(progress, 100));
+        const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
+        return Math.max(0, Math.min(progressRaw, 100));
     }, [buddy]);
     
     const goalDescription = useMemo(() => {
@@ -223,15 +235,27 @@ const FriendManagementView: FC<{
     onDataChanged: () => void;
     buddyDetails: BuddyDetails[];
     achievements: Achievement[];
-}> = ({ currentUser, userProfile, setToastNotification, onDataChanged, buddyDetails, achievements }) => {
+    initialTab?: 'buddies' | 'search' | 'requests';
+}> = ({
+    currentUser,
+    userProfile,
+    setToastNotification,
+    onDataChanged,
+    buddyDetails,
+    achievements,
+    initialTab = 'buddies'
+}) => {
     const [buddySearchQuery, setBuddySearchQuery] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [allSearchableUsers, setAllSearchableUsers] = useState<Peppkompis[]>([]);
     const [requests, setRequests] = useState<PeppkompisRequest[]>([]);
     const [outgoingRequests, setOutgoingRequests] = useState<PeppkompisRequest[]>([]);
-    const [activeTab, setActiveTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
+    const [activeTab, setActiveTab] = useState<'buddies' | 'search' | 'requests'>(initialTab);
     const [buddyToRemove, setBuddyToRemove] = useState<Peppkompis | null>(null);
+    const [showInviteOptionsModal, setShowInviteOptionsModal] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
+
 
     const fetchData = useCallback(async () => {
         setIsLoadingData(true);
@@ -253,12 +277,50 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    const inviteText = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
+
+    const handleShareViaApp = async () => {
+        setShowInviteOptionsModal(false);
+        playAudio('uiClick');
+        
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    text: inviteText,
+                });
+            } catch (error) {
+                if (!(error instanceof DOMException && error.name === 'AbortError')) {
+                    console.error('Error sharing:', error);
+                    setToastNotification({ message: 'Kunde inte dela inbjudan.', type: 'error' });
+                }
+            }
+        } else {
+            // Fallback for desktop
+            navigator.clipboard.writeText(inviteText).then(() => {
+                setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
+            }, () => {
+                setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
+            });
+        }
+    };
+    
+    const handleCopyToClipboard = () => {
+        playAudio('uiClick');
+        navigator.clipboard.writeText(inviteText).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000); // Reset feedback after 2s
+        }, () => {
+            setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
+        });
+    };
+
+
     const searchResults = useMemo(() => {
         const buddyUids = new Set(buddyDetails.map(b => b.uid));
         const nonFriends = allSearchableUsers.filter(user => !buddyUids.has(user.uid));
 
         const query = searchQuery.trim().toLowerCase();
-        if (!query) return nonFriends;
+        if (!query) return [];
         
         return nonFriends.filter(user => 
             user.name.toLowerCase().includes(query) || 
@@ -373,7 +435,23 @@ const FriendManagementView: FC<{
             case 'search':
                 return (
                     <div className="animate-fade-in space-y-4">
-                         <input type="search" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-md bg-white" placeholder="Sök på namn eller e-post..." autoFocus/>
+                        <button
+                            onClick={() => setShowInviteOptionsModal(true)}
+                            className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
+                        >
+                            Bjud in en vän
+                        </button>
+                        <div className="relative">
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                             <input 
+                                type="search" 
+                                value={searchQuery} 
+                                onChange={e => setSearchQuery(e.target.value)} 
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white"
+                                placeholder="Sök bland användare..."
+                                autoFocus
+                            />
+                        </div>
                         <div className="space-y-2">
                             {searchResults.map(user => {
                                 const isBuddy = buddyDetails.some(b => b.uid === user.uid);
@@ -390,6 +468,9 @@ const FriendManagementView: FC<{
                                     </div>
                                 );
                             })}
+                             {searchQuery && searchResults.length === 0 && (
+                                <p className="text-sm text-neutral text-center py-4">Inga användare matchade din sökning.</p>
+                            )}
                         </div>
                     </div>
                 );
@@ -449,10 +530,69 @@ const FriendManagementView: FC<{
                     </div>
                 </div>
             )}
+            {showInviteOptionsModal && (
+                <div
+                    className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fade-in"
+                    onClick={() => setShowInviteOptionsModal(false)}
+                >
+                    <div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="text-lg font-semibold text-neutral-dark mb-4">Bjud in en vän</h3>
+                        <div className="space-y-3">
+                            <button onClick={handleShareViaApp} className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm">
+                                <ShareIcon className="w-5 h-5 mr-2" /> Dela via app
+                            </button>
+                             <p className="text-xs text-neutral text-center">Obs: Vissa appar som Messenger kan ignorera texten.</p>
+                            <button
+                                onClick={handleCopyToClipboard}
+                                disabled={isCopied}
+                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm disabled:bg-green-100 disabled:text-green-700"
+                            >
+                                <PencilIcon className="w-5 h-5 mr-2" /> {isCopied ? 'Kopierad!' : 'Kopiera inbjudningstext'}
+                            </button>
+                        </div>
+                         <button onClick={() => setShowInviteOptionsModal(false)} className="mt-4 w-full py-2 text-sm text-neutral hover:underline">
+                            Stäng
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
+const renderWeightDescription = (description: string) => {
+    const parts = description.split('\n'); // Split by newline
+    return (
+        <div className="space-y-1 mt-2">
+            {parts.map(part => {
+                const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
+                if (!match) {
+                    return <p key={part} className="text-base text-neutral-dark">{part}</p>;
+                }
+                
+                const label = match[1];
+                const value = match[2];
+                const changeStr = match[3];
+                const changeNum = parseFloat(changeStr.replace(',', '.'));
+
+                let colorClass = 'text-accent'; // Neutral/yellow for ±0,0
+                if (changeNum > 0) {
+                    if (label === 'Muskler') colorClass = 'text-primary'; // Green for muscle increase
+                    else colorClass = 'text-red-600'; // Red for weight/fat increase
+                } else if (changeNum < 0) {
+                    if (label === 'Muskler') colorClass = 'text-red-600'; // Red for muscle decrease
+                    else colorClass = 'text-primary'; // Green for weight/fat decrease
+                }
+
+                return (
+                    <p key={label} className="text-base text-neutral-dark">
+                        <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
+                    </p>
+                );
+            })}
+        </div>
+    );
+};
 
 const TimelineEventCard: FC<{
     event: TimelineEvent;
@@ -461,7 +601,8 @@ const TimelineEventCard: FC<{
     onTogglePepp: (event: TimelineEvent, emoji: string) => void;
     onAddComment: (event: TimelineEvent, text: string) => Promise<void>;
     onToggleLike: (event: TimelineEvent, commentId: string) => void;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike }) => {
+    lastViewTimestamp: number | null;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, lastViewTimestamp }) => {
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -475,23 +616,29 @@ const TimelineEventCard: FC<{
     };
     
     const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
+    const isNewEvent = lastViewTimestamp !== null && event.timestamp > lastViewTimestamp && event.userId !== currentUser.uid;
 
     return (
-        <div className="bg-white p-3 rounded-xl shadow-sm border border-neutral-light/60">
-            <div className="flex items-start gap-3">
-                <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={40} />
-                <div className="flex-1">
-                    <p className="text-sm">
-                        <span className="font-bold">{event.userName}</span> {event.title}
-                    </p>
-                    <p className="text-xs text-neutral">{new Date(event.timestamp).toLocaleString('sv-SE', {dateStyle: 'short', timeStyle: 'short'})}</p>
+    <div id={`event-${event.id}`} className={`p-3 rounded-xl shadow-sm border transition-colors duration-500 ease-out ${isNewEvent ? 'bg-green-100/60 border-green-200' : 'bg-white border-neutral-light/60'}`}>
+        <div className="flex items-start gap-3">
+            <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={40} />
+            <div className="flex-1">
+                <p className="text-sm">
+                    <span className="font-bold">{event.userId === currentUser.uid ? 'Du' : event.userName}</span> {event.title}
+                </p>
+                <p className="text-xs text-neutral">{new Date(event.timestamp).toLocaleString('sv-SE', {dateStyle: 'short', timeStyle: 'short'})}</p>
+                
+                {event.type === 'weight' ? (
+                    renderWeightDescription(event.description)
+                ) : (
                     <p className="text-sm text-neutral-dark mt-1">{event.description}</p>
-                </div>
+                )}
             </div>
+        </div>
 
             <div className="flex flex-wrap items-center gap-1 mt-3 pt-2 border-t border-neutral-light/50 ml-[52px]">
                 {reactions.map(emoji => {
-                    const usersWhoReacted = event.reactions[emoji] || {};
+                    const usersWhoReacted = (event.reactions || {})[emoji] || {};
                     const count = Object.keys(usersWhoReacted).length;
                     const hasReacted = !!usersWhoReacted[currentUser.uid];
 
@@ -517,11 +664,13 @@ const TimelineEventCard: FC<{
                     const likes = comment.likes || {};
                     const likeCount = Object.keys(likes).length;
                     const userHasLiked = !!likes[currentUser.uid];
+                    const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
+
                     return (
                         <div key={comment.id} className="flex items-start gap-2">
                             <Avatar photoURL={comment.authorPhotoURL} size={28} />
-                            <div onDoubleClick={() => onToggleLike(event, comment.id)} className="bg-neutral-light/70 rounded-lg px-3 py-1.5 text-sm flex-1 group relative cursor-pointer">
-                                <p className="font-semibold text-neutral-dark">{comment.authorName}</p>
+                            <div onDoubleClick={() => onToggleLike(event, comment.id)} className={`rounded-lg px-3 py-1.5 text-sm flex-1 group relative cursor-pointer transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-100/50' : 'bg-neutral-light/70'}`}>
+                                <p className="font-semibold text-neutral-dark">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
                                 <p className="text-neutral-dark break-words">{comment.text}</p>
                                 
                                 <div className="absolute -bottom-3 -right-2 flex items-center gap-1 bg-white rounded-full p-0.5 shadow-sm border border-neutral-light/50">
@@ -559,39 +708,37 @@ const TimelineEventCard: FC<{
 };
 
 
-export const CommunityView: React.FC<{
+export const CommunityView: React.FC<{ 
+  key: number;
   currentUser: User;
   userProfile: UserProfileData;
   achievements: Achievement[];
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
   pendingRequestsCount: number;
-}> = ({ currentUser, userProfile, achievements, setToastNotification, pendingRequestsCount }) => {
-    const [activeTab, setActiveTab] = useState<'flode' | 'hantera'>('flode');
-    const [isLoading, setIsLoading] = useState(true);
-
-    const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
-    const [buddyDetails, setBuddyDetails] = useState<BuddyDetails[]>([]);
-    
-    const loadAllData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const [events, details] = await Promise.all([
-                fetchCommunityTimeline(currentUser.uid),
-                fetchBuddyDetailsList(currentUser.uid),
-            ]);
-            setTimelineEvents(events);
-            setBuddyDetails(details);
-        } catch (error) {
-            console.error("Error fetching community data:", error);
-            setToastNotification({ message: 'Kunde inte ladda community-data.', type: 'error' });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [currentUser.uid, setToastNotification]);
-
-    useEffect(() => {
-        loadAllData();
-    }, [loadAllData]);
+  initialTab?: 'flode' | 'hantera';
+  highlightEventId?: string | null;
+  timelineEvents: TimelineEvent[];
+  setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
+  buddyDetails: BuddyDetails[];
+  isLoading: boolean;
+  onDataChanged: () => void;
+  lastViewTimestamp: number | null;
+}> = ({ 
+  currentUser,
+  userProfile,
+  achievements,
+  setToastNotification,
+  pendingRequestsCount,
+  initialTab = 'flode',
+  highlightEventId = null,
+  timelineEvents,
+  setTimelineEvents,
+  buddyDetails,
+  isLoading,
+  onDataChanged,
+  lastViewTimestamp
+}) => {
+  const [activeTab, setActiveTab] = useState<'flode' | 'hantera'>(initialTab);
     
     const handleTogglePepp = async (event: TimelineEvent, newEmoji: string) => {
         if (!event.id) return;
@@ -601,11 +748,12 @@ export const CommunityView: React.FC<{
         const originalEvents = timelineEvents;
         setTimelineEvents(prevEvents => prevEvents.map(e => {
             if (e.id === event.id) {
-                const newReactions = JSON.parse(JSON.stringify(e.reactions || {}));
+                const newReactions: Reactions = JSON.parse(JSON.stringify(e.reactions || {}));
                 let previousReactionEmoji: string | null = null;
-                for (const emoji in newReactions) {
-                    if (newReactions[emoji]?.[fromUser.uid]) {
-                        previousReactionEmoji = emoji; break;
+                for (const emojiKey in newReactions) {
+                    if (newReactions[emojiKey]?.[fromUser.uid]) {
+                        previousReactionEmoji = emojiKey;
+                        break;
                     }
                 }
                 if (previousReactionEmoji) {
@@ -623,7 +771,9 @@ export const CommunityView: React.FC<{
             return e;
         }));
 
-        try { await togglePeppOnTimelineEvent(fromUser, event, newEmoji); } catch (error) {
+        try { 
+            await togglePeppOnTimelineEvent(fromUser, event, newEmoji); 
+        } catch (error) {
             setToastNotification({ message: 'Kunde inte skicka reaktion.', type: 'error' });
             setTimelineEvents(originalEvents);
         }
@@ -634,7 +784,6 @@ export const CommunityView: React.FC<{
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
         const originalEvents = timelineEvents;
-        // Optimistic Update
         setTimelineEvents(prevEvents => prevEvents.map(e => {
             if (e.id === event.id) {
                 const newComments = (e.comments || []).map(c => {
@@ -651,7 +800,6 @@ export const CommunityView: React.FC<{
             return e;
         }));
         
-        // Backend call
         try { await toggleLikeOnComment(fromUser, event, commentId); } catch (error) {
             setToastNotification({ message: 'Kunde inte gilla kommentar.', type: 'error' });
             setTimelineEvents(originalEvents);
@@ -662,20 +810,67 @@ export const CommunityView: React.FC<{
         if (!text.trim()) return;
         playAudio('uiClick');
         const clientTimestamp = Date.now();
-        const commentData: Omit<TimelineComment, 'id'> = { authorUid: currentUser.uid, authorName: userProfile.name || 'Användare', authorPhotoURL: userProfile.photoURL, text: text.trim(), timestamp: clientTimestamp, likes: {} };
+        const optimisticComment: TimelineComment = { 
+            id: `local-${clientTimestamp}`, 
+            authorUid: currentUser.uid, 
+            authorName: userProfile.name || 'Användare', 
+            authorPhotoURL: userProfile.photoURL, 
+            text: text.trim(), 
+            timestamp: clientTimestamp, 
+            likes: {} 
+        };
         
+        const originalEvents = timelineEvents;
+        setTimelineEvents(prevEvents => prevEvents.map(e => 
+            e.id === event.id ? { ...e, comments: [...(e.comments || []), optimisticComment] } : e
+        ));
+
         try {
-            const optimisticComment: TimelineComment = { ...commentData, id: `local-${clientTimestamp}` };
-            setTimelineEvents(prevEvents => prevEvents.map(e => e.id === event.id ? { ...e, comments: [...(e.comments || []), optimisticComment] } : e));
-            await addCommentToTimelineEvent(event.id, commentData);
+            const commentDataForFirestore = { 
+                authorUid: optimisticComment.authorUid, 
+                authorName: optimisticComment.authorName, 
+                authorPhotoURL: optimisticComment.authorPhotoURL, 
+                text: optimisticComment.text, 
+                timestamp: optimisticComment.timestamp,
+                likes: optimisticComment.likes,
+            };
+            const newCommentId = await addCommentToTimelineEvent(event.id, commentDataForFirestore);
+            setTimelineEvents(prevEvents => prevEvents.map(e => {
+                if (e.id === event.id) {
+                    return { ...e, comments: (e.comments || []).map(c => c.id === optimisticComment.id ? { ...c, id: newCommentId } : c) };
+                }
+                return e;
+            }));
         } catch (error) {
             setToastNotification({ message: 'Kunde inte lägga till kommentar.', type: 'error' });
-            setTimelineEvents(prevEvents => prevEvents.map(e => e.id === event.id ? { ...e, comments: (e.comments || []).filter(c => c.id !== `local-${clientTimestamp}`) } : e));
+            setTimelineEvents(originalEvents);
         }
     };
     
+    const newEventsCount = useMemo(() => {
+        if (!lastViewTimestamp) return 0;
+        const updatedEventIds = new Set<string>();
+        timelineEvents.forEach(event => {
+            let hasNewActivity = false;
+            if (event.userId !== currentUser.uid && event.timestamp > lastViewTimestamp) {
+                hasNewActivity = true;
+            }
+            (event.comments || []).forEach(comment => {
+                if (comment.authorUid !== currentUser.uid && comment.timestamp > lastViewTimestamp) {
+                    hasNewActivity = true;
+                }
+            });
+
+            if (hasNewActivity) {
+                updatedEventIds.add(event.id);
+            }
+        });
+        return updatedEventIds.size;
+    }, [timelineEvents, lastViewTimestamp, currentUser.uid]);
+
+
     const tabs = [
-        { key: 'flode', label: 'Flöde', notificationCount: 0 },
+        { key: 'flode', label: 'Flöde', notificationCount: newEventsCount },
         { key: 'hantera', label: 'Kompisar', notificationCount: pendingRequestsCount },
     ];
     
@@ -709,6 +904,7 @@ export const CommunityView: React.FC<{
                                     onTogglePepp={handleTogglePepp}
                                     onAddComment={handleAddComment}
                                     onToggleLike={handleToggleLike}
+                                    lastViewTimestamp={lastViewTimestamp}
                                 />
                             ))
                         ) : (
@@ -724,9 +920,10 @@ export const CommunityView: React.FC<{
                         currentUser={currentUser} 
                         userProfile={userProfile}
                         setToastNotification={setToastNotification}
-                        onDataChanged={loadAllData}
+                        onDataChanged={onDataChanged}
                         buddyDetails={buddyDetails}
                         achievements={achievements}
+                        initialTab={initialTab === 'hantera' ? 'requests' : 'buddies'}
                     />
                 )}
             </main>
