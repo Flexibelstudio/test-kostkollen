@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CameraIcon, XMarkIcon } from './icons';
-import { BrowserMultiFormatReader, IScannerControls, NotFoundException } from '@zxing/browser';
-import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType, NotFoundException } from '@zxing/library';
 
 
 interface BarcodeScannerModalProps {
