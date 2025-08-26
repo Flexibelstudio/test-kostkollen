@@ -294,19 +294,24 @@ const FriendManagementView: FC<{
                     setToastNotification({ message: 'Kunde inte dela inbjudan.', type: 'error' });
                 }
             }
+        } else {
+            // Fallback for desktop
+            navigator.clipboard.writeText(inviteText).then(() => {
+                setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
+            }, () => {
+                setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
+            });
         }
     };
     
-    const handleCopyToClipboard = async () => {
+    const handleCopyToClipboard = () => {
         playAudio('uiClick');
-        try {
-            await navigator.clipboard.writeText(inviteText);
+        navigator.clipboard.writeText(inviteText).then(() => {
             setIsCopied(true);
             setTimeout(() => setIsCopied(false), 2000); // Reset feedback after 2s
-        } catch (error) {
-            console.error('Error copying to clipboard:', error);
+        }, () => {
             setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
-        }
+        });
     };
 
 
@@ -821,13 +826,15 @@ export const CommunityView: React.FC<{
         ));
 
         try {
-            const newCommentId = await addCommentToTimelineEvent(event.id, { 
+            const commentDataForFirestore = { 
                 authorUid: optimisticComment.authorUid, 
                 authorName: optimisticComment.authorName, 
                 authorPhotoURL: optimisticComment.authorPhotoURL, 
                 text: optimisticComment.text, 
-                timestamp: optimisticComment.timestamp 
-            });
+                timestamp: optimisticComment.timestamp,
+                likes: optimisticComment.likes,
+            };
+            const newCommentId = await addCommentToTimelineEvent(event.id, commentDataForFirestore);
             setTimelineEvents(prevEvents => prevEvents.map(e => {
                 if (e.id === event.id) {
                     return { ...e, comments: (e.comments || []).map(c => c.id === optimisticComment.id ? { ...c, id: newCommentId } : c) };
