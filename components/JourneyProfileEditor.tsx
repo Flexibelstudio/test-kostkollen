@@ -154,9 +154,9 @@ const ProfileAndGoalEditor: React.FC<{
         gain_muscle: 'Öka muskelmassa / vikt',
     };
 
-    const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base";
-    const compactInputClass = "w-20 text-center px-2 py-1.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-base";
-    const stepperButtonClass = "px-2.5 py-1 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary active:scale-90 text-lg font-semibold interactive-transition";
+    const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-neutral-light/70 disabled:cursor-not-allowed";
+    const compactInputClass = "w-20 text-center px-2 py-1.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-base disabled:bg-neutral-light/70 disabled:cursor-not-allowed";
+    const stepperButtonClass = "px-2.5 py-1 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary active:scale-90 text-lg font-semibold interactive-transition disabled:opacity-50 disabled:cursor-not-allowed";
 
 
     return (
@@ -165,7 +165,7 @@ const ProfileAndGoalEditor: React.FC<{
                 <h3 id="profile-goal-editor-heading" className="text-xl font-semibold text-neutral-dark">Min Profil & Mål</h3>
                 {!isEditing && (
                     <button onClick={() => setIsEditing(true)} className="flex items-center px-3 py-1.5 text-sm font-medium text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-md shadow-sm active:scale-95 interactive-transition">
-                        <PencilIcon className="w-4 h-4 mr-1.5" /> Redigera
+                        <PencilIcon className="w-4 h-4 mr-1.5" /> Redigera mål
                     </button>
                 )}
             </div>
@@ -206,14 +206,16 @@ const ProfileAndGoalEditor: React.FC<{
                             <button
                                 type="button"
                                 onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
-                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
+                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                disabled
                             >
                                 InBody / Avancerad våg
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
-                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
+                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                disabled
                             >
                                 Vanlig våg
                             </button>
@@ -227,9 +229,9 @@ const ProfileAndGoalEditor: React.FC<{
                              <div className="animate-fade-in">
                                 <label htmlFor="desiredWeightChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad viktförändring (kg)</label>
                                 <div className="flex items-center space-x-2">
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
-                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka">+</button>
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled>-</button>
+                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled/>
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled>+</button>
                                 </div>
                             </div>
                         ) : (
@@ -237,24 +239,24 @@ const ProfileAndGoalEditor: React.FC<{
                                 <div>
                                     <label htmlFor="desiredFatMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Fettmassaförändring (kg)</label>
                                     <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
-                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka">+</button>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled>-</button>
+                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled/>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled>+</button>
                                     </div>
                                 </div>
                                 <div>
                                     <label htmlFor="desiredMuscleMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Muskelmassaförändring (kg)</label>
                                     <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
-                                        <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka">+</button>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled>-</button>
+                                        <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled/>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled>+</button>
                                     </div>
                                 </div>
                             </div>
                         )}
                         <div className="mt-4">
                             <label htmlFor="goalCompletionDate" className="block text-base font-medium text-neutral-dark mb-1.5">Måldatum</label>
-                            <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} />
+                            <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} disabled/>
                         </div>
                     </section>
 
@@ -304,14 +306,14 @@ const ProfileAndGoalEditor: React.FC<{
                     )}
                 </div>
             )}
-             {isEditing && !profile.mainGoalCompleted && (profile.desiredFatMassChangeKg || profile.desiredMuscleMassChangeKg || profile.desiredWeightChangeKg) && (
+             {!isEditing && !profile.mainGoalCompleted && (profile.desiredFatMassChangeKg || profile.desiredMuscleMassChangeKg || profile.desiredWeightChangeKg) && (
                  <div className="mt-6 pt-4 border-t border-dashed border-neutral-light/80 text-center">
                     <button
                         type="button"
                         onClick={() => setShowResetConfirmModal(true)}
                         className="text-sm text-neutral hover:text-red-600 hover:underline"
                     >
-                        Har du uppnått ditt mål eller vill du nollställa det? Klicka här.
+                        Har du uppnått ditt mål eller vill du sätta ett nytt? Klicka här.
                     </button>
                  </div>
             )}
@@ -334,7 +336,7 @@ const ProfileAndGoalEditor: React.FC<{
                         </p>
                         <div className="flex justify-end space-x-3">
                             <button onClick={() => setShowResetConfirmModal(false)} className="px-4 py-2 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md active:scale-95 interactive-transition">Avbryt</button>
-                            <button onClick={handleSave} className="px-4 py-2 text-white bg-primary hover:bg-primary-darker rounded-md active:scale-95 interactive-transition">Ja, nollställ</button>
+                            <button onClick={handleResetGoals} className="px-4 py-2 text-white bg-primary hover:bg-primary-darker rounded-md active:scale-95 interactive-transition">Ja, nollställ</button>
                         </div>
                     </div>
                 </div>
