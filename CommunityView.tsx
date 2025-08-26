@@ -814,7 +814,7 @@ export const CommunityView: React.FC<{
             id: `local-${clientTimestamp}`, 
             authorUid: currentUser.uid, 
             authorName: userProfile.name || 'Användare', 
-            authorPhotoURL: userProfile.photoURL, 
+            authorPhotoURL: userProfile.photoURL || undefined,
             text: text.trim(), 
             timestamp: clientTimestamp, 
             likes: {} 
@@ -826,14 +826,8 @@ export const CommunityView: React.FC<{
         ));
 
         try {
-            const commentDataForFirestore = { 
-                authorUid: optimisticComment.authorUid, 
-                authorName: optimisticComment.authorName, 
-                authorPhotoURL: optimisticComment.authorPhotoURL, 
-                text: optimisticComment.text, 
-                timestamp: optimisticComment.timestamp,
-                likes: optimisticComment.likes,
-            };
+            const { id, ...commentDataForFirestore } = optimisticComment;
+            
             const newCommentId = await addCommentToTimelineEvent(event.id, commentDataForFirestore);
             setTimelineEvents(prevEvents => prevEvents.map(e => {
                 if (e.id === event.id) {
