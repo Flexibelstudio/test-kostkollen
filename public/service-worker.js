@@ -5,7 +5,6 @@ const URLS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/index.css',
 
   // Ikoner
   '/favicon.png',
