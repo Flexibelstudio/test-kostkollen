@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kostloggen</title>
+    <title>Kostloggen.se - Food Logger</title>
     <link rel="icon" type="image/png" href="/icons/favicon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#3bab5a" />
@@ -129,8 +129,9 @@
         animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
       }
 
-      .highlight-new {
-        background-color: #c6e8cf; /* primary-200 */
+      @keyframes scan-line {
+        from { top: 0; }
+        to { top: 100%; }
       }
 
       /* Icon button styles for header */
@@ -172,6 +173,7 @@
     "@google/genai": "https://esm.sh/@google/genai@^1.9.0",
     "async-mutex": "https://esm.sh/async-mutex@^0.5.0",
     "@zxing/browser": "https://esm.sh/@zxing/browser@^0.1.5",
+    "@zxing/library": "https://esm.sh/@zxing/library@^0.21.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.400.0"
   }
 }

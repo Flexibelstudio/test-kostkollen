@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CameraIcon, XMarkIcon } from './icons';
-import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
+import { BrowserMultiFormatReader, IScannerControls, NotFoundException } from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+
 
 interface BarcodeScannerModalProps {
   show: boolean;
@@ -17,7 +19,15 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose
 
   useEffect(() => {
     if (show) {
-      const codeReader = new BrowserMultiFormatReader();
+      const hints = new Map();
+      const formats = [
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+      ];
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+      const codeReader = new BrowserMultiFormatReader(hints);
 
       const startScanner = async () => {
         setIsLoading(true);
@@ -37,7 +47,7 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose
             if (result) {
               onBarcodeScanned(result.getText());
             }
-            if (err && err.name !== 'NotFoundException' && !err.message?.includes('No MultiFormat Readers')) {
+            if (err && !(err instanceof NotFoundException)) {
               console.error("Barcode scanning error:", err);
             }
           });
@@ -103,6 +113,18 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose
         </div>
         <div className="relative w-full aspect-[4/3] bg-neutral-darker rounded-lg shadow-md mb-4 overflow-hidden">
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover"></video>
+            {/* Viewfinder and instruction */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <p className="text-white text-base font-semibold bg-black/50 px-3 py-1 rounded-md mb-2">Placera streckkoden i rutan</p>
+                <div className="w-10/12 h-1/3 border-4 border-white/50 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] relative overflow-hidden">
+                    <div 
+                        className="absolute left-0 w-full h-0.5 bg-red-500 shadow-[0_0_10px_2px_rgba(255,0,0,0.7)]"
+                        style={{
+                            animation: 'scan-line 2s ease-in-out infinite alternate',
+                        }}
+                    ></div>
+                </div>
+            </div>
             {isLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center z-10">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-primary mx-auto mb-3"></div>
@@ -115,7 +137,6 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose
                 <p className="text-sm">{error}</p>
               </div>
             )}
-             <div className="absolute inset-0 border-4 border-white/30 rounded-lg" style={{ clipPath: 'polygon(0% 0%, 0% 100%, 25% 100%, 25% 25%, 75% 25%, 75% 75%, 25% 75%, 25% 100%, 100% 100%, 100% 0%)' }}></div>
         </div>
         <button
           onClick={onClose}
