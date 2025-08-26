@@ -145,7 +145,8 @@ const ProfileAndGoalEditor: React.FC<{
             goalCompletionDate: undefined
         }));
         setShowResetConfirmModal(false);
-        // Save will be triggered by the main save button
+        // This makes the form editable to set a new goal
+        setIsEditing(true); 
     }
     
     const goalTypeDisplayMap: Record<GoalType, string> = {
@@ -165,7 +166,7 @@ const ProfileAndGoalEditor: React.FC<{
                 <h3 id="profile-goal-editor-heading" className="text-xl font-semibold text-neutral-dark">Min Profil & Mål</h3>
                 {!isEditing && (
                     <button onClick={() => setIsEditing(true)} className="flex items-center px-3 py-1.5 text-sm font-medium text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-md shadow-sm active:scale-95 interactive-transition">
-                        <PencilIcon className="w-4 h-4 mr-1.5" /> Redigera mål
+                        <PencilIcon className="w-4 h-4 mr-1.5" /> Redigera aktivitetsnivå
                     </button>
                 )}
             </div>
@@ -304,18 +305,17 @@ const ProfileAndGoalEditor: React.FC<{
                             <CheckCircleIcon className="w-5 h-5 mr-2" /> Profil & mål sparade!
                         </div>
                     )}
+                     {/* New Goal Button */}
+                    <div className="mt-6 pt-4 border-t border-dashed border-neutral-light/80">
+                         <button
+                            type="button"
+                            onClick={() => setShowResetConfirmModal(true)}
+                            className="w-full px-5 py-3 text-lg font-medium text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 transform interactive-transition"
+                        >
+                            Sätt nytt mål
+                        </button>
+                    </div>
                 </div>
-            )}
-             {!isEditing && !profile.mainGoalCompleted && (profile.desiredFatMassChangeKg || profile.desiredMuscleMassChangeKg || profile.desiredWeightChangeKg) && (
-                 <div className="mt-6 pt-4 border-t border-dashed border-neutral-light/80 text-center">
-                    <button
-                        type="button"
-                        onClick={() => setShowResetConfirmModal(true)}
-                        className="text-sm text-neutral hover:text-red-600 hover:underline"
-                    >
-                        Har du uppnått ditt mål eller vill du sätta ett nytt? Klicka här.
-                    </button>
-                 </div>
             )}
 
             {showBmrTdeeInfoModal && (
@@ -330,13 +330,13 @@ const ProfileAndGoalEditor: React.FC<{
                     onClick={() => setShowResetConfirmModal(false)}
                 >
                     <div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Bekräfta nollställning</h3>
+                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Sätta ett nytt mål?</h3>
                         <p className="text-neutral mb-6">
-                            Detta kommer att markera ditt nuvarande mål som slutfört och nollställa dina önskade förändringar. Du kan sedan sätta ett nytt mål. Vill du fortsätta?
+                            Detta kommer att markera ditt nuvarande mål som slutfört och låter dig ställa in ett nytt. Vill du fortsätta?
                         </p>
                         <div className="flex justify-end space-x-3">
                             <button onClick={() => setShowResetConfirmModal(false)} className="px-4 py-2 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md active:scale-95 interactive-transition">Avbryt</button>
-                            <button onClick={handleResetGoals} className="px-4 py-2 text-white bg-primary hover:bg-primary-darker rounded-md active:scale-95 interactive-transition">Ja, nollställ</button>
+                            <button onClick={handleResetGoals} className="px-4 py-2 text-white bg-primary hover:bg-primary-darker rounded-md active:scale-95 interactive-transition">Ja, sätt nytt mål</button>
                         </div>
                     </div>
                 </div>
