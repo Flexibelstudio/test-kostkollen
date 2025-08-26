@@ -952,19 +952,9 @@ export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: s
 }
 
 export async function addCommentToTimelineEvent(eventId: string, commentData: Omit<TimelineComment, 'id'>): Promise<string> {
-    const eventRef = doc(db, 'communityTimeline', eventId);
-    const commentsRef = collection(eventRef, 'comments');
-    const newCommentRef = doc(commentsRef); // Manually create a ref to get the ID
-
-    await runTransaction(db, async (transaction) => {
-        const eventDoc = await transaction.get(eventRef);
-        if (!eventDoc.exists()) {
-            throw new Error("Cannot comment on a non-existent event.");
-        }
-        transaction.set(newCommentRef, commentData);
-    });
-
-    return newCommentRef.id;
+    const commentsRef = collection(db, 'communityTimeline', eventId, 'comments');
+    const docRef = await addDoc(commentsRef, commentData);
+    return docRef.id;
 }
 
 
