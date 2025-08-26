@@ -2474,6 +2474,7 @@ useEffect(() => {
           last30DaysSummaries,
           goalTimeline: timeline,
           mentalWellbeingLogs: combinedWellbeingLogs,
+          currentStreak: streakData.currentStreak,
       };
 
       try {
@@ -2486,7 +2487,7 @@ useEffect(() => {
           console.error("Failed to generate and save journey analysis:", e.message);
           return null;
       }
-  }, [currentUser, userProfile, pastDaysSummary, currentDate, userRole, userStatus]);
+  }, [currentUser, userProfile, pastDaysSummary, currentDate, userRole, userStatus, streakData.currentStreak]);
 
   const handleRecipeSearch = async (searchQuery: string) => {
     setAppStatus(AppStatus.SEARCHING_RECIPE);

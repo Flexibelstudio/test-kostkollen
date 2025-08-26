@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog } from '../types.ts';
+import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel } from '../types.ts';
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS } from '../constants.ts';
 
 // Ensure API_KEY is available.
@@ -465,8 +465,53 @@ const getUserLevelInfo = (streak: number): { currentLevel: Level } => {
 };
 
 export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis): Promise<AIStructuredFeedbackResponse> => {
-    const { userProfile, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs } = data;
+    const { userProfile, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = data;
     const isCourseActive = userProfile.isCourseActive || false;
+
+    // --- PLATEAU DETECTION ---
+    let plateauPromptPart = "";
+    if (allWeightLogs.length >= 2) {
+        const lastLog = allWeightLogs[allWeightLogs.length - 1];
+        const previousLog = allWeightLogs[allWeightLogs.length - 2];
+        const timeDiff = lastLog.loggedAt - previousLog.loggedAt;
+        const sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000;
+
+        if (timeDiff >= sevenDaysInMillis) {
+            const weightChange = lastLog.weightKg - previousLog.weightKg;
+            let isPlateau = false;
+            if (userProfile.goalType === 'lose_fat' && weightChange >= -0.1) {
+                isPlateau = true;
+            } else if (userProfile.goalType === 'gain_muscle' && weightChange <= 0.1) {
+                isPlateau = true;
+            }
+
+            if (isPlateau) {
+                const startDate = new Date(previousLog.loggedAt).toISOString().split('T')[0];
+                const endDate = new Date(lastLog.loggedAt).toISOString().split('T')[0];
+                const summariesInPeriod = last30DaysSummaries.filter(s => s.date >= startDate && s.date < endDate);
+                const totalDaysInPeriod = summariesInPeriod.length;
+
+                if (totalDaysInPeriod > 0) {
+                    const successfulDays = summariesInPeriod.filter(s => s.goalMet || s.savedBy).length;
+                    const adherence = successfulDays / totalDaysInPeriod;
+                    
+                    if (adherence >= 0.7) { // High adherence
+                        plateauPromptPart = `
+**VIKTIGT: Platå upptäckt!**
+Användaren har varit duktig och följt sin plan (hög följsamhet och en streak på ${currentStreak} dagar) men vikten har stagnerat sedan förra mätningen.
+I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coachning.
+1. Börja med att berömma deras ansträngning och normalisera platån (t.ex. "Jag ser att vikten stått stilla trots ditt fantastiska engagemang. Det är helt normalt!").
+2. Ställ försiktigt två frågor för att uppmuntra till självreflektion:
+   - Fråga om loggningens noggrannhet (t.ex. "Ibland är det lätt att glömma småsaker som olja eller såser. Känner du att loggen fångar upp precis allt?").
+   - Fråga om aktivitetsnivån fortfarande stämmer (t.ex. "En annan vanlig anledning är att aktivitetsnivån ändrats. Känns din inställning '${userProfile.activityLevel}' fortfarande rätt? Du kan enkelt justera den under 'Min Resa' -> 'Mål'.").
+3. Avsluta med att uppmuntra dem att justera om det behövs och att du finns där för att hjälpa.
+`;
+                    }
+                }
+            }
+        }
+    }
+
 
     // --- NEW CALCULATIONS ---
     const namn = userProfile.name || 'Användare';
@@ -496,11 +541,8 @@ export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis)
     
     const waterGoalMetCount = last30DaysSummaries.filter(s => s.waterGoalMet).length;
     const vattenuppfyllnadProcent = totalaDagar > 0 ? ((waterGoalMetCount / totalaDagar) * 100).toFixed(0) : '0';
-
-    const latestSummary = last30DaysSummaries.length > 0 ? last30DaysSummaries.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] : null;
-    const streak = latestSummary?.streakForThisDay ?? 0;
     
-    const { currentLevel } = getUserLevelInfo(streak);
+    const { currentLevel } = getUserLevelInfo(currentStreak);
     const nivå = currentLevel.name;
 
     const aktivitetsnivå = userProfile.activityLevel;
@@ -533,7 +575,7 @@ export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis)
 
     const prompt = `
 Du är den personliga coachen i Kostloggen – inte en extern coach. Skriv återkopplingen som att det är du som vägleder användaren. Undvik formuleringar som "prata med din coach", "ta upp det med någon" eller liknande – du ÄR den hjälpen.
-
+${plateauPromptPart}
 Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med följande exakta struktur:
 {
   "greeting": "En personlig och peppande hälsning till användaren. Använd namnet från datan.",
@@ -576,7 +618,7 @@ Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med 
     {
       "emoji": "🚀",
       "title": "Rekommendationer framåt",
-      "content": "Sammanfatta 2–3 tydliga, enkla steg. Använd punktlistor i formatet '• Punkt 1\\n• Punkt 2'. Ex: '• Fortsätt hålla din streak levande. • Sikta på att nå proteinmålet varje dag.' Använd \\n för nya rader."
+      "content": "Sammanfatta 2–3 tydliga, enkla steg. Använd punktlistor i formatet '• Punkt 1\\n• Punkt 2'. Om en platå upptäcktes (se platåinstruktioner ovan), se till att inkludera den speciella coachningen här. Annars, ge allmänna rekommendationer. Ex: '• Fortsätt hålla din streak levande. • Sikta på att nå proteinmålet varje dag.' Använd \\n för nya rader."
     }
   ]
 }
@@ -594,7 +636,7 @@ ${bodyCompositionDataPrompt}
 - Dagar med lågt proteinintag (exempel): ${lågtProteinDagar || 'Inga'}
 - Dagar med högt fettintag (exempel): ${högtFettDagar || 'Inga'}
 - Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna
-- Streak: ${streak} dagar
+- Streak: ${currentStreak} dagar
 - Nivå: ${nivå}
 - Kurs aktiv: ${isCourseActive ? 'ja' : 'nej'}
 - Aktivitetsnivå: ${aktivitetsnivå}

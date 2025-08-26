@@ -330,6 +330,7 @@ export interface AIDataForJourneyAnalysis {
     last30DaysSummaries: PastDaySummary[];
     goalTimeline: { milestones: TimelineMilestone[]; paceFeedback: { type: string, text: string } | null };
     mentalWellbeingLogs?: MentalWellbeingLog[];
+    currentStreak: number;
 }
 
 export interface AIDataForCoachSummary {
