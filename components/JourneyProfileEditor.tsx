@@ -51,11 +51,13 @@ const ProfileAndGoalEditor: React.FC<{
     const [showSavedMessage, setShowSavedMessage] = useState(false);
     const [showBmrTdeeInfoModal, setShowBmrTdeeInfoModal] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isFullGoalEdit, setIsFullGoalEdit] = useState(false); // New state to differentiate edit modes
     const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
     useEffect(() => {
         if (!isEditing) {
             setProfile(initialProfile);
+            setIsFullGoalEdit(false); // Reset goal edit mode when not editing
         }
     }, [initialProfile, isEditing]);
     
@@ -127,10 +129,12 @@ const ProfileAndGoalEditor: React.FC<{
         setShowSavedMessage(true);
         setTimeout(() => setShowSavedMessage(false), 3000);
         setIsEditing(false);
+        setIsFullGoalEdit(false); // Reset on save
     };
     
     const handleCancel = () => {
         setIsEditing(false);
+        setIsFullGoalEdit(false); // Reset on cancel
         setProfile(initialProfile);
     };
     
@@ -147,6 +151,7 @@ const ProfileAndGoalEditor: React.FC<{
         setShowResetConfirmModal(false);
         // This makes the form editable to set a new goal
         setIsEditing(true); 
+        setIsFullGoalEdit(true); // Enable full edit mode for new goal
     }
     
     const goalTypeDisplayMap: Record<GoalType, string> = {
@@ -165,7 +170,7 @@ const ProfileAndGoalEditor: React.FC<{
             <div className="flex justify-between items-center mb-4">
                 <h3 id="profile-goal-editor-heading" className="text-xl font-semibold text-neutral-dark">Min Profil & Mål</h3>
                 {!isEditing && (
-                    <button onClick={() => setIsEditing(true)} className="flex items-center px-3 py-1.5 text-sm font-medium text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-md shadow-sm active:scale-95 interactive-transition">
+                    <button onClick={() => { setIsEditing(true); setIsFullGoalEdit(false); }} className="flex items-center px-3 py-1.5 text-sm font-medium text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-md shadow-sm active:scale-95 interactive-transition">
                         <PencilIcon className="w-4 h-4 mr-1.5" /> Redigera aktivitetsnivå
                     </button>
                 )}
@@ -208,7 +213,7 @@ const ProfileAndGoalEditor: React.FC<{
                                 type="button"
                                 onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
                                 className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} disabled:bg-gray-200 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed`}
-                                disabled
+                                disabled={!isFullGoalEdit}
                             >
                                 InBody / Avancerad våg
                             </button>
@@ -216,7 +221,7 @@ const ProfileAndGoalEditor: React.FC<{
                                 type="button"
                                 onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
                                 className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} disabled:bg-gray-200 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed`}
-                                disabled
+                                disabled={!isFullGoalEdit}
                             >
                                 Vanlig våg
                             </button>
@@ -230,9 +235,9 @@ const ProfileAndGoalEditor: React.FC<{
                              <div className="animate-fade-in">
                                 <label htmlFor="desiredWeightChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad viktförändring (kg)</label>
                                 <div className="flex items-center space-x-2">
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled>-</button>
-                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled/>
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled>+</button>
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled={!isFullGoalEdit}>-</button>
+                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled={!isFullGoalEdit}/>
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled={!isFullGoalEdit}>+</button>
                                 </div>
                             </div>
                         ) : (
@@ -240,24 +245,24 @@ const ProfileAndGoalEditor: React.FC<{
                                 <div>
                                     <label htmlFor="desiredFatMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Fettmassaförändring (kg)</label>
                                     <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled>-</button>
-                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled/>
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled>+</button>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled={!isFullGoalEdit}>-</button>
+                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled={!isFullGoalEdit}/>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled={!isFullGoalEdit}>+</button>
                                     </div>
                                 </div>
                                 <div>
                                     <label htmlFor="desiredMuscleMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Muskelmassaförändring (kg)</label>
                                     <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled>-</button>
-                                        <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled/>
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled>+</button>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled={!isFullGoalEdit}>-</button>
+                                        <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled={!isFullGoalEdit}/>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled={!isFullGoalEdit}>+</button>
                                     </div>
                                 </div>
                             </div>
                         )}
                         <div className="mt-4">
                             <label htmlFor="goalCompletionDate" className="block text-base font-medium text-neutral-dark mb-1.5">Måldatum</label>
-                            <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} disabled/>
+                            <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} disabled={!isFullGoalEdit}/>
                         </div>
                     </section>
 
