@@ -1196,6 +1196,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 carbohydrates: Math.max(0, nutritionalInfo.carbohydrates),
                 fat: Math.max(0, nutritionalInfo.fat),
             },
+            commonMealId: options.commonMealId,
         };
 
         if (finalImageUrl) {
@@ -2203,7 +2204,24 @@ useEffect(() => {
   };
 
   const handleOpenSaveCommonMealModal = (meal: LoggedMeal) => {
-    setMealToSaveAsCommon(meal);
+    let mealToSave: LoggedMeal = meal;
+
+    // If it's a grouped meal, calculate single serving values for the modal
+    if (meal.count && meal.count > 1) {
+        const singleNutrition: NutritionalInfo = {
+            foodItem: meal.nutritionalInfo.foodItem, // Name stays the same
+            calories: meal.nutritionalInfo.calories / meal.count,
+            protein: meal.nutritionalInfo.protein / meal.count,
+            carbohydrates: meal.nutritionalInfo.carbohydrates / meal.count,
+            fat: meal.nutritionalInfo.fat / meal.count,
+        };
+        // Create a temporary meal object that represents a single serving
+        mealToSave = {
+            ...meal,
+            nutritionalInfo: singleNutrition,
+        };
+    }
+    setMealToSaveAsCommon(mealToSave);
     openModal(setShowSaveCommonMealModal);
   };
   
@@ -3056,6 +3074,61 @@ useEffect(() => {
     }
   }, [highestStreak, isInitialDataLoaded, handleUnlockAchievement]);
 
+   const groupedDailyLog = useMemo(() => {
+    if (dailyLog.length === 0) {
+      return [];
+    }
+
+    const commonMealGroups = new Map<string, LoggedMeal[]>();
+    const otherMeals: LoggedMeal[] = [];
+
+    // Separate common meals from others
+    for (const meal of dailyLog) {
+      if (meal.commonMealId && !['manual', 'text_search', 'recipe', 'ingredient_recipe', 'barcode'].includes(meal.commonMealId)) {
+        if (!commonMealGroups.has(meal.commonMealId)) {
+          commonMealGroups.set(meal.commonMealId, []);
+        }
+        commonMealGroups.get(meal.commonMealId)!.push(meal);
+      } else {
+        otherMeals.push(meal);
+      }
+    }
+
+    const processedMeals: LoggedMeal[] = [...otherMeals];
+
+    // Process each group
+    for (const group of commonMealGroups.values()) {
+      if (group.length > 1) {
+        const sortedGroup = [...group].sort((a, b) => b.timestamp - a.timestamp);
+        const representativeMeal = sortedGroup[0];
+
+        const totalNutritionalInfo = sortedGroup.reduce((acc, meal) => {
+          acc.calories += meal.nutritionalInfo.calories;
+          acc.protein += meal.nutritionalInfo.protein;
+          acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
+          acc.fat += meal.nutritionalInfo.fat;
+          return acc;
+        }, { 
+          calories: 0, protein: 0, carbohydrates: 0, fat: 0, 
+          foodItem: representativeMeal.nutritionalInfo.foodItem 
+        });
+
+        processedMeals.push({
+          ...representativeMeal,
+          nutritionalInfo: totalNutritionalInfo,
+          count: sortedGroup.length,
+          originalIds: sortedGroup.map(m => m.id),
+        });
+      } else {
+        // If group has only one meal, add it back as is
+        processedMeals.push(...group);
+      }
+    }
+
+    // Sort the final combined list by timestamp
+    return processedMeals.sort((a, b) => b.timestamp - a.timestamp);
+
+  }, [dailyLog]);
 
   if (authLoading || isDataLoading) {
     return <SplashScreen />;
@@ -3321,9 +3394,9 @@ useEffect(() => {
                 <h3 id="meal-log-heading" className="text-xl font-semibold text-neutral-dark mb-4">
                   Loggade måltider
                 </h3>
-                {dailyLog.length > 0 ? (
+                {groupedDailyLog.length > 0 ? (
                   <div className="space-y-4">
-                    {dailyLog.map((meal) => (
+                    {groupedDailyLog.map((meal) => (
                       <MealItemCard
                         key={meal.id}
                         meal={meal}

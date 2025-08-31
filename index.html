@@ -87,100 +87,116 @@
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
       }
-      .animate-fade-slide-in { animation: fade-slide-in 0.3s ease-out forwards; }
-      
+      .animate-fade-slide-in {
+        animation: fade-slide-in 0.3s ease-out forwards;
+      }
+
       @keyframes fade-in {
         from { opacity: 0; }
         to { opacity: 1; }
       }
-      .animate-fade-in { animation: fade-in 0.2s ease-out forwards; }
+      .animate-fade-in {
+        animation: fade-in 0.3s ease-out forwards;
+      }
 
       @keyframes scale-in {
-        from { opacity: 0; transform: scale(0.95); }
-        to { opacity: 1; transform: scale(1); }
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
       }
-      .animate-scale-in { animation: scale-in 0.2s ease-out forwards; }
-      
-      @keyframes slide-up-fade-in {
-        from { opacity: 0; transform: translateY(20px) scale(0.95); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
+      .animate-scale-in {
+        animation: scale-in 0.2s ease-out forwards;
       }
-     .animate-slide-up-fade-in { animation: slide-up-fade-in 0.3s ease-out forwards; }
 
-      @keyframes fade-out {
+      @keyframes slide-up-fade-in {
+        from { transform: translateY(100%); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      .animate-slide-up-fade-in {
+        animation: slide-up-fade-in 0.3s ease-out forwards;
+      }
+      
+       @keyframes fade-out {
         from { opacity: 1; }
         to { opacity: 0; }
       }
-      .animate-fade-out { animation: fade-out 0.5s ease-out forwards; }
-
-      @keyframes heart-pop {
-        0% { transform: scale(0.9); opacity: 1; }
-        50% { transform: scale(1.3); opacity: 0.7; }
-        100% { transform: scale(1.5); opacity: 0; }
-      }
-      .animate-heart-pop { animation: heart-pop 0.6s ease-out forwards; }
-
-      @keyframes pulse {
-        50% {
-          opacity: .7;
-        }
-      }
-      .animate-pulse {
-        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      .animate-fade-out {
+        animation: fade-out 0.5s ease-out forwards;
       }
 
       @keyframes scan-line {
-        from { top: 0; }
-        to { top: 100%; }
+        0% { top: 0; }
+        100% { top: 100%; }
       }
 
-      /* Icon button styles for header */
-      .nav-btn {
-        background: none;
-        border: none;
-        padding: 0;
-        cursor: pointer;
-        position: relative; /* For notification badge */
-        outline: none; /* remove default button outline */
+      @keyframes heart-pop {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.4); opacity: 0.7; }
+        100% { transform: scale(1.6); opacity: 0; }
       }
-      .icon-wrap {
-        display: inline-flex;
+      .animate-heart-pop {
+        animation: heart-pop 0.5s ease-out forwards;
+      }
+
+      .truncate-2-lines {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      
+      .nav-btn {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 4px;
+        color: #6B7280; /* neutral-DEFAULT */
+        transition: color 0.2s ease-in-out;
+      }
+
+      .nav-btn .icon-wrap {
+        position: relative;
+        display: flex;
         align-items: center;
         justify-content: center;
+        width: 40px;
+        height: 40px;
         border-radius: 50%;
-        padding: 4px; /* Reduced padding for smaller icons */
-        transition: box-shadow 0.2s, transform 0.15s ease-in-out;
+        background-color: transparent;
+        transition: background-color 0.2s ease-in-out;
       }
-      .nav-btn.active .icon-wrap {
-        box-shadow: 0 0 0 3px #3bab5a; /* primary color */
+      
+      .nav-btn:hover .icon-wrap, .nav-btn.active .icon-wrap {
+        background-color: #ebf7ee; /* primary-100 */
       }
-      .nav-btn:active .icon-wrap {
-          transform: scale(0.9);
+      
+      .nav-btn.active svg {
+        stroke-width: 2px;
       }
 
     </style>
-  <script type="importmap">
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.1.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
     "@firebase/app": "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js",
     "@firebase/auth": "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js",
     "@firebase/firestore": "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js",
-    "@firebase/storage": "https://www.gstatic.com/firebasejs/10.10.0/firebase-storage.js",
-    "@firebase/functions": "https://www.gstatic.com/firebasejs/10.10.0/firebase-functions.js",
     "@google/genai": "https://esm.sh/@google/genai@^1.9.0",
     "async-mutex": "https://esm.sh/async-mutex@^0.5.0",
-    "@zxing/browser": "https://esm.sh/@zxing/browser@^0.1.5",
+    "lucide-react": "https://esm.sh/lucide-react@^0.400.0",
     "@zxing/library": "https://esm.sh/@zxing/library@^0.21.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.400.0"
+    "@zxing/browser": "https://esm.sh/@zxing/browser@^0.1.5",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/"
   }
 }
 </script>
-</head>
-  <body class="bg-neutral-light">
-    <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+  </head>
+  <body>
+    <div id="root"></div>
   </body>
 </html>

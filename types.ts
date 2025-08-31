@@ -40,6 +40,11 @@ export interface LoggedMeal {
   imageUrl?: string; // Can be a Firebase Storage URL or a local data:image SVG string
   nutritionalInfo: NutritionalInfo;
   caloriesCoveredByBank?: number;
+  commonMealId?: string; // To identify meals logged from "Common Meals" for grouping
+
+  // Frontend-only properties for display logic
+  count?: number;
+  originalIds?: string[];
 }
 
 export interface WeightLogEntry {

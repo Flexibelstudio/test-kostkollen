@@ -65,7 +65,7 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
 
   const confirmDelete = () => {
     if (isReadOnly) return;
-    onDelete(meal.id);
+    onDelete(meal.id); // For grouped meals, meal.id is the ID of the latest one.
     setShowConfirmDeleteModal(false);
   }
 
@@ -143,6 +143,7 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
             )}
             <h4 className="text-base sm:text-lg font-semibold text-neutral-dark truncate">
               {meal.nutritionalInfo.foodItem || "Loggad måltid"}
+              {meal.count && meal.count > 1 && <span className="text-neutral font-medium text-base ml-1.5">{`x${meal.count}`}</span>}
             </h4>
           </div>
 
@@ -159,9 +160,10 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
                 </button>
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="p-1.5 text-neutral-dark hover:text-secondary-darker rounded-full hover:bg-secondary-100 active:scale-90 interactive-transition"
+                  className="p-1.5 text-neutral-dark hover:text-secondary-darker rounded-full hover:bg-secondary-100 active:scale-90 interactive-transition disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Redigera måltid"
-                  title="Redigera måltid"
+                  title={meal.count && meal.count > 1 ? "Kan inte redigera en grupperad måltid" : "Redigera måltid"}
+                  disabled={isReadOnly || (!!meal.count && meal.count > 1)}
                 >
                   <PencilIcon className="w-5 h-5" />
                 </button>
@@ -238,7 +240,9 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
           >
             <h3 id={`confirm-delete-title-${meal.id}`} className="text-lg font-semibold text-neutral-dark mb-4">Bekräfta borttagning</h3>
             <p id={`confirm-delete-desc-${meal.id}`} className="text-neutral mb-6">
-              Är du säker på att du vill ta bort "{meal.nutritionalInfo.foodItem || 'denna måltid'}"?
+              {meal.count && meal.count > 1
+                ? `Vill du ta bort en av dina ${meal.count} loggningar av "${meal.nutritionalInfo.foodItem}"?`
+                : `Är du säker på att du vill ta bort "${meal.nutritionalInfo.foodItem || 'denna måltid'}"?`}
             </p>
             <div className="flex justify-end space-x-3">
               <button
