@@ -3553,7 +3553,14 @@ useEffect(() => {
         {dayToPotentiallySave && (
             <UseStreakSaverModal
                 show={!!dayToPotentiallySave}
-                onClose={() => setDayToPotentiallySave(null)}
+                onClose={() => {
+                    if (dayToPotentiallySave) {
+                        const dateToView = new Date(dayToPotentiallySave.date.replace(/-/g, '/'));
+                        setViewingDate(dateToView);
+                        setViewMode('main');
+                    }
+                    setDayToPotentiallySave(null);
+                }}
                 onConfirm={handleUseStreakSaver}
                 daySummary={dayToPotentiallySave}
             />
