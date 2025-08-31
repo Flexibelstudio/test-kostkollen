@@ -450,9 +450,10 @@ const MotivationModal: React.FC<{
 const UseStreakSaverModal: React.FC<{
     show: boolean;
     onClose: () => void;
+    onDecline: () => void;
     onConfirm: () => void;
     daySummary: PastDaySummary;
-}> = ({ show, onClose, onConfirm, daySummary }) => {
+}> = ({ show, onClose, onDecline, onConfirm, daySummary }) => {
     if (!show) return null;
 
     return (
@@ -479,7 +480,7 @@ const UseStreakSaverModal: React.FC<{
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
                     <button
-                        onClick={onClose}
+                        onClick={onDecline}
                         className="w-full px-5 py-3 text-lg font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm active:scale-95 interactive-transition"
                     >
                         Nej, tack
@@ -3553,7 +3554,8 @@ useEffect(() => {
         {dayToPotentiallySave && (
             <UseStreakSaverModal
                 show={!!dayToPotentiallySave}
-                onClose={() => {
+                onClose={() => setDayToPotentiallySave(null)}
+                onDecline={() => {
                     if (dayToPotentiallySave) {
                         const dateToView = new Date(dayToPotentiallySave.date.replace(/-/g, '/'));
                         setViewingDate(dateToView);

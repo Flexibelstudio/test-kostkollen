@@ -54,7 +54,8 @@ interface UserProfileModalProps {
   onSave: (profile: UserProfileData, goals: GoalSettings, newPhotoDataUrl?: string | null) => void;
   onClose: () => void;
   isOnboarding: boolean;
-  onboardingStep?: 'form' | 'feedback';
+  // FIX: Added 'complete' to the onboardingStep type to match the state in App.tsx.
+  onboardingStep?: 'form' | 'feedback' | 'complete';
   aiFeedbackLoading?: boolean;
   aiFeedbackMessage?: AIStructuredFeedbackResponse | string | null;
   aiFeedbackError?: string | null;
