@@ -134,8 +134,7 @@ export enum AppStatus {
   SAVING = 'SAVING',
 }
 
-// FIX: Added 'coachDashboard' to ViewMode to fix type error when switching views.
-export type ViewMode = 'main' | 'journey' | 'courseOverview' | 'lessonDetail' | 'community' | 'coachDashboard';
+export type ViewMode = 'main' | 'journey' | 'courseOverview' | 'lessonDetail' | 'community';
 
 // --- User Profile & Roles ---
 
