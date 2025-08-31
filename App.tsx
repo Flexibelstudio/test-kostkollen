@@ -2893,7 +2893,7 @@ useEffect(() => {
     
     const summaryForDay = pastDaysSummary[dateUID];
 
-    if (dateUID === yesterdayUID && summaryForDay && !summaryForDay.goalMet && streakSaver?.available) {
+    if (dateUID === yesterdayUID && summaryForDay && !summaryForDay.goalMet && !(summaryForDay.savedBy) && streakSaver?.available) {
         setDayToPotentiallySave(summaryForDay);
     } else {
         setViewingDate(date);
@@ -3556,12 +3556,13 @@ useEffect(() => {
                 show={!!dayToPotentiallySave}
                 onClose={() => setDayToPotentiallySave(null)}
                 onDecline={() => {
-                    if (dayToPotentiallySave) {
-                        const dateToView = new Date(dayToPotentiallySave.date.replace(/-/g, '/'));
+                    const summary = dayToPotentiallySave;
+                    setDayToPotentiallySave(null);
+                    if (summary) {
+                        const dateToView = new Date(summary.date.replace(/-/g, '/'));
                         setViewingDate(dateToView);
                         setViewMode('main');
                     }
-                    setDayToPotentiallySave(null);
                 }}
                 onConfirm={handleUseStreakSaver}
                 daySummary={dayToPotentiallySave}
