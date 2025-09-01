@@ -76,6 +76,7 @@ import OnboardingCompletionScreen from './components/OnboardingCompletionScreen.
 import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
 import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
+import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 
 
 
@@ -639,6 +640,7 @@ export const App: React.FC = () => {
   const [showSpotlight, setShowSpotlight] = useState<boolean>(false);
   const [checklistState, setChecklistState] = useState<OnboardingChecklistState | null>(null);
   const waterLoggerRef = useRef<HTMLDivElement>(null);
+  const [showOnboardingRewardModal, setShowOnboardingRewardModal] = useState(false);
 
 
   // AI Feedback State
@@ -1232,27 +1234,18 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         
         playAudio('logSuccess', 0.8);
         
-        const isFirstOnboardingMeal = checklistState && !checklistState.items.mealLogged;
-        if (isFirstOnboardingMeal) {
+        if (checklistState && !checklistState.items.mealLogged) {
             updateChecklistItem('mealLogged');
-        } else {
-            setToastNotification({ message: `"${optimisticMeal.nutritionalInfo.foodItem}" loggades!`, type: 'success' });
-            setTimeout(() => setToastNotification(null), 3000);
         }
-
+        
+        setToastNotification({ message: `"${optimisticMeal.nutritionalInfo.foodItem}" loggades!`, type: 'success' });
+        setTimeout(() => setToastNotification(null), 3000);
 
         // 5. Save to Firestore
         await addMealLogFirestore(currentUser.uid, mealId, newMealData);
 
         // 6. Save bank update to Firestore if it changed
-        if (isFirstOnboardingMeal) {
-            const bonusCalories = 100;
-            const finalBankState = { ...newBankState, bankedCalories: newBankState.bankedCalories + bonusCalories };
-            setWeeklyBank(finalBankState);
-            await updateUserDocument(currentUser.uid, { weeklyBank: finalBankState, role: userRole, status: userStatus });
-            setToastNotification({ message: `Bra start! Du fick 100 kcal i din Sparpott! 🏦`, type: 'success' });
-            setTimeout(() => setToastNotification(null), 4000);
-        } else if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
+        if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
             await updateUserDocument(currentUser.uid, { weeklyBank: newBankState, role: userRole, status: userStatus });
         }
 
@@ -2268,33 +2261,15 @@ useEffect(() => {
   }, [currentUser, isInitialDataLoaded]);
 
     // --- ONBOARDING LOGIC ---
-    useEffect(() => {
-        // We only run this if onboarding has been completed at some point.
-        // This effect now only manages the state of an *existing* checklist.
-        if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
-          setChecklistState(null); // Ensure checklist is hidden if conditions aren't met
-          return;
+    const handleCloseOnboardingRewardModal = () => {
+        setShowOnboardingRewardModal(false);
+        const currentState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
+        if (currentState) {
+            const newState = { ...currentState, dismissed: true };
+            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
         }
-
-        // Checklist Logic: Only read and manage an existing state. Do NOT create a new one.
-        // If no state exists in localStorage, this user is an existing user and shouldn't see the checklist.
-        const storedState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
-        if (storedState) {
-            const fourDaysInMillis = 4 * 24 * 60 * 60 * 1000;
-            const firstSeen = new Date(storedState.firstSeenDate).getTime();
-            const allDone = Object.values(storedState.items).every(Boolean);
-
-            // Hide checklist if it's dismissed, expired, or completed.
-            if (storedState.dismissed || (Date.now() - firstSeen > fourDaysInMillis) || allDone) {
-                setChecklistState(null);
-            } else {
-                setChecklistState(storedState);
-            }
-        } else {
-            // Do nothing and ensure state is null. An existing user won't have a stored state.
-            setChecklistState(null);
-        }
-    }, [isInitialDataLoaded, hasCompletedOnboarding, currentUser]);
+        setChecklistState(null);
+    };
 
     const updateChecklistItem = useCallback((itemKey: keyof OnboardingChecklistItemStatus) => {
         setChecklistState(prevState => {
@@ -2305,6 +2280,60 @@ useEffect(() => {
         });
     }, []);
     
+    useEffect(() => {
+        if (!checklistState || !currentUser || !isInitialDataLoaded) return;
+
+        const allComplete = Object.values(checklistState.items).every(Boolean);
+
+        if (allComplete && !checklistState.dismissed) {
+            const handleCompletion = async () => {
+                const bonusCalories = 100;
+                let finalBankState: WeeklyCalorieBank | null = null;
+                setWeeklyBank(prevBank => {
+                    finalBankState = { ...prevBank, bankedCalories: prevBank.bankedCalories + bonusCalories };
+                    return finalBankState;
+                });
+                
+                try {
+                    if (finalBankState) {
+                        await updateUserDocument(currentUser.uid, { weeklyBank: finalBankState, role: userRole, status: userStatus });
+                    } else {
+                        throw new Error("Bank state was not updated correctly before Firestore call.");
+                    }
+                    setShowConfetti(true);
+                    playAudio('levelUp');
+                    setShowOnboardingRewardModal(true);
+                } catch (error) {
+                    handleFirestoreError(error, 'spara bonus till sparpott');
+                    setWeeklyBank(prevBank => ({...prevBank, bankedCalories: prevBank.bankedCalories - bonusCalories}));
+                }
+            };
+            handleCompletion();
+        }
+    }, [checklistState, currentUser, isInitialDataLoaded, userRole, userStatus]);
+
+    useEffect(() => {
+        if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
+          setChecklistState(null);
+          return;
+        }
+
+        const storedState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
+        if (storedState) {
+            const fourDaysInMillis = 4 * 24 * 60 * 60 * 1000;
+            const firstSeen = new Date(storedState.firstSeenDate).getTime();
+            const allDone = Object.values(storedState.items).every(Boolean);
+
+            if (storedState.dismissed || (Date.now() - firstSeen > fourDaysInMillis) || allDone) {
+                setChecklistState(null);
+            } else {
+                setChecklistState(storedState);
+            }
+        } else {
+            setChecklistState(null);
+        }
+    }, [isInitialDataLoaded, hasCompletedOnboarding, currentUser]);
+
     useEffect(() => {
         if (isViewingToday && waterLoggedMl > 0 && checklistState && !checklistState.items.waterLogged) {
             updateChecklistItem('waterLogged');
@@ -3118,7 +3147,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -3130,7 +3159,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3720,6 +3749,9 @@ useEffect(() => {
         <input type="file" id="ingredientUploadInput" className="hidden" accept="image/*" multiple onChange={handleIngredientImageUpload} />
 
         {/* Modals */}
+        {showOnboardingRewardModal && (
+            <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} />
+        )}
         {dayToPotentiallySave && (
             <UseStreakSaverModal
                 show={!!dayToPotentiallySave}
