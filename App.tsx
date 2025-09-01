@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from '@firebase/auth';
@@ -2165,6 +2166,10 @@ useEffect(() => {
     setShowInstallBanner(false);
   };
   
+  const handleDismissInstallBanner = () => {
+    setShowInstallBanner(false);
+  };
+  
   const handleCloseIosInstallPrompt = () => {
     setShowIosInstallPrompt(false);
     try {
@@ -3349,6 +3354,7 @@ useEffect(() => {
       { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { playAudio('uiClick'); if (viewMode === 'community') { setCommunityViewKey(Date.now()); } setViewMode('community'); }, notificationCount: totalNotificationCount },
     ];
 
+    const isInstallBannerVisible = showInstallBanner || showIosInstallPrompt;
 
   return (
     <>
@@ -3655,7 +3661,7 @@ useEffect(() => {
         
         {/* ADD FOOD OVERLAY/MODAL */}
         {viewMode === 'main' && !showSpeedDial && (
-          <div className="fixed bottom-6 right-6 z-40">
+          <div className={`fixed right-6 z-40 transition-all duration-300 ${isInstallBannerVisible ? 'bottom-28' : 'bottom-6'}`}>
             <button
               onClick={handleFabClick}
               className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white shadow-xl hover:bg-secondary-darker active:scale-95 transform transition-all animate-scale-in"
@@ -3945,22 +3951,30 @@ useEffect(() => {
       )}
       {showConfetti && <ConfettiCelebration isActive={showConfetti} />}
        {showInstallBanner && (
-        <div className="fixed bottom-0 left-0 right-0 bg-primary/95 backdrop-blur-sm text-white p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <InstallIcon className="w-8 h-8 flex-shrink-0" />
-              <div>
-                <h3 className="font-bold">Installera Kostloggen</h3>
-                <p className="text-sm">Få en bättre upplevelse genom att lägga till appen på din hemskärm.</p>
-              </div>
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
+            <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <InstallIcon className="w-12 h-12 text-primary flex-shrink-0" />
+                    <div>
+                        <h3 className="font-bold text-neutral-dark">Installera Kostloggen</h3>
+                        <p className="text-sm text-neutral">Få en bättre upplevelse genom att lägga till appen på din hemskärm.</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                        onClick={handleDismissInstallBanner}
+                        className="px-4 py-1.5 text-neutral-dark font-medium rounded-lg hover:bg-neutral-light active:scale-95 interactive-transition"
+                    >
+                        Inte nu
+                    </button>
+                    <button
+                        onClick={handleInstallClick}
+                        className="px-4 py-1.5 bg-primary text-white font-semibold rounded-lg shadow-sm active:scale-95 interactive-transition"
+                    >
+                        Installera
+                    </button>
+                </div>
             </div>
-            <button
-              onClick={handleInstallClick}
-              className="px-4 py-1.5 bg-white text-primary font-semibold rounded-lg shadow-sm active:scale-95 interactive-transition flex-shrink-0"
-            >
-              Installera
-            </button>
-          </div>
         </div>
       )}
       {showIosInstallPrompt && (
