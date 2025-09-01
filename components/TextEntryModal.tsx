@@ -128,7 +128,7 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({ show, onClose, onLog })
     const labelClass = "block text-sm font-medium text-neutral-dark";
 
     return (
-        <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg">
+        <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg max-h-[80vh] sm:max-h-[85vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center">
                     <SearchIcon className="w-7 h-7 text-primary mr-2.5" />

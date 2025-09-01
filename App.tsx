@@ -2315,6 +2315,7 @@ useEffect(() => {
     
     // Case 2: At least one lesson is unlocked. Check for next unlock.
     if (lastUnlockedIndex > -1) {
+        // Fix: Use 'courseLessons' which is defined, instead of 'lessons' which is not.
         const lastUnlockedProgress = userCourseProgress[courseLessons[lastUnlockedIndex].id];
         
         if (lastUnlockedProgress?.unlockedAt) {
@@ -3653,8 +3654,8 @@ onSubscribeToPush={handleSubscribeToPush}
         )}
         {showCameraModal && <CameraModal show={showCameraModal} onClose={() => closeModal(setShowCameraModal)} onImageCapture={handleImageCapture} onCameraError={(msg) => { setToastNotification({message: `Kamerafel: ${msg}`, type:'error'}); setTimeout(() => setToastNotification(null), 3500); }}/>}
         {showTextEntryModal && (
-          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowTextEntryModal)}>
-            <div onClick={e => e.stopPropagation()}><TextEntryModal show={showTextEntryModal} onClose={() => closeModal(setShowTextEntryModal)} onLog={handleLogFromModal}/></div>
+          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-start sm:items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowTextEntryModal)}>
+            <div className="mt-8 sm:mt-0" onClick={e => e.stopPropagation()}><TextEntryModal show={showTextEntryModal} onClose={() => closeModal(setShowTextEntryModal)} onLog={handleLogFromModal}/></div>
           </div>
         )}
          {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => closeModal(setShowRecipeChoiceModal)} onChooseSearch={handleChooseRecipeSearch} onChooseTakePhoto={handleChooseTakePhoto} onChooseUpload={handleChooseUpload}/>}
