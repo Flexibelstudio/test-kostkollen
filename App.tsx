@@ -3927,6 +3927,15 @@ useEffect(() => {
         )}
 
       </div>
+      {(appStatus === AppStatus.ANALYZING || appStatus === AppStatus.ANALYZING_INGREDIENTS) && (
+        <LoadingSpinner
+          message={
+            appStatus === AppStatus.ANALYZING
+              ? "Analyserar bild..."
+              : "Hittar recept från dina bilder..."
+          }
+        />
+      )}
       {toastNotification && (
           <ToastNotification
             message={toastNotification.message}
