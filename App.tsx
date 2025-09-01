@@ -1196,8 +1196,12 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 carbohydrates: Math.max(0, nutritionalInfo.carbohydrates),
                 fat: Math.max(0, nutritionalInfo.fat),
             },
-            commonMealId: options.commonMealId,
         };
+
+        // Add commonMealId ONLY if it has a value, to avoid sending `undefined` to Firestore.
+        if (options.commonMealId) {
+            newMealData.commonMealId = options.commonMealId;
+        }
 
         if (finalImageUrl) {
             newMealData.imageUrl = finalImageUrl;
