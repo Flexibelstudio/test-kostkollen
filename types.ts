@@ -250,6 +250,21 @@ export interface Achievement {
     icon: string;
 }
 
+// --- Onboarding ---
+export interface OnboardingChecklistItemStatus {
+  mealLogged: boolean;
+  waterLogged: boolean;
+  journeyViewed: boolean;
+  communityViewed: boolean;
+}
+
+export interface OnboardingChecklistState {
+  firstSeenDate: string; // ISO date string YYYY-MM-DD
+  items: OnboardingChecklistItemStatus;
+  dismissed: boolean;
+}
+
+
 // --- Course & Lessons ---
 
 export interface CourseLesson {

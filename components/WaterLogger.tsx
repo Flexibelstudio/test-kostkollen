@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { WaterDropIcon, RotateCcwIcon, PlusCircleIcon } from './icons';
 
@@ -11,13 +9,13 @@ interface WaterLoggerProps {
   disabled?: boolean; // New prop
 }
 
-const WaterLogger: React.FC<WaterLoggerProps> = ({
+const WaterLogger = React.forwardRef<HTMLDivElement, WaterLoggerProps>(({
   currentWaterMl,
   waterGoalMl,
   onLogWater,
   onResetWater,
   disabled = false, // Default to false
-}) => {
+}, ref) => {
   const fillPercentage = waterGoalMl > 0 ? Math.min((currentWaterMl / waterGoalMl) * 100, 100) : 0;
 
   const logAmounts = [250, 500]; // Standard amounts to log in ml
@@ -25,7 +23,7 @@ const WaterLogger: React.FC<WaterLoggerProps> = ({
   const buttonBaseClass = "flex items-center justify-center px-3.5 py-2 text-sm font-medium rounded-lg shadow-sm transform active:scale-95 interactive-transition";
 
   return (
-    <div className={`p-5 bg-white shadow-soft-lg rounded-xl border border-neutral-light interactive-transition ${disabled ? 'opacity-60' : 'hover:shadow-soft-xl'}`}>
+    <div ref={ref} className={`p-5 bg-white shadow-soft-lg rounded-xl border border-neutral-light interactive-transition ${disabled ? 'opacity-60' : 'hover:shadow-soft-xl'}`}>
       <div className="flex justify-between items-center mb-3">
         <h3 className="text-2xl font-semibold text-neutral-dark flex items-center">
           <span className="mr-2" role="img" aria-label="Vatten">💧</span>
@@ -86,6 +84,6 @@ const WaterLogger: React.FC<WaterLoggerProps> = ({
       )}
     </div>
   );
-};
+});
 
 export default WaterLogger;

@@ -8,7 +8,7 @@ import PendingApprovalScreen from './components/PendingApprovalScreen';
 import SplashScreen from './components/SplashScreen';
 
 
-import { NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode, DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level, GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion, AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog, AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection, Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent, BuddyDetails } from './types.ts';
+import { NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode, DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level, GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion, AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog, AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection, Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent, BuddyDetails, OnboardingChecklistState, OnboardingChecklistItemStatus } from './types.ts';
 import { DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML, DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD, PIGGY_BANK_ICON_SVG, CALORIES_PER_GRAM, MAX_RECENT_RECIPE_SEARCHES, MAX_INGREDIENT_IMAGES, ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG } from './constants.ts';
 import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion, getRecipesFromIngredientsImage, getDetailedJourneyAnalysis } from './services/geminiService.ts';
 import { getFoodInfoFromBarcode } from './services/openFoodFactsService.ts';
@@ -74,6 +74,7 @@ import BmrTdeeInfoModal from './components/BmrTdeeInfoModal.tsx';
 import OnboardingCompletionScreen from './components/OnboardingCompletionScreen.tsx';
 import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
+import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 
 
 
@@ -634,6 +635,9 @@ export const App: React.FC = () => {
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
   const [onboardingStep, setOnboardingStep] = useState<'form' | 'feedback'>('form');
   const [showOnboardingCompletion, setShowOnboardingCompletion] = useState<boolean>(false);
+  const [showSpotlight, setShowSpotlight] = useState<boolean>(false);
+  const [checklistState, setChecklistState] = useState<OnboardingChecklistState | null>(null);
+  const waterLoggerRef = useRef<HTMLDivElement>(null);
 
 
   // AI Feedback State
@@ -813,6 +817,8 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setBuddyDetails([]);
         setJourneyAnalysisFeedback(null);
         setStreakSaver(null);
+        setShowSpotlight(false);
+        setChecklistState(null);
     }, []);
 
     useEffect(() => {
@@ -1224,16 +1230,31 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
         
         playAudio('logSuccess', 0.8);
-        setToastNotification({ message: `"${optimisticMeal.nutritionalInfo.foodItem}" loggades!`, type: 'success' });
-        setTimeout(() => setToastNotification(null), 3000);
+        
+        const isFirstOnboardingMeal = checklistState && !checklistState.items.mealLogged;
+        if (isFirstOnboardingMeal) {
+            updateChecklistItem('mealLogged');
+        } else {
+            setToastNotification({ message: `"${optimisticMeal.nutritionalInfo.foodItem}" loggades!`, type: 'success' });
+            setTimeout(() => setToastNotification(null), 3000);
+        }
+
 
         // 5. Save to Firestore
         await addMealLogFirestore(currentUser.uid, mealId, newMealData);
 
         // 6. Save bank update to Firestore if it changed
-        if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
+        if (isFirstOnboardingMeal) {
+            const bonusCalories = 100;
+            const finalBankState = { ...newBankState, bankedCalories: newBankState.bankedCalories + bonusCalories };
+            setWeeklyBank(finalBankState);
+            await updateUserDocument(currentUser.uid, { weeklyBank: finalBankState, role: userRole, status: userStatus });
+            setToastNotification({ message: `Bra start! Du fick 100 kcal i din Sparpott! 🏦`, type: 'success' });
+            setTimeout(() => setToastNotification(null), 4000);
+        } else if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
             await updateUserDocument(currentUser.uid, { weeklyBank: newBankState, role: userRole, status: userStatus });
         }
+
     } catch (error) {
         // 7. Revert optimistic update on failure
         handleFirestoreError(error, 'spara måltid');
@@ -1712,6 +1733,7 @@ const handleFinishOnboarding = async () => {
     setShowOnboardingCompletion(false);
     setShowAIFeedbackModal(false);
     setHasCompletedOnboarding(true);
+    setShowSpotlight(true);
     setIsInitialDataLoaded(true);
     try {
         await updateUserDocument(currentUser.uid, { hasCompletedOnboarding: true, role: userRole, status: userStatus });
@@ -2230,6 +2252,84 @@ useEffect(() => {
 
     ensureValidSubscription();
   }, [currentUser, isInitialDataLoaded]);
+
+    // --- ONBOARDING LOGIC ---
+    useEffect(() => {
+        if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) return;
+
+        // Spotlight Logic
+        const spotlightShown = getLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_SPOTLIGHT_SHOWN, false);
+        if (!spotlightShown) {
+            // Logic moved to handleFinishOnboarding to ensure it triggers at the right moment
+        }
+
+        // Checklist Logic
+        const storedState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
+        if (storedState) {
+            const fourDaysInMillis = 4 * 24 * 60 * 60 * 1000;
+            const firstSeen = new Date(storedState.firstSeenDate).getTime();
+            const allDone = Object.values(storedState.items).every(Boolean);
+
+            if (storedState.dismissed || (Date.now() - firstSeen > fourDaysInMillis) || allDone) {
+                setChecklistState(null);
+            } else {
+                setChecklistState(storedState);
+            }
+        } else {
+            const newState: OnboardingChecklistState = {
+                firstSeenDate: new Date().toISOString().split('T')[0],
+                items: { mealLogged: false, waterLogged: false, journeyViewed: false, communityViewed: false },
+                dismissed: false,
+            };
+            setChecklistState(newState);
+            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
+        }
+    }, [isInitialDataLoaded, hasCompletedOnboarding, currentUser]);
+
+    const updateChecklistItem = useCallback((itemKey: keyof OnboardingChecklistItemStatus) => {
+        setChecklistState(prevState => {
+            if (!prevState || prevState.items[itemKey]) return prevState;
+            const newState = { ...prevState, items: { ...prevState.items, [itemKey]: true } };
+            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
+            return newState;
+        });
+    }, []);
+    
+    useEffect(() => {
+        if (isViewingToday && waterLoggedMl > 0 && checklistState && !checklistState.items.waterLogged) {
+            updateChecklistItem('waterLogged');
+        }
+    }, [waterLoggedMl, isViewingToday, checklistState, updateChecklistItem]);
+
+    useEffect(() => {
+        if (checklistState) {
+            if (viewMode === 'journey' && !checklistState.items.journeyViewed) {
+                updateChecklistItem('journeyViewed');
+            }
+            if (viewMode === 'community' && !checklistState.items.communityViewed) {
+                updateChecklistItem('communityViewed');
+            }
+        }
+    }, [viewMode, checklistState, updateChecklistItem]);
+
+    const dismissChecklist = () => {
+        playAudio('uiClick');
+        setChecklistState(prevState => {
+            if (!prevState) return null;
+            const newState = { ...prevState, dismissed: true };
+            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
+            return null;
+        });
+    };
+    
+    const handleDismissSpotlight = () => {
+        setShowSpotlight(false);
+        setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_SPOTLIGHT_SHOWN, true);
+    };
+    
+    const handleScrollToWater = () => {
+        waterLoggerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
 
   const closeModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
     playAudio('uiClick');
@@ -2919,6 +3019,9 @@ useEffect(() => {
 
   const handleFabClick = () => {
     playAudio('uiClick');
+    if (showSpotlight) {
+        handleDismissSpotlight();
+    }
     if (!isViewingToday) {
         setToastNotification({message: "Du kan endast logga för idag.", type: "error"});
         setTimeout(() => setToastNotification(null), 3000);
@@ -3350,6 +3453,15 @@ useEffect(() => {
         }>
          {viewMode === 'main' && (
             <>
+              {checklistState && (
+                <OnboardingChecklist 
+                    state={checklistState}
+                    onDismiss={dismissChecklist}
+                    onNavigate={(view) => setViewMode(view)}
+                    onTriggerLog={handleFabClick}
+                    onScrollToWater={handleScrollToWater}
+                />
+              )}
               <section aria-labelledby="daily-overview-heading" className="mb-6 bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light">
                 <h2 id="daily-overview-heading" className="sr-only">Daglig Översikt</h2>
                 <div className="flex items-start justify-between w-full mb-2 gap-4">
@@ -3418,6 +3530,7 @@ useEffect(() => {
             
               <div className="space-y-6 mt-6">
                 <WaterLogger 
+                  ref={waterLoggerRef}
                   currentWaterMl={waterLoggedMl} 
                   waterGoalMl={waterGoalMl} 
                   onLogWater={handleLogWater}
@@ -3532,6 +3645,20 @@ useEffect(() => {
          )}
         </main>
         
+        {/* Onboarding Spotlight */}
+        {showSpotlight && (
+          <div 
+            className="fixed inset-0 z-40 animate-fade-in"
+            style={{ background: `radial-gradient(circle at calc(100vw - 56px) calc(100vh - 56px), transparent 36px, rgba(0,0,0,0.7) 37px)`}}
+            onClick={handleDismissSpotlight}
+          >
+            <div className="absolute w-64 p-4 bg-white rounded-lg shadow-xl animate-fade-slide-in" style={{ bottom: '104px', right: '32px'}}>
+              <p className="text-neutral-dark font-medium">Här loggar du allt! Prova att fota din första måltid.</p>
+              <div className="absolute -bottom-2 right-4 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-white" />
+            </div>
+          </div>
+        )}
+        
         {/* ADD FOOD OVERLAY/MODAL */}
         {viewMode === 'main' && !showSpeedDial && (
           <div className="fixed bottom-6 right-6 z-40">
@@ -3609,120 +3736,233 @@ useEffect(() => {
             />
         )}
         {analysisResultForModal && (
-            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setAnalysisResultForModal(null)}>
-                <div onClick={e => e.stopPropagation()}>
-                    <ImageAnalysisResultModal 
-                        analysisResult={analysisResultForModal} 
+            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setAnalysisResultForModal(null)}>
+                 <div onClick={e => e.stopPropagation()} className="animate-scale-in">
+                    <ImageAnalysisResultModal
+                        analysisResult={analysisResultForModal}
                         imageDataUrl={`data:image/jpeg;base64,${cameraImageForAnalysis}`}
-                        onLog={(info, opts) => handleLogFromModal(info, opts)}
-                        onClose={() => { setAnalysisResultForModal(null); setCameraImageForAnalysis(null); }}
+                        onLog={handleLogFromModal}
+                        onClose={() => setAnalysisResultForModal(null)}
                     />
                 </div>
             </div>
         )}
-        {showSaveCommonMealModal && mealToSaveAsCommon && (
-            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowSaveCommonMealModal)}>
-                <div onClick={e => e.stopPropagation()}>
-                    <SaveCommonMealModal
-                        mealInfo={mealToSaveAsCommon.nutritionalInfo}
-                        initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''}
-                        onSave={(name) => saveCommonMeal(mealToSaveAsCommon.nutritionalInfo, name)}
-                        onClose={() => closeModal(setShowSaveCommonMealModal)}
-                    />
-                </div>
+         {showInfoModal && (
+            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}>
+              <InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} />
             </div>
-        )}
-        {showInfoModal && (
-            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}>
-                <div onClick={e => e.stopPropagation()}>
-                    <InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} />
-                </div>
-            </div>
-        )}
-        {showUserProfileModal && (
-          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}>
-              <div onClick={e => e.stopPropagation()}>
-                  <UserProfileModal 
-                      initialProfile={userProfile} 
-                      onSave={handleSaveProfileAndGoals} 
-                      onClose={handleCloseUserProfileModal} 
-                      isOnboarding={isProfileModalOnboarding}
-                      onboardingStep={onboardingStep}
-                      aiFeedbackLoading={aiFeedbackLoading}
-                      aiFeedbackMessage={aiFeedbackMessage}
-                      aiFeedbackError={aiFeedbackError}
-onSubscribeToPush={handleSubscribeToPush}
+          )}
+          {showUserProfileModal && (
+            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}>
+              <div onClick={e => e.stopPropagation()} className="animate-scale-in">
+                  <UserProfileModal
+                    initialProfile={userProfile}
+                    onSave={handleSaveProfileAndGoals}
+                    onClose={handleCloseUserProfileModal}
+                    isOnboarding={isProfileModalOnboarding}
+                    onboardingStep={onboardingStep}
+                    aiFeedbackLoading={aiFeedbackLoading}
+                    aiFeedbackMessage={aiFeedbackMessage}
+                    aiFeedbackError={aiFeedbackError}
+                    onSubscribeToPush={handleSubscribeToPush}
                   />
               </div>
-          </div>
-        )}
-        {showCameraModal && <CameraModal show={showCameraModal} onClose={() => closeModal(setShowCameraModal)} onImageCapture={handleImageCapture} onCameraError={(msg) => { setToastNotification({message: `Kamerafel: ${msg}`, type:'error'}); setTimeout(() => setToastNotification(null), 3500); }}/>}
-        {showTextEntryModal && (
-          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-start sm:items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowTextEntryModal)}>
-            <div className="mt-8 sm:mt-0" onClick={e => e.stopPropagation()}><TextEntryModal show={showTextEntryModal} onClose={() => closeModal(setShowTextEntryModal)} onLog={handleLogFromModal}/></div>
-          </div>
-        )}
-         {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => closeModal(setShowRecipeChoiceModal)} onChooseSearch={handleChooseRecipeSearch} onChooseTakePhoto={handleChooseTakePhoto} onChooseUpload={handleChooseUpload}/>}
-         {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => closeModal(setShowRecipeModal)} onSearch={handleRecipeSearch} onLogRecipe={handleLogRecipe} recipe={currentRecipe} isLoading={appStatus === AppStatus.SEARCHING_RECIPE} error={errorMessage} isLoggingDisabled={!isViewingToday} recentSearches={recentRecipeSearches} setToastNotification={setToastNotification}/>}
-         {showIngredientCaptureModal && <IngredientCaptureModal show={showIngredientCaptureModal} onClose={() => closeModal(setShowIngredientCaptureModal)} onFindRecipes={handleFindRecipesFromIngredients} openCameraModal={() => {setShowIngredientCaptureModal(false); openModal(setShowCameraModal);}} images={ingredientImagesForCapture} onRemoveImage={handleRemoveImage} onUploadImages={handleAddIngredientImagesFromUpload} />}
-         {showIngredientRecipeResultsModal && ingredientAnalysisResult && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => {closeModal(setShowIngredientRecipeResultsModal); setIngredientAnalysisResult(null);}} identifiedIngredients={ingredientAnalysisResult.identifiedIngredients} recipeSuggestions={ingredientAnalysisResult.recipeSuggestions} onLogRecipe={handleLogRecipeFromIngredients} isLoading={appStatus === AppStatus.ANALYZING_INGREDIENTS} error={errorMessage} isLoggingDisabled={!isViewingToday} />}
-         {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => closeModal(setShowBarcodeScannerModal)} onBarcodeScanned={handleBarcodeScanned} onCameraError={(msg) => setToastNotification({message: msg, type: 'error'})} />}
-         {barcodeScanResult && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in" onClick={() => setBarcodeScanResult(null)}><div onClick={e => e.stopPropagation()}><BarcodeSearchResultModal scanResult={barcodeScanResult} onLog={handleLogFromBarcode} onClose={() => setBarcodeScanResult(null)} /></div></div>}
-         {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} /></div>}
-         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => handleSaveWellbeingAndProceed({ stressLevel: null, energyLevel: null, sleepQuality: null, mood: null })} onSave={handleSaveWellbeingAndProceed} />}
-         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} /></div>}
-        
-         {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { setShowAIFeedbackModal(false); if (onboardingStep === 'feedback') { setShowOnboardingCompletion(true); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={aiModalIcon} isOnboardingContext={onboardingStep === 'feedback'} />}
-         {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />}
-         {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
-         {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
-         {showCourseInfoModalOnLoad && <CourseInfoModal show={showCourseInfoModalOnLoad} onClose={() => setShowCourseInfoModalOnLoad(false)} />}
-        
-        {(appStatus === AppStatus.ANALYZING || appStatus === AppStatus.ANALYZING_INGREDIENTS) && (
-            <LoadingSpinner 
-                message={
-                    appStatus === AppStatus.ANALYZING 
-                        ? "Analyserar bild..." 
-                        : "Analyserar ingredienser..."
-                } 
-            />
-        )}
-        {appStatus === AppStatus.SAVING && (
-            <LoadingSpinner message="Sparar..." />
-        )}
-        {appStatus === AppStatus.PROCESSING_DAY_END && (
-            <LoadingSpinner message="Summerar och synkroniserar dina framsteg..." />
-        )}
-        {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
-        <ConfettiCelebration isActive={showConfetti} />
-
-        {/* PWA Install Banners */}
-        {showInstallBanner && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
-            <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <img src="/favicon.png" alt="App Logo" className="w-12 h-12" />
-                <div>
-                  <h3 className="font-bold text-neutral-dark">Installera Kostloggen</h3>
-                  <p className="text-sm text-neutral">Få en snabbare, app-liknande upplevelse.</p>
+            </div>
+          )}
+          {showOnboardingCompletion && (
+             <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}>
+                <div onClick={e => e.stopPropagation()} className="animate-scale-in">
+                    <OnboardingCompletionScreen onFinish={handleFinishOnboarding} />
                 </div>
+             </div>
+          )}
+           {showTextEntryModal && (
+              <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowTextEntryModal)}>
+                  <div onClick={e => e.stopPropagation()} className="animate-scale-in">
+                      <TextEntryModal show={showTextEntryModal} onClose={() => closeModal(setShowTextEntryModal)} onLog={(foodInfo, options) => {
+                          addMealToLog({ ...foodInfo, foodItem: foodInfo.servingDescription ? `${foodInfo.foodItem} (${foodInfo.servingDescription})` : foodInfo.foodItem }, { commonMealId: 'text_search' });
+                          if (options.saveAsCommon) {
+                            saveCommonMeal(foodInfo, foodInfo.servingDescription ? `${foodInfo.foodItem} (${foodInfo.servingDescription})` : foodInfo.foodItem);
+                          }
+                      }} />
+                  </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={() => setShowInstallBanner(false)} className="px-4 py-2 text-sm font-medium text-neutral rounded-md hover:bg-neutral-light">
-                  Senare
-                </button>
-                <button onClick={handleInstallClick} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md shadow-sm hover:bg-primary-darker active:scale-95 interactive-transition">
-                  <InstallIcon className="w-5 h-5" />
-                  Installera
-                </button>
+          )}
+          {showCameraModal && (
+            <CameraModal
+                show={showCameraModal}
+                onClose={() => closeModal(setShowCameraModal)}
+                onImageCapture={handleImageCapture}
+                onCameraError={(msg) => {
+                    setToastNotification({ message: `Kamerafel: ${msg}`, type: 'error'});
+                    setTimeout(() => setToastNotification(null), 3500);
+                }}
+            />
+          )}
+          {showBarcodeScannerModal && (
+            <BarcodeScannerModal
+              show={showBarcodeScannerModal}
+              onClose={() => closeModal(setShowBarcodeScannerModal)}
+              onBarcodeScanned={handleBarcodeScanned}
+              onCameraError={(msg) => {
+                  setToastNotification({ message: `Kamerafel: ${msg}`, type: 'error' });
+                  setTimeout(() => setToastNotification(null), 3500);
+              }}
+            />
+          )}
+          {barcodeScanResult && (
+            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setBarcodeScanResult(null)}>
+              <div onClick={e => e.stopPropagation()} className="animate-scale-in">
+                <BarcodeSearchResultModal
+                  scanResult={barcodeScanResult}
+                  onLog={handleLogFromBarcode}
+                  onClose={() => setBarcodeScanResult(null)}
+                />
               </div>
             </div>
+          )}
+          {showSaveCommonMealModal && mealToSaveAsCommon && (
+            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowSaveCommonMealModal)}>
+                <div onClick={e => e.stopPropagation()} className="animate-scale-in">
+                    <SaveCommonMealModal
+                    mealInfo={mealToSaveAsCommon.nutritionalInfo}
+                    initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''}
+                    onSave={(name) => saveCommonMeal(mealToSaveAsCommon!.nutritionalInfo, name)}
+                    onClose={() => closeModal(setShowSaveCommonMealModal)}
+                    />
+                </div>
+            </div>
+          )}
+        {showRecipeChoiceModal && (
+            <RecipeChoiceModal
+                show={showRecipeChoiceModal}
+                onClose={() => closeModal(setShowRecipeChoiceModal)}
+                onChooseSearch={handleChooseRecipeSearch}
+                onChooseTakePhoto={handleChooseTakePhoto}
+                onChooseUpload={handleChooseUpload}
+            />
+        )}
+        {showRecipeModal && (
+            <RecipeModal
+                show={showRecipeModal}
+                onClose={() => { closeModal(setShowRecipeModal); setCurrentRecipe(null); setErrorMessage(null); }}
+                onSearch={handleRecipeSearch}
+                onLogRecipe={handleLogRecipe}
+                recipe={currentRecipe}
+                isLoading={appStatus === AppStatus.SEARCHING_RECIPE}
+                error={errorMessage}
+                isLoggingDisabled={!isViewingToday}
+                recentSearches={recentRecipeSearches}
+                setToastNotification={setToastNotification}
+            />
+        )}
+        {showIngredientCaptureModal && (
+            <IngredientCaptureModal
+                show={showIngredientCaptureModal}
+                onClose={() => closeModal(setShowIngredientCaptureModal)}
+                onFindRecipes={handleFindRecipesFromIngredients}
+                openCameraModal={() => {
+                    closeModal(setShowIngredientCaptureModal);
+                    openModal(setShowCameraModal);
+                }}
+                images={ingredientImagesForCapture}
+                onRemoveImage={handleRemoveImage}
+                onUploadImages={handleAddIngredientImagesFromUpload}
+            />
+        )}
+        {showIngredientRecipeResultsModal && ingredientAnalysisResult && (
+            <IngredientRecipeResultsModal
+                show={showIngredientRecipeResultsModal}
+                onClose={() => closeModal(setShowIngredientRecipeResultsModal)}
+                identifiedIngredients={ingredientAnalysisResult.identifiedIngredients}
+                recipeSuggestions={ingredientAnalysisResult.recipeSuggestions}
+                onLogRecipe={handleLogRecipeFromIngredients}
+                isLoading={appStatus === AppStatus.ANALYZING_INGREDIENTS}
+                error={errorMessage}
+                isLoggingDisabled={!isViewingToday}
+            />
+        )}
+        {showLevelUpModal && (
+            <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />
+        )}
+         {showGoalMetModalData && (
+          <GoalMetModal
+            data={showGoalMetModalData}
+            onClose={() => setShowGoalMetModalData(null)}
+          />
+        )}
+        {newlyUnlockedLesson && (
+          <NewLessonUnlockedModal 
+            lessonTitle={newlyUnlockedLesson.title} 
+            onClose={() => setNewlyUnlockedLesson(null)} 
+          />
+        )}
+        {showAIFeedbackModal && (
+            <AIFeedbackModal
+                show={showAIFeedbackModal}
+                onClose={() => {
+                   if (isProfileModalOnboarding) {
+                       handleFinishOnboarding();
+                   } else {
+                       setShowAIFeedbackModal(false);
+                   }
+                }}
+                feedbackMessage={aiFeedbackMessage}
+                isLoading={aiFeedbackLoading}
+                error={aiFeedbackError}
+                modalTitle={aiModalTitle}
+                modalIcon={aiModalIcon}
+                isOnboardingContext={isProfileModalOnboarding}
+            />
+        )}
+        {showLogWeightModal && (
+          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}>
+             <LogWeightModal
+                show={showLogWeightModal}
+                onClose={() => closeModal(setShowLogWeightModal)}
+                onSave={handleSaveWeightLog}
+              />
           </div>
         )}
-        {showIosInstallPrompt && (
-          <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />
+         {showMentalWellbeingModal && (
+            <MentalWellbeingModal
+                show={showMentalWellbeingModal}
+                onClose={() => setShowMentalWellbeingModal(false)}
+                onSave={handleSaveWellbeingAndProceed}
+            />
         )}
+
       </div>
+      {toastNotification && (
+          <ToastNotification
+            message={toastNotification.message}
+            type={toastNotification.type}
+            onClose={() => setToastNotification(null)}
+          />
+      )}
+      {showConfetti && <ConfettiCelebration isActive={showConfetti} />}
+       {showInstallBanner && (
+        <div className="fixed bottom-0 left-0 right-0 bg-primary/95 backdrop-blur-sm text-white p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <InstallIcon className="w-8 h-8 flex-shrink-0" />
+              <div>
+                <h3 className="font-bold">Installera Kostloggen</h3>
+                <p className="text-sm">Få en bättre upplevelse genom att lägga till appen på din hemskärm.</p>
+              </div>
+            </div>
+            <button
+              onClick={handleInstallClick}
+              className="px-4 py-1.5 bg-white text-primary font-semibold rounded-lg shadow-sm active:scale-95 interactive-transition flex-shrink-0"
+            >
+              Installera
+            </button>
+          </div>
+        </div>
+      )}
+      {showIosInstallPrompt && (
+        <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />
+      )}
     </>
   );
 };
