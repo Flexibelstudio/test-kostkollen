@@ -3262,7 +3262,7 @@ useEffect(() => {
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); }}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
                 </div>
-                <div className="flex flex-wrap justify-end items-center gap-4">
+                <div className="flex flex-wrap justify-end items-center gap-1">
                     {navItems.map(item => (
                         <button
                             key={item.key}
