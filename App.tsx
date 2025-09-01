@@ -1548,7 +1548,7 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
         setDailyLog(originalDailyLog);
         setWeeklyBank(originalWeeklyBank);
     }
-};
+  };
 
   const saveCommonMeal = async (mealInfoToSave: NutritionalInfo, name: string) => {
     if (!currentUser) return;
@@ -1734,7 +1734,16 @@ const handleFinishOnboarding = async () => {
     setShowAIFeedbackModal(false);
     setHasCompletedOnboarding(true);
     setShowSpotlight(true);
-    setIsInitialDataLoaded(true);
+    
+    // Initialize the checklist state for the very first time for this new user.
+    const newState: OnboardingChecklistState = {
+        firstSeenDate: new Date().toISOString().split('T')[0],
+        items: { mealLogged: false, waterLogged: false, journeyViewed: false, communityViewed: false },
+        dismissed: false,
+    };
+    setChecklistState(newState);
+    setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
+
     try {
         await updateUserDocument(currentUser.uid, { hasCompletedOnboarding: true, role: userRole, status: userStatus });
         playAudio('levelUp');
@@ -2255,34 +2264,30 @@ useEffect(() => {
 
     // --- ONBOARDING LOGIC ---
     useEffect(() => {
-        if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) return;
-
-        // Spotlight Logic
-        const spotlightShown = getLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_SPOTLIGHT_SHOWN, false);
-        if (!spotlightShown) {
-            // Logic moved to handleFinishOnboarding to ensure it triggers at the right moment
+        // We only run this if onboarding has been completed at some point.
+        // This effect now only manages the state of an *existing* checklist.
+        if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
+          setChecklistState(null); // Ensure checklist is hidden if conditions aren't met
+          return;
         }
 
-        // Checklist Logic
+        // Checklist Logic: Only read and manage an existing state. Do NOT create a new one.
+        // If no state exists in localStorage, this user is an existing user and shouldn't see the checklist.
         const storedState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
         if (storedState) {
             const fourDaysInMillis = 4 * 24 * 60 * 60 * 1000;
             const firstSeen = new Date(storedState.firstSeenDate).getTime();
             const allDone = Object.values(storedState.items).every(Boolean);
 
+            // Hide checklist if it's dismissed, expired, or completed.
             if (storedState.dismissed || (Date.now() - firstSeen > fourDaysInMillis) || allDone) {
                 setChecklistState(null);
             } else {
                 setChecklistState(storedState);
             }
         } else {
-            const newState: OnboardingChecklistState = {
-                firstSeenDate: new Date().toISOString().split('T')[0],
-                items: { mealLogged: false, waterLogged: false, journeyViewed: false, communityViewed: false },
-                dismissed: false,
-            };
-            setChecklistState(newState);
-            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
+            // Do nothing and ensure state is null. An existing user won't have a stored state.
+            setChecklistState(null);
         }
     }, [isInitialDataLoaded, hasCompletedOnboarding, currentUser]);
 
@@ -2312,16 +2317,6 @@ useEffect(() => {
         }
     }, [viewMode, checklistState, updateChecklistItem]);
 
-    const dismissChecklist = () => {
-        playAudio('uiClick');
-        setChecklistState(prevState => {
-            if (!prevState) return null;
-            const newState = { ...prevState, dismissed: true };
-            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
-            return null;
-        });
-    };
-    
     const handleDismissSpotlight = () => {
         setShowSpotlight(false);
         setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_SPOTLIGHT_SHOWN, true);
