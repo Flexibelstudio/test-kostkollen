@@ -3456,7 +3456,6 @@ useEffect(() => {
               {checklistState && (
                 <OnboardingChecklist 
                     state={checklistState}
-                    onDismiss={dismissChecklist}
                     onNavigate={(view) => setViewMode(view)}
                     onTriggerLog={handleFabClick}
                     onScrollToWater={handleScrollToWater}

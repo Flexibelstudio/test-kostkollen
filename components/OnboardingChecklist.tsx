@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { OnboardingChecklistState } from '../types';
-import { XMarkIcon, ChevronDownIcon } from './icons';
+import { ChevronDownIcon } from './icons';
 
 interface OnboardingChecklistProps {
   state: OnboardingChecklistState;
-  onDismiss: () => void;
   onNavigate: (view: 'journey' | 'community') => void;
   onTriggerLog: () => void;
   onScrollToWater: () => void;
@@ -12,7 +11,6 @@ interface OnboardingChecklistProps {
 
 export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
   state,
-  onDismiss,
   onNavigate,
   onTriggerLog,
   onScrollToWater,
@@ -35,13 +33,6 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
 
   return (
     <div className="bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light mb-6 animate-fade-slide-in relative transition-all duration-300">
-      <button
-        onClick={onDismiss}
-        className="absolute top-2 right-2 p-1.5 text-neutral hover:text-red-500 rounded-full hover:bg-red-100/70 interactive-transition z-10"
-        aria-label="Dölj checklista"
-      >
-        <XMarkIcon className="w-5 h-5" />
-      </button>
       
       {/* Clickable Header */}
       <button
