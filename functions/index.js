@@ -539,10 +539,10 @@ exports.manualSummarizeYesterday = functions.runWith({timeoutSeconds: 540}).http
                 skippedCount++;
                 continue;
             }
-            
-            // Robustness check: Ensure user.goals exists before proceeding
-            if (!user.goals) {
-                logger.warn(`Skipping user ${userId} due to missing 'goals' field.`);
+
+            // Robustness check: Ensure user.goals exists AND has required properties.
+            if (!user.goals || typeof user.goals.calorieGoal !== "number" || typeof user.goals.proteinGoal !== "number") {
+                logger.warn(`Skipping user ${userId} due to missing or invalid 'goals' field.`, { goals: user.goals });
                 skippedCount++;
                 continue;
             }
