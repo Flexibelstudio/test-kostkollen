@@ -1749,7 +1749,6 @@ useEffect(() => {
     return;
   }
 
-  const todayDateStr = getDateUID(currentDate);
   let lastCheckedStr = streakData.lastDateStreakChecked;
 
   if (!lastCheckedStr) {
@@ -1758,13 +1757,14 @@ useEffect(() => {
     lastCheckedStr = getDateUID(dayBeforeYesterday);
   }
 
-  if (lastCheckedStr === todayDateStr) {
+  const todayDateStr = getDateUID(currentDate);
+  if (lastCheckedStr >= todayDateStr) {
     if (appStatus === AppStatus.PROCESSING_DAY_END) {
       setAppStatus(AppStatus.IDLE);
     }
     return;
   }
-
+  
   const [y, m, d] = lastCheckedStr.split('-').map(Number);
   const lastProcessedDate = new Date(y, m - 1, d);
 
@@ -1782,10 +1782,8 @@ useEffect(() => {
         const datesToProcess: Date[] = [];
         let dayToProcess = new Date(lastProcessedDate);
         dayToProcess.setDate(dayToProcess.getDate() + 1);
-        const todayForLoop = new Date(currentDate);
-        todayForLoop.setHours(0, 0, 0, 0);
-        
-        while (dayToProcess < todayForLoop) {
+
+        while (getDateUID(dayToProcess) < todayDateStr) {
             datesToProcess.push(new Date(dayToProcess));
             dayToProcess.setDate(dayToProcess.getDate() + 1);
         }
@@ -1873,11 +1871,12 @@ useEffect(() => {
             newSummaries[dateUID] = summaryForThisDay;
         }
 
-        // After loop, determine state for TODAY
+        const lastProcessedDay = datesToProcess[datesToProcess.length - 1];
+        const newLastCheckedDateStr = getDateUID(lastProcessedDay);
+
         let finalBankForState = runningBank;
         let finalSaverForState = runningSaver;
         
-        const lastProcessedDay = datesToProcess[datesToProcess.length - 1];
         const lastProcessedWeekInfo = getWeekInfo(lastProcessedDay);
         const currentAppDateWeekInfo = getWeekInfo(currentDate);
 
@@ -1888,14 +1887,16 @@ useEffect(() => {
         
         const userDocRef = doc(db, "users", currentUser.uid);
         batch.update(userDocRef, {
-            currentStreak: runningStreak, lastDateStreakChecked: todayDateStr,
-            weeklyBank: finalBankForState, streakSaver: finalSaverForState,
+            currentStreak: runningStreak,
+            lastDateStreakChecked: newLastCheckedDateStr,
+            weeklyBank: finalBankForState,
+            streakSaver: finalSaverForState,
             highestStreak: Math.max(runningHighestStreak, runningStreak),
         });
 
         await batch.commit();
 
-        setStreakData({ currentStreak: runningStreak, lastDateStreakChecked: todayDateStr });
+        setStreakData({ currentStreak: runningStreak, lastDateStreakChecked: newLastCheckedDateStr });
         setWeeklyBank(finalBankForState);
         setStreakSaver(finalSaverForState);
         setHighestStreak(Math.max(runningHighestStreak, runningStreak));
