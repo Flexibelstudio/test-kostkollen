@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from '@firebase/auth';
@@ -10,7 +8,7 @@ import PendingApprovalScreen from './components/PendingApprovalScreen';
 import SplashScreen from './components/SplashScreen';
 
 
-import { NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode, DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level, GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion, AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog, AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection, Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent, BuddyDetails, OnboardingChecklistState, OnboardingChecklistItemStatus } from './types.ts';
+import { NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode, DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level, GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion, AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog, AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection, Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent, BuddyDetails } from './types.ts';
 import { DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML, DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD, PIGGY_BANK_ICON_SVG, CALORIES_PER_GRAM, MAX_RECENT_RECIPE_SEARCHES, MAX_INGREDIENT_IMAGES, ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG } from './constants.ts';
 import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion, getRecipesFromIngredientsImage, getDetailedJourneyAnalysis } from './services/geminiService.ts';
 import { getFoodInfoFromBarcode } from './services/openFoodFactsService.ts';
@@ -76,8 +74,6 @@ import BmrTdeeInfoModal from './components/BmrTdeeInfoModal.tsx';
 import OnboardingCompletionScreen from './components/OnboardingCompletionScreen.tsx';
 import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
-import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
-import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 
 
 
@@ -131,32 +127,37 @@ const setLocalStorageItem = <T,>(key: string, value: T): void => {
 
 
 const getWeekInfo = (date: Date): { weekId: string; startDate: string; endDate: string } => {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0); // Normalize to the start of the local day
+  // This part correctly finds the Monday of the week for the given date.
+  // It uses UTC to avoid timezone issues.
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayUTC = d.getUTCDay(); // 0 for Sunday, 1 for Monday, etc.
+  // Calculate the difference to get to the previous Monday
+  const diffToMondayUTC = d.getUTCDate() - dayUTC + (dayUTC === 0 ? -6 : 1);
+  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diffToMondayUTC));
 
-    const day = d.getDay(); // 0 for Sunday, 1 for Monday
-    const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    const monday = new Date(d.setDate(diffToMonday));
+  // Create Sunday from the calculated Monday
+  const sunday = new Date(monday.getTime());
+  sunday.setUTCDate(monday.getUTCDate() + 6);
 
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
+  // --- START: Robust ISO 8601 Week Number Calculation ---
+  // A copy of the original date is needed as the calculation modifies it.
+  const targetDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  // Set to the Thursday of the week. ISO week day number: 1 (Mon) to 7 (Sun)
+  const dayNum = targetDate.getUTCDay() || 7;
+  targetDate.setUTCDate(targetDate.getUTCDate() + 4 - dayNum);
+  // Get the year of that Thursday, which is the ISO week-numbering year.
+  const year = targetDate.getUTCFullYear();
+  // Get the first day of that year
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  // Calculate the week number
+  const weekNo = Math.ceil((((targetDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  // --- END: Robust ISO Week Number Calculation ---
 
-    // ISO 8601 week number calculation
-    const target = new Date(monday.valueOf());
-    const dayNr = (monday.getDay() + 6) % 7;
-    target.setDate(target.getDate() - dayNr + 3);
-    const firstThursday = target.valueOf();
-    target.setMonth(0, 1);
-    if (target.getDay() !== 4) {
-        target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-    }
-    const weekNumber = 1 + Math.ceil((firstThursday - target.getTime()) / 604800000); // 604800000 = 7 * 24 * 3600 * 1000
-
-    return {
-        weekId: `${target.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`,
-        startDate: monday.toISOString().split('T')[0],
-        endDate: sunday.toISOString().split('T')[0],
-    };
+  return {
+    weekId: `${year}-W${String(weekNo).padStart(2, '0')}`,
+    startDate: monday.toISOString().split('T')[0],
+    endDate: sunday.toISOString().split('T')[0],
+  };
 };
 
 const wasCalorieGoalMetForSummary = ( 
@@ -633,10 +634,6 @@ export const App: React.FC = () => {
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
   const [onboardingStep, setOnboardingStep] = useState<'form' | 'feedback'>('form');
   const [showOnboardingCompletion, setShowOnboardingCompletion] = useState<boolean>(false);
-  const [showSpotlight, setShowSpotlight] = useState<boolean>(false);
-  const [checklistState, setChecklistState] = useState<OnboardingChecklistState | null>(null);
-  const waterLoggerRef = useRef<HTMLDivElement>(null);
-  const [showOnboardingRewardModal, setShowOnboardingRewardModal] = useState(false);
 
 
   // AI Feedback State
@@ -698,7 +695,7 @@ export const App: React.FC = () => {
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-        setToastNotification({ message: 'Pushnotiser stöds inte av din webbläsaare eller så har något gått fel.', type: 'error' });
+        setToastNotification({ message: 'Pushnotiser stöds inte av din webbläsare eller så har något gått fel.', type: 'error' });
         setTimeout(() => setToastNotification(null), 4000);
         return false;
     }
@@ -816,8 +813,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setBuddyDetails([]);
         setJourneyAnalysisFeedback(null);
         setStreakSaver(null);
-        setShowSpotlight(false);
-        setChecklistState(null);
     }, []);
 
     useEffect(() => {
@@ -1203,11 +1198,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             },
         };
 
-        // Add commonMealId ONLY if it has a value, to avoid sending `undefined` to Firestore.
-        if (options.commonMealId) {
-            newMealData.commonMealId = options.commonMealId;
-        }
-
         if (finalImageUrl) {
             newMealData.imageUrl = finalImageUrl;
         }
@@ -1229,11 +1219,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
         
         playAudio('logSuccess', 0.8);
-        
-        if (checklistState && !checklistState.items.mealLogged) {
-            updateChecklistItem('mealLogged');
-        }
-        
         setToastNotification({ message: `"${optimisticMeal.nutritionalInfo.foodItem}" loggades!`, type: 'success' });
         setTimeout(() => setToastNotification(null), 3000);
 
@@ -1244,7 +1229,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
             await updateUserDocument(currentUser.uid, { weeklyBank: newBankState, role: userRole, status: userStatus });
         }
-
     } catch (error) {
         // 7. Revert optimistic update on failure
         handleFirestoreError(error, 'spara måltid');
@@ -1538,7 +1522,7 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
         setDailyLog(originalDailyLog);
         setWeeklyBank(originalWeeklyBank);
     }
-  };
+};
 
   const saveCommonMeal = async (mealInfoToSave: NutritionalInfo, name: string) => {
     if (!currentUser) return;
@@ -1723,17 +1707,7 @@ const handleFinishOnboarding = async () => {
     setShowOnboardingCompletion(false);
     setShowAIFeedbackModal(false);
     setHasCompletedOnboarding(true);
-    setShowSpotlight(true);
-    
-    // Initialize the checklist state for the very first time for this new user.
-    const newState: OnboardingChecklistState = {
-        firstSeenDate: new Date().toISOString().split('T')[0],
-        items: { mealLogged: false, waterLogged: false, journeyViewed: false, communityViewed: false },
-        dismissed: false,
-    };
-    setChecklistState(newState);
-    setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
-
+    setIsInitialDataLoaded(true);
     try {
         await updateUserDocument(currentUser.uid, { hasCompletedOnboarding: true, role: userRole, status: userStatus });
         playAudio('levelUp');
@@ -1745,195 +1719,303 @@ const handleFinishOnboarding = async () => {
 
   // This effect handles catching up on missed days for streak and calorie bank calculations.
 useEffect(() => {
-  if (isDataLoading || !currentUser || !isInitialDataLoaded || isProcessingDaysRef.current) {
+  if (isDataLoading || !currentUser || !isInitialDataLoaded) {
     return;
   }
 
-  let lastCheckedStr = streakData.lastDateStreakChecked;
+  let lastChecked = streakData.lastDateStreakChecked;
 
-  if (!lastCheckedStr) {
+  if (!lastChecked) {
     const dayBeforeYesterday = new Date(currentDate);
     dayBeforeYesterday.setDate(currentDate.getDate() - 2);
-    lastCheckedStr = getDateUID(dayBeforeYesterday);
+    lastChecked = getDateUID(dayBeforeYesterday);
   }
 
   const todayDateStr = getDateUID(currentDate);
-  if (lastCheckedStr >= todayDateStr) {
+  if (lastChecked === todayDateStr) {
     if (appStatus === AppStatus.PROCESSING_DAY_END) {
       setAppStatus(AppStatus.IDLE);
     }
     return;
   }
-  
-  const [y, m, d] = lastCheckedStr.split('-').map(Number);
-  const lastProcessedDate = new Date(y, m - 1, d);
 
+  const lastProcessedDate = new Date(lastChecked);
   if (isNaN(lastProcessedDate.getTime())) {
-    console.error("Invalid lastDateStreakChecked in state:", lastCheckedStr);
+    console.error("Invalid lastDateStreakChecked in state:", lastChecked);
     return;
   }
 
-  const processAndFinalizeDays = async () => {
-    isProcessingDaysRef.current = true;
-    setAppStatus(AppStatus.PROCESSING_DAY_END);
+  const datesToProcess: Date[] = [];
+  let dayToProcess = new Date(lastProcessedDate);
+  dayToProcess.setUTCDate(dayToProcess.getUTCDate() + 1);
+  const todayForLoop = new Date(todayDateStr);
 
-    try {
-        const batch = writeBatch(db);
-        const datesToProcess: Date[] = [];
-        let dayToProcess = new Date(lastProcessedDate);
-        dayToProcess.setDate(dayToProcess.getDate() + 1);
+  while (dayToProcess < todayForLoop) {
+    datesToProcess.push(new Date(dayToProcess));
+    dayToProcess.setUTCDate(dayToProcess.getUTCDate() + 1);
+  }
 
-        while (getDateUID(dayToProcess) < todayDateStr) {
-            datesToProcess.push(new Date(dayToProcess));
-            dayToProcess.setDate(dayToProcess.getDate() + 1);
-        }
+  if (datesToProcess.length > 0) {
+    const processMissedDays = async () => {
+      if (isProcessingDaysRef.current) {
+        console.log("Streak processing is already in progress, skipping this run.");
+        return;
+      }
+      isProcessingDaysRef.current = true;
 
-        if (datesToProcess.length === 0) {
-            isProcessingDaysRef.current = false;
-            setAppStatus(AppStatus.IDLE);
-            return;
-        }
-
+      try {
         console.log(`Processing ${datesToProcess.length} missed day(s)...`);
+        setAppStatus(AppStatus.PROCESSING_DAY_END);
 
-        let runningStreak = streakData.currentStreak;
-        let runningBank = { ...weeklyBank };
-        let runningSaver = streakSaver ? { ...streakSaver } : null;
-        let runningHighestStreak = highestStreak;
+        // Re-calculate the base streak from the day before the processing window starts.
+        let dateToCheck = new Date(lastChecked!);
+        let streakFound = 0;
+        for (let i = 0; i < 730; i++) { // Max 2 år bakåt
+          const dateUID = getDateUID(dateToCheck);
+          const summary = pastDaysSummary[dateUID];
+          if (summary?.goalMet || summary?.savedBy === 'streakSaver') {
+            streakFound++;
+          } else {
+            break;
+          }
+          dateToCheck.setDate(dateToCheck.getDate() - 1);
+        }
+        const baseStreak = streakFound;
+
+        let accumulatedStreak = baseStreak;
+        let accumulatedBank = weeklyBank.bankedCalories;
+        let finalStreakSaver = streakSaver ? { ...streakSaver } : null;
+        let accumulatedHighestStreak = highestStreak;
         const newSummaries: PastDaysSummaryCollection = {};
+        let latestProcessedDateUID = lastChecked!;
         let totalBankedInLoop = 0;
+        let lastProcessedWeekId = getWeekInfo(new Date(lastChecked!)).weekId;
 
         for (const date of datesToProcess) {
-            const dateUID = getDateUID(date);
-            const prevDay = new Date(date);
-            prevDay.setDate(prevDay.getDate() - 1);
+          const dateUID = getDateUID(date);
+          const { weekId: currentProcessingWeekId } = getWeekInfo(date);
 
-            const prevDayWeekInfo = getWeekInfo(prevDay);
-            const currentDayWeekInfo = getWeekInfo(date);
+          if (currentProcessingWeekId !== lastProcessedWeekId) {
+            accumulatedBank = 0;
+            totalBankedInLoop = 0;
+            finalStreakSaver = { available: true, weekId: currentProcessingWeekId };
+          }
+          lastProcessedWeekId = currentProcessingWeekId;
 
-            if (prevDayWeekInfo.weekId !== currentDayWeekInfo.weekId) {
-                runningBank = { ...currentDayWeekInfo, bankedCalories: 0 };
-                runningSaver = { weekId: currentDayWeekInfo.weekId, available: true };
+          let existingSummary = pastDaysSummary[dateUID];
+          if (!existingSummary) {
+            const summaryDoc = await getDocSafe(
+              doc(db, "users", currentUser.uid, "pastDaySummaries", dateUID)
+            );
+            if (summaryDoc.exists()) {
+              existingSummary = summaryDoc.data() as PastDaySummary;
             }
+          }
 
+          let summaryForThisDay: PastDaySummary;
+
+          if (existingSummary && existingSummary.isBinaryOrigin) {
+            summaryForThisDay = existingSummary;
+          } else {
+            // Hämta måltider och vattenlogg för dagen
             const [dailyLogForDate, waterLogForDate] = await Promise.all([
-                fetchMealLogsForDate(currentUser.uid, dateUID),
-                fetchWaterLog(currentUser.uid, dateUID),
+              fetchMealLogsForDate(currentUser.uid, dateUID),
+              fetchWaterLog(currentUser.uid, dateUID),
             ]);
 
-            const totalNutrientsForDay = dailyLogForDate.reduce((acc, meal) => {
+            const totalNutrientsForDay = dailyLogForDate.reduce(
+              (acc, meal) => {
                 acc.calories += meal.nutritionalInfo.calories;
                 acc.protein += meal.nutritionalInfo.protein;
                 acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
                 acc.fat += meal.nutritionalInfo.fat;
                 return acc;
-            }, { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+              },
+              { calories: 0, protein: 0, carbohydrates: 0, fat: 0 }
+            );
+            const waterGoalMet = waterLogForDate >= DEFAULT_WATER_GOAL_ML;
 
-            const totalCoveredByBankForDay = dailyLogForDate.reduce((sum, meal) => sum + (meal.caloriesCoveredByBank || 0), 0);
-            const effectiveCaloriesConsumed = totalNutrientsForDay.calories - totalCoveredByBankForDay;
-            const minSafeCaloriesForDay = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-            const wasDaySuccessful = dailyLogForDate.length > 0 && totalNutrientsForDay.calories >= minSafeCaloriesForDay && wasCalorieGoalMetForSummary(effectiveCaloriesConsumed, goals.calorieGoal, userProfile.goalType);
-            
-            if (wasDaySuccessful) {
-                runningStreak++;
-            } else {
-                runningStreak = 0;
-            }
+            const caloriesConsumed = totalNutrientsForDay.calories;
+            const totalCoveredByBankForDay = dailyLogForDate.reduce(
+              (sum, meal) => sum + (meal.caloriesCoveredByBank || 0),
+              0
+            );
+            const effectiveCaloriesConsumed =
+              caloriesConsumed - totalCoveredByBankForDay;
+            const minSafeCaloriesForDay = Math.max(
+              goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
+              MIN_ABSOLUTE_CALORIES_THRESHOLD
+            );
 
+            const wasDaySuccessful =
+              dailyLogForDate.length > 0 &&
+              caloriesConsumed >= minSafeCaloriesForDay &&
+              wasCalorieGoalMetForSummary(
+                effectiveCaloriesConsumed,
+                goals.calorieGoal,
+                userProfile.goalType
+              );
+
+            const calorieTarget = goals.calorieGoal;
             let bankedAmountThisDay = 0;
-            if (dailyLogForDate.length > 0 && totalNutrientsForDay.calories >= minSafeCaloriesForDay && totalNutrientsForDay.calories < goals.calorieGoal) {
-                bankedAmountThisDay = goals.calorieGoal - totalNutrientsForDay.calories;
-                runningBank.bankedCalories += bankedAmountThisDay;
+            if (
+              totalCoveredByBankForDay === 0 &&
+              dailyLogForDate.length > 0 &&
+              caloriesConsumed >= minSafeCaloriesForDay &&
+              caloriesConsumed <= calorieTarget
+            ) {
+              bankedAmountThisDay = calorieTarget - caloriesConsumed;
+              if (bankedAmountThisDay > 0) {
+                accumulatedBank += bankedAmountThisDay;
                 totalBankedInLoop += bankedAmountThisDay;
+              }
             }
 
-            const summaryForThisDay: PastDaySummary = {
-                date: dateUID, goalMet: wasDaySuccessful, consumedCalories: totalNutrientsForDay.calories,
-                calorieGoal: goals.calorieGoal, proteinGoalMet: totalNutrientsForDay.protein >= goals.proteinGoal,
-                consumedProtein: totalNutrientsForDay.protein, proteinGoal: goals.proteinGoal,
-                consumedCarbohydrates: totalNutrientsForDay.carbohydrates, carbohydrateGoal: goals.carbohydrateGoal,
-                consumedFat: totalNutrientsForDay.fat, fatGoal: goals.fatGoal,
-                goalType: userProfile.goalType, waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
-                streakForThisDay: runningStreak,
-            };
-
-            if (wasDaySuccessful) {
-                const streakEventData = {
-                    type: 'streak' as const, timestamp: date.getTime(), title: `har fått +1 på sin Streak!`,
-                    description: `Ny streak: ${runningStreak} dagar i följd.`, icon: '🔥',
-                    relatedDocId: `streak_${dateUID}`
-                };
-                await addTimelineEvent(currentUser.uid, streakEventData);
+            // ---- STREAK-UPPDATERING OCH SPARANDE ----
+            if (!existingSummary) {
+              summaryForThisDay = {
+                date: dateUID,
+                goalMet: wasDaySuccessful,
+                consumedCalories: caloriesConsumed,
+                calorieGoal: calorieTarget,
+                proteinGoalMet: totalNutrientsForDay.protein >= goals.proteinGoal,
+                consumedProtein: totalNutrientsForDay.protein,
+                proteinGoal: goals.proteinGoal,
+                consumedCarbohydrates: totalNutrientsForDay.carbohydrates,
+                carbohydrateGoal: goals.carbohydrateGoal,
+                consumedFat: totalNutrientsForDay.fat,
+                fatGoal: goals.fatGoal,
+                goalType: userProfile.goalType,
+                isBinaryOrigin: false,
+                waterGoalMet: waterGoalMet,
+                streakForThisDay: 0, // Sätt default, skrivs över nedan
+              };
+              if (summaryForThisDay.goalMet) {
+                  accumulatedStreak++;
+                  const streakEventData = {
+                      type: 'streak' as const,
+                      timestamp: Date.now(),
+                      title: `har fått +1 på sin Streak! `,
+                      description: `Ny streak: ${accumulatedStreak} dagar i följd.`,
+                      icon: ' ',
+                      relatedDocId: `streak_${dateUID}`
+                  };
+                  await addTimelineEvent(currentUser.uid, streakEventData);
+              } else {
+                accumulatedStreak = 0;
+              }
+              summaryForThisDay.streakForThisDay = accumulatedStreak;
+              await setPastDaySummary(currentUser.uid, dateUID, summaryForThisDay);
+            } else {
+              if (existingSummary.goalMet || existingSummary.savedBy) {
+                accumulatedStreak++;
+              } else {
+                accumulatedStreak = 0;
+              }
+              summaryForThisDay = { ...existingSummary, streakForThisDay: accumulatedStreak };
+              await setPastDaySummary(currentUser.uid, dateUID, summaryForThisDay);
             }
-            
-            const summaryRef = doc(db, "users", currentUser.uid, "pastDaySummaries", dateUID);
-            batch.set(summaryRef, summaryForThisDay);
-            newSummaries[dateUID] = summaryForThisDay;
+          }
+
+          newSummaries[dateUID] = summaryForThisDay;
+
+          accumulatedHighestStreak = Math.max(
+            accumulatedHighestStreak,
+            accumulatedStreak
+          );
+          latestProcessedDateUID = dateUID;
         }
 
-        const lastProcessedDay = datesToProcess[datesToProcess.length - 1];
-        const newLastCheckedDateStr = getDateUID(lastProcessedDay);
+        const finalWeekInfo = getWeekInfo(new Date(latestProcessedDateUID));
+        const finalBankObject = {
+            weekId: finalWeekInfo.weekId,
+            bankedCalories: accumulatedBank,
+            startDate: finalWeekInfo.startDate,
+            endDate: finalWeekInfo.endDate,
+        };
 
-        let finalBankForState = runningBank;
-        let finalSaverForState = runningSaver;
-        
-        const lastProcessedWeekInfo = getWeekInfo(lastProcessedDay);
-        const currentAppDateWeekInfo = getWeekInfo(currentDate);
+        setStreakData({
+          currentStreak: accumulatedStreak,
+          lastDateStreakChecked: latestProcessedDateUID,
+        });
+        setWeeklyBank(finalBankObject);
+        setStreakSaver(finalStreakSaver);
 
-        if (lastProcessedWeekInfo.weekId !== currentAppDateWeekInfo.weekId) {
-            finalBankForState = { ...currentAppDateWeekInfo, bankedCalories: 0 };
-            finalSaverForState = { weekId: currentAppDateWeekInfo.weekId, available: true };
+        if (accumulatedHighestStreak > highestStreak) {
+          setHighestStreak(accumulatedHighestStreak);
         }
-        
-        const userDocRef = doc(db, "users", currentUser.uid);
-        batch.update(userDocRef, {
-            currentStreak: runningStreak,
-            lastDateStreakChecked: newLastCheckedDateStr,
-            weeklyBank: finalBankForState,
-            streakSaver: finalSaverForState,
-            highestStreak: Math.max(runningHighestStreak, runningStreak),
+        setPastDaysSummary((prev) => ({ ...prev, ...newSummaries }));
+
+        await updateUserDocument(currentUser.uid, {
+          currentStreak: accumulatedStreak,
+          lastDateStreakChecked: latestProcessedDateUID,
+          weeklyBank: finalBankObject,
+          streakSaver: finalStreakSaver,
+          highestStreak: accumulatedHighestStreak,
+          role: userRole,
+          status: userStatus,
         });
 
-        await batch.commit();
+        // Check yesterday's result to decide which modal to show
+        const yesterdayDateUID = latestProcessedDateUID;
+        const yesterdaySummary = newSummaries[yesterdayDateUID];
 
-        setStreakData({ currentStreak: runningStreak, lastDateStreakChecked: newLastCheckedDateStr });
-        setWeeklyBank(finalBankForState);
-        setStreakSaver(finalSaverForState);
-        setHighestStreak(Math.max(runningHighestStreak, runningStreak));
-        setPastDaysSummary(prev => ({ ...prev, ...newSummaries }));
-
-        const yesterdaySummary = newSummaries[getDateUID(datesToProcess[datesToProcess.length - 1])];
         if (yesterdaySummary) {
             if (yesterdaySummary.goalMet) {
-                setShowGoalMetModalData({ date: yesterdaySummary.date, streak: yesterdaySummary.streakForThisDay || runningStreak });
-                setShowConfetti(true); playAudio("levelUp"); setTimeout(() => setShowConfetti(false), 5000);
+                // Scenario A: Goal Met
+                setShowGoalMetModalData({
+                    date: yesterdayDateUID,
+                    streak: yesterdaySummary.streakForThisDay || accumulatedStreak,
+                });
+                setShowConfetti(true);
+                playAudio("levelUp");
+                setTimeout(() => setShowConfetti(false), 5000);
             } else {
-                if (runningSaver?.available) {
+                // Goal was missed
+                if (streakSaver?.available) {
+                    // Scenario B: Missed, saver available
                     setDayToPotentiallySave(yesterdaySummary);
                 } else {
+                    // Scenario C: Missed, no saver
                     setShowMotivationModal(yesterdaySummary);
                 }
             }
         }
-        
+
         if (totalBankedInLoop > 0) {
-            setToastNotification({ message: `${totalBankedInLoop.toFixed(0)} kcal sparade till potten!`, type: "success" });
-            setTimeout(() => setToastNotification(null), 3500); playAudio("calorieBank", 0.7);
+          setToastNotification({
+            message: `${totalBankedInLoop.toFixed(0)} kcal sparade till potten!`,
+            type: "success",
+          });
+          setTimeout(() => setToastNotification(null), 3500);
+          playAudio("calorieBank", 0.7);
         }
 
-    } catch (err) {
-        console.error("Error during day processing and finalization:", err);
-        setToastNotification({ message: 'Ett fel uppstod vid summering av dagen.', type: 'error' });
-    } finally {
-        setAppStatus(AppStatus.IDLE);
+      } catch (err) {
+        console.error("Error during bulk day processing:", err);
+      } finally {
         isProcessingDaysRef.current = false;
-    }
-  };
-  
-  processAndFinalizeDays();
-
-}, [isDataLoading, currentUser, isInitialDataLoaded, currentDate, streakData.lastDateStreakChecked, userStatus]);
-
+        setAppStatus(AppStatus.IDLE);
+      }
+    };
+    processMissedDays();
+  }
+}, [
+  isDataLoading,
+  currentUser,
+  isInitialDataLoaded,
+  currentDate,
+  streakData,
+  weeklyBank,
+  streakSaver,
+  goals,
+  userProfile.goalType,
+  highestStreak,
+  pastDaysSummary,
+  appStatus,
+  userRole, 
+  userStatus
+]);
 
 
 
@@ -2006,10 +2088,6 @@ useEffect(() => {
     console.log(`User response to the install prompt: ${outcome}`);
     // We've used the prompt, and can't use it again, so clear it.
     setInstallPromptEvent(null);
-    setShowInstallBanner(false);
-  };
-  
-  const handleDismissInstallBanner = () => {
     setShowInstallBanner(false);
   };
   
@@ -2110,106 +2188,6 @@ useEffect(() => {
     ensureValidSubscription();
   }, [currentUser, isInitialDataLoaded]);
 
-    // --- ONBOARDING LOGIC ---
-    const handleCloseOnboardingRewardModal = () => {
-        setShowOnboardingRewardModal(false);
-        const currentState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
-        if (currentState) {
-            const newState = { ...currentState, dismissed: true };
-            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
-        }
-        setChecklistState(null);
-    };
-
-    const updateChecklistItem = useCallback((itemKey: keyof OnboardingChecklistItemStatus) => {
-        setChecklistState(prevState => {
-            if (!prevState || prevState.items[itemKey]) return prevState;
-            const newState = { ...prevState, items: { ...prevState.items, [itemKey]: true } };
-            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
-            return newState;
-        });
-    }, []);
-    
-    useEffect(() => {
-        if (!checklistState || !currentUser || !isInitialDataLoaded) return;
-
-        const allComplete = Object.values(checklistState.items).every(Boolean);
-
-        if (allComplete && !checklistState.dismissed) {
-            const handleCompletion = async () => {
-                const bonusCalories = 100;
-                let finalBankState: WeeklyCalorieBank | null = null;
-                setWeeklyBank(prevBank => {
-                    finalBankState = { ...prevBank, bankedCalories: prevBank.bankedCalories + bonusCalories };
-                    return finalBankState;
-                });
-                
-                try {
-                    if (finalBankState) {
-                        await updateUserDocument(currentUser.uid, { weeklyBank: finalBankState, role: userRole, status: userStatus });
-                    } else {
-                        throw new Error("Bank state was not updated correctly before Firestore call.");
-                    }
-                    setShowConfetti(true);
-                    playAudio('levelUp');
-                    setShowOnboardingRewardModal(true);
-                } catch (error) {
-                    handleFirestoreError(error, 'spara bonus till sparpott');
-                    setWeeklyBank(prevBank => ({...prevBank, bankedCalories: prevBank.bankedCalories - bonusCalories}));
-                }
-            };
-            handleCompletion();
-        }
-    }, [checklistState, currentUser, isInitialDataLoaded, userRole, userStatus]);
-
-    useEffect(() => {
-        if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
-          setChecklistState(null);
-          return;
-        }
-
-        const storedState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
-        if (storedState) {
-            const fourDaysInMillis = 4 * 24 * 60 * 60 * 1000;
-            const firstSeen = new Date(storedState.firstSeenDate).getTime();
-            const allDone = Object.values(storedState.items).every(Boolean);
-
-            if (storedState.dismissed || (Date.now() - firstSeen > fourDaysInMillis) || allDone) {
-                setChecklistState(null);
-            } else {
-                setChecklistState(storedState);
-            }
-        } else {
-            setChecklistState(null);
-        }
-    }, [isInitialDataLoaded, hasCompletedOnboarding, currentUser]);
-
-    useEffect(() => {
-        if (isViewingToday && waterLoggedMl > 0 && checklistState && !checklistState.items.waterLogged) {
-            updateChecklistItem('waterLogged');
-        }
-    }, [waterLoggedMl, isViewingToday, checklistState, updateChecklistItem]);
-
-    useEffect(() => {
-        if (checklistState) {
-            if (viewMode === 'journey' && !checklistState.items.journeyViewed) {
-                updateChecklistItem('journeyViewed');
-            }
-            if (viewMode === 'community' && !checklistState.items.communityViewed) {
-                updateChecklistItem('communityViewed');
-            }
-        }
-    }, [viewMode, checklistState, updateChecklistItem]);
-
-    const handleDismissSpotlight = () => {
-        setShowSpotlight(false);
-        setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_SPOTLIGHT_SHOWN, true);
-    };
-    
-    const handleScrollToWater = () => {
-        waterLoggerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    };
-
   const closeModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
     playAudio('uiClick');
     modalSetter(false);
@@ -2225,24 +2203,7 @@ useEffect(() => {
   };
 
   const handleOpenSaveCommonMealModal = (meal: LoggedMeal) => {
-    let mealToSave: LoggedMeal = meal;
-
-    // If it's a grouped meal, calculate single serving values for the modal
-    if (meal.count && meal.count > 1) {
-        const singleNutrition: NutritionalInfo = {
-            foodItem: meal.nutritionalInfo.foodItem, // Name stays the same
-            calories: meal.nutritionalInfo.calories / meal.count,
-            protein: meal.nutritionalInfo.protein / meal.count,
-            carbohydrates: meal.nutritionalInfo.carbohydrates / meal.count,
-            fat: meal.nutritionalInfo.fat / meal.count,
-        };
-        // Create a temporary meal object that represents a single serving
-        mealToSave = {
-            ...meal,
-            nutritionalInfo: singleNutrition,
-        };
-    }
-    setMealToSaveAsCommon(mealToSave);
+    setMealToSaveAsCommon(meal);
     openModal(setShowSaveCommonMealModal);
   };
   
@@ -2298,7 +2259,6 @@ useEffect(() => {
     
     // Case 2: At least one lesson is unlocked. Check for next unlock.
     if (lastUnlockedIndex > -1) {
-        // Fix: Use 'courseLessons' which is defined, instead of 'lessons' which is not.
         const lastUnlockedProgress = userCourseProgress[courseLessons[lastUnlockedIndex].id];
         
         if (lastUnlockedProgress?.unlockedAt) {
@@ -2898,9 +2858,6 @@ useEffect(() => {
 
   const handleFabClick = () => {
     playAudio('uiClick');
-    if (showSpotlight) {
-        handleDismissSpotlight();
-    }
     if (!isViewingToday) {
         setToastNotification({message: "Du kan endast logga för idag.", type: "error"});
         setTimeout(() => setToastNotification(null), 3000);
@@ -2997,7 +2954,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -3009,7 +2966,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3099,61 +3056,6 @@ useEffect(() => {
     }
   }, [highestStreak, isInitialDataLoaded, handleUnlockAchievement]);
 
-   const groupedDailyLog = useMemo(() => {
-    if (dailyLog.length === 0) {
-      return [];
-    }
-
-    const commonMealGroups = new Map<string, LoggedMeal[]>();
-    const otherMeals: LoggedMeal[] = [];
-
-    // Separate common meals from others
-    for (const meal of dailyLog) {
-      if (meal.commonMealId && !['manual', 'text_search', 'recipe', 'ingredient_recipe', 'barcode'].includes(meal.commonMealId)) {
-        if (!commonMealGroups.has(meal.commonMealId)) {
-          commonMealGroups.set(meal.commonMealId, []);
-        }
-        commonMealGroups.get(meal.commonMealId)!.push(meal);
-      } else {
-        otherMeals.push(meal);
-      }
-    }
-
-    const processedMeals: LoggedMeal[] = [...otherMeals];
-
-    // Process each group
-    for (const group of commonMealGroups.values()) {
-      if (group.length > 1) {
-        const sortedGroup = [...group].sort((a, b) => b.timestamp - a.timestamp);
-        const representativeMeal = sortedGroup[0];
-
-        const totalNutritionalInfo = sortedGroup.reduce((acc, meal) => {
-          acc.calories += meal.nutritionalInfo.calories;
-          acc.protein += meal.nutritionalInfo.protein;
-          acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
-          acc.fat += meal.nutritionalInfo.fat;
-          return acc;
-        }, { 
-          calories: 0, protein: 0, carbohydrates: 0, fat: 0, 
-          foodItem: representativeMeal.nutritionalInfo.foodItem 
-        });
-
-        processedMeals.push({
-          ...representativeMeal,
-          nutritionalInfo: totalNutritionalInfo,
-          count: sortedGroup.length,
-          originalIds: sortedGroup.map(m => m.id),
-        });
-      } else {
-        // If group has only one meal, add it back as is
-        processedMeals.push(...group);
-      }
-    }
-
-    // Sort the final combined list by timestamp
-    return processedMeals.sort((a, b) => b.timestamp - a.timestamp);
-
-  }, [dailyLog]);
 
   if (authLoading || isDataLoading) {
     return <SplashScreen />;
@@ -3233,7 +3135,6 @@ useEffect(() => {
       { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { playAudio('uiClick'); if (viewMode === 'community') { setCommunityViewKey(Date.now()); } setViewMode('community'); }, notificationCount: totalNotificationCount },
     ];
 
-    const isInstallBannerVisible = showInstallBanner || showIosInstallPrompt;
 
   return (
     <>
@@ -3249,7 +3150,7 @@ useEffect(() => {
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); }}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
                 </div>
-                <div className="flex flex-wrap justify-end items-center gap-1">
+                <div className="flex flex-wrap justify-center items-center gap-4">
                     {navItems.map(item => (
                         <button
                             key={item.key}
@@ -3333,14 +3234,6 @@ useEffect(() => {
         }>
          {viewMode === 'main' && (
             <>
-              {checklistState && (
-                <OnboardingChecklist 
-                    state={checklistState}
-                    onNavigate={(view) => setViewMode(view)}
-                    onTriggerLog={handleFabClick}
-                    onScrollToWater={handleScrollToWater}
-                />
-              )}
               <section aria-labelledby="daily-overview-heading" className="mb-6 bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light">
                 <h2 id="daily-overview-heading" className="sr-only">Daglig Översikt</h2>
                 <div className="flex items-start justify-between w-full mb-2 gap-4">
@@ -3409,7 +3302,6 @@ useEffect(() => {
             
               <div className="space-y-6 mt-6">
                 <WaterLogger 
-                  ref={waterLoggerRef}
                   currentWaterMl={waterLoggedMl} 
                   waterGoalMl={waterGoalMl} 
                   onLogWater={handleLogWater}
@@ -3429,9 +3321,9 @@ useEffect(() => {
                 <h3 id="meal-log-heading" className="text-xl font-semibold text-neutral-dark mb-4">
                   Loggade måltider
                 </h3>
-                {groupedDailyLog.length > 0 ? (
+                {dailyLog.length > 0 ? (
                   <div className="space-y-4">
-                    {groupedDailyLog.map((meal) => (
+                    {dailyLog.map((meal) => (
                       <MealItemCard
                         key={meal.id}
                         meal={meal}
@@ -3524,23 +3416,9 @@ useEffect(() => {
          )}
         </main>
         
-        {/* Onboarding Spotlight */}
-        {showSpotlight && (
-          <div 
-            className="fixed inset-0 z-40 animate-fade-in"
-            style={{ background: `radial-gradient(circle at calc(100vw - 56px) calc(100vh - 56px), transparent 36px, rgba(0,0,0,0.7) 37px)`}}
-            onClick={handleDismissSpotlight}
-          >
-            <div className="absolute w-64 p-4 bg-white rounded-lg shadow-xl animate-fade-slide-in" style={{ bottom: '104px', right: '32px'}}>
-              <p className="text-neutral-dark font-medium">Här loggar du allt! Prova att fota din första måltid.</p>
-              <div className="absolute -bottom-2 right-4 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-white" />
-            </div>
-          </div>
-        )}
-        
         {/* ADD FOOD OVERLAY/MODAL */}
         {viewMode === 'main' && !showSpeedDial && (
-          <div className={`fixed right-6 z-40 transition-all duration-300 ${isInstallBannerVisible ? 'bottom-28' : 'bottom-6'}`}>
+          <div className="fixed bottom-6 right-6 z-40">
             <button
               onClick={handleFabClick}
               className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white shadow-xl hover:bg-secondary-darker active:scale-95 transform transition-all animate-scale-in"
@@ -3599,9 +3477,6 @@ useEffect(() => {
         <input type="file" id="ingredientUploadInput" className="hidden" accept="image/*" multiple onChange={handleIngredientImageUpload} />
 
         {/* Modals */}
-        {showOnboardingRewardModal && (
-            <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} />
-        )}
         {dayToPotentiallySave && (
             <UseStreakSaverModal
                 show={!!dayToPotentiallySave}
@@ -3618,250 +3493,120 @@ useEffect(() => {
             />
         )}
         {analysisResultForModal && (
-            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setAnalysisResultForModal(null)}>
-                 <div onClick={e => e.stopPropagation()} className="animate-scale-in">
-                    <ImageAnalysisResultModal
-                        analysisResult={analysisResultForModal}
+            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => setAnalysisResultForModal(null)}>
+                <div onClick={e => e.stopPropagation()}>
+                    <ImageAnalysisResultModal 
+                        analysisResult={analysisResultForModal} 
                         imageDataUrl={`data:image/jpeg;base64,${cameraImageForAnalysis}`}
-                        onLog={handleLogFromModal}
-                        onClose={() => setAnalysisResultForModal(null)}
+                        onLog={(info, opts) => handleLogFromModal(info, opts)}
+                        onClose={() => { setAnalysisResultForModal(null); setCameraImageForAnalysis(null); }}
                     />
                 </div>
             </div>
         )}
-         {showInfoModal && (
-            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}>
-              <InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} />
+        {showSaveCommonMealModal && mealToSaveAsCommon && (
+            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowSaveCommonMealModal)}>
+                <div onClick={e => e.stopPropagation()}>
+                    <SaveCommonMealModal
+                        mealInfo={mealToSaveAsCommon.nutritionalInfo}
+                        initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''}
+                        onSave={(name) => saveCommonMeal(mealToSaveAsCommon.nutritionalInfo, name)}
+                        onClose={() => closeModal(setShowSaveCommonMealModal)}
+                    />
+                </div>
             </div>
-          )}
-          {showUserProfileModal && (
-            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}>
-              <div onClick={e => e.stopPropagation()} className="animate-scale-in">
-                  <UserProfileModal
-                    initialProfile={userProfile}
-                    onSave={handleSaveProfileAndGoals}
-                    onClose={handleCloseUserProfileModal}
-                    isOnboarding={isProfileModalOnboarding}
-                    onboardingStep={onboardingStep}
-                    aiFeedbackLoading={aiFeedbackLoading}
-                    aiFeedbackMessage={aiFeedbackMessage}
-                    aiFeedbackError={aiFeedbackError}
-                    onSubscribeToPush={handleSubscribeToPush}
+        )}
+        {showInfoModal && (
+            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}>
+                <div onClick={e => e.stopPropagation()}>
+                    <InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} />
+                </div>
+            </div>
+        )}
+        {showUserProfileModal && (
+          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}>
+              <div onClick={e => e.stopPropagation()}>
+                  <UserProfileModal 
+                      initialProfile={userProfile} 
+                      onSave={handleSaveProfileAndGoals} 
+                      onClose={handleCloseUserProfileModal} 
+                      isOnboarding={isProfileModalOnboarding}
+                      onboardingStep={onboardingStep}
+                      aiFeedbackLoading={aiFeedbackLoading}
+                      aiFeedbackMessage={aiFeedbackMessage}
+                      aiFeedbackError={aiFeedbackError}
+onSubscribeToPush={handleSubscribeToPush}
                   />
               </div>
-            </div>
-          )}
-          {showOnboardingCompletion && (
-             <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}>
-                <div onClick={e => e.stopPropagation()} className="animate-scale-in">
-                    <OnboardingCompletionScreen onFinish={handleFinishOnboarding} />
-                </div>
-             </div>
-          )}
-           {showTextEntryModal && (
-              <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowTextEntryModal)}>
-                  <div onClick={e => e.stopPropagation()} className="animate-scale-in">
-                      <TextEntryModal show={showTextEntryModal} onClose={() => closeModal(setShowTextEntryModal)} onLog={(foodInfo, options) => {
-                          addMealToLog({ ...foodInfo, foodItem: foodInfo.servingDescription ? `${foodInfo.foodItem} (${foodInfo.servingDescription})` : foodInfo.foodItem }, { commonMealId: 'text_search' });
-                          if (options.saveAsCommon) {
-                            saveCommonMeal(foodInfo, foodInfo.servingDescription ? `${foodInfo.foodItem} (${foodInfo.servingDescription})` : foodInfo.foodItem);
-                          }
-                      }} />
-                  </div>
-              </div>
-          )}
-          {showCameraModal && (
-            <CameraModal
-                show={showCameraModal}
-                onClose={() => closeModal(setShowCameraModal)}
-                onImageCapture={handleImageCapture}
-                onCameraError={(msg) => {
-                    setToastNotification({ message: `Kamerafel: ${msg}`, type: 'error'});
-                    setTimeout(() => setToastNotification(null), 3500);
-                }}
-            />
-          )}
-          {showBarcodeScannerModal && (
-            <BarcodeScannerModal
-              show={showBarcodeScannerModal}
-              onClose={() => closeModal(setShowBarcodeScannerModal)}
-              onBarcodeScanned={handleBarcodeScanned}
-              onCameraError={(msg) => {
-                  setToastNotification({ message: `Kamerafel: ${msg}`, type: 'error' });
-                  setTimeout(() => setToastNotification(null), 3500);
-              }}
-            />
-          )}
-          {barcodeScanResult && (
-            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setBarcodeScanResult(null)}>
-              <div onClick={e => e.stopPropagation()} className="animate-scale-in">
-                <BarcodeSearchResultModal
-                  scanResult={barcodeScanResult}
-                  onLog={handleLogFromBarcode}
-                  onClose={() => setBarcodeScanResult(null)}
-                />
-              </div>
-            </div>
-          )}
-          {showSaveCommonMealModal && mealToSaveAsCommon && (
-            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowSaveCommonMealModal)}>
-                <div onClick={e => e.stopPropagation()} className="animate-scale-in">
-                    <SaveCommonMealModal
-                    mealInfo={mealToSaveAsCommon.nutritionalInfo}
-                    initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''}
-                    onSave={(name) => saveCommonMeal(mealToSaveAsCommon!.nutritionalInfo, name)}
-                    onClose={() => closeModal(setShowSaveCommonMealModal)}
-                    />
-                </div>
-            </div>
-          )}
-        {showRecipeChoiceModal && (
-            <RecipeChoiceModal
-                show={showRecipeChoiceModal}
-                onClose={() => closeModal(setShowRecipeChoiceModal)}
-                onChooseSearch={handleChooseRecipeSearch}
-                onChooseTakePhoto={handleChooseTakePhoto}
-                onChooseUpload={handleChooseUpload}
-            />
-        )}
-        {showRecipeModal && (
-            <RecipeModal
-                show={showRecipeModal}
-                onClose={() => { closeModal(setShowRecipeModal); setCurrentRecipe(null); setErrorMessage(null); }}
-                onSearch={handleRecipeSearch}
-                onLogRecipe={handleLogRecipe}
-                recipe={currentRecipe}
-                isLoading={appStatus === AppStatus.SEARCHING_RECIPE}
-                error={errorMessage}
-                isLoggingDisabled={!isViewingToday}
-                recentSearches={recentRecipeSearches}
-                setToastNotification={setToastNotification}
-            />
-        )}
-        {showIngredientCaptureModal && (
-            <IngredientCaptureModal
-                show={showIngredientCaptureModal}
-                onClose={() => closeModal(setShowIngredientCaptureModal)}
-                onFindRecipes={handleFindRecipesFromIngredients}
-                openCameraModal={() => {
-                    closeModal(setShowIngredientCaptureModal);
-                    openModal(setShowCameraModal);
-                }}
-                images={ingredientImagesForCapture}
-                onRemoveImage={handleRemoveImage}
-                onUploadImages={handleAddIngredientImagesFromUpload}
-            />
-        )}
-        {showIngredientRecipeResultsModal && ingredientAnalysisResult && (
-            <IngredientRecipeResultsModal
-                show={showIngredientRecipeResultsModal}
-                onClose={() => closeModal(setShowIngredientRecipeResultsModal)}
-                identifiedIngredients={ingredientAnalysisResult.identifiedIngredients}
-                recipeSuggestions={ingredientAnalysisResult.recipeSuggestions}
-                onLogRecipe={handleLogRecipeFromIngredients}
-                isLoading={appStatus === AppStatus.ANALYZING_INGREDIENTS}
-                error={errorMessage}
-                isLoggingDisabled={!isViewingToday}
-            />
-        )}
-        {showLevelUpModal && (
-            <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />
-        )}
-         {showGoalMetModalData && (
-          <GoalMetModal
-            data={showGoalMetModalData}
-            onClose={() => setShowGoalMetModalData(null)}
-          />
-        )}
-        {newlyUnlockedLesson && (
-          <NewLessonUnlockedModal 
-            lessonTitle={newlyUnlockedLesson.title} 
-            onClose={() => setNewlyUnlockedLesson(null)} 
-          />
-        )}
-        {showAIFeedbackModal && (
-            <AIFeedbackModal
-                show={showAIFeedbackModal}
-                onClose={() => {
-                   if (isProfileModalOnboarding) {
-                       handleFinishOnboarding();
-                   } else {
-                       setShowAIFeedbackModal(false);
-                   }
-                }}
-                feedbackMessage={aiFeedbackMessage}
-                isLoading={aiFeedbackLoading}
-                error={aiFeedbackError}
-                modalTitle={aiModalTitle}
-                modalIcon={aiModalIcon}
-                isOnboardingContext={isProfileModalOnboarding}
-            />
-        )}
-        {showLogWeightModal && (
-          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}>
-             <LogWeightModal
-                show={showLogWeightModal}
-                onClose={() => closeModal(setShowLogWeightModal)}
-                onSave={handleSaveWeightLog}
-              />
           </div>
         )}
-         {showMentalWellbeingModal && (
-            <MentalWellbeingModal
-                show={showMentalWellbeingModal}
-                onClose={() => setShowMentalWellbeingModal(false)}
-                onSave={handleSaveWellbeingAndProceed}
+        {showCameraModal && <CameraModal show={showCameraModal} onClose={() => closeModal(setShowCameraModal)} onImageCapture={handleImageCapture} onCameraError={(msg) => { setToastNotification({message: `Kamerafel: ${msg}`, type:'error'}); setTimeout(() => setToastNotification(null), 3500); }}/>}
+        {showTextEntryModal && (
+          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowTextEntryModal)}>
+            <div onClick={e => e.stopPropagation()}><TextEntryModal show={showTextEntryModal} onClose={() => closeModal(setShowTextEntryModal)} onLog={handleLogFromModal}/></div>
+          </div>
+        )}
+         {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => closeModal(setShowRecipeChoiceModal)} onChooseSearch={handleChooseRecipeSearch} onChooseTakePhoto={handleChooseTakePhoto} onChooseUpload={handleChooseUpload}/>}
+         {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => closeModal(setShowRecipeModal)} onSearch={handleRecipeSearch} onLogRecipe={handleLogRecipe} recipe={currentRecipe} isLoading={appStatus === AppStatus.SEARCHING_RECIPE} error={errorMessage} isLoggingDisabled={!isViewingToday} recentSearches={recentRecipeSearches} setToastNotification={setToastNotification}/>}
+         {showIngredientCaptureModal && <IngredientCaptureModal show={showIngredientCaptureModal} onClose={() => closeModal(setShowIngredientCaptureModal)} onFindRecipes={handleFindRecipesFromIngredients} openCameraModal={() => {setShowIngredientCaptureModal(false); openModal(setShowCameraModal);}} images={ingredientImagesForCapture} onRemoveImage={handleRemoveImage} onUploadImages={handleAddIngredientImagesFromUpload} />}
+         {showIngredientRecipeResultsModal && ingredientAnalysisResult && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => {closeModal(setShowIngredientRecipeResultsModal); setIngredientAnalysisResult(null);}} identifiedIngredients={ingredientAnalysisResult.identifiedIngredients} recipeSuggestions={ingredientAnalysisResult.recipeSuggestions} onLogRecipe={handleLogRecipeFromIngredients} isLoading={appStatus === AppStatus.ANALYZING_INGREDIENTS} error={errorMessage} isLoggingDisabled={!isViewingToday} />}
+         {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => closeModal(setShowBarcodeScannerModal)} onBarcodeScanned={handleBarcodeScanned} onCameraError={(msg) => setToastNotification({message: msg, type: 'error'})} />}
+         {barcodeScanResult && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in" onClick={() => setBarcodeScanResult(null)}><div onClick={e => e.stopPropagation()}><BarcodeSearchResultModal scanResult={barcodeScanResult} onLog={handleLogFromBarcode} onClose={() => setBarcodeScanResult(null)} /></div></div>}
+         {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} /></div>}
+         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => handleSaveWellbeingAndProceed({ stressLevel: null, energyLevel: null, sleepQuality: null, mood: null })} onSave={handleSaveWellbeingAndProceed} />}
+         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} /></div>}
+        
+         {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { setShowAIFeedbackModal(false); if (onboardingStep === 'feedback') { setShowOnboardingCompletion(true); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={aiModalIcon} isOnboardingContext={onboardingStep === 'feedback'} />}
+         {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />}
+         {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
+         {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
+         {showCourseInfoModalOnLoad && <CourseInfoModal show={showCourseInfoModalOnLoad} onClose={() => setShowCourseInfoModalOnLoad(false)} />}
+        
+        {(appStatus === AppStatus.ANALYZING || appStatus === AppStatus.ANALYZING_INGREDIENTS) && (
+            <LoadingSpinner 
+                message={
+                    appStatus === AppStatus.ANALYZING 
+                        ? "Analyserar bild..." 
+                        : "Analyserar ingredienser..."
+                } 
             />
         )}
+        {appStatus === AppStatus.SAVING && (
+            <LoadingSpinner message="Sparar..." />
+        )}
+        {appStatus === AppStatus.PROCESSING_DAY_END && (
+            <LoadingSpinner message="Summerar och synkroniserar dina framsteg..." />
+        )}
+        {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
+        <ConfettiCelebration isActive={showConfetti} />
 
-      </div>
-      {(appStatus === AppStatus.ANALYZING || appStatus === AppStatus.ANALYZING_INGREDIENTS) && (
-        <LoadingSpinner
-          message={
-            appStatus === AppStatus.ANALYZING
-              ? "Analyserar bild..."
-              : "Hittar recept från dina bilder..."
-          }
-        />
-      )}
-      {toastNotification && (
-          <ToastNotification
-            message={toastNotification.message}
-            type={toastNotification.type}
-            onClose={() => setToastNotification(null)}
-          />
-      )}
-      {showConfetti && <ConfettiCelebration isActive={showConfetti} />}
-       {showInstallBanner && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
+        {/* PWA Install Banners */}
+        {showInstallBanner && (
+          <div className="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
             <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <InstallIcon className="w-12 h-12 text-primary flex-shrink-0" />
-                    <div>
-                        <h3 className="font-bold text-neutral-dark">Installera Kostloggen</h3>
-                        <p className="text-sm text-neutral">Få en bättre upplevelse genom att lägga till appen på din hemskärm.</p>
-                    </div>
+              <div className="flex items-center gap-3">
+                <img src="/favicon.png" alt="App Logo" className="w-12 h-12" />
+                <div>
+                  <h3 className="font-bold text-neutral-dark">Installera Kostloggen</h3>
+                  <p className="text-sm text-neutral">Få en snabbare, app-liknande upplevelse.</p>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                        onClick={handleDismissInstallBanner}
-                        className="px-4 py-1.5 text-neutral-dark font-medium rounded-lg hover:bg-neutral-light active:scale-95 interactive-transition"
-                    >
-                        Inte nu
-                    </button>
-                    <button
-                        onClick={handleInstallClick}
-                        className="px-4 py-1.5 bg-primary text-white font-semibold rounded-lg shadow-sm active:scale-95 interactive-transition"
-                    >
-                        Installera
-                    </button>
-                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={() => setShowInstallBanner(false)} className="px-4 py-2 text-sm font-medium text-neutral rounded-md hover:bg-neutral-light">
+                  Senare
+                </button>
+                <button onClick={handleInstallClick} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md shadow-sm hover:bg-primary-darker active:scale-95 interactive-transition">
+                  <InstallIcon className="w-5 h-5" />
+                  Installera
+                </button>
+              </div>
             </div>
-        </div>
-      )}
-      {showIosInstallPrompt && (
-        <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />
-      )}
+          </div>
+        )}
+        {showIosInstallPrompt && (
+          <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />
+        )}
+      </div>
     </>
   );
 };
