@@ -358,7 +358,14 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
             alert(data.message || "Summering slutförd!");
         } catch (error) {
             console.error("Manual summary failed:", error);
-            alert(`Ett fel uppstod: ${(error as any).message || 'Okänt anropsfel'}`);
+            const err = error as any;
+            let errorMessage = "Ett okänt fel uppstod vid anrop.";
+            if (err.code === 'internal') {
+                errorMessage = "Summeringen misslyckades på servern (internal error). Detta kan bero på hög belastning eller ett timeout-fel. Försök igen om en stund.";
+            } else if (err.message) {
+                errorMessage = err.message;
+            }
+            alert(`Ett fel uppstod: ${errorMessage}`);
         } finally {
             setIsSummarizing(false);
         }

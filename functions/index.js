@@ -1,3 +1,4 @@
+
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
@@ -19,7 +20,7 @@ if (vapidPublicKey && vapidPrivateKey) {
 
     try {
         webpush.setVapidDetails(
-          "mailto:din-email@example.com", // Uppdatera denna med din kontakt-email
+          "mailto:support@kostloggen.se", // Uppdatera denna med din kontakt-email
           vapidPublicKey,
           vapidPrivateKey
         );
@@ -505,7 +506,10 @@ const MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL = 0.80;
 const MIN_ABSOLUTE_CALORIES_THRESHOLD = 1200;
 const DEFAULT_WATER_GOAL_ML = 2000;
 
-exports.manualSummarizeYesterday = functions.runWith({timeoutSeconds: 540}).https.onCall(async (data, context) => {
+exports.manualSummarizeYesterday = functions
+  .region("us-central1")
+  .runWith({timeoutSeconds: 540, memory: "2GB"})
+  .https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be authenticated.");
     }
@@ -526,27 +530,27 @@ exports.manualSummarizeYesterday = functions.runWith({timeoutSeconds: 540}).http
     const yesterdayDateUID = getDateUID(yesterday, "Europe/Stockholm");
 
     const usersSnapshot = await db.collection("users").where("status", "==", "approved").get();
+
     let processedCount = 0;
     let failedCount = 0;
     let skippedCount = 0;
+    const allWriteOps = [];
 
     for (const userDoc of usersSnapshot.docs) {
         const userId = userDoc.id;
         const user = userDoc.data();
 
+        if (user.lastDateStreakChecked && user.lastDateStreakChecked >= yesterdayDateUID) {
+            skippedCount++;
+            continue;
+        }
+        if (!user.goals || typeof user.goals.calorieGoal !== "number") {
+            logger.warn(`Skipping user ${userId} due to missing or invalid 'goals' field.`);
+            skippedCount++;
+            continue;
+        }
+
         try {
-            if (user.lastDateStreakChecked && user.lastDateStreakChecked >= yesterdayDateUID) {
-                skippedCount++;
-                continue;
-            }
-
-            // Robustness check: Ensure user.goals exists AND has required properties.
-            if (!user.goals || typeof user.goals.calorieGoal !== "number" || typeof user.goals.proteinGoal !== "number") {
-                logger.warn(`Skipping user ${userId} due to missing or invalid 'goals' field.`, { goals: user.goals });
-                skippedCount++;
-                continue;
-            }
-
             const mealLogsRef = db.collection("users").doc(userId).collection("mealLogs");
             const mealLogsQuery = mealLogsRef.where("dateString", "==", yesterdayDateUID);
             const mealLogsSnap = await mealLogsQuery.get();
@@ -569,13 +573,11 @@ exports.manualSummarizeYesterday = functions.runWith({timeoutSeconds: 540}).http
                 totalNutrients.calories >= minSafeCalories &&
                 wasCalorieGoalMetForSummary(totalNutrients.calories, user.goals.calorieGoal, user.goalType);
 
-            let newStreak = wasDaySuccessful ? (user.currentStreak || 0) + 1 : 0;
+            const newStreak = wasDaySuccessful ? (user.currentStreak || 0) + 1 : 0;
             const newHighestStreak = Math.max(user.highestStreak || 0, newStreak);
-
             const bankedAmountThisDay = wasDaySuccessful && totalNutrients.calories < user.goals.calorieGoal ?
                 user.goals.calorieGoal - totalNutrients.calories : 0;
 
-            const batch = db.batch();
             const userRef = db.collection("users").doc(userId);
             const summaryRef = db.collection("users").doc(userId).collection("pastDaySummaries").doc(yesterdayDateUID);
 
@@ -595,7 +597,7 @@ exports.manualSummarizeYesterday = functions.runWith({timeoutSeconds: 540}).http
                 waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
                 streakForThisDay: newStreak,
             };
-            batch.set(summaryRef, summaryData, {merge: true});
+            allWriteOps.push({ref: summaryRef, data: summaryData, type: "set"});
 
             const userUpdate = {
                 currentStreak: newStreak,
@@ -603,37 +605,36 @@ exports.manualSummarizeYesterday = functions.runWith({timeoutSeconds: 540}).http
                 lastDateStreakChecked: yesterdayDateUID,
                 "weeklyBank.bankedCalories": admin.firestore.FieldValue.increment(bankedAmountThisDay),
             };
-            batch.update(userRef, userUpdate);
-
-            if (wasDaySuccessful) {
-                const buddiesSnapshot = await db.collection("users").doc(userId).collection("buddies").get();
-                const visibleTo = [userId, ...buddiesSnapshot.docs.map((doc) => doc.id)];
-                const timelineEventData = {
-                    type: "streak",
-                    timestamp: admin.firestore.Timestamp.now().toMillis(),
-                    title: `har fått +1 på sin Streak!`,
-                    description: `Ny streak: ${newStreak} dagar i följd.`,
-                    icon: "🔥",
-                    relatedDocId: `streak_${yesterdayDateUID}`,
-                    userId: userId,
-                    userName: user.displayName,
-                    userPhotoURL: user.photoURL || null,
-                    gender: user.gender,
-                    visibleTo: visibleTo,
-                    reactions: {},
-                    comments: [],
-                    relatedDocPath: `users/${userId}/pastDaySummaries/${yesterdayDateUID}`,
-                };
-                const timelineDocRef = db.doc(`communityTimeline/users--${userId}--streak--${yesterdayDateUID}`);
-                batch.set(timelineDocRef, timelineEventData);
-            }
-
-            await batch.commit();
+            allWriteOps.push({ref: userRef, data: userUpdate, type: "update"});
+            
             processedCount++;
         } catch (error) {
-            logger.error(`Failed to process user ${userId}:`, error);
+            logger.error(`Failed during data gathering for user ${userId}:`, error);
             failedCount++;
         }
+    }
+
+    logger.log(`Gathered ${allWriteOps.length} write operations for ${processedCount} users. Committing in batches.`);
+    const batchPromises = [];
+    for (let i = 0; i < allWriteOps.length; i += 500) {
+        const batch = db.batch();
+        const chunk = allWriteOps.slice(i, i + 500);
+        chunk.forEach((op) => {
+            if (op.type === "set") {
+                batch.set(op.ref, op.data, {merge: true});
+            } else {
+                batch.update(op.ref, op.data);
+            }
+        });
+        batchPromises.push(batch.commit());
+    }
+    
+    try {
+        await Promise.all(batchPromises);
+        logger.log(`Successfully committed ${batchPromises.length} batches.`);
+    } catch (error) {
+        logger.error("Error committing batches:", error);
+        throw new functions.https.HttpsError("internal", "Failed to commit all user updates.", {originalError: error});
     }
 
     const message = `Summering klar. ${processedCount} användare bearbetades, ${failedCount} misslyckades, ${skippedCount} hoppades över.`;
