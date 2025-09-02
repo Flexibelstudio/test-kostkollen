@@ -3,6 +3,7 @@ import { CoachViewMember, UserRole } from '../types';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon as CloseIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon } from './icons';
 import { User, PieChart } from 'lucide-react'; // Import new Lucide icons
 import { playAudio } from '../services/audioService';
+import { auth } from '../firebase';
 import { 
     fetchCoachViewMembers, 
     setCourseAccessForMember, 
@@ -75,7 +76,7 @@ const BulkActionButton: React.FC<{ onClick: () => void; children: React.ReactNod
     <button onClick={onClick} disabled={disabled} className={`px-3 py-1.5 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${className}`}>{children}</button>
 );
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void }> = ({ membersList, isExpanded, onToggle }) => {
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; onManualSummary: () => void; isSummarizing: boolean; }> = ({ membersList, isExpanded, onToggle, onManualSummary, isSummarizing }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
@@ -113,10 +114,27 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
 
     return (
         <section className="bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light">
-            <button onClick={onToggle} className="w-full flex justify-between items-center text-left mb-2 group" aria-expanded={isExpanded} aria-controls="group-insights-panel">
-                <h2 className="text-2xl font-semibold text-neutral-dark group-hover:text-primary transition-colors">Insikter på gruppnivå</h2>
-                {isExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
-            </button>
+            <div className="flex justify-between items-center mb-2 flex-wrap gap-4">
+                 <button onClick={onToggle} className="flex-1 flex justify-between items-center text-left group" aria-expanded={isExpanded} aria-controls="group-insights-panel">
+                    <h2 className="text-2xl font-semibold text-neutral-dark group-hover:text-primary transition-colors">Insikter på gruppnivå</h2>
+                    {isExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
+                </button>
+                 <button 
+                    onClick={onManualSummary} 
+                    disabled={isSummarizing}
+                    className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-secondary hover:bg-secondary-darker rounded-lg shadow-md active:scale-95 transform transition-all disabled:opacity-60 disabled:cursor-wait"
+                    title="Kör en manuell summering av gårdagen för alla användare. Används om den automatiska processen misslyckats."
+                 >
+                    {isSummarizing ? (
+                        <>
+                            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
+                            Summerar...
+                        </>
+                    ) : (
+                        "⚡ Summera Gårdagen Manuellt"
+                    )}
+                 </button>
+            </div>
             {isExpanded && (
                 <div id="group-insights-panel" className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-fade-in">
                     <StatCard icon={<UserGroupIcon className="w-6 h-6 text-blue-800" />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} colorClass="bg-blue-100" />
@@ -243,6 +261,8 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialSortOrder);
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isSummarizing, setIsSummarizing] = useState(false);
+
 
     const fetchMembers = useCallback(async () => {
         setIsLoadingMembers(true);
@@ -322,6 +342,44 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
             setIsBulkUpdating(false);
         }
     }, [selectedMemberIds, fetchMembers]);
+    
+    const handleManualSummary = async () => {
+        playAudio('uiClick');
+        if (!window.confirm("Är du säker på att du vill köra en manuell summering av gårdagen för ALLA användare? Detta kan inte ångras och kan ta en stund.")) {
+            return;
+        }
+        setIsSummarizing(true);
+        try {
+            if (!auth.currentUser) {
+                throw new Error("Ingen inloggad användare hittades.");
+            }
+            const token = await auth.currentUser.getIdToken();
+            
+            // NOTE: The project ID is hardcoded here. In a real scenario, this would come from environment variables.
+            const response = await fetch('https://us-central1-flexibel-kostkollen.cloudfunctions.net/manualSummarizeYesterday', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ data: {} }) // Callable functions expect this structure
+            });
+
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                throw new Error(responseData?.error?.message || 'Ett okänt serverfel uppstod');
+            }
+            
+            alert(responseData?.result?.message || "Summering slutförd!");
+        } catch (error) {
+            console.error("Manual summary failed:", error);
+            alert(`Ett fel uppstod: ${error.message || error}`);
+        } finally {
+            setIsSummarizing(false);
+        }
+    };
+
 
     const filteredMembers = useMemo(() => membersList.filter(member => {
         const searchMatches = searchQuery.trim() === '' || member.name.toLowerCase().includes(searchQuery.toLowerCase()) || member.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -356,7 +414,7 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const interestCount = useMemo(() => membersList.filter(m => m.courseInterest && !m.isCourseActive).length, [membersList]);
 
     return {
-        membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending, showOnlyInterest, setShowOnlyInterest, selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating, searchQuery, setSearchQuery, fetchMembers, handleToggleCourseAccess, handleApproveMember, handleRevokeApproval, handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount, interestCount
+        membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending, showOnlyInterest, setShowOnlyInterest, selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating, searchQuery, setSearchQuery, fetchMembers, handleToggleCourseAccess, handleApproveMember, handleRevokeApproval, handleUpdateRole, handleBulkAction, handleManualSummary, isSummarizing, sortedAndFilteredMembers, pendingCount, interestCount
     };
 };
 
@@ -379,7 +437,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending, showOnlyInterest,
       setShowOnlyInterest, selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
       searchQuery, setSearchQuery, fetchMembers, handleToggleCourseAccess, handleApproveMember, handleRevokeApproval,
-      handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount, interestCount
+      handleUpdateRole, handleBulkAction, handleManualSummary, isSummarizing, sortedAndFilteredMembers, pendingCount, interestCount
   } = useCoachDashboard();
   
   const handleSort = (column: SortableKeys) => {
@@ -420,7 +478,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         </div>
       </header>
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
-        <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} />
+        <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} onManualSummary={handleManualSummary} isSummarizing={isSummarizing} />
         <section className="bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light">
           <MemberFilters searchQuery={searchQuery} onSearchChange={setSearchQuery} showOnlyPending={showOnlyPending} onPendingChange={setShowOnlyPending} pendingCount={pendingCount} showOnlyInterest={showOnlyInterest} onInterestChange={setShowOnlyInterest} interestCount={interestCount} onRefresh={fetchMembers} isRefreshDisabled={isLoadingMembers || isBulkUpdating} />
           {selectedMemberIds.size > 0 && <BulkActionsBar selectedCount={selectedMemberIds.size} onClearSelection={() => setSelectedMemberIds(new Set())} onBulkAction={handleBulkAction} isBulkUpdating={isBulkUpdating} />}
