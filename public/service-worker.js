@@ -26,6 +26,7 @@ const URLS_TO_CACHE = [
   'https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js',
+  'https://www.gstatic.com/firebasejs/10.10.0/firebase-functions.js',
   'https://esm.sh/@google/genai@^1.9.0',
   'https://esm.sh/async-mutex@^0.5.0',
   'https://esm.sh/@zxing/browser@^0.1.5',

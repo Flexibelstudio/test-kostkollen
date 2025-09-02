@@ -4,6 +4,7 @@ import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIco
 import { User, PieChart } from 'lucide-react'; // Import new Lucide icons
 import { playAudio } from '../services/audioService';
 import { auth } from '../firebase';
+import { getFunctions, httpsCallable } from "@firebase/functions";
 import { 
     fetchCoachViewMembers, 
     setCourseAccessForMember, 
@@ -350,31 +351,14 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         }
         setIsSummarizing(true);
         try {
-            if (!auth.currentUser) {
-                throw new Error("Ingen inloggad användare hittades.");
-            }
-            const token = await auth.currentUser.getIdToken();
-            
-            // NOTE: The project ID is hardcoded here. In a real scenario, this would come from environment variables.
-            const response = await fetch('https://us-central1-flexibel-kostkollen.cloudfunctions.net/manualSummarizeYesterday', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ data: {} }) // Callable functions expect this structure
-            });
-
-            const responseData = await response.json();
-
-            if (!response.ok) {
-                throw new Error(responseData?.error?.message || 'Ett okänt serverfel uppstod');
-            }
-            
-            alert(responseData?.result?.message || "Summering slutförd!");
+            const functions = getFunctions();
+            const manualSummarize = httpsCallable(functions, 'manualSummarizeYesterday');
+            const result = await manualSummarize({});
+            const data = result.data as { success: boolean; message: string };
+            alert(data.message || "Summering slutförd!");
         } catch (error) {
             console.error("Manual summary failed:", error);
-            alert(`Ett fel uppstod: ${error.message || error}`);
+            alert(`Ett fel uppstod: ${(error as any).message || 'Okänt anropsfel'}`);
         } finally {
             setIsSummarizing(false);
         }
