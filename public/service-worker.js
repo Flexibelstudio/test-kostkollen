@@ -29,6 +29,7 @@ const URLS_TO_CACHE = [
   'https://esm.sh/@google/genai@^1.9.0',
   'https://esm.sh/async-mutex@^0.5.0',
   'https://esm.sh/@zxing/browser@^0.1.5',
+  'https://esm.sh/@zxing/library@^0.21.0',
   'https://esm.sh/lucide-react@^0.400.0'
 ];
 
