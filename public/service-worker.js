@@ -20,9 +20,9 @@ const URLS_TO_CACHE = [
 
   // CDN/externa moduler (valfritt att cachea)
   'https://cdn.tailwindcss.com',
-  'https://esm.sh/react@^19.1.0',
-  'https://esm.sh/react-dom@^19.1.0/client',
-  'https://esm.sh/react@^19.1.0/jsx-runtime',
+  'https://esm.sh/react@18.2.0',
+  'https://esm.sh/react-dom@18.2.0/client',
+  'https://esm.sh/react@18.2.0/jsx-runtime',
   'https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js',

@@ -131,31 +131,28 @@ const setLocalStorageItem = <T,>(key: string, value: T): void => {
 
 
 const getWeekInfo = (date: Date): { weekId: string; startDate: string; endDate: string } => {
-  // This part correctly finds the Monday of the week for the given date.
-  // It uses UTC to avoid timezone issues.
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayUTC = d.getUTCDay(); // 0 for Sunday, 1 for Monday, etc.
-  // Calculate the difference to get to the previous Monday
-  const diffToMondayUTC = d.getUTCDate() - dayUTC + (dayUTC === 0 ? -6 : 1);
-  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diffToMondayUTC));
+  // This function now uses local date methods to avoid timezone inconsistencies.
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0); // Normalize to the start of the local day.
 
-  // Create Sunday from the calculated Monday
-  const sunday = new Date(monday.getTime());
-  sunday.setUTCDate(monday.getUTCDate() + 6);
+  const dayOfWeek = d.getDay(); // 0 for Sunday, 1 for Monday (local time)
+  const diffToMonday = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diffToMonday));
+  
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
 
-  // --- START: Robust ISO 8601 Week Number Calculation ---
-  // A copy of the original date is needed as the calculation modifies it.
-  const targetDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  // Set to the Thursday of the week. ISO week day number: 1 (Mon) to 7 (Sun)
-  const dayNum = targetDate.getUTCDay() || 7;
-  targetDate.setUTCDate(targetDate.getUTCDate() + 4 - dayNum);
+  // --- ISO 8601 Week Number Calculation (remains robust but based on local date) ---
+  // A copy of the date is needed as the calculation modifies it.
+  const targetDate = new Date(date);
+  const dayNum = targetDate.getDay() || 7;
+  targetDate.setDate(targetDate.getDate() + 4 - dayNum);
   // Get the year of that Thursday, which is the ISO week-numbering year.
-  const year = targetDate.getUTCFullYear();
+  const year = targetDate.getFullYear();
   // Get the first day of that year
-  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const yearStart = new Date(year, 0, 1);
   // Calculate the week number
   const weekNo = Math.ceil((((targetDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  // --- END: Robust ISO Week Number Calculation ---
 
   return {
     weekId: `${year}-W${String(weekNo).padStart(2, '0')}`,
@@ -1778,14 +1775,53 @@ useEffect(() => {
 
   const datesToProcess: Date[] = [];
   let dayToProcess = new Date(lastProcessedDate);
-  dayToProcess.setUTCDate(dayToProcess.getUTCDate() + 1);
-  const todayForLoop = new Date(todayDateStr);
+  dayToProcess.setDate(dayToProcess.getDate() + 1);
+  const todayForLoop = new Date(currentDate);
+  todayForLoop.setHours(0, 0, 0, 0); // Normalize today for comparison
 
   while (dayToProcess < todayForLoop) {
     datesToProcess.push(new Date(dayToProcess));
-    dayToProcess.setUTCDate(dayToProcess.getUTCDate() + 1);
+    dayToProcess.setDate(dayToProcess.getDate() + 1);
   }
   
+  const lastCheckedWeekInfo = getWeekInfo(lastProcessedDate);
+  const currentWeekInfo = getWeekInfo(currentDate);
+
+  // This handles the specific case of a new week without any missed days in between (e.g., Sun -> Mon).
+  if (lastCheckedWeekInfo.weekId !== currentWeekInfo.weekId && datesToProcess.length === 0) {
+      const resetForNewWeek = async () => {
+          if (isProcessingDaysRef.current) return; // Prevent race conditions
+          isProcessingDaysRef.current = true;
+          setAppStatus(AppStatus.PROCESSING_DAY_END);
+          try {
+              console.log("New week detected without missed days. Resetting bank and saver.");
+              const newBank = { ...currentWeekInfo, bankedCalories: 0 };
+              const newSaver = { weekId: currentWeekInfo.weekId, available: true };
+
+              setWeeklyBank(newBank);
+              setStreakSaver(newSaver);
+              // Important: We must also update the last checked date to prevent this from running again.
+              setStreakData(prev => ({ ...prev, lastDateStreakChecked: todayDateStr }));
+
+              await updateUserDocument(currentUser.uid, {
+                  weeklyBank: newBank,
+                  streakSaver: newSaver,
+                  lastDateStreakChecked: todayDateStr,
+                  role: userRole,
+                  status: userStatus
+              });
+          } catch (err) {
+              console.error("Error resetting weekly data for new week:", err);
+              // In case of error, a full refresh would likely fix it, so we don't rollback state here.
+          } finally {
+              isProcessingDaysRef.current = false;
+              setAppStatus(AppStatus.IDLE);
+          }
+      };
+      resetForNewWeek();
+      return; // Exit the effect, as we've handled the necessary update.
+  }
+
   if (datesToProcess.length > 0) {
     const processMissedDays = async () => {
       if (isProcessingDaysRef.current) {
@@ -1848,7 +1884,7 @@ useEffect(() => {
           if (existingSummary && existingSummary.isBinaryOrigin) {
             summaryForThisDay = existingSummary;
           } else {
-            // ALWAYS recalculate if it's not a binary origin summary
+            // Hämta måltider och vattenlogg för dagen
             const [dailyLogForDate, waterLogForDate] = await Promise.all([
               fetchMealLogsForDate(currentUser.uid, dateUID),
               fetchWaterLog(currentUser.uid, dateUID),
@@ -1901,9 +1937,10 @@ useEffect(() => {
                 totalBankedInLoop += bankedAmountThisDay;
               }
             }
-            
-            // ---- STREAK-UPPDATERING OCH SPARANDE (ALWAYS RECALCULATE) ----
-            summaryForThisDay = {
+
+            // ---- STREAK-UPPDATERING OCH SPARANDE ----
+            if (!existingSummary) {
+              summaryForThisDay = {
                 date: dateUID,
                 goalMet: wasDaySuccessful,
                 consumedCalories: caloriesConsumed,
@@ -1919,27 +1956,32 @@ useEffect(() => {
                 isBinaryOrigin: false,
                 waterGoalMet: waterGoalMet,
                 streakForThisDay: 0, // Sätt default, skrivs över nedan
-            };
-
-            if (summaryForThisDay.goalMet) {
-                accumulatedStreak++;
-                // To prevent duplicate events, only add if it wasn't successful before
-                if (!existingSummary?.goalMet && !existingSummary?.savedBy) {
-                    const streakEventData = {
-                        type: 'streak' as const,
-                        timestamp: Date.now(),
-                        title: `har fått +1 på sin Streak! `,
-                        description: `Ny streak: ${accumulatedStreak} dagar i följd.`,
-                        icon: ' ',
-                        relatedDocId: `streak_${dateUID}`
-                    };
-                    await addTimelineEvent(currentUser.uid, streakEventData);
-                }
+              };
+              if (summaryForThisDay.goalMet) {
+                  accumulatedStreak++;
+                  const streakEventData = {
+                      type: 'streak' as const,
+                      timestamp: Date.now(),
+                      title: `har fått +1 på sin Streak! `,
+                      description: `Ny streak: ${accumulatedStreak} dagar i följd.`,
+                      icon: ' ',
+                      relatedDocId: `streak_${dateUID}`
+                  };
+                  await addTimelineEvent(currentUser.uid, streakEventData);
+              } else {
+                accumulatedStreak = 0;
+              }
+              summaryForThisDay.streakForThisDay = accumulatedStreak;
+              await setPastDaySummary(currentUser.uid, dateUID, summaryForThisDay);
             } else {
-              accumulatedStreak = 0;
+              if (existingSummary.goalMet || existingSummary.savedBy) {
+                accumulatedStreak++;
+              } else {
+                accumulatedStreak = 0;
+              }
+              summaryForThisDay = { ...existingSummary, streakForThisDay: accumulatedStreak };
+              await setPastDaySummary(currentUser.uid, dateUID, summaryForThisDay);
             }
-            summaryForThisDay.streakForThisDay = accumulatedStreak;
-            await setPastDaySummary(currentUser.uid, dateUID, summaryForThisDay);
           }
 
           newSummaries[dateUID] = summaryForThisDay;
