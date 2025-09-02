@@ -1785,44 +1785,6 @@ useEffect(() => {
     dayToProcess.setUTCDate(dayToProcess.getUTCDate() + 1);
   }
   
-  const lastCheckedWeekInfo = getWeekInfo(lastProcessedDate);
-  const currentWeekInfo = getWeekInfo(currentDate);
-
-  // This handles the specific case of a new week without any missed days in between (e.g., Sun -> Mon).
-  if (lastCheckedWeekInfo.weekId !== currentWeekInfo.weekId && datesToProcess.length === 0) {
-      const resetForNewWeek = async () => {
-          if (isProcessingDaysRef.current) return; // Prevent race conditions
-          isProcessingDaysRef.current = true;
-          setAppStatus(AppStatus.PROCESSING_DAY_END);
-          try {
-              console.log("New week detected without missed days. Resetting bank and saver.");
-              const newBank = { ...currentWeekInfo, bankedCalories: 0 };
-              const newSaver = { weekId: currentWeekInfo.weekId, available: true };
-
-              setWeeklyBank(newBank);
-              setStreakSaver(newSaver);
-              // Important: We must also update the last checked date to prevent this from running again.
-              setStreakData(prev => ({ ...prev, lastDateStreakChecked: todayDateStr }));
-
-              await updateUserDocument(currentUser.uid, {
-                  weeklyBank: newBank,
-                  streakSaver: newSaver,
-                  lastDateStreakChecked: todayDateStr,
-                  role: userRole,
-                  status: userStatus
-              });
-          } catch (err) {
-              console.error("Error resetting weekly data for new week:", err);
-              // In case of error, a full refresh would likely fix it, so we don't rollback state here.
-          } finally {
-              isProcessingDaysRef.current = false;
-              setAppStatus(AppStatus.IDLE);
-          }
-      };
-      resetForNewWeek();
-      return; // Exit the effect, as we've handled the necessary update.
-  }
-
   if (datesToProcess.length > 0) {
     const processMissedDays = async () => {
       if (isProcessingDaysRef.current) {
