@@ -539,6 +539,13 @@ exports.manualSummarizeYesterday = functions.runWith({timeoutSeconds: 540}).http
                 skippedCount++;
                 continue;
             }
+            
+            // Robustness check: Ensure user.goals exists before proceeding
+            if (!user.goals) {
+                logger.warn(`Skipping user ${userId} due to missing 'goals' field.`);
+                skippedCount++;
+                continue;
+            }
 
             const mealLogsRef = db.collection("users").doc(userId).collection("mealLogs");
             const mealLogsQuery = mealLogsRef.where("dateString", "==", yesterdayDateUID);
