@@ -698,7 +698,7 @@ export const App: React.FC = () => {
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-        setToastNotification({ message: 'Pushnotiser stöds inte av din webbläsare eller så har något gått fel.', type: 'error' });
+        setToastNotification({ message: 'Pushnotiser stöds inte av din webbläsaare eller så har något gått fel.', type: 'error' });
         setTimeout(() => setToastNotification(null), 4000);
         return false;
     }
@@ -1778,177 +1778,154 @@ useEffect(() => {
     setAppStatus(AppStatus.PROCESSING_DAY_END);
 
     try {
-      const datesToProcess: Date[] = [];
-      let dayToProcess = new Date(lastProcessedDate);
-      dayToProcess.setDate(dayToProcess.getDate() + 1);
-      const todayForLoop = new Date(currentDate);
-      todayForLoop.setHours(0, 0, 0, 0);
-
-      while (dayToProcess < todayForLoop) {
-        datesToProcess.push(new Date(dayToProcess));
+        const batch = writeBatch(db);
+        const datesToProcess: Date[] = [];
+        let dayToProcess = new Date(lastProcessedDate);
         dayToProcess.setDate(dayToProcess.getDate() + 1);
-      }
+        const todayForLoop = new Date(currentDate);
+        todayForLoop.setHours(0, 0, 0, 0);
+        
+        while (dayToProcess < todayForLoop) {
+            datesToProcess.push(new Date(dayToProcess));
+            dayToProcess.setDate(dayToProcess.getDate() + 1);
+        }
 
-      let finalStreak = streakData.currentStreak;
-      let finalBank = weeklyBank;
-      let finalSaver = streakSaver;
-      let finalHighestStreak = highestStreak;
-      const newSummaries: PastDaysSummaryCollection = {};
-      let lastDayProcessedUID: string | null = null;
-      let totalBankedInLoop = 0;
+        if (datesToProcess.length === 0) {
+            isProcessingDaysRef.current = false;
+            setAppStatus(AppStatus.IDLE);
+            return;
+        }
 
-      if (datesToProcess.length > 0) {
         console.log(`Processing ${datesToProcess.length} missed day(s)...`);
 
-        const dateBeforeProcessing = new Date(datesToProcess[0]);
-        dateBeforeProcessing.setDate(dateBeforeProcessing.getDate() - 1);
-        
-        let streakFromSummaries = 0;
-        let dateToCheck = new Date(dateBeforeProcessing);
-        for(let i=0; i < 730; i++) { // Limit to 2 years back
-            const dateUID = getDateUID(dateToCheck);
-            const summary = pastDaysSummary[dateUID];
-            if(summary?.goalMet || summary?.savedBy === 'streakSaver') {
-                streakFromSummaries++;
-            } else {
-                break;
-            }
-            dateToCheck.setDate(dateToCheck.getDate() - 1);
-        }
-        
-        let accumulatedStreak = streakFromSummaries;
-        let accumulatedBank = weeklyBank.bankedCalories;
-        let accumulatedSaver = streakSaver;
-        
-        let lastProcessedWeekId = getWeekInfo(dateBeforeProcessing).weekId;
+        let runningStreak = streakData.currentStreak;
+        let runningBank = { ...weeklyBank };
+        let runningSaver = streakSaver ? { ...streakSaver } : null;
+        let runningHighestStreak = highestStreak;
+        const newSummaries: PastDaysSummaryCollection = {};
+        let totalBankedInLoop = 0;
 
         for (const date of datesToProcess) {
-          const dateUID = getDateUID(date);
-          const { weekId: currentProcessingWeekId } = getWeekInfo(date);
+            const dateUID = getDateUID(date);
+            const prevDay = new Date(date);
+            prevDay.setDate(prevDay.getDate() - 1);
 
-          if (currentProcessingWeekId !== lastProcessedWeekId) {
-            accumulatedBank = 0;
-            accumulatedSaver = { available: true, weekId: currentProcessingWeekId };
-          }
-          lastProcessedWeekId = currentProcessingWeekId;
-          
-          const [dailyLogForDate, waterLogForDate] = await Promise.all([
-            fetchMealLogsForDate(currentUser.uid, dateUID),
-            fetchWaterLog(currentUser.uid, dateUID),
-          ]);
-          
-          const totalNutrientsForDay = dailyLogForDate.reduce((acc, meal) => {
-            acc.calories += meal.nutritionalInfo.calories;
-            acc.protein += meal.nutritionalInfo.protein;
-            acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
-            acc.fat += meal.nutritionalInfo.fat;
-            return acc;
-          }, { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+            const prevDayWeekInfo = getWeekInfo(prevDay);
+            const currentDayWeekInfo = getWeekInfo(date);
 
-          const totalCoveredByBankForDay = dailyLogForDate.reduce((sum, meal) => sum + (meal.caloriesCoveredByBank || 0), 0);
-          const effectiveCaloriesConsumed = totalNutrientsForDay.calories - totalCoveredByBankForDay;
-          const minSafeCaloriesForDay = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-          const wasDaySuccessful = dailyLogForDate.length > 0 && totalNutrientsForDay.calories >= minSafeCaloriesForDay && wasCalorieGoalMetForSummary(effectiveCaloriesConsumed, goals.calorieGoal, userProfile.goalType);
-          
-          if (wasDaySuccessful) {
-            accumulatedStreak++;
-          } else {
-            accumulatedStreak = 0;
-          }
-          
-          let bankedAmountThisDay = 0;
-          if (dailyLogForDate.length > 0 && totalNutrientsForDay.calories >= minSafeCaloriesForDay && totalNutrientsForDay.calories < goals.calorieGoal) {
-              bankedAmountThisDay = goals.calorieGoal - totalNutrientsForDay.calories;
-              if (bankedAmountThisDay > 0) {
-                  accumulatedBank += bankedAmountThisDay;
-                  totalBankedInLoop += bankedAmountThisDay;
-              }
-          }
-
-          const summaryForThisDay: PastDaySummary = {
-            date: dateUID,
-            goalMet: wasDaySuccessful,
-            consumedCalories: totalNutrientsForDay.calories,
-            calorieGoal: goals.calorieGoal,
-            proteinGoalMet: totalNutrientsForDay.protein >= goals.proteinGoal,
-            consumedProtein: totalNutrientsForDay.protein, proteinGoal: goals.proteinGoal,
-            consumedCarbohydrates: totalNutrientsForDay.carbohydrates, carbohydrateGoal: goals.carbohydrateGoal,
-            consumedFat: totalNutrientsForDay.fat, fatGoal: goals.fatGoal,
-            goalType: userProfile.goalType,
-            waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
-            streakForThisDay: accumulatedStreak,
-          };
-          
-          if(wasDaySuccessful){
-             const streakEventData = {
-                type: 'streak' as const,
-                timestamp: date.getTime(),
-                title: `har fått +1 på sin Streak!`,
-                description: `Ny streak: ${accumulatedStreak} dagar i följd.`,
-                icon: '🔥',
-                relatedDocId: `streak_${dateUID}`
-            };
-            await addTimelineEvent(currentUser.uid, streakEventData);
-          }
-
-          await setPastDaySummary(currentUser.uid, dateUID, summaryForThisDay);
-          newSummaries[dateUID] = summaryForThisDay;
-        }
-
-        finalStreak = accumulatedStreak;
-        finalHighestStreak = Math.max(highestStreak, finalStreak);
-        finalBank = { ...getWeekInfo(datesToProcess[datesToProcess.length - 1]), bankedCalories: accumulatedBank };
-        finalSaver = accumulatedSaver;
-        lastDayProcessedUID = getDateUID(datesToProcess[datesToProcess.length - 1]);
-      }
-      
-      const lastActuallyProcessedDate = datesToProcess.length > 0 ? datesToProcess[datesToProcess.length - 1] : lastProcessedDate;
-      const lastCheckedWeekInfo = getWeekInfo(lastActuallyProcessedDate);
-      const currentWeekInfo = getWeekInfo(currentDate);
-
-      if (lastCheckedWeekInfo.weekId !== currentWeekInfo.weekId) {
-        finalBank = { ...currentWeekInfo, bankedCalories: 0 };
-        finalSaver = { weekId: currentWeekInfo.weekId, available: true };
-      }
-      
-      setStreakData({ currentStreak: finalStreak, lastDateStreakChecked: todayDateStr });
-      setWeeklyBank(finalBank);
-      setStreakSaver(finalSaver);
-      setHighestStreak(finalHighestStreak);
-      setPastDaysSummary(prev => ({ ...prev, ...newSummaries }));
-
-      await updateUserDocument(currentUser.uid, {
-        currentStreak: finalStreak, lastDateStreakChecked: todayDateStr,
-        weeklyBank: finalBank, streakSaver: finalSaver, highestStreak: finalHighestStreak,
-        role: userRole, status: userStatus,
-      });
-
-      if (lastDayProcessedUID) {
-        const yesterdaySummary = newSummaries[lastDayProcessedUID];
-        if (yesterdaySummary) {
-          if (yesterdaySummary.goalMet) {
-            setShowGoalMetModalData({ date: lastDayProcessedUID, streak: yesterdaySummary.streakForThisDay || finalStreak });
-            setShowConfetti(true); playAudio("levelUp"); setTimeout(() => setShowConfetti(false), 5000);
-          } else {
-            if (streakSaver?.available) {
-              setDayToPotentiallySave(yesterdaySummary);
-            } else {
-              setShowMotivationModal(yesterdaySummary);
+            if (prevDayWeekInfo.weekId !== currentDayWeekInfo.weekId) {
+                runningBank = { ...currentDayWeekInfo, bankedCalories: 0 };
+                runningSaver = { weekId: currentDayWeekInfo.weekId, available: true };
             }
-          }
-        }
-      }
 
-      if (totalBankedInLoop > 0) {
-        setToastNotification({ message: `${totalBankedInLoop.toFixed(0)} kcal sparade till potten!`, type: "success" });
-        setTimeout(() => setToastNotification(null), 3500); playAudio("calorieBank", 0.7);
-      }
+            const [dailyLogForDate, waterLogForDate] = await Promise.all([
+                fetchMealLogsForDate(currentUser.uid, dateUID),
+                fetchWaterLog(currentUser.uid, dateUID),
+            ]);
+
+            const totalNutrientsForDay = dailyLogForDate.reduce((acc, meal) => {
+                acc.calories += meal.nutritionalInfo.calories;
+                acc.protein += meal.nutritionalInfo.protein;
+                acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
+                acc.fat += meal.nutritionalInfo.fat;
+                return acc;
+            }, { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+
+            const totalCoveredByBankForDay = dailyLogForDate.reduce((sum, meal) => sum + (meal.caloriesCoveredByBank || 0), 0);
+            const effectiveCaloriesConsumed = totalNutrientsForDay.calories - totalCoveredByBankForDay;
+            const minSafeCaloriesForDay = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+            const wasDaySuccessful = dailyLogForDate.length > 0 && totalNutrientsForDay.calories >= minSafeCaloriesForDay && wasCalorieGoalMetForSummary(effectiveCaloriesConsumed, goals.calorieGoal, userProfile.goalType);
+            
+            if (wasDaySuccessful) {
+                runningStreak++;
+            } else {
+                runningStreak = 0;
+            }
+
+            let bankedAmountThisDay = 0;
+            if (dailyLogForDate.length > 0 && totalNutrientsForDay.calories >= minSafeCaloriesForDay && totalNutrientsForDay.calories < goals.calorieGoal) {
+                bankedAmountThisDay = goals.calorieGoal - totalNutrientsForDay.calories;
+                runningBank.bankedCalories += bankedAmountThisDay;
+                totalBankedInLoop += bankedAmountThisDay;
+            }
+
+            const summaryForThisDay: PastDaySummary = {
+                date: dateUID, goalMet: wasDaySuccessful, consumedCalories: totalNutrientsForDay.calories,
+                calorieGoal: goals.calorieGoal, proteinGoalMet: totalNutrientsForDay.protein >= goals.proteinGoal,
+                consumedProtein: totalNutrientsForDay.protein, proteinGoal: goals.proteinGoal,
+                consumedCarbohydrates: totalNutrientsForDay.carbohydrates, carbohydrateGoal: goals.carbohydrateGoal,
+                consumedFat: totalNutrientsForDay.fat, fatGoal: goals.fatGoal,
+                goalType: userProfile.goalType, waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
+                streakForThisDay: runningStreak,
+            };
+
+            if (wasDaySuccessful) {
+                const streakEventData = {
+                    type: 'streak' as const, timestamp: date.getTime(), title: `har fått +1 på sin Streak!`,
+                    description: `Ny streak: ${runningStreak} dagar i följd.`, icon: '🔥',
+                    relatedDocId: `streak_${dateUID}`
+                };
+                await addTimelineEvent(currentUser.uid, streakEventData);
+            }
+            
+            const summaryRef = doc(db, "users", currentUser.uid, "pastDaySummaries", dateUID);
+            batch.set(summaryRef, summaryForThisDay);
+            newSummaries[dateUID] = summaryForThisDay;
+        }
+
+        // After loop, determine state for TODAY
+        let finalBankForState = runningBank;
+        let finalSaverForState = runningSaver;
+        
+        const lastProcessedDay = datesToProcess[datesToProcess.length - 1];
+        const lastProcessedWeekInfo = getWeekInfo(lastProcessedDay);
+        const currentAppDateWeekInfo = getWeekInfo(currentDate);
+
+        if (lastProcessedWeekInfo.weekId !== currentAppDateWeekInfo.weekId) {
+            finalBankForState = { ...currentAppDateWeekInfo, bankedCalories: 0 };
+            finalSaverForState = { weekId: currentAppDateWeekInfo.weekId, available: true };
+        }
+        
+        const userDocRef = doc(db, "users", currentUser.uid);
+        batch.update(userDocRef, {
+            currentStreak: runningStreak, lastDateStreakChecked: todayDateStr,
+            weeklyBank: finalBankForState, streakSaver: finalSaverForState,
+            highestStreak: Math.max(runningHighestStreak, runningStreak),
+        });
+
+        await batch.commit();
+
+        setStreakData({ currentStreak: runningStreak, lastDateStreakChecked: todayDateStr });
+        setWeeklyBank(finalBankForState);
+        setStreakSaver(finalSaverForState);
+        setHighestStreak(Math.max(runningHighestStreak, runningStreak));
+        setPastDaysSummary(prev => ({ ...prev, ...newSummaries }));
+
+        const yesterdaySummary = newSummaries[getDateUID(datesToProcess[datesToProcess.length - 1])];
+        if (yesterdaySummary) {
+            if (yesterdaySummary.goalMet) {
+                setShowGoalMetModalData({ date: yesterdaySummary.date, streak: yesterdaySummary.streakForThisDay || runningStreak });
+                setShowConfetti(true); playAudio("levelUp"); setTimeout(() => setShowConfetti(false), 5000);
+            } else {
+                if (runningSaver?.available) {
+                    setDayToPotentiallySave(yesterdaySummary);
+                } else {
+                    setShowMotivationModal(yesterdaySummary);
+                }
+            }
+        }
+        
+        if (totalBankedInLoop > 0) {
+            setToastNotification({ message: `${totalBankedInLoop.toFixed(0)} kcal sparade till potten!`, type: "success" });
+            setTimeout(() => setToastNotification(null), 3500); playAudio("calorieBank", 0.7);
+        }
 
     } catch (err) {
-      console.error("Error during day processing and finalization:", err);
+        console.error("Error during day processing and finalization:", err);
+        setToastNotification({ message: 'Ett fel uppstod vid summering av dagen.', type: 'error' });
     } finally {
-      setAppStatus(AppStatus.IDLE);
-      isProcessingDaysRef.current = false;
+        setAppStatus(AppStatus.IDLE);
+        isProcessingDaysRef.current = false;
     }
   };
   
