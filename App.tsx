@@ -1848,7 +1848,7 @@ useEffect(() => {
           if (existingSummary && existingSummary.isBinaryOrigin) {
             summaryForThisDay = existingSummary;
           } else {
-            // Hämta måltider och vattenlogg för dagen
+            // ALWAYS recalculate if it's not a binary origin summary
             const [dailyLogForDate, waterLogForDate] = await Promise.all([
               fetchMealLogsForDate(currentUser.uid, dateUID),
               fetchWaterLog(currentUser.uid, dateUID),
@@ -1901,10 +1901,9 @@ useEffect(() => {
                 totalBankedInLoop += bankedAmountThisDay;
               }
             }
-
-            // ---- STREAK-UPPDATERING OCH SPARANDE ----
-            if (!existingSummary) {
-              summaryForThisDay = {
+            
+            // ---- STREAK-UPPDATERING OCH SPARANDE (ALWAYS RECALCULATE) ----
+            summaryForThisDay = {
                 date: dateUID,
                 goalMet: wasDaySuccessful,
                 consumedCalories: caloriesConsumed,
@@ -1920,32 +1919,27 @@ useEffect(() => {
                 isBinaryOrigin: false,
                 waterGoalMet: waterGoalMet,
                 streakForThisDay: 0, // Sätt default, skrivs över nedan
-              };
-              if (summaryForThisDay.goalMet) {
-                  accumulatedStreak++;
-                  const streakEventData = {
-                      type: 'streak' as const,
-                      timestamp: Date.now(),
-                      title: `har fått +1 på sin Streak! `,
-                      description: `Ny streak: ${accumulatedStreak} dagar i följd.`,
-                      icon: ' ',
-                      relatedDocId: `streak_${dateUID}`
-                  };
-                  await addTimelineEvent(currentUser.uid, streakEventData);
-              } else {
-                accumulatedStreak = 0;
-              }
-              summaryForThisDay.streakForThisDay = accumulatedStreak;
-              await setPastDaySummary(currentUser.uid, dateUID, summaryForThisDay);
-            } else {
-              if (existingSummary.goalMet || existingSummary.savedBy) {
+            };
+
+            if (summaryForThisDay.goalMet) {
                 accumulatedStreak++;
-              } else {
-                accumulatedStreak = 0;
-              }
-              summaryForThisDay = { ...existingSummary, streakForThisDay: accumulatedStreak };
-              await setPastDaySummary(currentUser.uid, dateUID, summaryForThisDay);
+                // To prevent duplicate events, only add if it wasn't successful before
+                if (!existingSummary?.goalMet && !existingSummary?.savedBy) {
+                    const streakEventData = {
+                        type: 'streak' as const,
+                        timestamp: Date.now(),
+                        title: `har fått +1 på sin Streak! `,
+                        description: `Ny streak: ${accumulatedStreak} dagar i följd.`,
+                        icon: ' ',
+                        relatedDocId: `streak_${dateUID}`
+                    };
+                    await addTimelineEvent(currentUser.uid, streakEventData);
+                }
+            } else {
+              accumulatedStreak = 0;
             }
+            summaryForThisDay.streakForThisDay = accumulatedStreak;
+            await setPastDaySummary(currentUser.uid, dateUID, summaryForThisDay);
           }
 
           newSummaries[dateUID] = summaryForThisDay;
