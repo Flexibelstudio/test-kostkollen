@@ -1196,8 +1196,11 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 carbohydrates: Math.max(0, nutritionalInfo.carbohydrates),
                 fat: Math.max(0, nutritionalInfo.fat),
             },
-            commonMealId: options.commonMealId,
         };
+
+        if (options.commonMealId) {
+            (newMealData as LoggedMeal).commonMealId = options.commonMealId;
+        }
 
         if (finalImageUrl) {
             newMealData.imageUrl = finalImageUrl;
@@ -1224,7 +1227,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setTimeout(() => setToastNotification(null), 3000);
 
         // 5. Save to Firestore
-        await addMealLogFirestore(currentUser.uid, mealId, newMealData);
+        await addMealLogFirestore(currentUser.uid, mealId, newMealData as Omit<LoggedMeal, 'id'>);
 
         // 6. Save bank update to Firestore if it changed
         if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
