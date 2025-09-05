@@ -2446,7 +2446,7 @@ useEffect(() => {
             });
 
         // Redirect the user to the payment link.
-        window.location.href = 'https://buy.stripe.com/dRm28s0jcaWSfnjfm38Ra03';
+        window.location.href = 'https://buy.stripe.com/7sYcN64zsfd88YV6Px8Ra06';
     };
 
   // --- Course CTA Handlers ---
