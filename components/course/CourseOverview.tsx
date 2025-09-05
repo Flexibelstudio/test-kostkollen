@@ -140,8 +140,11 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                 <p className="text-neutral-dark max-w-lg mx-auto mb-4">
                     Ta din hälsoresa till nästa nivå med vår exklusiva kurs <strong>"Praktisk Viktkontroll"</strong>. Få tillgång till 12 lektioner fyllda med kunskap och verktyg för att bygga hållbara vanor. Nya lektioner låses upp genom att du bygger din dagliga streak, vilket gör lärandet till en motiverande del av din resa.
                 </p>
-                <p className="text-3xl font-bold text-primary my-4">1995 kr</p>
-                <p className="text-sm text-neutral mb-6">(Engångskostnad)</p>
+                <div className="my-4">
+                  <p className="text-4xl font-bold text-secondary">295 kr</p>
+                  <p className="text-lg text-neutral line-through">Ord. pris 495 kr</p>
+                  <p className="text-sm text-secondary-darker font-semibold mt-1">Kampanjpris (Engångskostnad)</p>
+                </div>
 
                 {courseInterest ? (
                   <div className="mt-4">
