@@ -1,89 +1,103 @@
-// firebase.ts
-import { initializeApp } from "@firebase/app";
-// Import auth persistence functions
-import { getAuth, setPersistence, browserLocalPersistence } from "@firebase/auth";
-import { getFirestore, enableIndexedDbPersistence } from "@firebase/firestore";
+// firebase.ts (MODULAR SDK + env-styrd config + mock-stöd)
+import { initializeApp, type FirebaseApp } from 'firebase/app';
+import {
+  getAuth,
+  setPersistence,
+  browserLocalPersistence,
+  type Auth
+} from 'firebase/auth';
+import {
+  getFirestore,
+  enableIndexedDbPersistence,
+  type Firestore
+} from 'firebase/firestore';
 
-const isMock = new URLSearchParams(window.location.search).get('mock') === 'true';
+// 1) Mock-läge via ?mock=true (behåll ditt beteende)
+const isMockQuery = new URLSearchParams(window.location.search).get('mock') === 'true';
 
-// Mock auth object for testing without a real backend.
+// 2) Läs konfig från Vite/Netlify/ENV (ingen hårdkodning här)
+export const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FB_API_KEY as string | undefined,
+  authDomain: import.meta.env.VITE_FB_AUTH_DOMAIN as string | undefined,
+  projectId: import.meta.env.VITE_FB_PROJECT_ID as string | undefined,
+  storageBucket: import.meta.env.VITE_FB_STORAGE_BUCKET as string | undefined,
+  messagingSenderId: import.meta.env.VITE_FB_MESSAGING_SENDER_ID as string | undefined,
+  appId: import.meta.env.VITE_FB_APP_ID as string | undefined,
+  ...(import.meta.env.VITE_FB_MEASUREMENT_ID
+    ? { measurementId: import.meta.env.VITE_FB_MEASUREMENT_ID as string }
+    : {}),
+} as const;
+
+// Små loggar så vi ser vilket projekt som används
+if (import.meta.env.DEV)  console.log('FB project (DEV):',  firebaseConfig.projectId ?? '(saknas)');
+if (import.meta.env.PROD) console.log('FB project (PROD):', firebaseConfig.projectId ?? '(saknas)');
+
+// 3) Mock-auth för enkel test (som du hade)
 const mockAuth = {
-    currentUser: {
-        uid: 'mockUser123',
-        email: 'test@example.com',
-        displayName: 'Mock Användare',
-        metadata: {
-            creationTime: new Date().toUTCString(),
-            lastSignInTime: new Date().toUTCString(),
-        }
+  currentUser: {
+    uid: 'mockUser123',
+    email: 'test@example.com',
+    displayName: 'Mock Användare',
+    metadata: {
+      creationTime: new Date().toUTCString(),
+      lastSignInTime: new Date().toUTCString(),
     },
-    onAuthStateChanged: (callback: (user: any | null) => void) => {
-        console.log("Mock Auth: onAuthStateChanged triggered.");
-        // Immediately call back with the mock user to simulate login.
-        setTimeout(() => callback(mockAuth.currentUser), 100);
-        // Return a no-op unsubscribe function.
-        return () => {};
-    },
-    signOut: () => {
-        alert("Utloggning i mock-läge. Ladda om sidan utan '?mock=true' för att logga ut på riktigt.");
-        return Promise.resolve();
-    },
-};
+  },
+  onAuthStateChanged: (cb: (user: any | null) => void) => {
+    console.log('Mock Auth: onAuthStateChanged triggered.');
+    setTimeout(() => cb(mockAuth.currentUser), 100);
+    return () => {};
+  },
+  signOut: () => {
+    alert("Utloggning i mock-läge. Ladda om sidan utan '?mock=true' för att logga ut på riktigt.");
+    return Promise.resolve();
+  },
+} as any;
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY",
-  authDomain: "flexibel-kostkollen.firebaseapp.com",
-  projectId: "flexibel-kostkollen",
-  storageBucket: "flexibel-kostkollen.appspot.com",
-  messagingSenderId: "1095144779871",
-  appId: "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
-};
+// 4) Bestäm om vi kör mock
+const hasValidConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+const useMock = isMockQuery || !hasValidConfig;
 
-// Initialize Firebase using the modular SDK
-const app = initializeApp(firebaseConfig);
+let app: FirebaseApp | undefined;
+let realAuth: Auth | undefined;
+let db: Firestore | undefined;
 
-// Get and export the auth and firestore instances
-const realAuth = getAuth(app);
-export const db = getFirestore(app);
+if (useMock) {
+  console.warn(
+    hasValidConfig
+      ? 'Mock-läge aktiverat via ?mock=true.'
+      : 'Firebase config saknas → kör i mock/offline-läge.'
+  );
+} else {
+  try {
+    app = initializeApp(firebaseConfig);
+    realAuth = getAuth(app);
+    db = getFirestore(app);
 
-// NOTE: Any logic for connecting to Firebase emulators on localhost has been removed.
-// The app now connects to the production Firebase services by default.
+    // Auth-persistence (håll mig inloggad)
+    setPersistence(realAuth, browserLocalPersistence)
+      .then(() => console.log("Firebase Auth persistence set to 'local'."))
+      .catch((error) => console.error('Firebase Auth persistence error:', error));
 
-export const auth = isMock ? mockAuth as any : realAuth;
+    // Firestore offline (single-tab). Byt till enableMultiTabIndexedDbPersistence om ni vill dela cache mellan flikar.
+    enableIndexedDbPersistence(db).then(() => {
+      console.log('Firestore offline persistence enabled successfully.');
+    }).catch((err: any) => {
+      const prefix = 'Firestore Offline Persistence Error:';
+      if (err?.code === 'failed-precondition') {
+        console.warn(`${prefix} flera flikar öppna – offlineläge avaktiverat.`);
+      } else if (err?.code === 'unimplemented') {
+        console.warn(`${prefix} webbläsaren saknar stöd – kör online-only.`);
+      } else {
+        console.warn(`${prefix} okänt fel:`, err);
+      }
+    });
+  } catch (e) {
+    console.error('Firebase init misslyckades:', e);
+  }
+}
 
-
-// Set persistence for the AUTH instance right away. This is a one-time setup.
-export const authPersistencePromise = isMock
-  ? Promise.resolve({ success: true, message: "Kör i mock-läge, inloggning sparas." })
-  : setPersistence(auth, browserLocalPersistence)
-      .then(() => {
-        console.log("Firebase Auth persistence set to 'local'.");
-        return { success: true, message: null };
-      })
-      .catch((error) => {
-        console.error("Firebase Auth persistence error:", error);
-        return { success: false, message: "Kunde inte aktivera 'håll mig inloggad'-funktionen. Du kan bli utloggad när du stänger appen." };
-      });
-
-
-// Export a promise that resolves with the FIRESTORE persistence status.
-export const firestorePersistencePromise = isMock
-  ? Promise.resolve({ success: true, message: "Kör i mock-läge. Data sparas lokalt i webbläsaren." })
-  : enableIndexedDbPersistence(db)
-  .then(() => {
-    console.log("Firestore offline persistence enabled successfully.");
-    return { success: true, message: null };
-  })
-  .catch((err) => {
-    const errorPrefix = "Firestore Offline Persistence Error:";
-    let message = "Ett oväntat fel hindrade offlineläge från att aktiveras. Appen kommer att kräva internetanslutning.";
-    
-    if (err.code === 'failed-precondition') {
-      message = "Offlineläge kunde inte aktiveras eftersom appen är öppen i flera flikar. Stäng de andra flikarna och ladda om för att använda appen offline.";
-    } else if (err.code === 'unimplemented') {
-      message = "Din webbläsare stödjer inte offlineläge. Appen kommer att kräva en internetanslutning.";
-    }
-    
-    console.error(`${errorPrefix} ${message}`, err);
-    return { success: false, message: message };
-  });
+// 5) Exporter (samma namn som du använder i appen)
+export const auth = useMock ? (mockAuth as any) : (realAuth as Auth);
+export { db };
+export { app };

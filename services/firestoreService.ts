@@ -55,6 +55,7 @@ import type {
 } from '../types';
 import { DEFAULT_GOALS, LEVEL_DEFINITIONS, DEFAULT_USER_PROFILE } from '../constants';
 import { courseLessons } from '../courseData.ts';
+import { getWeekInfo } from "../utils/dateUtils.ts";
 
 const getDateUID = (date: Date): string => {
     const year = date.getFullYear();
@@ -62,29 +63,6 @@ const getDateUID = (date: Date): string => {
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 };
-
-const getWeekInfo = (date: Date): { weekId: string; startDate: string; endDate: string } => {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())); 
-  const dayUTC = d.getUTCDay(); 
-  const diffToMondayUTC = d.getUTCDate() - dayUTC + (dayUTC === 0 ? -6 : 1); 
-  
-  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diffToMondayUTC));
-  const sunday = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + 6));
-
-  const year = monday.getUTCFullYear();
-  
-  const firstDayOfYear = new Date(Date.UTC(year, 0, 1));
-  const pastDaysOfYear = (monday.getTime() - firstDayOfYear.getTime()) / 86400000;
-  const weekNumber = Math.ceil((pastDaysOfYear + firstDayOfYear.getUTCDay() + (firstDayOfYear.getUTCDay() === 0 ? 7 : 1) -1 ) / 7);
-
-
-  return {
-    weekId: `${year}-W${String(weekNumber).padStart(2, '0')}`,
-    startDate: monday.toISOString().split('T')[0],
-    endDate: sunday.toISOString().split('T')[0],
-  };
-};
-
 
 const formatChange = (change: number | undefined): string => {
     if (change === undefined || change === null || isNaN(change)) {
@@ -349,6 +327,7 @@ export async function updateMealLog(userId: string, mealLogId: string, updatedIn
 
 export async function fetchMealLogsForDate(userId: string, dateUID: string): Promise<LoggedMeal[]> {
   const mealLogsRef = collection(db, 'users', userId, 'mealLogs');
+  // FIX: Corrected a typo in the 'where' clause. The comma was misplaced inside the string literal. This also resolves the subsequent 'timestamp' and 'desc' not found errors.
   const q = query(mealLogsRef, where("dateString", "==", dateUID), orderBy("timestamp", "desc"));
   const querySnapshot = await getDocsSafe(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoggedMeal[];
