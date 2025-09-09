@@ -1,21 +1,21 @@
-// firebase.ts (MODULAR SDK + env-styrd config + mock-stöd)
+// firebase.ts — MODULAR SDK + ENV + MOCK + exporterade *Promise*:ar
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   getAuth,
   setPersistence,
   browserLocalPersistence,
-  type Auth
+  type Auth,
 } from 'firebase/auth';
 import {
   getFirestore,
   enableIndexedDbPersistence,
-  type Firestore
+  type Firestore,
 } from 'firebase/firestore';
 
-// 1) Mock-läge via ?mock=true (behåll ditt beteende)
+// ?mock=true aktiverar mock-läge
 const isMockQuery = new URLSearchParams(window.location.search).get('mock') === 'true';
 
-// 2) Läs konfig från Vite/Netlify/ENV (ingen hårdkodning här)
+// Läs Firebase-konfig från Vite/Netlify-miljövariabler
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FB_API_KEY as string | undefined,
   authDomain: import.meta.env.VITE_FB_AUTH_DOMAIN as string | undefined,
@@ -28,11 +28,10 @@ export const firebaseConfig = {
     : {}),
 } as const;
 
-// Små loggar så vi ser vilket projekt som används
 if (import.meta.env.DEV)  console.log('FB project (DEV):',  firebaseConfig.projectId ?? '(saknas)');
 if (import.meta.env.PROD) console.log('FB project (PROD):', firebaseConfig.projectId ?? '(saknas)');
 
-// 3) Mock-auth för enkel test (som du hade)
+// Mock-auth (samma som tidigare)
 const mockAuth = {
   currentUser: {
     uid: 'mockUser123',
@@ -54,7 +53,6 @@ const mockAuth = {
   },
 } as any;
 
-// 4) Bestäm om vi kör mock
 const hasValidConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 const useMock = isMockQuery || !hasValidConfig;
 
@@ -73,31 +71,66 @@ if (useMock) {
     app = initializeApp(firebaseConfig);
     realAuth = getAuth(app);
     db = getFirestore(app);
-
-    // Auth-persistence (håll mig inloggad)
-    setPersistence(realAuth, browserLocalPersistence)
-      .then(() => console.log("Firebase Auth persistence set to 'local'."))
-      .catch((error) => console.error('Firebase Auth persistence error:', error));
-
-    // Firestore offline (single-tab). Byt till enableMultiTabIndexedDbPersistence om ni vill dela cache mellan flikar.
-    enableIndexedDbPersistence(db).then(() => {
-      console.log('Firestore offline persistence enabled successfully.');
-    }).catch((err: any) => {
-      const prefix = 'Firestore Offline Persistence Error:';
-      if (err?.code === 'failed-precondition') {
-        console.warn(`${prefix} flera flikar öppna – offlineläge avaktiverat.`);
-      } else if (err?.code === 'unimplemented') {
-        console.warn(`${prefix} webbläsaren saknar stöd – kör online-only.`);
-      } else {
-        console.warn(`${prefix} okänt fel:`, err);
-      }
-    });
   } catch (e) {
     console.error('Firebase init misslyckades:', e);
   }
 }
 
-// 5) Exporter (samma namn som du använder i appen)
+// ===== Exporterade instanser =====
 export const auth = useMock ? (mockAuth as any) : (realAuth as Auth);
-export { db };
-export { app };
+export { db, app };
+
+// ===== Exporterade Promise:ar (behövs av App.tsx) =====
+export const authPersistencePromise: Promise<{ success: boolean; message: string | null }> =
+  useMock
+    ? Promise.resolve({ success: true, message: 'Kör i mock-läge, inloggning sparas.' })
+    : realAuth
+      ? setPersistence(realAuth, browserLocalPersistence)
+          .then(() => {
+            console.log("Firebase Auth persistence set to 'local'.");
+            return { success: true, message: null };
+          })
+          .catch((error) => {
+            console.error('Firebase Auth persistence error:', error);
+            return {
+              success: false,
+              message:
+                "Kunde inte aktivera 'håll mig inloggad'-funktionen. Du kan bli utloggad när du stänger appen.",
+            };
+          })
+      : Promise.resolve({
+          success: false,
+          message: 'Auth ej initierad (saknar Firebase-konfiguration).',
+        });
+
+export const firestorePersistencePromise: Promise<{ success: boolean; message: string | null }> =
+  useMock
+    ? Promise.resolve({
+        success: true,
+        message: 'Kör i mock-läge. Data sparas lokalt i webbläsaren.',
+      })
+    : db
+      ? enableIndexedDbPersistence(db)
+          .then(() => {
+            console.log('Firestore offline persistence enabled successfully.');
+            return { success: true, message: null };
+          })
+          .catch((err: any) => {
+            const errorPrefix = 'Firestore Offline Persistence Error:';
+            let message =
+              'Ett oväntat fel hindrade offlineläge från att aktiveras. Appen kommer att kräva internetanslutning.';
+
+            if (err?.code === 'failed-precondition') {
+              message =
+                'Offlineläge kunde inte aktiveras eftersom appen är öppen i flera flikar. Stäng andra flikar och ladda om.';
+            } else if (err?.code === 'unimplemented') {
+              message =
+                'Din webbläsare stödjer inte offlineläge. Appen kommer att kräva en internetanslutning.';
+            }
+            console.error(`${errorPrefix} ${message}`, err);
+            return { success: false, message };
+          })
+      : Promise.resolve({
+          success: false,
+          message: 'Firestore ej initierad (saknar Firebase-konfiguration).',
+        });
