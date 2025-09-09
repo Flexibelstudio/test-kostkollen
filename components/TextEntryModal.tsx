@@ -103,7 +103,7 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({ show, onClose, onLog })
     };
 
     const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
+        const val = e.target.value.replace(',', '.');
         if (val === "" || /^\d*\.?\d*$/.test(val)) {
             setQuantity(val);
         }

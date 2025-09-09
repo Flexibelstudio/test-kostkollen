@@ -1,4 +1,6 @@
 // firebase.ts — MODULAR SDK + ENV + MOCK + exporterade *Promise*:ar
+// Fix: Add triple-slash directive to include Vite client types and resolve `import.meta.env` errors.
+/// <reference types="vite/client" />
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   getAuth,

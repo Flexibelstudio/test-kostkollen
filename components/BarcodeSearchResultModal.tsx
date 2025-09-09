@@ -53,7 +53,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sca
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
+    const val = e.target.value.replace(',', '.');
     if (val === "" || /^\d*\.?\d*$/.test(val)) {
         setAmount(val);
     }

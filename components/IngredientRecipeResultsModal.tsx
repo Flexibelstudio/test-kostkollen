@@ -52,15 +52,16 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
   if (!show) return null;
 
   const handlePortionsChange = (recipeTitle: string, value: string) => {
-    if (value === "" || /^\d*\.?\d*$/.test(value)) {
-        setPortionsToLog(prev => ({ ...prev, [recipeTitle]: value }));
+    const val = value.replace(',', '.');
+    if (val === "" || /^\d*\.?\d*$/.test(val)) {
+        setPortionsToLog(prev => ({ ...prev, [recipeTitle]: val }));
     }
   };
 
   const handleLog = (recipe: RecipeSuggestion) => {
     playAudio('uiClick');
     const recipeBaseServings = parseServings(recipe.servings);
-    const numPortionsToLog = parseFloat(portionsToLog[recipe.title] || "1") || 1;
+    const numPortionsToLog = parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") || 1;
 
     if (numPortionsToLog <= 0) {
       alert("Antal portioner måste vara större än 0."); // Replace with toast later
@@ -181,12 +182,11 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                         <div className="pt-2">
                           <label htmlFor={`portions-${recipe.title}`} className="block text-sm font-medium text-neutral-dark mb-0.5">Antal portioner att logga:</label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             id={`portions-${recipe.title}`}
                             value={portionsToLog[recipe.title] || "1"}
                             onChange={(e) => handlePortionsChange(recipe.title, e.target.value)}
-                            min="0.1"
-                            step="0.1"
                             className={`${inputClass} w-full sm:w-32 py-1.5 text-sm`}
                             placeholder="1"
                             disabled={isLoggingDisabled}
@@ -194,7 +194,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                         </div>
                         <button
                           onClick={() => handleLog(recipe)}
-                          disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title] || "1") <=0}
+                          disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0}
                           className="w-full mt-2 px-4 py-2 text-sm font-medium text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
                         >
                           <LogIcon className="w-4 h-4 mr-2" /> Logga Recept

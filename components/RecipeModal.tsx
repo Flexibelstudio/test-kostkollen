@@ -111,7 +111,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
   const handleAdjustPortions = (direction: 'increase' | 'decrease') => {
     const amount = 0.5;
-    const currentValue = parseFloat(portionsToLog) || 0;
+    const currentValue = parseFloat(portionsToLog.replace(',', '.')) || 0;
     let newValue = direction === 'increase' ? currentValue + amount : currentValue - amount;
     newValue = Math.max(0.5, Math.round(newValue * 10) / 10);
     setPortionsToLog(String(newValue));
@@ -121,7 +121,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   const handleLog = () => {
     if (recipe && !recipe.error) {
       const recipeBaseServings = parseServings(recipe.servings);
-      const numPortionsToLog = parseFloat(portionsToLog) || 1;
+      const numPortionsToLog = parseFloat(portionsToLog.replace(',', '.')) || 1;
 
       if (numPortionsToLog <= 0) {
         setToastNotification({ message: "Antal portioner måste vara större än 0.", type: 'error' });
@@ -359,7 +359,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                 type="text"
                 value={portionsToLog}
                 onChange={(e) => {
-                    const val = e.target.value;
+                    const val = e.target.value.replace(',', '.');
                     if (val === "" || /^\d*\.?\d*$/.test(val)) {
                         setPortionsToLog(val);
                     }
@@ -383,9 +383,9 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
               <button
                 type="button"
                 onClick={handleLog}
-                disabled={isLoggingDisabled || isLoading || !portionsToLog.trim() || parseFloat(portionsToLog) <=0}
+                disabled={isLoggingDisabled || isLoading || !portionsToLog.trim() || parseFloat(portionsToLog.replace(',', '.')) <=0}
                 className="h-11 w-11 flex items-center justify-center bg-secondary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
-                title={isLoggingDisabled ? "Loggning är endast tillgänglig för idag" : parseFloat(portionsToLog) <=0 ? "Ange ett giltigt antal portioner" : "Logga specificerat antal portioner"}
+                title={isLoggingDisabled ? "Loggning är endast tillgänglig för idag" : parseFloat(portionsToLog.replace(',', '.')) <=0 ? "Ange ett giltigt antal portioner" : "Logga specificerat antal portioner"}
               >
                 <LogIcon className="w-6 h-6" />
               </button>
