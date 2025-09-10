@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from '@firebase/auth';
@@ -904,6 +906,26 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             loadDataForDate(currentUser.uid, viewingDate);
         }
     }, [currentUser, viewingDate, isInitialDataLoaded, loadDataForDate, userStatus]);
+    
+    // This effect ensures the app's internal `currentDate` is fresh when the app is brought
+    // to the foreground, fixing bugs related to being open over midnight.
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                const now = new Date();
+                if (getDateUID(now) !== getDateUID(currentDate)) {
+                    console.log("App became visible on a new day. Updating current date.");
+                    setCurrentDate(now);
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [currentDate]); // Depend on currentDate to get its latest value for comparison
 
     useEffect(() => {
         if (currentUser && userStatus === 'approved') {

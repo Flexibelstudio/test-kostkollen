@@ -1,37 +1,38 @@
 // firebase.ts — MODULAR SDK + ENV + MOCK + exporterade *Promise*:ar
-// Fix: Add triple-slash directive to include Vite client types and resolve `import.meta.env` errors.
-/// <reference types="vite/client" />
-import { initializeApp, type FirebaseApp } from 'firebase/app';
+// Fix: Use standalone Firebase packages to match project structure.
+import { initializeApp, type FirebaseApp } from '@firebase/app';
 import {
   getAuth,
   setPersistence,
   browserLocalPersistence,
   type Auth,
-} from 'firebase/auth';
+} from '@firebase/auth';
 import {
   getFirestore,
   enableIndexedDbPersistence,
   type Firestore,
-} from 'firebase/firestore';
+} from '@firebase/firestore';
 
 // ?mock=true aktiverar mock-läge
 const isMockQuery = new URLSearchParams(window.location.search).get('mock') === 'true';
 
 // Läs Firebase-konfig från Vite/Netlify-miljövariabler
+// Fix: Use process.env instead of import.meta.env to resolve TypeScript errors.
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FB_API_KEY as string | undefined,
-  authDomain: import.meta.env.VITE_FB_AUTH_DOMAIN as string | undefined,
-  projectId: import.meta.env.VITE_FB_PROJECT_ID as string | undefined,
-  storageBucket: import.meta.env.VITE_FB_STORAGE_BUCKET as string | undefined,
-  messagingSenderId: import.meta.env.VITE_FB_MESSAGING_SENDER_ID as string | undefined,
-  appId: import.meta.env.VITE_FB_APP_ID as string | undefined,
-  ...(import.meta.env.VITE_FB_MEASUREMENT_ID
-    ? { measurementId: import.meta.env.VITE_FB_MEASUREMENT_ID as string }
+  apiKey: process.env.VITE_FB_API_KEY as string | undefined,
+  authDomain: process.env.VITE_FB_AUTH_DOMAIN as string | undefined,
+  projectId: process.env.VITE_FB_PROJECT_ID as string | undefined,
+  storageBucket: process.env.VITE_FB_STORAGE_BUCKET as string | undefined,
+  messagingSenderId: process.env.VITE_FB_MESSAGING_SENDER_ID as string | undefined,
+  appId: process.env.VITE_FB_APP_ID as string | undefined,
+  ...(process.env.VITE_FB_MEASUREMENT_ID
+    ? { measurementId: process.env.VITE_FB_MEASUREMENT_ID as string }
     : {}),
 } as const;
 
-if (import.meta.env.DEV)  console.log('FB project (DEV):',  firebaseConfig.projectId ?? '(saknas)');
-if (import.meta.env.PROD) console.log('FB project (PROD):', firebaseConfig.projectId ?? '(saknas)');
+// Fix: Use process.env.NODE_ENV for development/production checks.
+if (process.env.NODE_ENV === 'development')  console.log('FB project (DEV):',  firebaseConfig.projectId ?? '(saknas)');
+if (process.env.NODE_ENV === 'production') console.log('FB project (PROD):', firebaseConfig.projectId ?? '(saknas)');
 
 // Mock-auth (samma som tidigare)
 const mockAuth = {
