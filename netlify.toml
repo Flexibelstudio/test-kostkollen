@@ -2,6 +2,10 @@
 command = "npm run build"
 publish = "dist"
 
+# (valfritt men bra) lås Node-version för stabila builds
+[build.environment]
+NODE_VERSION = "20"
+
 # ===== Production (byggen från main) =====
 [context.production.environment]
 VITE_FB_API_KEY = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
@@ -22,7 +26,31 @@ VITE_FB_MESSAGING_SENDER_ID = "612209993317"
 VITE_FB_APP_ID = "1:612209993317:web:8c019a9443a37cc694488c"
 # VITE_FB_MEASUREMENT_ID = "G-XXXXXXX"  # om ni använder Analytics i staging
 
-# ===== HTTP headers / cachepolicy (gäller både staging & prod) =====
+# ===== Deploy Previews (PR-bygg) – kör mot staging-projektet =====
+[context.deploy-preview.environment]
+VITE_FB_API_KEY = "AIzaSyB6PNXePXPXYYZmpoSeuTQWkYmifertLTI"
+VITE_FB_AUTH_DOMAIN = "flexibel-kostloggen-staging.firebaseapp.com"
+VITE_FB_PROJECT_ID = "flexibel-kostloggen-staging"
+VITE_FB_STORAGE_BUCKET = "flexibel-kostloggen-staging.appspot.com"
+VITE_FB_MESSAGING_SENDER_ID = "612209993317"
+VITE_FB_APP_ID = "1:612209993317:web:8c019a9443a37cc694488c"
+
+# ===== SPA-redirect (Vite/React-router) =====
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
+
+# ===== HTTP headers / cachepolicy =====
+
+# Service Worker ska alltid vara färsk
+[[headers]]
+for = "/sw.js"
+  [headers.values]
+  Cache-Control = "no-cache, no-store, must-revalidate"
+  Pragma = "no-cache"
+  Expires = "0"
+
 # index.html ska alltid vara färsk
 [[headers]]
 for = "/index.html"
