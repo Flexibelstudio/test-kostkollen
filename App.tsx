@@ -115,19 +115,56 @@ const yesterdayRangeSE = (now = new Date()) => {
   return { start, end, yKey: dayKeySE(start) };
 };
 
-// Hämta entries för gårdagen
+// Hämta entries för gårdagen (stöd för timestamp(ms), Firestore Timestamp och dateString)
 async function getEntriesBetween(uid: string, start: Date, end: Date) {
-  const ref = collection(db!, "users", uid, "entries");
-  const q = query(
-    ref,
-    where("createdAt", ">=", Timestamp.fromDate(start)),
-    where("createdAt", "<", Timestamp.fromDate(end))
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // ✅ Rätt samling
+  const ref = collection(db!, "users", uid, "mealLogs");
+  const yKey = dayKeySE(start); // t.ex. "2025-09-09"
+
+  const out: any[] = [];
+  const seen = new Set<string>();
+  const push = (snap: any) =>
+    snap.forEach((d: any) => {
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        out.push({ id: d.id, ...d.data() });
+      }
+    });
+
+  // 1) timestamp i millisekunder [start, end)
+  try {
+    const q0 = query(
+      ref,
+      where("timestamp", ">=", +start),
+      where("timestamp", "<", +end)
+    );
+    push(await getDocs(q0));
+  } catch {}
+
+  // 2) Firestore Timestamp (om vissa docs har createdAt)
+  try {
+    const q1 = query(
+      ref,
+      where("createdAt", ">=", Timestamp.fromDate(start)),
+      where("createdAt", "<", Timestamp.fromDate(end))
+    );
+    push(await getDocs(q1));
+  } catch {}
+
+  // 3) Strängnyckel för datum (vanligast hos er: dateString)
+  for (const field of ["dateString", "dateKey", "date", "dayKey", "dateStr"]) {
+    try {
+      const q2 = query(ref, where(field as any, "==", yKey));
+      push(await getDocs(q2));
+      if (out.length) break; // hittade något → klart
+    } catch {}
+  }
+
+  console.info("[daily] entries found", out.length, { yKey });
+  return out;
 }
 
-// Din mål-logik (byt till er riktiga)
+// Din mål-logik (byt till er riktiga när ni vill)
 const evaluateGoals = (entries: any[]) => entries.length > 0;
 
 // Skriv alltid sammanfattning + streak (idempotent)
@@ -141,12 +178,16 @@ async function writeSummaryAndStreak(uid: string, yKey: string, completed: boole
     const prev = statsSnap.exists() ? ((statsSnap.data() as any).streak ?? 0) : 0;
     const next = completed ? prev + 1 : 0;
 
-    tx.set(sumRef, {
-      date: yKey,
-      completed,
-      status: completed ? "success" : "miss",
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
+    tx.set(
+      sumRef,
+      {
+        date: yKey,
+        completed,
+        status: completed ? "success" : "miss",
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     tx.set(statsRef, { streak: next, updatedAt: serverTimestamp() }, { merge: true });
     tx.set(stateRef, { lastDateStreakChecked: yKey }, { merge: true }); // klart t.o.m. igår
