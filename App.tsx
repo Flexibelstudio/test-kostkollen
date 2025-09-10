@@ -1,43 +1,45 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
-import { onAuthStateChanged, signOut, type User } from '@firebase/auth';
-import { doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction, serverTimestamp, getDocs, query, where, orderBy, setDoc, updateDoc, limit, Timestamp } from "@firebase/firestore";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import {
+  doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction,
+  serverTimestamp, getDocs, query, where, orderBy, setDoc, updateDoc, limit, Timestamp
+} from "firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
 import SplashScreen from './components/SplashScreen';
 
+import {
+  NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode,
+  DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level,
+  GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion,
+  AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog,
+  AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection,
+  Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent, BuddyDetails, OnboardingChecklistState,
+  OnboardingChecklistItemStatus
+} from './types.ts';
 
-import { NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode, DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level, GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion, AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog, AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection, Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent, BuddyDetails, OnboardingChecklistState, OnboardingChecklistItemStatus } from './types.ts';
-import { DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML, DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD, PIGGY_BANK_ICON_SVG, CALORIES_PER_GRAM, MAX_RECENT_RECIPE_SEARCHES, MAX_INGREDIENT_IMAGES, ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG } from './constants.ts';
-import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion, getRecipesFromIngredientsImage, getDetailedJourneyAnalysis } from './services/geminiService.ts';
+import {
+  DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML,
+  DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
+  PIGGY_BANK_ICON_SVG, CALORIES_PER_GRAM, MAX_RECENT_RECIPE_SEARCHES, MAX_INGREDIENT_IMAGES, ACHIEVEMENT_DEFINITIONS,
+  VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG
+} from './constants.ts';
+
+import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion,
+  getRecipesFromIngredientsImage, getDetailedJourneyAnalysis } from './services/geminiService.ts';
 import { getFoodInfoFromBarcode } from './services/openFoodFactsService.ts';
-import { 
-    fetchInitialAppData,
-    addMealLog as addMealLogFirestore,
-    deleteMealLog,
-    updateMealLog,
-    fetchMealLogsForDate,
-    setWaterLog,
-    fetchWaterLog,
-    addCommonMeal,
-    deleteCommonMeal as deleteCommonMealFromDB,
-    updateCommonMeal,
-    saveProfileAndGoals,
-    saveWeightLog,
-    setPastDaySummary,
-    updateUserDocument,
-    saveCourseProgress,
-    addMentalWellbeingLog,
-    fetchMentalWellbeingLogs,
-    ensureUserProfileInFirestore,
-    listenForFriendRequests,
-    getDocSafe,
-savePushSubscription,
-    addTimelineEvent,
-    fetchCommunityTimeline,
-    fetchBuddyDetailsList
-} from "./services/firestoreService"; 
+
+import {
+  fetchInitialAppData, addMealLog as addMealLogFirestore, deleteMealLog, updateMealLog, fetchMealLogsForDate,
+  setWaterLog, fetchWaterLog, addCommonMeal, deleteCommonMeal as deleteCommonMealFromDB, updateCommonMeal,
+  saveProfileAndGoals, saveWeightLog, setPastDaySummary, updateUserDocument, saveCourseProgress,
+  addMentalWellbeingLog, fetchMentalWellbeingLogs, ensureUserProfileInFirestore, listenForFriendRequests,
+  getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList
+} from './services/firestoreService';
+
 import WaterLogger from './components/WaterLogger.tsx';
 import ProgressDisplay from './components/ProgressDisplay.tsx';
 import LoadingSpinner from './components/LoadingSpinner.tsx';
@@ -50,15 +52,14 @@ import UserProfileModal, { Avatar } from './components/UserProfileModal.tsx';
 import CameraModal from './components/CameraModal.tsx';
 import BarcodeScannerModal from './components/BarcodeScannerModal.tsx';
 import BarcodeSearchResultModal from './components/BarcodeSearchResultModal.tsx';
-import ToastNotification from './components/ToastNotification.tsx'; 
-import ImageAnalysisResultModal from './components/ImageAnalysisResultModal.tsx'; 
+import ToastNotification from './components/ToastNotification.tsx';
+import ImageAnalysisResultModal from './components/ImageAnalysisResultModal.tsx';
 import ConfettiCelebration from './components/ConfettiCelebration.tsx';
 import LevelUpModal from './components/LevelUpModal.tsx';
-import GoalMetModal from './components/GoalMetModal.tsx'; 
-// Course components
+import GoalMetModal from './components/GoalMetModal.tsx';
 import CourseOverview from './components/course/CourseOverview.tsx';
 import LessonDetail from './components/course/LessonDetail.tsx';
-import { courseLessons } from './courseData.ts'; 
+import { courseLessons } from './courseData.ts';
 import CourseInfoModal from './components/course/CourseInfoModal.tsx';
 import NewLessonUnlockedModal from './components/course/NewLessonUnlockedModal.tsx';
 import RecipeModal from './components/RecipeModal.tsx';
@@ -77,22 +78,22 @@ import IosInstallPrompt from './components/IosInstallPrompt.tsx';
 import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 
-
-
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo } from './utils/dateUtils.ts';
-import { initAudio, playAudio } from './services/audioService.ts'; 
-import { FireIcon, ProteinIcon, LeafIcon, PlusCircleIcon, CheckCircleIcon, HistoryIcon, BookmarkIcon, CameraIcon, UploadIcon, CheckIcon as ConfirmIcon, InformationCircleIcon, XMarkIcon, UserCircleIcon, ExclamationTriangleIcon, CourseIcon, AICoachIcon, RotateCcwIcon as RefreshIcon, PlusIcon, SearchIcon, ArrowRightOnRectangleIcon, RecipeIcon, SwitchHorizontalIcon, SparklesIcon, PencilIcon, ChartLineIcon, BarcodeIcon, PersonIcon, ChatBubbleOvalLeftEllipsisIcon, ArrowRightIcon, BellIcon, HeartIcon, LifebuoyIcon, InstallIcon, ArrowLeftIcon } from './components/icons.tsx';
+import { initAudio, playAudio } from './services/audioService.ts';
+import {
+  FireIcon, ProteinIcon, LeafIcon, PlusCircleIcon, CheckCircleIcon, HistoryIcon, BookmarkIcon, CameraIcon, UploadIcon,
+  CheckIcon as ConfirmIcon, InformationCircleIcon, XMarkIcon, UserCircleIcon, ExclamationTriangleIcon, CourseIcon,
+  AICoachIcon, RotateCcwIcon as RefreshIcon, PlusIcon, SearchIcon, ArrowRightOnRectangleIcon, RecipeIcon,
+  SwitchHorizontalIcon, SparklesIcon, PencilIcon, ChartLineIcon, BarcodeIcon, PersonIcon,
+  ChatBubbleOvalLeftEllipsisIcon, ArrowRightIcon, BellIcon, HeartIcon, LifebuoyIcon, InstallIcon, ArrowLeftIcon
+} from './components/icons.tsx';
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 
-type PendingTimelineEvent = 
-  | { type: 'weight', data: { newLog: WeightLogEntry, previousLog: WeightLogEntry | null } }
-  | { type: 'goal_set', data: { userProfile: UserProfileData } }
-  | { type: 'goal_achieved', data: { newLog: WeightLogEntry, goalDescription: string } };
-
-
-// ---- Start of new Daily Summary Logic ----
+/* ===========================
+   Start of new Daily Summary Logic
+   =========================== */
 
 const TZ = "Europe/Stockholm";
 const startOfDaySE = (d: Date) => {
@@ -105,7 +106,7 @@ const dayKeySE = (d: Date) =>
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(d).replace(/\//g, '-');
+  }).format(d).replace(/\//g, "-");
 
 const yesterdayRangeSE = (now = new Date()) => {
   const today = startOfDaySE(now);
@@ -114,7 +115,130 @@ const yesterdayRangeSE = (now = new Date()) => {
   return { start, end, yKey: dayKeySE(start) };
 };
 
-// ---- End of new Daily Summary Logic ----
+// Hämta entries för gårdagen
+async function getEntriesBetween(uid: string, start: Date, end: Date) {
+  const ref = collection(db!, "users", uid, "entries");
+  const q = query(
+    ref,
+    where("createdAt", ">=", Timestamp.fromDate(start)),
+    where("createdAt", "<", Timestamp.fromDate(end))
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// Din mål-logik (byt till er riktiga)
+const evaluateGoals = (entries: any[]) => entries.length > 0;
+
+// Skriv alltid sammanfattning + streak (idempotent)
+async function writeSummaryAndStreak(uid: string, yKey: string, completed: boolean) {
+  const sumRef   = doc(db!, "users", uid, "summaries", yKey);
+  const statsRef = doc(db!, "users", uid, "stats", "current");
+  const stateRef = doc(db!, "users", uid, "meta", "state");
+
+  await runTransaction(db!, async tx => {
+    const statsSnap = await tx.get(statsRef);
+    const prev = statsSnap.exists() ? ((statsSnap.data() as any).streak ?? 0) : 0;
+    const next = completed ? prev + 1 : 0;
+
+    tx.set(sumRef, {
+      date: yKey,
+      completed,
+      status: completed ? "success" : "miss",
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+
+    tx.set(statsRef, { streak: next, updatedAt: serverTimestamp() }, { merge: true });
+    tx.set(stateRef, { lastDateStreakChecked: yKey }, { merge: true }); // klart t.o.m. igår
+  });
+}
+
+// Kör igår-summeringen när appen blir aktiv/visbar
+async function ensureYesterdayProcessed(uid: string, now = new Date()) {
+  const { start, end, yKey } = yesterdayRangeSE(now);
+
+  // Läs state från server (undvik cache-race)
+  const stateRef = doc(db!, "users", uid, "meta", "state");
+  const s = await getDocFromServer(stateRef).catch(() => null);
+  const lastStr: string | undefined = s?.data()?.lastDateStreakChecked;
+
+  // Redan klar t.o.m. igår?
+  if (lastStr) {
+    const last = startOfDaySE(new Date(`${lastStr}T12:00:00`));
+    if (last >= start) return;
+  }
+
+  const entries = await getEntriesBetween(uid, start, end);
+  const completed = evaluateGoals(entries);
+  await writeSummaryAndStreak(uid, yKey, completed);
+}
+
+// Hook: trigga summering på visibility/focus + vid mount
+export function useDailySummary(uid?: string) {
+  useEffect(() => {
+    if (!uid) return;
+    const onWake = () => ensureYesterdayProcessed(uid).catch(console.error);
+    const onVis  = () => { if (!document.hidden) onWake(); };
+
+    window.addEventListener("focus", onWake);
+    window.addEventListener("pageshow", onWake); // iOS Safari
+    document.addEventListener("visibilitychange", onVis);
+
+    onWake(); // kör direkt vid mount
+
+    return () => {
+      window.removeEventListener("focus", onWake);
+      window.removeEventListener("pageshow", onWake);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [uid]);
+}
+
+/* ===========================
+   End of new Daily Summary Logic
+   =========================== */
+
+/* ===========================
+   Service Worker-registrering (prod only)
+   =========================== */
+export function useServiceWorkerRegistration() {
+  useEffect(() => {
+    if (!(import.meta.env.PROD && "serviceWorker" in navigator)) return;
+
+    const onLoad = () => {
+      navigator.serviceWorker
+        .register("/sw.js", { scope: "/" })
+        .then((reg) => {
+          console.log("[SW] registered", reg);
+
+          // Auto-uppdatera om ny SW väntar (valfritt)
+          if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+          reg.addEventListener("updatefound", () => {
+            const nw = reg.installing;
+            if (!nw) return;
+            nw.addEventListener("statechange", () => {
+              if (nw.state === "installed" && navigator.serviceWorker.controller) {
+                nw.postMessage({ type: "SKIP_WAITING" });
+              }
+            });
+          });
+
+          // När ny SW tar över → ladda om (valfritt)
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            window.location.reload();
+          });
+        })
+        .catch((err) => console.error("[SW] register failed", err));
+    };
+
+    if (document.readyState === "complete") onLoad();
+    else window.addEventListener("load", onLoad);
+    return () => window.removeEventListener("load", onLoad);
+  }, []);
+}
+/* ===========================
+   End SW-registrering
+   =========================== */
 
 const urlBase64ToUint8Array = (base64String: string) => {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -546,7 +670,11 @@ export const App: React.FC = () => {
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
 
-
+  // PATCH-HOOKS START
+  useServiceWorkerRegistration();
+  const uid = currentUser?.uid;
+  useDailySummary(uid);
+  // PATCH-HOOKS END
 
   const [goals, setGoals] = useState<GoalSettings>(DEFAULT_GOALS);
   const [userProfile, setUserProfile] = useState<UserProfileData>(DEFAULT_USER_PROFILE);
@@ -670,6 +798,12 @@ export const App: React.FC = () => {
   const [relatedWeightLogIdForWellbeing, setRelatedWeightLogIdForWellbeing] = useState<string | null>(null);
   const [pendingGoalFeedbackData, setPendingGoalFeedbackData] = useState<{ profile: UserProfileData, goals: GoalSettings, isOnboarding: boolean } | null>(null);
   const [pendingAnalysisData, setPendingAnalysisData] = useState<{ updatedLogs: WeightLogEntry[] } | null>(null);
+  
+  type PendingTimelineEvent = 
+    | { type: 'weight', data: { newLog: WeightLogEntry; previousLog: WeightLogEntry | null } }
+    | { type: 'goal_set', data: { userProfile: UserProfileData } }
+    | { type: 'goal_achieved', data: { newLog: WeightLogEntry; goalDescription: string } };
+
   const [pendingTimelineEvent, setPendingTimelineEvent] = useState<PendingTimelineEvent | null>(null);
   
   // --- Community State ---
