@@ -117,7 +117,6 @@ const yesterdayRangeSE = (now = new Date()) => {
 
 // Hämta entries för gårdagen (stöd för timestamp(ms), Firestore Timestamp och dateString)
 async function getEntriesBetween(uid: string, start: Date, end: Date) {
-  // ✅ Rätt samling
   const ref = collection(db!, "users", uid, "mealLogs");
   const yKey = dayKeySE(start); // t.ex. "2025-09-09"
 
@@ -164,12 +163,57 @@ async function getEntriesBetween(uid: string, start: Date, end: Date) {
   return out;
 }
 
-// Din mål-logik (byt till er riktiga när ni vill)
-const evaluateGoals = (entries: any[]) => entries.length > 0;
+// Summera näring från mealLogs
+function sumEntries(entries: any[]) {
+  let calories = 0, protein = 0, carbs = 0, fat = 0;
+  for (const e of entries) {
+    const n = (e.nutritionalInfo || e.nutrition || {}) as any;
+    calories += Number(n.calories) || 0;
+    protein  += Number(n.protein) || 0;
+    carbs    += Number(n.carbohydrates) || 0;
+    fat      += Number(n.fat) || 0;
+  }
+  return { calories, protein, carbs, fat };
+}
+
+// Målmedveten bedömning (gain/maintain/lose)
+function evaluateGoals(entries: any[], profile: any) {
+  const totals = sumEntries(entries);
+  const goals  = (profile?.goals ?? {}) as {
+    calorieGoal?: number; proteinGoal?: number; fatGoal?: number; carbohydrateGoal?: number;
+  };
+  const goalType = String(profile?.goalType ?? "maintain").toLowerCase();
+  const calGoal = Number(goals.calorieGoal) || 0;
+
+  const minAbs = (typeof MIN_ABSOLUTE_CALORIES_THRESHOLD === "number" ? MIN_ABSOLUTE_CALORIES_THRESHOLD : 600);
+  const minPct = (typeof MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL === "number" ? MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL : 0.9);
+  const minSafe = Math.max(minAbs, Math.round(calGoal * minPct));
+
+  let ok = false;
+  if (goalType.includes("gain")) {
+    // GAIN: nå upp till målet (med säkerhetsgolv)
+    ok = calGoal ? (totals.calories >= Math.max(calGoal, minSafe)) : (totals.calories >= minSafe);
+  } else if (goalType.includes("lose") || goalType.includes("cut")) {
+    // CUT: under/vid målet
+    ok = calGoal ? (totals.calories <= calGoal) : (totals.calories > 0);
+  } else {
+    // MAINTAIN: inom ±10% runt mål (fallback: minSafe)
+    const tol = 0.10;
+    ok = calGoal
+      ? (totals.calories >= calGoal * (1 - tol) && totals.calories <= calGoal * (1 + tol))
+      : (totals.calories >= minSafe);
+  }
+
+  console.info("[daily] totals", totals, "goalType", goalType, "calGoal", calGoal, "ok", ok);
+  return ok;
+}
+
+// Använd samma kollektion som UI:t
+const SUMMARY_COLLECTION = "pastDaySummaries";
 
 // Skriv alltid sammanfattning + streak (idempotent)
 async function writeSummaryAndStreak(uid: string, yKey: string, completed: boolean) {
-  const sumRef   = doc(db!, "users", uid, "summaries", yKey);
+  const sumRef   = doc(db!, "users", uid, SUMMARY_COLLECTION, yKey);
   const statsRef = doc(db!, "users", uid, "stats", "current");
   const stateRef = doc(db!, "users", uid, "meta", "state");
 
@@ -210,7 +254,12 @@ async function ensureYesterdayProcessed(uid: string, now = new Date()) {
   }
 
   const entries = await getEntriesBetween(uid, start, end);
-  const completed = evaluateGoals(entries);
+
+  // Hämta profil (mål + goalType) från users/{uid}
+  const userSnap = await getDocFromServer(doc(db!, "users", uid)).catch(() => null);
+  const profile = userSnap?.exists() ? userSnap.data() : {};
+
+  const completed = evaluateGoals(entries, profile);
   await writeSummaryAndStreak(uid, yKey, completed);
 }
 
