@@ -1,5 +1,4 @@
-
-
+/// <reference types="vite/client" />
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
@@ -39,7 +38,7 @@ import {
   saveProfileAndGoals, saveWeightLog, setPastDaySummary, updateUserDocument, saveCourseProgress,
   addMentalWellbeingLog, fetchMentalWellbeingLogs, ensureUserProfileInFirestore, listenForFriendRequests,
   getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList
-} from './services/firestoreService';
+} from './services/firestoreService.ts';
 
 import WaterLogger from './components/WaterLogger.tsx';
 import ProgressDisplay from './components/ProgressDisplay.tsx';
@@ -294,7 +293,7 @@ export function useDailySummary(uid?: string) {
    =========================== */
 export function useServiceWorkerRegistration() {
   useEffect(() => {
-    if (!(import.meta.env.PROD && "serviceWorker" in navigator)) return;
+    if (!((import.meta as any).env.PROD && "serviceWorker" in navigator)) return;
 
     const onLoad = () => {
       navigator.serviceWorker
@@ -1973,7 +1972,12 @@ const handleFinishOnboarding = async () => {
     setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
 
     try {
-        await updateUserDocument(currentUser.uid, { hasCompletedOnboarding: true, role: userRole, status: userStatus });
+        await updateUserDocument(currentUser.uid, { 
+  hasCompletedOnboarding: true,
+  summaryStartDate: dayKeySE(new Date()), // <-- rätt: använder SE-tidszon
+  role: userRole, 
+  status: userStatus 
+});
         playAudio('levelUp');
     } catch (error) {
         handleFirestoreError(error, 'slutföra onboarding');
@@ -1981,106 +1985,176 @@ const handleFinishOnboarding = async () => {
 };
 
 
-  // New, robust day-end summary logic
-    const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date()) => {
-        setAppStatus(AppStatus.PROCESSING_DAY_END);
-        try {
-            const { start, end, yKey } = yesterdayRangeSE(now);
-            const userRef = doc(db, "users", uid);
-            const userSnap = await getDocFromServer(userRef).catch(() => null);
-            if (!userSnap?.exists()) return;
+// New, robust day-end summary logic (fixed)
+const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date()) => {
+  setAppStatus(AppStatus.PROCESSING_DAY_END);
+  try {
+    const { start, end, yKey } = yesterdayRangeSE(now);
 
-            const userData = userSnap.data() as FirestoreUserDocument;
-            const { lastDateStreakChecked } = userData;
-            
-            if (lastDateStreakChecked) {
-                const last = startOfDaySE(new Date(`${lastDateStreakChecked}T12:00:00`));
-                if (last >= start) return;
-            }
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDocFromServer(userRef).catch(() => null);
+    if (!userSnap?.exists()) return;
 
-            console.log(`Processing summary for yesterday: ${yKey}`);
+    const userData = userSnap.data() as FirestoreUserDocument;
+    const { lastDateStreakChecked, summaryStartDate } = userData;
 
-            const localGoals = userData.goals || DEFAULT_GOALS;
-            const localProfile = { ...DEFAULT_USER_PROFILE, ...userData } as UserProfileData;
-            
-            const [dailyLogForDate, waterLogForDate] = await Promise.all([
-                fetchMealLogsForDate(uid, yKey),
-                fetchWaterLog(uid, yKey)
-            ]);
-            
-            const totalNutrientsForDay = dailyLogForDate.reduce((acc, meal) => {
-                acc.calories += meal.nutritionalInfo.calories;
-                acc.protein += meal.nutritionalInfo.protein;
-                acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
-                acc.fat += meal.nutritionalInfo.fat;
-                return acc;
-            }, { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+    // 1) Hoppa över gårdagen om den ligger före användarens startdatum
+    if (summaryStartDate && yKey < summaryStartDate) {
+      console.log(
+        `Skipping summary for ${yKey} because it's before summaryStartDate=${summaryStartDate}.`
+      );
+      // Markera bara att vi är klara t.o.m. igår – skriv ingen "miss"
+      await updateUserDocument(uid, { lastDateStreakChecked: yKey });
+      return;
+    }
 
-            const totalCoveredByBankForDay = dailyLogForDate.reduce((sum, meal) => sum + (meal.caloriesCoveredByBank || 0), 0);
-            const effectiveCaloriesConsumed = totalNutrientsForDay.calories - totalCoveredByBankForDay;
-            const minSafeCaloriesForDay = Math.max(localGoals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-            
-            const wasGoalMet = wasCalorieGoalMetForSummary(effectiveCaloriesConsumed, localGoals.calorieGoal, localProfile.goalType);
-            const wasDaySuccessful = totalNutrientsForDay.calories > 0 && totalNutrientsForDay.calories >= minSafeCaloriesForDay && wasGoalMet;
+    // 2) Redan klar t.o.m. igår?
+    if (lastDateStreakChecked) {
+      const last = startOfDaySE(new Date(`${lastDateStreakChecked}T12:00:00`));
+      if (last >= start) return;
+    }
 
-            let bankedAmountThisDay = 0;
-            if (wasDaySuccessful && totalNutrientsForDay.calories < localGoals.calorieGoal) {
-                bankedAmountThisDay = localGoals.calorieGoal - totalNutrientsForDay.calories;
-            }
+    console.log(`Processing summary for yesterday: ${yKey}`);
 
-            const summaryForThisDay: PastDaySummary = {
-                date: yKey, goalMet: wasDaySuccessful, consumedCalories: totalNutrientsForDay.calories,
-                calorieGoal: localGoals.calorieGoal, proteinGoalMet: totalNutrientsForDay.protein >= localGoals.proteinGoal,
-                consumedProtein: totalNutrientsForDay.protein, proteinGoal: localGoals.proteinGoal,
-                consumedCarbohydrates: totalNutrientsForDay.carbohydrates, carbohydrateGoal: localGoals.carbohydrateGoal,
-                consumedFat: totalNutrientsForDay.fat, fatGoal: localGoals.fatGoal,
-                goalType: localProfile.goalType, waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
-                streakForThisDay: 0,
-            };
+    // --- Hämta lokala mål/profil ---
+    const localGoals = userData.goals || DEFAULT_GOALS;
+    const localProfile = { ...DEFAULT_USER_PROFILE, ...userData } as UserProfileData;
 
-            await runTransaction(db, async (tx) => {
-                const userSnapTx = await tx.get(userRef);
-                if (!userSnapTx.exists()) return;
-                
-                const userDataTx = userSnapTx.data() as FirestoreUserDocument;
-                const prevStreak = userDataTx.currentStreak ?? 0;
-                const prevHighest = userDataTx.highestStreak ?? 0;
+    // --- Hämta gårdagens loggar + vatten ---
+    const [dailyLogForDate, waterLogForDate] = await Promise.all([
+      fetchMealLogsForDate(uid, yKey),
+      fetchWaterLog(uid, yKey),
+    ]);
 
-                const nextStreak = wasDaySuccessful ? prevStreak + 1 : 0;
-                const newHighestStreak = Math.max(prevHighest, nextStreak);
-                
-                summaryForThisDay.streakForThisDay = nextStreak;
-                
-                const weekInfoYesterday = getWeekInfo(new Date(yKey + "T12:00:00"));
-                let finalBank = { ...(userDataTx.weeklyBank || { weekId: weekInfoYesterday.weekId, bankedCalories: 0, startDate: '', endDate: '' }) };
-                if (finalBank.weekId !== weekInfoYesterday.weekId) {
-                    finalBank = { ...weekInfoYesterday, bankedCalories: bankedAmountThisDay };
-                } else {
-                    finalBank.bankedCalories = (finalBank.bankedCalories || 0) + bankedAmountThisDay;
-                }
-                
-                const sumRef = doc(db, "users", uid, "pastDaySummaries", yKey);
-                tx.set(sumRef, summaryForThisDay, { merge: true });
+    // --- Summera näring ---
+    const totalNutrientsForDay = dailyLogForDate.reduce(
+      (acc, meal) => {
+        acc.calories += meal.nutritionalInfo.calories;
+        acc.protein += meal.nutritionalInfo.protein;
+        acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
+        acc.fat += meal.nutritionalInfo.fat;
+        return acc;
+      },
+      { calories: 0, protein: 0, carbohydrates: 0, fat: 0 }
+    );
 
-                tx.update(userRef, {
-                    currentStreak: nextStreak,
-                    lastDateStreakChecked: yKey,
-                    highestStreak: newHighestStreak,
-                    weeklyBank: finalBank
-                });
-            });
+    const totalCoveredByBankForDay = dailyLogForDate.reduce(
+      (sum, meal) => sum + (meal.caloriesCoveredByBank || 0),
+      0
+    );
+
+    // Effektiva kalorier för måluppfyllelse (tar hänsyn till pott)
+    const effectiveCaloriesConsumed =
+      totalNutrientsForDay.calories - totalCoveredByBankForDay;
+
+    const minSafeCaloriesForDay = Math.max(
+      localGoals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
+      MIN_ABSOLUTE_CALORIES_THRESHOLD
+    );
+
+    // Måluppfyllelse (hanterar lose/maintain/gain)
+    const wasGoalMet = wasCalorieGoalMetForSummary(
+      effectiveCaloriesConsumed,
+      localGoals.calorieGoal,
+      localProfile.goalType
+    );
+
+    // Sätt “dag lyckad” = något loggat + över minSafe + målet uppnått
+    const wasDaySuccessful =
+      totalNutrientsForDay.calories > 0 &&
+      totalNutrientsForDay.calories >= minSafeCaloriesForDay &&
+      wasGoalMet;
+
+    // Banka bara om dag lyckad och under kaloriMÅL (gäller för nedgång/maintain-logik)
+    let bankedAmountThisDay = 0;
+    if (wasDaySuccessful && totalNutrientsForDay.calories < localGoals.calorieGoal) {
+      bankedAmountThisDay = localGoals.calorieGoal - totalNutrientsForDay.calories;
+    }
+
+    const summaryForThisDay: PastDaySummary = {
+      date: yKey,
+      goalMet: wasDaySuccessful,
+      consumedCalories: totalNutrientsForDay.calories,
+      calorieGoal: localGoals.calorieGoal,
+      proteinGoalMet: totalNutrientsForDay.protein >= localGoals.proteinGoal,
+      consumedProtein: totalNutrientsForDay.protein,
+      proteinGoal: localGoals.proteinGoal,
+      consumedCarbohydrates: totalNutrientsForDay.carbohydrates,
+      carbohydrateGoal: localGoals.carbohydrateGoal,
+      consumedFat: totalNutrientsForDay.fat,
+      fatGoal: localGoals.fatGoal,
+      goalType: localProfile.goalType,
+      waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
+      streakForThisDay: 0,
+    };
+
+    // --- Skriv summary + streak atomiskt ---
+    await runTransaction(db, async (tx) => {
+      const userSnapTx = await tx.get(userRef);
+      if (!userSnapTx.exists()) return;
+
+      const userDataTx = userSnapTx.data() as FirestoreUserDocument;
+      const prevStreak = userDataTx.currentStreak ?? 0;
+      const prevHighest = userDataTx.highestStreak ?? 0;
+
+      const nextStreak = wasDaySuccessful ? prevStreak + 1 : 0;
+      const newHighestStreak = Math.max(prevHighest, nextStreak); // <-- FIX
+
+      summaryForThisDay.streakForThisDay = nextStreak;
+
+      // Veckopott (resettas vid ny vecka)
+      const weekInfoYesterday = getWeekInfo(new Date(`${yKey}T12:00:00`));
+      let finalBank =
+        userDataTx.weeklyBank || {
+          weekId: weekInfoYesterday.weekId,
+          bankedCalories: 0,
+          startDate: weekInfoYesterday.startDate,
+          endDate: weekInfoYesterday.endDate,
+        };
+
+      if (finalBank.weekId !== weekInfoYesterday.weekId) {
+        // Ny vecka → starta om banken med ev. bankning från igår
+        finalBank = {
+          weekId: weekInfoYesterday.weekId,
+          startDate: weekInfoYesterday.startDate,
+          endDate: weekInfoYesterday.endDate,
+          bankedCalories: bankedAmountThisDay,
+        };
+      } else {
+        finalBank = {
+          ...finalBank,
+          bankedCalories: (finalBank.bankedCalories || 0) + bankedAmountThisDay,
+        };
+      }
+
+      const sumRef = doc(db, "users", uid, "pastDaySummaries", yKey);
+      tx.set(sumRef, summaryForThisDay, { merge: true });
+
+      tx.update(userRef, {
+        currentStreak: nextStreak,
+        lastDateStreakChecked: yKey,
+        highestStreak: newHighestStreak,
+        weeklyBank: finalBank,
+      });
+    });
+  } catch (err) {
+    console.error("ensureYesterdayProcessed error:", err);
+  } finally {
+    setAppStatus(AppStatus.IDLE);
+  }
+}, []);
 
             // Re-fetch data to update UI state reliably
             const appData = await fetchInitialAppData(uid);
             if(appData){
-                setStreakData({ currentStreak: appData.currentStreak, lastDateStreakChecked: appData.lastDateStreakChecked });
+                setStreakData({ currentStreak: appData.currentStreak || 0, lastDateStreakChecked: appData.lastDateStreakChecked || null });
                 setWeeklyBank(appData.weeklyBank);
                 setStreakSaver(appData.streakSaver);
                 setHighestStreak(appData.highestStreak);
                 setPastDaysSummary(appData.pastDaySummaries);
 
                  if (wasDaySuccessful) {
-                    setShowGoalMetModalData({ date: yKey, streak: summaryForThisDay.streakForThisDay || nextStreak });
+                    setShowGoalMetModalData({ date: yKey, streak: summaryForThisDay.streakForThisDay || 0 });
                     setShowConfetti(true); playAudio("levelUp"); setTimeout(() => setShowConfetti(false), 5000);
                 } else {
                      if (appData.streakSaver?.available) {
@@ -2097,7 +2171,7 @@ const handleFinishOnboarding = async () => {
         } finally {
             setAppStatus(AppStatus.IDLE);
         }
-    }, [currentUser?.uid]); // Add dependencies if setters are used directly inside
+    }, [currentUser?.uid]);
 
     /** Hook: trigga ensureYesterdayProcessed när appen blir aktiv/visbar */
     useEffect(() => {
@@ -2273,7 +2347,7 @@ useEffect(() => {
                     const subscriptionObject = JSON.parse(JSON.stringify(newSubscription));
                     
                     const userDoc = await getDocSafe(doc(db, "users", currentUser.uid));
-                    const existingSubscriptions = userDoc.exists() ? userDoc.data().pushSubscriptions || [] : [];
+                    const existingSubscriptions = userDoc.exists() ? (userDoc.data() as FirestoreUserDocument).pushSubscriptions || [] : [];
                     const isAlreadySaved = existingSubscriptions.some((sub: any) => sub.endpoint === subscriptionObject.endpoint);
                     
                     if (!isAlreadySaved) {
@@ -4027,26 +4101,20 @@ useEffect(() => {
                         <p className="text-sm text-neutral">Få en bättre upplevelse genom att lägga till appen på din hemskärm.</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                        onClick={handleDismissInstallBanner}
-                        className="px-4 py-1.5 text-neutral-dark font-medium rounded-lg hover:bg-neutral-light active:scale-95 interactive-transition"
-                    >
-                        Inte nu
-                    </button>
-                    <button
-                        onClick={handleInstallClick}
-                        className="px-4 py-1.5 bg-primary text-white font-semibold rounded-lg shadow-sm active:scale-95 interactive-transition"
-                    >
-                        Installera
-                    </button>
-                </div>
+              <button
+                onClick={handleInstallClick}
+                className="px-4 py-2 bg-primary text-white font-semibold rounded-lg shadow-sm active:scale-95 transform transition-all flex-shrink-0"
+              >
+                Installera
+              </button>
+               <button onClick={handleDismissInstallBanner} className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-neutral-light/70 flex-shrink-0" aria-label="Stäng installationsguide">
+                    <XMarkIcon className="w-6 h-6" />
+                </button>
             </div>
         </div>
       )}
-      {showIosInstallPrompt && (
-        <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />
-      )}
+      {showIosInstallPrompt && <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />}
+
     </>
   );
 };

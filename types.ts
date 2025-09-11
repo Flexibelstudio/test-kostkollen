@@ -1,4 +1,4 @@
-import { FieldValue, Timestamp } from "@firebase/firestore";
+import { Timestamp } from "@firebase/firestore";
 import { MentalWellbeingData } from "./components/MentalWellbeingModal";
 
 // --- Core Nutritional & Goal Types ---
@@ -23,12 +23,12 @@ export interface GoalSettings {
 }
 
 export interface CalculatedNutritionalRecommendations {
-    bmr: number;
-    tdee: number;
-    recommendedCalories: number;
-    recommendedProteinGrams: number;
-    recommendedFatGrams: number;
-    recommendedCarbsGrams: number;
+  bmr: number;
+  tdee: number;
+  recommendedCalories: number;
+  recommendedProteinGrams: number;
+  recommendedFatGrams: number;
+  recommendedCarbsGrams: number;
 }
 
 // --- Logging & Data Structures ---
@@ -48,24 +48,24 @@ export interface LoggedMeal {
 }
 
 export interface WeightLogEntry {
-    id: string;
-    loggedAt: number; // timestamp
-    weightKg: number;
-    skeletalMuscleMassKg?: number;
-    bodyFatMassKg?: number;
-    comment?: string;
-    reactions?: Reactions;
+  id: string;
+  loggedAt: number; // timestamp
+  weightKg: number;
+  skeletalMuscleMassKg?: number;
+  bodyFatMassKg?: number;
+  comment?: string;
+  reactions?: Reactions;
 }
 
 export interface MentalWellbeingLog {
-    id: string;
-    loggedAt: number;
-    dateString: string;
-    stressLevel: number | null;
-    energyLevel: number | null;
-    sleepQuality: number | null;
-    mood: number | null;
-    relatedWeightLogId?: string;
+  id: string;
+  loggedAt: number;
+  dateString: string;
+  stressLevel: number | null;
+  energyLevel: number | null;
+  sleepQuality: number | null;
+  mood: number | null;
+  relatedWeightLogId?: string;
 }
 
 export interface CommonMeal {
@@ -81,10 +81,10 @@ export interface DailyWaterLog {
 }
 
 export interface WeeklyCalorieBank {
-    weekId: string; // e.g., "2024-W30"
-    bankedCalories: number;
-    startDate: string; // YYYY-MM-DD
-    endDate: string; // YYYY-MM-DD
+  weekId: string; // e.g., "2024-W30"
+  bankedCalories: number;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
 }
 
 export interface StreakSaver {
@@ -109,7 +109,7 @@ export interface PastDaySummary {
   waterGoalMet?: boolean;
   reactions?: Reactions;
   streakForThisDay?: number;
-  savedBy?: 'sparpott' | 'streakSaver';
+  savedBy?: "sparpott" | "streakSaver";
 }
 
 export interface PastDaysSummaryCollection {
@@ -119,30 +119,42 @@ export interface PastDaysSummaryCollection {
 // --- App State & Views ---
 
 export enum AppStatus {
-  IDLE = 'IDLE',
-  LOADING_CAMERA = 'LOADING_CAMERA',
-  LOADING_DATA = 'LOADING_DATA',
-  ANALYZING = 'ANALYZING',
-  ANALYZING_TEXT = 'ANALYZING_TEXT',
-  ANALYZING_FEEDBACK = 'ANALYZING_FEEDBACK',
-  SEARCHING_BARCODE = 'SEARCHING_BARCODE',
-  ERROR = 'ERROR',
-  PROCESSING_DAY_END = 'PROCESSING_DAY_END',
-  SEARCHING_RECIPE = 'SEARCHING_RECIPE',
-  ANALYZING_INGREDIENTS = 'ANALYZING_INGREDIENTS',
-  INGREDIENT_ANALYSIS_SUCCESS = 'INGREDIENT_ANALYSIS_SUCCESS',
-  SAVING = 'SAVING',
+  IDLE = "IDLE",
+  LOADING_CAMERA = "LOADING_CAMERA",
+  LOADING_DATA = "LOADING_DATA",
+  ANALYZING = "ANALYZING",
+  ANALYZING_TEXT = "ANALYZING_TEXT",
+  ANALYZING_FEEDBACK = "ANALYZING_FEEDBACK",
+  SEARCHING_BARCODE = "SEARCHING_BARCODE",
+  ERROR = "ERROR",
+  PROCESSING_DAY_END = "PROCESSING_DAY_END",
+  SEARCHING_RECIPE = "SEARCHING_RECIPE",
+  ANALYZING_INGREDIENTS = "ANALYZING_INGREDIENTS",
+  INGREDIENT_ANALYSIS_SUCCESS = "INGREDIENT_ANALYSIS_SUCCESS",
+  SAVING = "SAVING",
 }
 
-export type ViewMode = 'main' | 'journey' | 'courseOverview' | 'lessonDetail' | 'community';
+export type ViewMode =
+  | "main"
+  | "journey"
+  | "courseOverview"
+  | "lessonDetail"
+  | "community";
 
 // --- User Profile & Roles ---
 
-export type Gender = 'male' | 'female';
-export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
-export type GoalType = 'lose_fat' | 'maintain' | 'gain_muscle';
-export type UserRole = 'member' | 'coach' | 'admin';
-export type DayOfWeek = 'måndag' | 'tisdag' | 'onsdag' | 'torsdag' | 'fredag' | 'lördag' | 'söndag';
+export type Gender = "male" | "female";
+export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "very_active";
+export type GoalType = "lose_fat" | "maintain" | "gain_muscle";
+export type UserRole = "member" | "coach" | "admin";
+export type DayOfWeek =
+  | "måndag"
+  | "tisdag"
+  | "onsdag"
+  | "torsdag"
+  | "fredag"
+  | "lördag"
+  | "söndag";
 
 export interface NotificationSettings {
   // Social notifications
@@ -166,10 +178,10 @@ export interface UserProfileData {
   activityLevel: ActivityLevel;
   goalType: GoalType;
   photoURL?: string;
-  
-  measurementMethod?: 'inbody' | 'scale';
+
+  measurementMethod?: "inbody" | "scale";
   desiredWeightChangeKg?: number;
-  
+
   skeletalMuscleMassKg?: number;
   bodyFatMassKg?: number;
   desiredFatMassChangeKg?: number;
@@ -188,12 +200,12 @@ export interface UserProfileData {
 }
 
 // Firestore user document structure
-export interface FirestoreUserDocument extends Omit<UserProfileData, 'name'> {
+export interface FirestoreUserDocument extends Omit<UserProfileData, "name"> {
   uid: string;
   email: string | null;
   displayName: string;
   role: UserRole;
-  status: 'pending' | 'approved';
+  status: "pending" | "approved";
   hasCompletedOnboarding: boolean;
   createdAt: Timestamp;
   lastLoginAt: Timestamp;
@@ -201,6 +213,10 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, 'name'> {
   goals: GoalSettings;
   currentStreak: number;
   lastDateStreakChecked: string | null;
+
+  /** Första dag vi tillåter dagssummeringar. Format: 'YYYY-MM-DD' (Europe/Stockholm). */
+  summaryStartDate?: string | null; // <-- tillagt fält
+
   highestStreak: number;
   highestLevelId: string | null;
   weeklyBank: WeeklyCalorieBank;
@@ -221,7 +237,6 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, 'name'> {
   lastMilestoneNudgeSentFor?: string;
 }
 
-
 // --- Gamification & Achievements ---
 
 export interface CompletedGoal {
@@ -232,25 +247,25 @@ export interface CompletedGoal {
   endWeight: number;
 }
 
-
 export interface Level {
-    id: string;
-    name: string;
-    requiredStreak: number;
-    icon: string;
-    description: string;
+  id: string;
+  name: string;
+  requiredStreak: number;
+  icon: string;
+  description: string;
 }
 
 export interface Achievement {
-    id: string;
-    name: string;
-    description: string;
-    type: 'streak' | 'course' | 'goal';
-    requiredValue: number;
-    icon: string;
+  id: string;
+  name: string;
+  description: string;
+  type: "streak" | "course" | "goal";
+  requiredValue: number;
+  icon: string;
 }
 
 // --- Onboarding ---
+
 export interface OnboardingChecklistItemStatus {
   mealLogged: boolean;
   waterLogged: boolean;
@@ -264,57 +279,67 @@ export interface OnboardingChecklistState {
   dismissed: boolean;
 }
 
-
 // --- Course & Lessons ---
 
 export interface CourseLesson {
+  id: string;
+  title: string;
+  introduction: string;
+  detailedText?: string;
+  focusPoints: {
     id: string;
-    title: string;
-    introduction: string;
-    detailedText?: string;
-    focusPoints: { id: string; text: string; cta?: { label: string; action: 'openSpeedDial' | 'navigateToJourneyCalendar' | 'navigateToJourneyGoals' | 'openLogWeightModal'; }; }[];
-    tips: { id: string; text: string; }[];
-    reflection: { id: string; question: string; };
-    aiPromptHint?: 'challenges' | 'plateau';
-    specialAction?: {
-        type: 'writeWhy' | 'smartGoal';
-        prompt: string;
-        description: string;
+    text: string;
+    cta?: {
+      label: string;
+      action:
+        | "openSpeedDial"
+        | "navigateToJourneyCalendar"
+        | "navigateToJourneyGoals"
+        | "openLogWeightModal";
     };
+  }[];
+  tips: { id: string; text: string }[];
+  reflection: { id: string; question: string };
+  aiPromptHint?: "challenges" | "plateau";
+  specialAction?: {
+    type: "writeWhy" | "smartGoal";
+    prompt: string;
+    description: string;
+  };
 }
 
 export interface UserLessonProgress {
-    completedFocusPoints: string[];
-    reflectionAnswer: string | null;
-    isCompleted: boolean;
-    unlockedAt?: number;
-    streakAtUnlock?: number;
-    whyAnswer?: string;
-    smartGoalAnswer?: string;
+  completedFocusPoints: string[];
+  reflectionAnswer: string | null;
+  isCompleted: boolean;
+  unlockedAt?: number;
+  streakAtUnlock?: number;
+  whyAnswer?: string;
+  smartGoalAnswer?: string;
 }
 
 export interface UserCourseProgress {
-    [lessonId: string]: UserLessonProgress;
+  [lessonId: string]: UserLessonProgress;
 }
 
 // --- AI & External Service Types ---
 
 export interface RecipeSuggestion {
-    title: string;
-    description: string;
-    prepTime: string;
-    cookTime: string;
-    servings: string;
-    ingredients: { item: string }[];
-    instructions: string[];
-    totalNutritionalInfo: NutritionalInfo;
-    chefTip?: string;
-    error?: string;
+  title: string;
+  description: string;
+  prepTime: string;
+  cookTime: string;
+  servings: string;
+  ingredients: { item: string }[];
+  instructions: string[];
+  totalNutritionalInfo: NutritionalInfo;
+  chefTip?: string;
+  error?: string;
 }
 
 export interface IngredientRecipeResponse {
-    identifiedIngredients: string[];
-    recipeSuggestions: RecipeSuggestion[];
+  identifiedIngredients: string[];
+  recipeSuggestions: RecipeSuggestion[];
 }
 
 export interface AIDataForFeedback {
@@ -329,11 +354,11 @@ export interface AIDataForFeedback {
 }
 
 export interface AIDataForLessonIntro {
-    userName: string | undefined;
-    lessonTitle: string;
-    userProfile: UserProfileData;
-    pastDaysSummary: PastDaySummary[];
-    weightLogs: WeightLogEntry[];
+  userName: string | undefined;
+  lessonTitle: string;
+  userProfile: UserProfileData;
+  pastDaysSummary: PastDaySummary[];
+  weightLogs: WeightLogEntry[];
 }
 
 export interface TimelineMilestone {
@@ -345,62 +370,66 @@ export interface TimelineMilestone {
 }
 
 export interface AIDataForJourneyAnalysis {
-    userProfile: UserProfileData;
-    allWeightLogs: WeightLogEntry[];
-    last30DaysSummaries: PastDaySummary[];
-    goalTimeline: { milestones: TimelineMilestone[]; paceFeedback: { type: string, text: string } | null };
-    mentalWellbeingLogs?: MentalWellbeingLog[];
-    currentStreak: number;
+  userProfile: UserProfileData;
+  allWeightLogs: WeightLogEntry[];
+  last30DaysSummaries: PastDaySummary[];
+  goalTimeline: {
+    milestones: TimelineMilestone[];
+    paceFeedback: { type: string; text: string } | null;
+  };
+  mentalWellbeingLogs?: MentalWellbeingLog[];
+  currentStreak: number;
 }
 
 export interface AIDataForCoachSummary {
-    memberName: string;
-    memberProfile: UserProfileData;
-    last7DaysSummaries: PastDaySummary[];
-    last5WeightLogs: WeightLogEntry[];
-    currentStreak: number;
-    lastLogDate?: string | null;
-    courseProgressSummary?: {
-        started: boolean;
-        completedLessons: number;
-        totalLessons: number;
-    };
+  memberName: string;
+  memberProfile: UserProfileData;
+  last7DaysSummaries: PastDaySummary[];
+  last5WeightLogs: WeightLogEntry[];
+  currentStreak: number;
+  lastLogDate?: string | null;
+  courseProgressSummary?: {
+    started: boolean;
+    completedLessons: number;
+    totalLessons: number;
+  };
 }
 
 export interface AIFeedbackSection {
-    emoji: string;
-    title: string;
-    content: string;
+  emoji: string;
+  title: string;
+  content: string;
 }
 
 export interface AIStructuredFeedbackResponse {
-    greeting: string;
-    sections: AIFeedbackSection[];
-    analysisDate?: string;
+  greeting: string;
+  sections: AIFeedbackSection[];
+  analysisDate?: string;
 }
 
 export interface BarcodeScannedFoodInfo {
-    name: string;
-    brand: string;
-    imageUrl?: string;
-    servingSizeG?: number;
-    nutrientsPer100g: NutritionalInfo;
+  name: string;
+  brand: string;
+  imageUrl?: string;
+  servingSizeG?: number;
+  nutrientsPer100g: NutritionalInfo;
 }
 
 export interface InBodyScanData {
-    weightKg: number;
-    skeletalMuscleMassKg?: number;
-    bodyFatMassKg?: number;
-    timestamp?: number;
+  weightKg: number;
+  skeletalMuscleMassKg?: number;
+  bodyFatMassKg?: number;
+  timestamp?: number;
 }
 
 // --- Coach & Admin Types ---
+
 export interface CoachViewMember {
   id: string;
   name: string;
   email: string;
   role: UserRole;
-  status: 'pending' | 'approved';
+  status: "pending" | "approved";
   photoURL?: string;
   isCourseActive?: boolean;
   courseInterest?: boolean;
@@ -409,7 +438,7 @@ export interface CoachViewMember {
   currentStreak: number;
   goalSummary: string;
   proteinGoalMetPercentage7d?: number;
-  goalAdherence?: 'good' | 'average' | 'poor' | 'inactive';
+  goalAdherence?: "good" | "average" | "poor" | "inactive";
   courseProgressSummary?: {
     started: boolean;
     completedLessons: number;
@@ -424,91 +453,100 @@ export interface CoachViewMember {
 // --- Community & Social Types ---
 
 export interface Peppkompis {
-    uid: string;
-    name: string;
-    email: string;
-    photoURL?: string;
-    gender?: Gender;
+  uid: string;
+  name: string;
+  email: string;
+  photoURL?: string;
+  gender?: Gender;
 }
 
 export interface PeppkompisRequest {
-    id: string;
-    fromUid: string;
-    fromName: string;
-    fromEmail: string;
-    toUid: string;
-    status: 'pending' | 'accepted' | 'declined';
-    createdAt: number;
+  id: string;
+  fromUid: string;
+  fromName: string;
+  fromEmail: string;
+  toUid: string;
+  status: "pending" | "accepted" | "declined";
+  createdAt: number;
 }
 
 export interface BuddyDetails extends Peppkompis {
-    goalSummary?: string;
-    currentStreak?: number;
-    unlockedAchievements: { [id: string]: string };
-    
-    // For progress bar
-    goalStartWeight?: number;
-    goalStartMuscleMassKg?: number;
-    goalStartFatMassKg?: number;
-    currentWeight?: number;
-    goalType: GoalType;
-    mainGoalCompleted?: boolean;
-    
-    // For detailed stats
-    totalWeightChange?: number;
-    currentMuscleMass?: number;
-    muscleMassChange?: number;
-    currentFatMass?: number;
-    fatMassChange?: number;
+  goalSummary?: string;
+  currentStreak?: number;
+  unlockedAchievements: { [id: string]: string };
 
-    // From profile for goal calculation
-    measurementMethod?: 'inbody' | 'scale';
-    desiredWeightChangeKg?: number;
-    desiredFatMassChangeKg?: number;
-    desiredMuscleMassChangeKg?: number;
-    
-    // For interactions
-    achievementInteractions?: { [achievementId: string]: { reactions: Reactions } };
+  // For progress bar
+  goalStartWeight?: number;
+  goalStartMuscleMassKg?: number;
+  goalStartFatMassKg?: number;
+  currentWeight?: number;
+  goalType: GoalType;
+  mainGoalCompleted?: boolean;
+
+  // For detailed stats
+  totalWeightChange?: number;
+  currentMuscleMass?: number;
+  muscleMassChange?: number;
+  currentFatMass?: number;
+  fatMassChange?: number;
+
+  // From profile for goal calculation
+  measurementMethod?: "inbody" | "scale";
+  desiredWeightChangeKg?: number;
+  desiredFatMassChangeKg?: number;
+  desiredMuscleMassChangeKg?: number;
+
+  // For interactions
+  achievementInteractions?: { [achievementId: string]: { reactions: Reactions } };
 }
 
-export type TimelineEventType = 'weight' | 'achievement' | 'streak' | 'course' | 'level' | 'goal' | 'goal_achieved' | 'goal_set';
+export type TimelineEventType =
+  | "weight"
+  | "achievement"
+  | "streak"
+  | "course"
+  | "level"
+  | "goal"
+  | "goal_achieved"
+  | "goal_set";
 
 export interface Reactions {
-  [emoji: string]: { // e.g., '👍'
-      [uid: string]: string; // key is UID, value is user's name
-  }
+  [emoji: string]: {
+    // e.g., '👍'
+    [uid: string]: string; // key is UID, value is user's name
+  };
 }
 
 export interface TimelineComment {
-    id: string; // Firestore document ID
-    authorUid: string;
-    authorName: string;
-    authorPhotoURL?: string;
-    text: string;
-    timestamp: number;
-    likes?: {
-      [uid: string]: string; // key is UID, value is user's name
-    };
+  id: string; // Firestore document ID
+  authorUid: string;
+  authorName: string;
+  authorPhotoURL?: string;
+  text: string;
+  timestamp: number;
+  likes?: {
+    [uid: string]: string; // key is UID, value is user's name
+  };
 }
 
 export interface TimelineEvent {
-    id: string; // A unique ID for the event in the UI (e.g., 'weight_docId')
-    type: TimelineEventType;
-    timestamp: number;
-    title: string;
-    description: string;
-    icon: string;
-    
-    // New reaction and comment structure
-    reactions: Reactions;
-    comments: TimelineComment[];
-    
-    relatedDocPath: string; // Firestore path to the source document
-    
-    // Info about the user who generated the event
-    userId: string; 
-    userName: string;
-    userPhotoURL?: string;
-    gender: Gender;
-    visibleTo?: string[];
+  id: string; // A unique ID for the event in the UI (e.g., 'weight_docId')
+  type: TimelineEventType;
+  timestamp: number;
+  title: string;
+  description: string;
+  icon: string;
+
+  // New reaction and comment structure
+  reactions: Reactions;
+  comments: TimelineComment[];
+
+  relatedDocPath: string; // Firestore path to the source document
+
+  // Info about the user who generated the event
+  userId: string;
+  userName: string;
+  userPhotoURL?: string;
+  gender: Gender;
+  visibleTo?: string[];
 }
