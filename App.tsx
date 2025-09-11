@@ -253,21 +253,11 @@ async function ensureYesterdayProcessed(uid: string, now = new Date()) {
     if (last >= start) return;
   }
 
-  // Hämta profil (mål + goalType + onboarding + summaryStartDate) från users/{uid}
-  const userSnap = await getDocFromServer(doc(db!, "users", uid)).catch(() => null);
-  const profile: any = userSnap?.exists() ? userSnap.data() : {};
-
-  const hasCompletedOnboarding: boolean = !!profile.hasCompletedOnboarding;
-  const summaryStartDate: string | null = profile.summaryStartDate ?? null;
-
-  // 🔒 Tidigt avbrott: innan onboarding eller före startdatum ska vi INTE skapa miss
-  if (!hasCompletedOnboarding || (summaryStartDate && yKey < summaryStartDate)) {
-    await updateDoc(stateRef, { lastDateStreakChecked: yKey });
-    return;
-  }
-
-  // Hämta entries först nu (efter att vi vet att vi verkligen ska summera)
   const entries = await getEntriesBetween(uid, start, end);
+
+  // Hämta profil (mål + goalType) från users/{uid}
+  const userSnap = await getDocFromServer(doc(db!, "users", uid)).catch(() => null);
+  const profile = userSnap?.exists() ? userSnap.data() : {};
 
   const completed = evaluateGoals(entries, profile);
   await writeSummaryAndStreak(uid, yKey, completed);
@@ -2410,29 +2400,33 @@ useEffect(() => {
         if (allComplete && !checklistState.dismissed) {
             const handleCompletion = async () => {
                 const bonusCalories = 100;
-                let finalBankState: WeeklyCalorieBank | null = null;
-                setWeeklyBank(prevBank => {
-                    finalBankState = { ...prevBank, bankedCalories: prevBank.bankedCalories + bonusCalories };
-                    return finalBankState;
-                });
                 
+                // Calculate the new state object before making any calls.
+                const newBankState: WeeklyCalorieBank = {
+                    ...weeklyBank,
+                    bankedCalories: weeklyBank.bankedCalories + bonusCalories
+                };
+
                 try {
-                    if (finalBankState) {
-                        await updateUserDocument(currentUser.uid, { weeklyBank: finalBankState, role: userRole, status: userStatus });
-                    } else {
-                        throw new Error("Bank state was not updated correctly before Firestore call.");
-                    }
+                    // First, update Firestore with the new state object.
+                    await updateUserDocument(currentUser.uid, { weeklyBank: newBankState, role: userRole, status: userStatus });
+                    
+                    // If Firestore update is successful, then update the local state.
+                    setWeeklyBank(newBankState);
+                    
+                    // Trigger success UI.
                     setShowConfetti(true);
                     playAudio('levelUp');
                     setShowOnboardingRewardModal(true);
                 } catch (error) {
+                    // If Firestore fails, the local state is not updated, so no rollback is needed.
+                    // Just show the error.
                     handleFirestoreError(error, 'spara bonus till sparpott');
-                    setWeeklyBank(prevBank => ({...prevBank, bankedCalories: prevBank.bankedCalories - bonusCalories}));
                 }
             };
             handleCompletion();
         }
-    }, [checklistState, currentUser, isInitialDataLoaded, userRole, userStatus]);
+    }, [checklistState, currentUser, isInitialDataLoaded, userRole, userStatus, weeklyBank]);
 
     useEffect(() => {
         if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
