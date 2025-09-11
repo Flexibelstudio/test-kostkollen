@@ -253,11 +253,21 @@ async function ensureYesterdayProcessed(uid: string, now = new Date()) {
     if (last >= start) return;
   }
 
-  const entries = await getEntriesBetween(uid, start, end);
-
-  // Hämta profil (mål + goalType) från users/{uid}
+  // Hämta profil (mål + goalType + onboarding + summaryStartDate) från users/{uid}
   const userSnap = await getDocFromServer(doc(db!, "users", uid)).catch(() => null);
-  const profile = userSnap?.exists() ? userSnap.data() : {};
+  const profile: any = userSnap?.exists() ? userSnap.data() : {};
+
+  const hasCompletedOnboarding: boolean = !!profile.hasCompletedOnboarding;
+  const summaryStartDate: string | null = profile.summaryStartDate ?? null;
+
+  // 🔒 Tidigt avbrott: innan onboarding eller före startdatum ska vi INTE skapa miss
+  if (!hasCompletedOnboarding || (summaryStartDate && yKey < summaryStartDate)) {
+    await updateDoc(stateRef, { lastDateStreakChecked: yKey });
+    return;
+  }
+
+  // Hämta entries först nu (efter att vi vet att vi verkligen ska summera)
+  const entries = await getEntriesBetween(uid, start, end);
 
   const completed = evaluateGoals(entries, profile);
   await writeSummaryAndStreak(uid, yKey, completed);
