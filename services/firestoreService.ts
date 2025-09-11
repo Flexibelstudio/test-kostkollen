@@ -78,8 +78,8 @@ const getDateUID_SE = (d: Date = new Date()): string => {
 
 const formatChange = (change: number | undefined): string => {
   if (change === undefined || change === null || isNaN(change)) return '-';
-  if (Math.abs(change) < 0.05) return `±0,0`;
-  const sign = change > 0 ? '+';
+  if (Math.abs(change) < 0.05) return '±0,0';
+  const sign = change > 0 ? '+' : '';
   return `${sign}${change.toFixed(1).replace('.', ',')}`;
 };
 
@@ -169,7 +169,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       courseInterest: false,
       currentStreak: 0,
       lastDateStreakChecked: dayBeforeYesterdayDateString,
-      summaryStartDate: null, // <-- NYTT: startdatum sätts senare vid onboarding-slut
+      summaryStartDate: null, // <-- NYTT: sätts vid onboarding-slut
       highestStreak: 0,
       highestLevelId: null,
       weeklyBank: {
@@ -288,7 +288,7 @@ export async function fetchInitialAppData(userId: string) {
       goals: userDocData.goals,
       currentStreak: userDocData.currentStreak,
       lastDateStreakChecked: userDocData.lastDateStreakChecked,
-      summaryStartDate: userDocData.summaryStartDate ?? null, // <-- NYTT: exponera till appen
+      summaryStartDate: userDocData.summaryStartDate ?? null, // <-- NYTT
       highestStreak: userDocData.highestStreak,
       highestLevelId: userDocData.highestLevelId,
       weeklyBank: userDocData.weeklyBank,
