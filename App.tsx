@@ -1,4 +1,3 @@
-/// <reference types="vite/client" />
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
@@ -2398,35 +2397,35 @@ useEffect(() => {
         const allComplete = Object.values(checklistState.items).every(Boolean);
 
         if (allComplete && !checklistState.dismissed) {
-            const handleCompletion = async () => {
+            const handleCompletion = () => {
                 const bonusCalories = 100;
-                
-                // Calculate the new state object before making any calls.
-                const newBankState: WeeklyCalorieBank = {
-                    ...weeklyBank,
-                    bankedCalories: weeklyBank.bankedCalories + bonusCalories
-                };
 
-                try {
-                    // First, update Firestore with the new state object.
-                    await updateUserDocument(currentUser.uid, { weeklyBank: newBankState, role: userRole, status: userStatus });
+                // Use a functional update to get the latest state without adding a dependency
+                setWeeklyBank(prevBank => {
+                    const newBankState: WeeklyCalorieBank = {
+                        ...prevBank,
+                        bankedCalories: (prevBank.bankedCalories || 0) + bonusCalories
+                    };
+
+                    // Fire-and-forget promise for the database update
+                    updateUserDocument(currentUser.uid, { weeklyBank: newBankState, role: userRole, status: userStatus })
+                        .catch(error => {
+                            // On failure, revert the optimistic UI update
+                            handleFirestoreError(error, 'spara bonus till sparpott');
+                            setWeeklyBank(prevBank);
+                        });
                     
-                    // If Firestore update is successful, then update the local state.
-                    setWeeklyBank(newBankState);
-                    
-                    // Trigger success UI.
-                    setShowConfetti(true);
-                    playAudio('levelUp');
-                    setShowOnboardingRewardModal(true);
-                } catch (error) {
-                    // If Firestore fails, the local state is not updated, so no rollback is needed.
-                    // Just show the error.
-                    handleFirestoreError(error, 'spara bonus till sparpott');
-                }
+                    return newBankState; // Return new state for optimistic UI update
+                });
+                
+                // Trigger success UI effects immediately
+                setShowConfetti(true);
+                playAudio('levelUp');
+                setShowOnboardingRewardModal(true);
             };
             handleCompletion();
         }
-    }, [checklistState, currentUser, isInitialDataLoaded, userRole, userStatus, weeklyBank]);
+    }, [checklistState, currentUser, isInitialDataLoaded, userRole, userStatus]);
 
     useEffect(() => {
         if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
@@ -4106,22 +4105,17 @@ useEffect(() => {
                     <InstallIcon className="w-12 h-12 text-primary flex-shrink-0" />
                     <div>
                         <h3 className="font-bold text-neutral-dark">Installera Kostloggen</h3>
-                        <p className="text-sm text-neutral">Få en bättre upplevelse genom att lägga till appen på din hemskärm.</p>
+                        <p className="text-sm text-neutral">Få en snabbare app-upplevelse direkt från hemskärmen.</p>
                     </div>
                 </div>
-              <button
-                onClick={handleInstallClick}
-                className="px-4 py-2 bg-primary text-white font-semibold rounded-lg shadow-sm active:scale-95 transform transition-all flex-shrink-0"
-              >
-                Installera
-              </button>
-               <button onClick={handleDismissInstallBanner} className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-neutral-light/70 flex-shrink-0" aria-label="Stäng installationsguide">
-                    <XMarkIcon className="w-6 h-6" />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={handleDismissInstallBanner} className="p-2 text-sm text-neutral hover:bg-neutral-light rounded-md">Senare</button>
+                    <button onClick={handleInstallClick} className="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm">Installera</button>
+                </div>
             </div>
         </div>
-      )}
-      {showIosInstallPrompt && <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />}
+    )}
+    {showIosInstallPrompt && <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />}
 
     </>
   );
