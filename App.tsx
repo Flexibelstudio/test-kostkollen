@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
@@ -2242,7 +2243,7 @@ useEffect(() => {
                     // Convert ArrayBuffer to URL-safe Base64 string for comparison
                     const existingKey = btoa(String.fromCharCode.apply(null, new Uint8Array(keyArrayBuffer)))
                         .replace(/\+/g, '-')
-                        .replace(/\//g, '_')
+                        .replace(/_/g, '_')
                         .replace(/=+$/, '');
                     
                     const currentKey = VAPID_PUBLIC_KEY.replace(/=+$/, '');
@@ -3554,15 +3555,16 @@ useEffect(() => {
 
                  <div className="mt-4">
                   <ProgressDisplay
-                    label="Kalorier"
-                    current={totalNutrients.calories}
-                    goal={goals.calorieGoal}
-                    unit="kcal"
-                    icon={<span className="text-2xl" role="img" aria-label="Kalorier">🔥</span>}
-                    minSafeThreshold={minSafeCalories}
-                    bankedCaloriesAvailable={weeklyBank.bankedCalories}
-                    amountCoveredByBankToday={totalCaloriesCoveredByBankToday}
-                  />
+  label="Kalorier"
+  current={totalNutrients.calories}
+  goal={goals.calorieGoal}
+  unit="kcal"
+  icon={<span className="text-2xl" role="img" aria-label="Kalorier">🔥</span>}
+  minSafeThreshold={minSafeCalories}
+  bankedCaloriesAvailable={weeklyBank.bankedCalories}
+  amountCoveredByBankToday={totalCaloriesCoveredByBankToday}
+  goalType={userProfile?.goalType ?? 'lose_fat'}   // <— robust fallback
+/>
                   <ProgressDisplay
                     label="Protein"
                     current={totalNutrients.protein}
