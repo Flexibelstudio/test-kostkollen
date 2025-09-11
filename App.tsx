@@ -2127,51 +2127,55 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         };
       }
 
-      const sumRef = doc(db, "users", uid, "pastDaySummaries", yKey);
-      tx.set(sumRef, summaryForThisDay, { merge: true });
+const sumRef = doc(db, "users", uid, "pastDaySummaries", yKey);
+tx.set(sumRef, summaryForThisDay, { merge: true });
 
-      tx.update(userRef, {
-        currentStreak: nextStreak,
-        lastDateStreakChecked: yKey,
-        highestStreak: newHighestStreak,
-        weeklyBank: finalBank,
-      });
+tx.update(userRef, {
+  currentStreak: nextStreak,
+  lastDateStreakChecked: yKey,
+  highestStreak: Math.max(prevHighest, nextStreak), // ✅ fix: jämför mot nextStreak
+  weeklyBank: finalBank,
+});
+}); // <-- slut på runTransaction
+
+// ✅ Re-fetch ligger nu INNE i den async-funktionen (så await är tillåtet)
+const appData = await fetchInitialAppData(uid);
+if (appData) {
+  setStreakData({
+    currentStreak: appData.currentStreak || 0,
+    lastDateStreakChecked: appData.lastDateStreakChecked || null,
+  });
+  setWeeklyBank(appData.weeklyBank);
+  setStreakSaver(appData.streakSaver);
+  setHighestStreak(appData.highestStreak);
+  setPastDaysSummary(appData.pastDaySummaries);
+
+  if (wasDaySuccessful) {
+    setShowGoalMetModalData({
+      date: yKey,
+      streak: summaryForThisDay.streakForThisDay || 0,
     });
-  } catch (err) {
-    console.error("ensureYesterdayProcessed error:", err);
-  } finally {
-    setAppStatus(AppStatus.IDLE);
+    setShowConfetti(true);
+    playAudio("levelUp");
+    setTimeout(() => setShowConfetti(false), 5000);
+  } else {
+    if (appData.streakSaver?.available) {
+      setDayToPotentiallySave(summaryForThisDay);
+    } else {
+      setShowMotivationModal(summaryForThisDay);
+    }
   }
-}, []);
-
-            // Re-fetch data to update UI state reliably
-            const appData = await fetchInitialAppData(uid);
-            if(appData){
-                setStreakData({ currentStreak: appData.currentStreak || 0, lastDateStreakChecked: appData.lastDateStreakChecked || null });
-                setWeeklyBank(appData.weeklyBank);
-                setStreakSaver(appData.streakSaver);
-                setHighestStreak(appData.highestStreak);
-                setPastDaysSummary(appData.pastDaySummaries);
-
-                 if (wasDaySuccessful) {
-                    setShowGoalMetModalData({ date: yKey, streak: summaryForThisDay.streakForThisDay || 0 });
-                    setShowConfetti(true); playAudio("levelUp"); setTimeout(() => setShowConfetti(false), 5000);
-                } else {
-                     if (appData.streakSaver?.available) {
-                        setDayToPotentiallySave(summaryForThisDay);
-                    } else {
-                        setShowMotivationModal(summaryForThisDay);
-                    }
-                }
-            }
-
-        } catch (err) {
-            console.error("Error during daily summary processing:", err);
-            setToastNotification({ message: 'Ett fel uppstod vid summering av dagen.', type: 'error' });
-        } finally {
-            setAppStatus(AppStatus.IDLE);
-        }
-    }, [currentUser?.uid]);
+}
+} catch (err) {
+  console.error("Error during daily summary processing:", err);
+  setToastNotification({
+    message: "Ett fel uppstod vid summering av dagen.",
+    type: "error",
+  });
+} finally {
+  setAppStatus(AppStatus.IDLE);
+}
+}, [currentUser?.uid]);
 
     /** Hook: trigga ensureYesterdayProcessed när appen blir aktiv/visbar */
     useEffect(() => {
