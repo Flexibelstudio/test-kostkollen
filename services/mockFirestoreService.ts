@@ -194,9 +194,11 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
 }
 
 // --- Mental Wellbeing ---
-export async function addMentalWellbeingLog(userId: string, logData: Omit<MentalWellbeingLog, 'id'>) {
+export async function addMentalWellbeingLog(userId: string, logData: Omit<MentalWellbeingLog, 'id'>): Promise<string> {
+    const newId = `wellbeing_${Date.now()}`;
     // This is not persisted in mock state for simplicity, as it's not a core visualized feature yet.
-    console.log("Mock: Mental wellbeing log saved:", logData);
+    console.log("Mock: Mental wellbeing log saved:", { ...logData, id: newId });
+    return newId;
 }
 
 // --- Initial Fetch ---
@@ -460,11 +462,11 @@ export async function togglePeppOnTimelineEvent(
 }
 
 export async function addCommentToTimelineEvent(
-  eventId: string,
-  commentData: Omit<TimelineComment, 'id'>
+  relatedDocPath: string,
+  commentData: Omit<TimelineComment, 'id' | 'timestamp'> & { timestamp: any }
 ): Promise<string> {
   const newId = `comment_${Date.now()}`;
-  console.log(`Mock: Adding comment to event ${eventId}`, { ...commentData, id: newId });
+  console.log(`Mock: Adding comment to ${relatedDocPath}`, { ...commentData, id: newId });
   // Comments are not persisted in the simple mock state, but we log the action.
   return newId;
 }

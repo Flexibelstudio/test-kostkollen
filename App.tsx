@@ -883,6 +883,7 @@ export const App: React.FC = () => {
   const [showLogWeightModal, setShowLogWeightModal] = useState<boolean>(false);
 
   // Mental Wellbeing State & Flow Management
+  const [mentalWellbeingLogs, setMentalWellbeingLogs] = useState<MentalWellbeingLog[]>([]);
   const [showMentalWellbeingModal, setShowMentalWellbeingModal] = useState<boolean>(false);
   const [relatedWeightLogIdForWellbeing, setRelatedWeightLogIdForWellbeing] = useState<string | null>(null);
   const [pendingGoalFeedbackData, setPendingGoalFeedbackData] = useState<{ profile: UserProfileData, goals: GoalSettings, isOnboarding: boolean } | null>(null);
@@ -1019,6 +1020,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setUserCourseProgress({});
         setRecentRecipeSearches([]);
         setWeightLogs([]);
+        setMentalWellbeingLogs([]);
         setCommonMeals([]);
         setHighestLevelId(null);
         setHighestStreak(0);
@@ -1069,6 +1071,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                         setHighestLevelId(appData.highestLevelId || null);
                         setCommonMeals(appData.commonMeals || []);
                         setWeightLogs(appData.weightLogs || []);
+                        setMentalWellbeingLogs(appData.mentalWellbeingLogs || []);
                         setPastDaysSummary(appData.pastDaySummaries || {});
                         setUserCourseProgress(appData.courseProgress || {});
                         setUnlockedAchievements(appData.unlockedAchievements || {});
@@ -3064,7 +3067,8 @@ useEffect(() => {
                 relatedWeightLogId: relatedWeightLogIdForWellbeing || null,
             };
             try {
-                await addMentalWellbeingLog(currentUser.uid, newLog);
+                const newDocId = await addMentalWellbeingLog(currentUser.uid, newLog);
+                setMentalWellbeingLogs(prev => [{...newLog, id: newDocId}, ...prev].sort((a,b) => b.loggedAt - a.loggedAt));
                 playAudio('logSuccess', 0.8);
             } catch (error) {
                 handleFirestoreError(error, 'spara välbefinnande');
@@ -3450,6 +3454,29 @@ useEffect(() => {
 
   }, [dailyLog]);
 
+  const journeyAnalysisData = useMemo<AIDataForJourneyAnalysis | null>(() => {
+    if (!isInitialDataLoaded || !userProfile) return null;
+    
+    const timeline = calculateGoalTimeline(userProfile);
+    const thirtyDaysAgo = new Date(currentDate);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const last30DaysSummaries = Object.values(pastDaysSummary).filter(s => {
+        const summaryDate = new Date(s.date);
+        return summaryDate >= thirtyDaysAgo;
+    });
+
+    return {
+      userProfile,
+      allWeightLogs: weightLogs,
+      last30DaysSummaries,
+      mentalWellbeingLogs,
+      goalTimeline: timeline,
+      currentStreak: streakData.currentStreak,
+    };
+  }, [isInitialDataLoaded, userProfile, weightLogs, pastDaysSummary, mentalWellbeingLogs, currentDate, streakData.currentStreak]);
+
+
   if (authLoading || isDataLoading) {
     return <SplashScreen />;
   }
@@ -3746,7 +3773,7 @@ useEffect(() => {
               </section>
             </>
          )}
-         {viewMode === 'journey' && (
+         {viewMode === 'journey' && journeyAnalysisData && (
             <JourneyView 
                 pastDaysData={pastDaysSummary} 
                 weightLogs={weightLogs}
@@ -3769,6 +3796,7 @@ useEffect(() => {
                 journeyAnalysisFeedback={journeyAnalysisFeedback}
                 onNavigateToMainWithDate={handleNavigateToMainWithDate}
                 streakSaver={streakSaver}
+                analysisContext={journeyAnalysisData}
             />
          )}
          {viewMode === 'courseOverview' && (

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { User } from '@firebase/auth';
-import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, StreakSaver, Reactions } from '../types';
-import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PencilIcon, ChartLineIcon, SparklesIcon, UserCircleIcon, InformationCircleIcon, CheckIcon, BookOpenIcon, TrophyIcon, BarcodeIcon, UserGroupIcon, ChevronDownIcon, ChevronUpIcon, ShareIcon, HeartIcon, XMarkIcon, LifebuoyIcon } from './icons';
+import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, StreakSaver, Reactions, AIDataForJourneyAnalysis } from '../types';
+import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PencilIcon, ChartLineIcon, SparklesIcon, UserCircleIcon, InformationCircleIcon, CheckIcon, BookOpenIcon, TrophyIcon, BarcodeIcon, UserGroupIcon, ChevronDownIcon, ChevronUpIcon, ShareIcon, HeartIcon, XMarkIcon, LifebuoyIcon, AICoachIcon } from './icons';
 import { User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
 import WeightChart from './WeightChart.tsx'; 
 import { calculateGoalTimeline, TimelineMilestone } from '../utils/timelineUtils.ts';
@@ -12,6 +12,7 @@ import AchievementsView from './AchievementsView.tsx';
 import { fetchTimelineForCurrentUser } from '../services/firestoreService.ts';
 import { auth } from '../firebase';
 import { playAudio } from '../services/audioService';
+import AICoachModal from './AICoachModal';
 
 
 interface JourneyViewProps {
@@ -36,6 +37,7 @@ interface JourneyViewProps {
   journeyAnalysisFeedback: AIStructuredFeedbackResponse | null;
   onNavigateToMainWithDate: (date: Date) => void;
   streakSaver: StreakSaver | null;
+  analysisContext: AIDataForJourneyAnalysis;
 }
 type Tab = 'measurements' | 'overview' | 'goals' | 'achievements';
 
@@ -124,7 +126,8 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       initialTab, highestStreak, highestLevelId, minSafeCalories,
       setToastNotification, achievements, unlockedAchievements, achievementInteractions, journeyAnalysisFeedback,
       onNavigateToMainWithDate,
-      streakSaver
+      streakSaver,
+      analysisContext
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -135,6 +138,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     return 'measurements';
   });
 
+  const [showAICoachModal, setShowAICoachModal] = useState(false);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(true);
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
@@ -394,7 +398,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
 
   return (
     <>
-      <div className="animate-fade-in">
+      <div className="animate-fade-in relative pb-20">
             
         <div className="space-y-6">
             <section aria-labelledby="journey-summary-heading">
@@ -696,6 +700,24 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             </div>
         </div>
       </div>
+      
+      <div className="fixed right-6 bottom-6 z-40">
+          <button
+            onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); }}
+            className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white shadow-xl hover:bg-secondary-darker active:scale-95 transform transition-all animate-scale-in"
+            aria-label="Fråga Flexibot AI-Coach"
+          >
+            <AICoachIcon className="w-8 h-8" />
+          </button>
+      </div>
+
+      {analysisContext && (
+        <AICoachModal 
+          show={showAICoachModal}
+          onClose={() => setShowAICoachModal(false)}
+          analysisContext={analysisContext}
+        />
+      )}
     </>
   );
 };

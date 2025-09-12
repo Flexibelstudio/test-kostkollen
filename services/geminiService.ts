@@ -1,4 +1,4 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Content } from "@google/genai";
 import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel } from '../types.ts';
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS } from '../constants.ts';
 
@@ -388,6 +388,52 @@ JSON-struktur för varje recept i 'recipeSuggestions':
     throw new Error("Kunde inte generera recept från bilder på grund av ett okänt fel.");
   }
 };
+
+export const getAICoachResponseStream = async (
+  question: string,
+  chatHistory: Content[],
+  context: AIDataForJourneyAnalysis
+) => {
+  const { userProfile, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = context;
+
+  const systemInstruction = `Du är Flexibot, en vänlig, kunnig och konkret hälso-coach i appen Kostloggen. Användarens namn är ${userProfile.name || 'användaren'}. Användaren har loggat data om sin vikt, kroppssammansättning, matintag, och välbefinnande. Din uppgift är att analysera loggarna och svara tydligt och personligt på användarens frågor om framsteg, trender, samband och avvikelser. Svara alltid på SVENSKA.
+
+Ditt mål är att hjälpa användaren att förstå sin utveckling, fatta beslut och känna motivation.
+
+Dina svar ska alltid innehålla:
+1. En kort, datadriven analys med siffror (snittvärden, variation, förändring). Använd datan som tillhandahålls.
+2. En tydlig slutsats.
+3. Ett konkret råd eller åtgärdsförslag.
+4. En vänlig och motiverande ton. Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
+
+Här är all data du har att tillgå om användaren. Använd den för att ge specifika och korrekta svar.
+Användardata:
+- Profil & Mål: ${JSON.stringify(userProfile)}
+- Streak: ${currentStreak} dagar
+- Senaste 30 dagarnas summeringar: ${JSON.stringify(last30DaysSummaries)}
+- Alla viktloggar: ${JSON.stringify(allWeightLogs)}
+- Välbefinnandeloggar: ${JSON.stringify(mentalWellbeingLogs)}
+`;
+
+  const contents = [
+    ...chatHistory,
+    { role: 'user', parts: [{ text: question }] }
+  ] as Content[];
+
+  const responseStream = await ai.models.generateContentStream({
+    model: GEMINI_MODEL_NAME_TEXT,
+    contents: contents,
+    config: {
+      systemInstruction: systemInstruction,
+      temperature: 0.7,
+      topK: 40,
+      topP: 0.95
+    }
+  });
+
+  return responseStream;
+};
+
 
 export const getAIPersonalizedLessonIntro = async (
   hint: 'challenges' | 'plateau',
