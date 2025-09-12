@@ -560,12 +560,12 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     let bodyCompositionDataPrompt: string;
 
     if (measurementMethod === 'inbody') {
-        bodyCompositionContentPrompt = "Beskriv viktutveckling och muskelmassa. Lyft att stabil muskelmassa vid fettminskning är ett styrketecken. Använd \\n för nya rader.";
+        bodyCompositionContentPrompt = "Beskriv viktutveckling och muskelmassa. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referenspunkt för den totala förändringen. Lyft att stabil muskelmassa vid fettminskning är ett styrketecken. Använd \\n för nya rader.";
         bodyCompositionDataPrompt = `- Muskelmassa (senaste): ${muskelmassa?.toFixed(1) || 'Ej mätt'} kg
 - Muskeltrend: ${muskelTrend}
 - Fettmassa (senaste): ${fettmassa?.toFixed(1) || 'Ej mätt'} kg`;
     } else { // 'scale' or undefined
-        bodyCompositionContentPrompt = "Beskriv viktutvecklingen baserat på de loggade mätningarna. Kommentera trenden (ner, upp, stabil) och hur den relaterar till användarens mål utan att nämna specifik muskel- eller fettmassa. Använd \\n för nya rader.";
+        bodyCompositionContentPrompt = "Beskriv viktutvecklingen baserat på de loggade mätningarna. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referenspunkt. Kommentera trenden (ner, upp, stabil) och hur den relaterar till användarens mål utan att nämna specifik muskel- eller fettmassa. Använd \\n för nya rader.";
         bodyCompositionDataPrompt = "";
     }
 
@@ -627,7 +627,7 @@ Användarens data:
 - Namn: ${namn}
 - Antal viktmätningar: ${antalViktloggar}
 - Antal kostinloggningar (senaste 30d): ${antalKostloggar}
-- Startvikt: ${startvikt?.toFixed(1) || 'Ej satt'} kg
+- Startvikt för detta mål: ${startvikt?.toFixed(1) || 'Ej satt'} kg
 - Senaste vikt: ${senasteVikt?.toFixed(1) || 'Ej satt'} kg
 ${bodyCompositionDataPrompt}
 - Senaste välbefinnande: ${mentalWellbeingDataString}
@@ -662,8 +662,21 @@ ${bodyCompositionDataPrompt}
 
         const parsedData = JSON.parse(jsonStr) as AIStructuredFeedbackResponse;
         
-        if (!parsedData.greeting || !Array.isArray(parsedData.sections)) {
-            throw new Error("Invalid JSON structure received from API for journey analysis.");
+        if (!parsedData.greeting || typeof parsedData.greeting !== 'string' || !Array.isArray(parsedData.sections)) {
+            console.error("Invalid JSON structure from Gemini Journey Analysis:", parsedData);
+            throw new Error("Ogiltig eller ofullständig JSON-struktur mottagen från AI-analys (saknar hälsning eller sektioner).");
+        }
+
+        for (const section of parsedData.sections) {
+            if (
+                !section ||
+                typeof section.emoji !== 'string' ||
+                typeof section.title !== 'string' ||
+                typeof section.content !== 'string'
+            ) {
+                console.error("Invalid section found in Gemini Journey Analysis response:", section, "Full response:", parsedData);
+                throw new Error(`AI:n gav ofullständig data för sektionen '${section?.title || 'Okänd'}'. Försök igen.`);
+            }
         }
 
         return parsedData;
