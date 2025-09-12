@@ -1981,11 +1981,11 @@ const handleFinishOnboarding = async () => {
 
     try {
         await updateUserDocument(currentUser.uid, { 
-  hasCompletedOnboarding: true,
-  summaryStartDate: dayKeySE(new Date()), // <-- rätt: använder SE-tidszon
-  role: userRole, 
-  status: userStatus 
-});
+          hasCompletedOnboarding: true,
+          summaryStartDate: dayKeySE(new Date()),
+          role: userRole, 
+          status: userStatus 
+        });
         playAudio('levelUp');
     } catch (error) {
         handleFirestoreError(error, 'slutföra onboarding');
@@ -2004,7 +2004,13 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     if (!userSnap?.exists()) return;
 
     const userData = userSnap.data() as FirestoreUserDocument;
-    const { lastDateStreakChecked, summaryStartDate } = userData;
+    const { lastDateStreakChecked, summaryStartDate, hasCompletedOnboarding } = userData;
+
+    // FIX: Kör INTE summering innan onboardingen är klar
+    if (!hasCompletedOnboarding) {
+      console.log('Skipping summary: onboarding not completed yet.');
+      return;
+    }
 
     // 1) Hoppa över gårdagen om den ligger före användarens startdatum
     if (summaryStartDate && yKey < summaryStartDate) {
@@ -2012,7 +2018,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         `Skipping summary for ${yKey} because it's before summaryStartDate=${summaryStartDate}.`
       );
       // Markera bara att vi är klara t.o.m. igår – skriv ingen "miss"
-      await updateUserDocument(uid, { lastDateStreakChecked: yKey });
+      await updateUserDocument(uid, { lastDateStreakChecked: yKey, role: userRole, status: userStatus });
       return;
     }
 
@@ -2183,7 +2189,7 @@ if (appData) {
 } finally {
   setAppStatus(AppStatus.IDLE);
 }
-}, [currentUser?.uid]);
+}, [currentUser?.uid, userRole, userStatus]);
 
     /** Hook: trigga ensureYesterdayProcessed när appen blir aktiv/visbar */
     useEffect(() => {
