@@ -139,10 +139,20 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(true);
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
 
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const juneFirst = useMemo(() => new Date(currentYear, 5, 1), [currentYear]); // June 1st of current year
+
+  const validPastDaysArray = useMemo(() => {
+    return Object.values(pastDaysData)
+      .filter(summary => new Date(summary.date) >= juneFirst)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [pastDaysData, juneFirst]);
+
+  const filteredWeightLogs = useMemo(() => {
+    return weightLogs.filter(log => new Date(log.loggedAt) >= juneFirst);
+  }, [weightLogs, juneFirst]);
   
   const timeline = useMemo(() => calculateGoalTimeline(userProfile), [userProfile]);
-  
-  const validPastDaysArray = useMemo(() => Object.values(pastDaysData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [pastDaysData]);
   
     const weeksMap = useMemo(() => {
         const map = new Map<string, (PastDaySummary | null)[]>();
@@ -197,7 +207,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         return grouped;
     }, [weeksMap]);
 
-    const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
@@ -221,9 +230,9 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     onNavigateToMainWithDate(date);
   };
   
-  const latestWeightLog = weightLogs.length > 0 ? weightLogs[weightLogs.length - 1] : null;
-  const previousWeightLog = weightLogs.length > 1 ? weightLogs[weightLogs.length - 2] : null;
-  const firstWeightLog = weightLogs.length > 0 ? weightLogs[0] : null;
+  const latestWeightLog = filteredWeightLogs.length > 0 ? filteredWeightLogs[filteredWeightLogs.length - 1] : null;
+  const previousWeightLog = filteredWeightLogs.length > 1 ? filteredWeightLogs[filteredWeightLogs.length - 2] : null;
+  const firstWeightLog = filteredWeightLogs.length > 0 ? filteredWeightLogs[0] : null;
 
   const latestWeight = latestWeightLog?.weightKg ?? userProfile.currentWeightKg;
   const latestMuscle = latestWeightLog?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg;
@@ -443,45 +452,55 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
               <div className="mt-4">
                 {activeTab === 'measurements' && (
                     <div className="space-y-4">
-                        <WeightChart data={weightLogs} />
-                        {journeyAnalysisFeedback && (
-                            <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
-                                <button
-                                    onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
-                                    className="w-full flex justify-between items-center text-left mb-2 group"
-                                    aria-expanded={isAnalysisExpanded}
-                                    aria-controls="journey-analysis-panel"
-                                >
-                                    <div className="flex items-center">
-                                        <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
-                                        <div>
-                                            <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">Senaste Analys från Coachen</h3>
-                                            <p className="text-xs text-neutral">
-                                                {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
-                                </button>
-                                {isAnalysisExpanded && (
-                                    <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
-                                        {journeyAnalysisFeedback.sections.map((section, index) => (
-                                            <div key={index} className="pt-3 border-t border-neutral-light/50">
-                                                <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
-                                                    <span className="text-xl mr-2">{section.emoji}</span>
-                                                    {section.title}
-                                                </h4>
-                                                <div className="text-neutral-dark space-y-1 text-sm pl-8">
-                                                    {section.content.split('\n').map((line, lineIdx) => (
-                                                        <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
-                                                    ))}
-                                                </div>
+                        <WeightChart data={filteredWeightLogs} />
+                         <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
+                            {journeyAnalysisFeedback ? (
+                                <>
+                                    <button
+                                        onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
+                                        className="w-full flex justify-between items-center text-left mb-2 group"
+                                        aria-expanded={isAnalysisExpanded}
+                                        aria-controls="journey-analysis-panel"
+                                    >
+                                        <div className="flex items-center">
+                                            <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
+                                            <div>
+                                                <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">Senaste Analys från Coachen</h3>
+                                                <p className="text-xs text-neutral">
+                                                    {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
+                                                </p>
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                                        </div>
+                                        {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
+                                    </button>
+                                    {isAnalysisExpanded && (
+                                        <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
+                                            {journeyAnalysisFeedback.sections.map((section, index) => (
+                                                <div key={index} className="pt-3 border-t border-neutral-light/50">
+                                                    <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
+                                                        <span className="text-xl mr-2">{section.emoji}</span>
+                                                        {section.title}
+                                                    </h4>
+                                                    <div className="text-neutral-dark space-y-1 text-sm pl-8">
+                                                        {section.content.split('\n').map((line, lineIdx) => (
+                                                            <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="text-center p-4">
+                                    <SparklesIcon className="w-10 h-10 text-secondary mx-auto mb-3" />
+                                    <h3 className="text-xl font-semibold text-neutral-dark">Personlig Analys från Coachen</h3>
+                                    <p className="text-neutral mt-2 text-sm">
+                                        Din analys kommer att visas här när du har loggat några dagar och gjort minst två invägningar.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
                 
@@ -529,7 +548,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                                                 const isFutureDay = dayDate > currentDate;
                                                                                 const isToday = dayISO === todayISO;
                                                                                 const isYesterday = dayISO === getLocalISODateString(addDays(currentDate, -1));
-                                                                                const isClickable = isToday || isYesterday;
+                                                                                const isClickable = !isFutureDay;
                                                                                 const isViewingThisDay = dayISO === getLocalISODateString(viewingDate);
                                                                                 const waterGoalWasMet = summary?.waterGoalMet === true;
                                                                                 
@@ -636,7 +655,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                             )}
                         </div>
                     </section>
-                    <GoalTimeline milestones={timeline.milestones} paceFeedback={timeline.paceFeedback} weightLogs={weightLogs} goalType={userProfile.goalType} currentAppDate={currentDate}/>
+                    <GoalTimeline milestones={timeline.milestones} paceFeedback={timeline.paceFeedback} weightLogs={filteredWeightLogs} goalType={userProfile.goalType} currentAppDate={currentDate}/>
                     <ProfileAndGoalEditor initialProfile={userProfile} initialGoals={goals} onSave={onSaveProfileAndGoals} />
                     
                     {userProfile.completedGoals && userProfile.completedGoals.length > 0 && (
