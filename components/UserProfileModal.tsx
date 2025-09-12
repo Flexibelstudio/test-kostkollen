@@ -781,7 +781,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     className="w-full sm:w-auto px-6 py-3 border border-transparent rounded-lg shadow-md text-lg font-semibold text-white bg-primary hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary active:scale-95 transform interactive-transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <CheckIcon className="w-5 h-5 inline mr-2" />
-                    {isOnboarding ? 'Få feedback från Flexibot' : 'Spara profil'}
+                    {isOnboarding ? 'Fortsätt till sista steget' : 'Spara profil'}
                 </button>
             </div>
         </form>
