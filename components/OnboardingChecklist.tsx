@@ -28,7 +28,7 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
     { key: 'mealLogged', text: 'Logga din första måltid', completed: state.items.mealLogged, action: onTriggerLog },
     { key: 'waterLogged', text: 'Logga ditt vattenintag för dagen', completed: state.items.waterLogged, action: onScrollToWater },
     { key: 'journeyViewed', text: 'Utforska din "Min resa"-sida', completed: state.items.journeyViewed, action: () => onNavigate('journey') },
-    { key: 'communityViewed', text: 'Hitta och lägg till en peppkompis', completed: state.items.communityViewed, action: () => onNavigate('community') },
+    { key: 'communityViewed', text: 'Bjud in en kompis och peppa varandra', completed: state.items.communityViewed, action: () => onNavigate('community') },
   ];
 
   return (

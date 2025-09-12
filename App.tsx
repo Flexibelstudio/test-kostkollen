@@ -899,6 +899,7 @@ export const App: React.FC = () => {
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [communityViewKey, setCommunityViewKey] = useState(Date.now());
   const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera'>('flode');
+  const [communityInitialSubTab, setCommunityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
   const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
   const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
   const previousViewModeRef = useRef<ViewMode>(viewMode);
@@ -1307,6 +1308,14 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
         
         previousViewModeRef.current = viewMode;
+    }, [viewMode]);
+
+    // Effect to reset special community tabs when navigating away
+    useEffect(() => {
+        if (viewMode !== 'community') {
+            setCommunityInitialTab('flode');
+            setCommunityInitialSubTab('buddies');
+        }
     }, [viewMode]);
 
   const handleLogout = async () => {
@@ -2455,6 +2464,21 @@ useEffect(() => {
         }
     }, [waterLoggedMl, isViewingToday, checklistState, updateChecklistItem]);
 
+    const handleOnboardingNavigate = (view: 'journey' | 'community', subView?: 'search') => {
+        if (view === 'community') {
+            if (subView === 'search') {
+                setCommunityInitialTab('hantera');
+                setCommunityInitialSubTab('search');
+            } else {
+                setCommunityInitialTab('flode');
+                setCommunityInitialSubTab('buddies');
+            }
+        } else { // journey
+            setJourneyInitialTab('weight');
+        }
+        setViewMode(view);
+    };
+
     useEffect(() => {
         if (checklistState) {
             if (viewMode === 'journey' && !checklistState.items.journeyViewed) {
@@ -3601,7 +3625,7 @@ useEffect(() => {
               {checklistState && (
                 <OnboardingChecklist 
                     state={checklistState}
-                    onNavigate={(view) => setViewMode(view)}
+                    onNavigate={handleOnboardingNavigate}
                     onTriggerLog={handleFabClick}
                     onScrollToWater={handleScrollToWater}
                 />
@@ -3779,6 +3803,7 @@ useEffect(() => {
               setToastNotification={setToastNotification}
               pendingRequestsCount={pendingRequestsCount}
               initialTab={communityInitialTab}
+              initialSubTab={communityInitialSubTab}
               highlightEventId={highlightEventId}
               lastViewTimestamp={lastCommunityViewTimestamp}
               timelineEvents={timelineEvents}
