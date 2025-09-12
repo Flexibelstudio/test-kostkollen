@@ -1,121 +1,121 @@
+# netlify.toml – EN källa för alla miljöer (prod & staging samma DB)
+
 [build]
   command = "npm run build"
   publish = "dist"
 
-# (valfritt men bra) lås Node-version för stabila builds
+# Lås node för stabila builds
 [build.environment]
   NODE_VERSION = "20"
 
-# ===== Production (byggen från main) =====
+# ========= ENV: Vi kör SAMMA Firebase i alla contexts =========
+
+# Production deploys (main)
 [context.production.environment]
   VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
   VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
   VITE_FB_PROJECT_ID          = "flexibel-kostkollen"
-  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.firebasestorage.app"
+  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.appspot.com"
   VITE_FB_MESSAGING_SENDER_ID = "1095144779871"
   VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
   VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
 
-# ===== Staging (branch deploys från grenen 'staging') =====
+# Branch deploys för grenen "staging"
 [context."branch:staging".environment]
-  # Samma PROD-nycklar = samma databas
   VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
   VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
   VITE_FB_PROJECT_ID          = "flexibel-kostkollen"
-  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.firebasestorage.app"
+  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.appspot.com"
   VITE_FB_MESSAGING_SENDER_ID = "1095144779871"
   VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
   VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
 
-# ===== Deploy Previews (PR-bygg) — också samma som PROD =====
+# Deploy previews (PR-bygg)
 [context.deploy-preview.environment]
   VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
   VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
   VITE_FB_PROJECT_ID          = "flexibel-kostkollen"
-  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.firebasestorage.app"
+  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.appspot.com"
   VITE_FB_MESSAGING_SENDER_ID = "1095144779871"
   VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
   VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
 
-# ===== Service Worker: se till att /sw.js inte fångas av SPA-redirecten =====
+# ========= SW & cache-headrar =========
+
+# säkerställ att /sw.js aldrig fångas av SPA-redirect
 [[redirects]]
   from = "/sw.js"
-  to = "/sw.js"
+  to   = "/sw.js"
   status = 200
   force = true
 
-# (Skyddsnät om någon kod fortfarande ropar på /service-worker.js)
+# skydd om någon kod ropar på /service-worker.js
 [[redirects]]
   from = "/service-worker.js"
-  to = "/sw.js"
+  to   = "/sw.js"
   status = 200
   force = true
 
-# Håll SW-filer färska
+# SW-filer ska ej cacheas
 [[headers]]
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
-    Pragma = "no-cache"
-    Expires = "0"
+    Pragma        = "no-cache"
+    Expires       = "0"
 
 [[headers]]
   for = "/service-worker.js"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
-    Pragma = "no-cache"
-    Expires = "0"
+    Pragma        = "no-cache"
+    Expires       = "0"
 
-# index.html ska alltid vara färsk
+# index.html & root = färskt
 [[headers]]
   for = "/index.html"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
-    Pragma = "no-cache"
-    Expires = "0"
+    Pragma        = "no-cache"
+    Expires       = "0"
 
-# Extra-skydd för rot-URLen "/"
 [[headers]]
   for = "/"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
-    Pragma = "no-cache"
-    Expires = "0"
+    Pragma        = "no-cache"
+    Expires       = "0"
 
-# Hashade bundlade assets cacheas länge och är immutables
+# hashade assets cacheas länge
 [[headers]]
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Säkerhetsnät för filer i rot (om något hamnar där)
+# fallback för rotfiler
 [[headers]]
   for = "/*.js"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-
 [[headers]]
   for = "/*.css"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-
 [[headers]]
   for = "/*.woff2"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-
 [[headers]]
   for = "/*.svg"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-
 [[headers]]
   for = "/*.png"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# ===== SPA-redirect (lägg sist så den inte fångar /sw.js) =====
+# SPA-redirect (lägg sist)
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to   = "/index.html"
   status = 200
