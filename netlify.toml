@@ -8,7 +8,7 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# ========= ENV: Vi kör SAMMA Firebase i alla contexts =========
+# ========= ENV: SAMMA Firebase i alla contexts =========
 
 # Production deploys (main)
 [context.production.environment]
@@ -20,7 +20,17 @@
   VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
   VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
 
-# Branch deploys för grenen "staging"
+# Alla branch deploys (gäller t.ex. staging)
+[context.branch-deploy.environment]
+  VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
+  VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
+  VITE_FB_PROJECT_ID          = "flexibel-kostkollen"
+  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.appspot.com"
+  VITE_FB_MESSAGING_SENDER_ID = "1095144779871"
+  VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
+  VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
+
+# (valfritt men bra) explicit för grenen "staging"
 [context."branch:staging".environment]
   VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
   VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
