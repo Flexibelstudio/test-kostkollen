@@ -2,9 +2,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { SparklesIcon, XMarkIcon } from './icons';
 import { getAICoachResponseStream } from '../services/geminiService';
-import { AIDataForJourneyAnalysis } from '../types';
+import { AIDataForJourneyAnalysis, ChartData } from '../types';
 import { Content } from "@google/genai";
 import { playAudio } from '../services/audioService';
+import SimpleLineChart from './SimpleLineChart';
 
 interface AICoachModalProps {
   show: boolean;
@@ -19,6 +20,7 @@ interface Message {
     sender: 'user' | 'bot';
     isStreaming?: boolean;
     isSystem?: boolean;
+    chartData?: ChartData;
 }
 
 const renderMarkdown = (text: string) => {
@@ -107,13 +109,12 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
     setInput('');
     setIsLoading(true);
 
-    // Add a placeholder for the bot's response
     const botMessagePlaceholder: Message = { id: Date.now() + 1, text: '', sender: 'bot', isStreaming: true };
     setMessages(prev => [...prev, botMessagePlaceholder]);
     
-    // Convert local message format to Gemini's expected format, excluding system messages
+    // Convert local message format to Gemini's expected format, excluding system messages and charts
     const chatHistoryForAPI: Content[] = messages
-        .filter(m => !m.isSystem)
+        .filter(m => !m.isSystem && !m.chartData)
         .map(m => ({
             role: m.sender === 'user' ? 'user' : 'model',
             parts: [{ text: m.text }]
@@ -131,9 +132,28 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
             ));
         }
 
-        setMessages(prev => prev.map(m => 
-            m.id === botMessagePlaceholder.id ? { ...m, isStreaming: false } : m
-        ));
+        // Stream is finished, now try to parse
+        try {
+            const parsed = JSON.parse(fullResponseText);
+            if (parsed && parsed.chartType === 'line' && parsed.data && parsed.labels) {
+                playAudio('logSuccess', 0.7);
+                setMessages(prev => prev.map(m =>
+                    m.id === botMessagePlaceholder.id
+                        ? { ...m, text: '', chartData: parsed, isStreaming: false }
+                        : m
+                ));
+            } else {
+                // It's JSON but not a chart. Finalize as text.
+                 setMessages(prev => prev.map(m =>
+                    m.id === botMessagePlaceholder.id ? { ...m, isStreaming: false } : m
+                ));
+            }
+        } catch (e) {
+            // Not JSON, finalize as text
+            setMessages(prev => prev.map(m =>
+                m.id === botMessagePlaceholder.id ? { ...m, isStreaming: false } : m
+            ));
+        }
 
     } catch (error) {
         console.error("Error streaming AI coach response:", error);
@@ -149,8 +169,8 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   };
 
   const suggestionChips = [
+    "Visa min viktkurva",
     "Hur har min vecka sett ut?",
-    "Jämför denna måndag med förra.",
     "Vad har jag gjort bra?",
     "Hur ser mitt proteinintag ut?"
   ];
@@ -186,7 +206,14 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                     <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                        {msg.sender === 'bot' && <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mb-1" />}
                        <div className={`max-w-xs sm:max-w-md p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-primary text-white rounded-br-lg' : 'bg-neutral-light text-neutral-dark rounded-bl-lg'}`}>
-                           <div className="text-base space-y-2" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
+                           {msg.chartData ? (
+                                <div className="space-y-2">
+                                    <p className="font-semibold text-base">{msg.chartData.title}</p>
+                                    <SimpleLineChart data={msg.chartData} />
+                                </div>
+                            ) : (
+                               <div className="text-base space-y-2" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
+                           )}
                            {msg.isStreaming && <div className="inline-block w-1.5 h-1.5 bg-neutral-dark rounded-full animate-ping ml-1"></div>}
                        </div>
                     </div>

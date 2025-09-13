@@ -396,6 +396,11 @@ export const getAICoachResponseStream = async (
 ) => {
   const { userProfile, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = context;
 
+  const formattedWeightLogsForAI = allWeightLogs.map(log => ({
+    date: new Date(log.loggedAt).toISOString().split('T')[0],
+    weight: log.weightKg
+  }));
+
   const systemInstruction = `Du är Flexibot, en vänlig, kunnig och konkret hälso-coach i appen Kostloggen. Användarens namn är ${userProfile.name || 'användaren'}. Användaren har loggat data om sin vikt, kroppssammansättning, matintag, och välbefinnande. Din uppgift är att analysera loggarna och svara tydligt och personligt på användarens frågor. Svara alltid på SVENSKA.
 
 **VIKTIGA REGLER:**
@@ -403,12 +408,33 @@ export const getAICoachResponseStream = async (
 2.  Använd en vänlig och motiverande ton. Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
 3.  **Avsluta ALLTID ditt svar** med exakt denna fras: "Säg till om du vill ha ett utförligare svar."
 
+**INSTRUKTIONER FÖR GRAFER:**
+Om användaren frågar efter en graf, diagram eller kurva över sin data (t.ex. "visa min viktkurva", "gör en graf över min vikt"), måste du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel. JSON-objektet måste ha exakt denna struktur:
+{
+  "chartType": "line",
+  "title": "En beskrivande titel för grafen på svenska",
+  "labels": ["en array av sträng-etiketter för x-axeln, t.ex. datum"],
+  "data": [en array av siffror för y-axeln, korresponderande mot etiketterna]
+}
+För en viktgraf, använd användarens viktloggar. Välj en rimlig tidsram om det inte specificeras (t.ex. de senaste 30 dagarna eller all tillgänglig data om det är färre än 10 punkter). Formatera datum för etiketterna som 'dd/mm'.
+
+**Exempel på användarfråga:** "visa min vikt senaste tiden"
+**Korrekt JSON-svar:**
+{
+  "chartType": "line",
+  "title": "Viktutveckling",
+  "labels": ["23/07", "30/07", "06/08"],
+  "data": [75.8, 75.2, 74.9]
+}
+
+Om användaren ställer en allmän fråga, svara med text som vanligt.
+
 Här är all data du har att tillgå om användaren. Använd den för att ge specifika och korrekta svar.
 Användardata:
 - Profil & Mål: ${JSON.stringify(userProfile)}
 - Streak: ${currentStreak} dagar
 - Senaste 30 dagarnas summeringar: ${JSON.stringify(last30DaysSummaries)}
-- Alla viktloggar: ${JSON.stringify(allWeightLogs)}
+- Alla viktloggar: ${JSON.stringify(formattedWeightLogsForAI)}
 - Välbefinnandeloggar: ${JSON.stringify(mentalWellbeingLogs)}
 `;
 
