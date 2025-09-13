@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, StreakSaver, Reactions, AIDataForJourneyAnalysis } from '../types';
@@ -12,8 +13,6 @@ import AchievementsView from './AchievementsView.tsx';
 import { fetchTimelineForCurrentUser } from '../services/firestoreService.ts';
 import { auth } from '../firebase';
 import { playAudio } from '../services/audioService';
-import AICoachModal from './AICoachModal';
-
 
 interface JourneyViewProps {
   pastDaysData: PastDaysSummaryCollection;
@@ -38,6 +37,7 @@ interface JourneyViewProps {
   onNavigateToMainWithDate: (date: Date) => void;
   streakSaver: StreakSaver | null;
   analysisContext: AIDataForJourneyAnalysis;
+  setShowAICoachModal: (show: boolean) => void;
 }
 type Tab = 'measurements' | 'overview' | 'goals' | 'achievements';
 
@@ -127,7 +127,8 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       setToastNotification, achievements, unlockedAchievements, achievementInteractions, journeyAnalysisFeedback,
       onNavigateToMainWithDate,
       streakSaver,
-      analysisContext
+      analysisContext,
+      setShowAICoachModal
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -138,7 +139,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     return 'measurements';
   });
 
-  const [showAICoachModal, setShowAICoachModal] = useState(false);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(true);
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
@@ -711,13 +711,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
           </button>
       </div>
 
-      {analysisContext && (
-        <AICoachModal 
-          show={showAICoachModal}
-          onClose={() => setShowAICoachModal(false)}
-          analysisContext={analysisContext}
-        />
-      )}
     </>
   );
 };

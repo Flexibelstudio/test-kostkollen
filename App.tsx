@@ -77,6 +77,7 @@ import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
 import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
+import AICoachModal from './components/AICoachModal';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -869,6 +870,7 @@ export const App: React.FC = () => {
   const [aiModalTitle, setAiModalTitle] = useState("Din Coach");
   const [aiModalIcon, setAiModalIcon] = useState<JSX.Element>(<AICoachIcon className="w-7 h-7 text-secondary mr-2.5" />);
   const [journeyAnalysisFeedback, setJourneyAnalysisFeedback] = useState<AIStructuredFeedbackResponse | null>(null);
+  const [showAICoachModal, setShowAICoachModal] = useState(false);
   
   // Recipe Feature State
   const [showRecipeModal, setShowRecipeModal] = useState<boolean>(false);
@@ -3308,7 +3310,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -3320,7 +3322,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3809,6 +3811,7 @@ useEffect(() => {
                 onNavigateToMainWithDate={handleNavigateToMainWithDate}
                 streakSaver={streakSaver}
                 analysisContext={journeyAnalysisData}
+                setShowAICoachModal={setShowAICoachModal}
             />
          )}
          {viewMode === 'courseOverview' && (
@@ -4136,6 +4139,7 @@ useEffect(() => {
                 onDiscuss={() => {
                     playAudio('uiClick');
                     setShowAIFeedbackModal(false);
+                    setViewMode('journey');
                     setShowAICoachModal(true);
                 }}
             />
@@ -4154,6 +4158,13 @@ useEffect(() => {
                 show={showMentalWellbeingModal}
                 onClose={() => setShowMentalWellbeingModal(false)}
                 onSave={handleSaveWellbeingAndProceed}
+            />
+        )}
+        {journeyAnalysisData && (
+            <AICoachModal 
+              show={showAICoachModal}
+              onClose={() => setShowAICoachModal(false)}
+              analysisContext={journeyAnalysisData}
             />
         )}
 
