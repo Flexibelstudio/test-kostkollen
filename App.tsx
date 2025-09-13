@@ -820,7 +820,7 @@ export const App: React.FC = () => {
 
   const [pastDaysSummary, setPastDaysSummary] = useState<PastDaysSummaryCollection>({});
   
-  const [journeyInitialTab, setJourneyInitialTab] = useState<'weight' | 'calendar' | 'profile' | 'achievements'>('weight');
+  const [journeyInitialTab, setJourneyInitialTab] = useState<'calendar' | 'profile' | 'achievements'>('calendar');
 
   const [streakData, setStreakData] = useState<{ currentStreak: number; lastDateStreakChecked: string | null }>({ currentStreak: 0, lastDateStreakChecked: null });
   const [lastNotifiedStreakLevelUp, setLastNotifiedStreakLevelUp] = useState<string | null>(null); // This can stay local
@@ -2498,7 +2498,7 @@ useEffect(() => {
                 setCommunityInitialSubTab('buddies');
             }
         } else { // journey
-            setJourneyInitialTab('weight');
+            setJourneyInitialTab('calendar');
         }
         setViewMode(view);
     };
@@ -2787,7 +2787,7 @@ useEffect(() => {
     handleFabClick();
   };
 
-  const handleNavigateToJourney = (tab: 'weight' | 'calendar' | 'profile' | 'achievements') => {
+  const handleNavigateToJourney = (tab: 'calendar' | 'profile' | 'achievements') => {
     setJourneyInitialTab(tab);
     setViewMode('journey');
   };
@@ -3570,7 +3570,7 @@ useEffect(() => {
 
     const navItems = [
       { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); } },
-      { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { playAudio('uiClick'); setJourneyInitialTab('weight'); setViewMode('journey'); } },
+      { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { playAudio('uiClick'); setJourneyInitialTab('calendar'); setViewMode('journey'); } },
       { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { playAudio('uiClick'); setViewMode('courseOverview');} },
       { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { playAudio('uiClick'); if (viewMode === 'community') { setCommunityViewKey(Date.now()); } setViewMode('community'); }, notificationCount: totalNotificationCount },
     ];

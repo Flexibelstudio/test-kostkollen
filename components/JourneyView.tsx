@@ -25,7 +25,7 @@ interface JourneyViewProps {
   viewingDate: Date;
   setViewingDate: (date: Date) => void;
   currentDate: Date;
-  initialTab: 'weight' | 'calendar' | 'profile' | 'achievements';
+  initialTab: 'calendar' | 'profile' | 'achievements';
   highestStreak: number;
   highestLevelId: string | null;
   minSafeCalories: number;
@@ -40,7 +40,7 @@ interface JourneyViewProps {
   setShowAICoachModal: (show: boolean) => void;
   onDiscussSavedAnalysis: (analysisDate?: string) => void;
 }
-type Tab = 'measurements' | 'overview' | 'goals' | 'achievements';
+type Tab = 'overview' | 'goals' | 'achievements';
 
 
 const getLocalISODateString = (date: Date): string => {
@@ -134,11 +134,10 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
-    if(initialTab === 'weight') return 'measurements';
     if(initialTab === 'calendar') return 'overview';
     if(initialTab === 'profile') return 'goals';
     if(initialTab === 'achievements') return 'achievements';
-    return 'measurements';
+    return 'overview';
   });
 
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
@@ -448,7 +447,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             <div className="bg-white p-2 sm:p-4 rounded-xl shadow-soft-lg border border-neutral-light">
               <nav className="border-b border-neutral-light -mx-2 sm:-mx-4 px-2 sm:px-4 mb-4">
                   <div role="tablist" className="flex items-center justify-around">
-                      <TabButton label="Utveckling" isActive={activeTab === 'measurements'} onClick={() => setActiveTab('measurements')} />
                       <TabButton label="Översikt" isActive={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
                       <TabButton label="Mål" isActive={activeTab === 'goals'} onClick={() => setActiveTab('goals')} />
                       <TabButton label="Bragder" isActive={activeTab === 'achievements'} onClick={() => setActiveTab('achievements')} />
@@ -456,69 +454,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
               </nav>
 
               <div className="mt-4">
-                {activeTab === 'measurements' && (
-                    <div className="space-y-4">
-                        <WeightChart data={filteredWeightLogs} />
-                         <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
-                            {journeyAnalysisFeedback ? (
-                                <>
-                                    <button
-                                        onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
-                                        className="w-full flex justify-between items-center text-left mb-2 group"
-                                        aria-expanded={isAnalysisExpanded}
-                                        aria-controls="journey-analysis-panel"
-                                    >
-                                        <div className="flex items-center">
-                                            <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
-                                            <div>
-                                                <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">Senaste Analys från Coachen</h3>
-                                                <p className="text-xs text-neutral">
-                                                    {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
-                                    </button>
-                                    {isAnalysisExpanded && (
-                                        <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
-                                            {journeyAnalysisFeedback.sections.map((section, index) => (
-                                                <div key={index} className="pt-3 border-t border-neutral-light/50">
-                                                    <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
-                                                        <span className="text-xl mr-2">{section.emoji}</span>
-                                                        {section.title}
-                                                    </h4>
-                                                    <div className="text-neutral-dark space-y-1 text-sm pl-8">
-                                                        {section.content.split('\n').map((line, lineIdx) => (
-                                                            <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                             <div className="mt-4 pt-4 border-t border-neutral-light/50">
-                                                <button
-                                                    onClick={() => onDiscussSavedAnalysis(journeyAnalysisFeedback.analysisDate)}
-                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95"
-                                                >
-                                                    <AICoachIcon className="w-6 h-6 flex-shrink-0"/>
-                                                    <span className="text-center">Diskutera analysen med din coach</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <div className="text-center p-4">
-                                    <SparklesIcon className="w-10 h-10 text-secondary mx-auto mb-3" />
-                                    <h3 className="text-xl font-semibold text-neutral-dark">Personlig Analys från Coachen</h3>
-                                    <p className="text-neutral mt-2 text-sm">
-                                        Din analys kommer att visas här när du har loggat några dagar och gjort minst två invägningar.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-                
                 {activeTab === 'overview' && (() => {
                     const monthNames = ["Januari", "Februari", "Mars", "April", "Maj", "Juni", "Juli", "Augusti", "September", "Oktober", "November", "December"];
                     const sortedYears = Array.from(monthlyGroupedSummaries.keys()).sort((a, b) => b - a);
@@ -647,6 +582,64 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                 highestLevelId={highestLevelId}
                                 streakSaver={streakSaver}
                             />
+                            
+                            <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
+                                {journeyAnalysisFeedback ? (
+                                    <>
+                                        <button
+                                            onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
+                                            className="w-full flex justify-between items-center text-left mb-2 group"
+                                            aria-expanded={isAnalysisExpanded}
+                                            aria-controls="journey-analysis-panel"
+                                        >
+                                            <div className="flex items-center">
+                                                <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
+                                                <div>
+                                                    <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">AI-analysen från din coach</h3>
+                                                    <p className="text-xs text-neutral">
+                                                        {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
+                                        </button>
+                                        {isAnalysisExpanded && (
+                                            <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
+                                                {journeyAnalysisFeedback.sections.map((section, index) => (
+                                                    <div key={index} className="pt-3 border-t border-neutral-light/50">
+                                                        <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
+                                                            <span className="text-xl mr-2">{section.emoji}</span>
+                                                            {section.title}
+                                                        </h4>
+                                                        <div className="text-neutral-dark space-y-1 text-sm pl-8">
+                                                            {section.content.split('\n').map((line, lineIdx) => (
+                                                                <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                 <div className="mt-4 pt-4 border-t border-neutral-light/50">
+                                                    <button
+                                                        onClick={() => onDiscussSavedAnalysis(journeyAnalysisFeedback.analysisDate)}
+                                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95"
+                                                    >
+                                                        <AICoachIcon className="w-6 h-6 flex-shrink-0"/>
+                                                        <span className="text-center">Diskutera analysen med din coach</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="text-center p-4">
+                                        <SparklesIcon className="w-10 h-10 text-secondary mx-auto mb-3" />
+                                        <h3 className="text-xl font-semibold text-neutral-dark">Personlig Analys från Coachen</h3>
+                                        <p className="text-neutral mt-2 text-sm">
+                                            Din analys kommer att visas här när du har loggat några dagar och gjort minst två invägningar.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
 
                         </div>
                     );
