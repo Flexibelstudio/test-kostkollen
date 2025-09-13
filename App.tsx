@@ -455,7 +455,9 @@ const AIFeedbackModal: React.FC<{
   modalTitle: string;
   modalIcon: JSX.Element;
   isOnboardingContext?: boolean;
-}> = ({ show, onClose, feedbackMessage, isLoading, error, modalTitle, modalIcon, isOnboardingContext }) => {
+  showDiscussButton?: boolean;
+  onDiscuss?: () => void;
+}> = ({ show, onClose, feedbackMessage, isLoading, error, modalTitle, modalIcon, isOnboardingContext, showDiscussButton, onDiscuss }) => {
   if (!show) return null;
 
   return (
@@ -540,6 +542,15 @@ const AIFeedbackModal: React.FC<{
         </div>
 
         <div className="mt-6 flex flex-col sm:flex-row gap-3 flex-shrink-0">
+          {showDiscussButton && onDiscuss && (
+            <button
+              onClick={onDiscuss}
+              className="w-full px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95 flex items-center justify-center gap-2 order-1 sm:order-none"
+            >
+              <ChatBubbleOvalLeftEllipsisIcon className="w-6 h-6 flex-shrink-0"/>
+              <span className="text-center">Diskutera analysen med din coach</span>
+            </button>
+          )}
           <button
             onClick={onClose}
             className="w-full px-5 py-3 text-lg font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm interactive-transition active:scale-95"
@@ -4120,6 +4131,12 @@ useEffect(() => {
                 modalTitle={aiModalTitle}
                 modalIcon={aiModalIcon}
                 isOnboardingContext={isProfileModalOnboarding}
+                showDiscussButton={aiModalTitle === "Analys av din mätning"}
+                onDiscuss={() => {
+                    playAudio('uiClick');
+                    setShowAIFeedbackModal(false);
+                    setShowAICoachModal(true);
+                }}
             />
         )}
         {showLogWeightModal && (
