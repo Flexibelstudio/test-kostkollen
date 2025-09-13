@@ -55,7 +55,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
     
     return {
         id: 0,
-        text: `Hej ${name}! Jag är din coach här i Kostloggen, men vi gör det lite roligare. Tänk på mig som **${randomDescription}** – här för att peppa dig när motivationen tryter. Oavsett om jag är din virtuella purjolök i soppan eller din digitala morot i höstmörkret, så är jag här för att göra din kostresa lite mer underhållande!`,
+        text: `Hej ${name}! Jag är din coach här i Kostloggen, tänk på mig som **${randomDescription}** – här för att peppa dig när motivationen tryter. Oavsett om jag är din virtuella purjolök i soppan eller din digitala morot i höstmörkret, så är jag här för att göra din kostresa lite mer underhållande!`,
         sender: 'bot',
     };
   }, [analysisContext.userProfile.name]);
