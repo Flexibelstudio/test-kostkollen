@@ -432,6 +432,7 @@ Om användaren frågar efter en graf, diagram eller kurva (t.ex. "visa min viktk
     }
   ]
 }
+- **INKLUDERA ALL DATA:** Du MÅSTE inkludera alla tillgängliga datapunkter från den relevanta datakällan. Summera, aggregera eller förenkla INTE datan; visa varje individuell mätpunkt.
 - **VÄLJ RÄTT DATA:** Analysera frågan noggrant. Om den handlar om vikt, muskler eller fett, använd **Viktloggar**. Om den handlar om protein, kalorier, kolhydrater eller fettintag, använd **Dagliga Summeringar**.
 - ALLA graf-svar måste använda \`datasets\`-arrayen, även om det bara är en dataserie.
 - Om en datapunkt saknas, använd \`null\` på den positionen i \`data\`-arrayen.
