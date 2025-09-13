@@ -871,6 +871,7 @@ export const App: React.FC = () => {
   const [aiModalIcon, setAiModalIcon] = useState<JSX.Element>(<AICoachIcon className="w-7 h-7 text-secondary mr-2.5" />);
   const [journeyAnalysisFeedback, setJourneyAnalysisFeedback] = useState<AIStructuredFeedbackResponse | null>(null);
   const [showAICoachModal, setShowAICoachModal] = useState(false);
+  const [coachInitialContext, setCoachInitialContext] = useState<'from_analysis' | null>(null);
   
   // Recipe Feature State
   const [showRecipeModal, setShowRecipeModal] = useState<boolean>(false);
@@ -4139,6 +4140,7 @@ useEffect(() => {
                 onDiscuss={() => {
                     playAudio('uiClick');
                     setShowAIFeedbackModal(false);
+                    setCoachInitialContext('from_analysis');
                     setViewMode('journey');
                     setShowAICoachModal(true);
                 }}
@@ -4163,8 +4165,12 @@ useEffect(() => {
         {journeyAnalysisData && (
             <AICoachModal 
               show={showAICoachModal}
-              onClose={() => setShowAICoachModal(false)}
+              onClose={() => {
+                  setShowAICoachModal(false);
+                  setCoachInitialContext(null);
+              }}
               analysisContext={journeyAnalysisData}
+              initialContext={coachInitialContext}
             />
         )}
 

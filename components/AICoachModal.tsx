@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { SparklesIcon, XMarkIcon } from './icons';
 import { getAICoachResponseStream } from '../services/geminiService';
@@ -9,6 +10,7 @@ interface AICoachModalProps {
   show: boolean;
   onClose: () => void;
   analysisContext: AIDataForJourneyAnalysis;
+  initialContext: 'from_analysis' | null;
 }
 
 interface Message {
@@ -16,6 +18,7 @@ interface Message {
     text: string;
     sender: 'user' | 'bot';
     isStreaming?: boolean;
+    isSystem?: boolean;
 }
 
 const renderMarkdown = (text: string) => {
@@ -32,7 +35,7 @@ const renderMarkdown = (text: string) => {
 };
 
 
-const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisContext }) => {
+const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisContext, initialContext }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -57,15 +60,29 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
         id: 0,
         text: `Hej ${name}! Jag är din coach här i Kostloggen, tänk på mig som **${randomDescription}** – här för att peppa dig när motivationen tryter. Oavsett om jag är din virtuella purjolök i soppan eller din digitala morot i höstmörkret, så är jag här för att göra din kostresa lite mer underhållande!`,
         sender: 'bot',
+        isSystem: true,
     };
   }, [analysisContext.userProfile.name]);
 
 
   useEffect(() => {
-    if (show && messages.length === 0) {
-      setMessages([initialMessage]);
+    if (show) {
+        const initialMessages: Message[] = [{...initialMessage, id: Date.now()}];
+        if (initialContext === 'from_analysis') {
+            initialMessages.push({
+                id: Date.now() + 1,
+                text: "Jag ser att du precis tittat på din analys. Har du några funderingar kring den?",
+                sender: 'bot',
+                isSystem: true,
+            });
+        }
+        setMessages(initialMessages);
+    } else {
+        setMessages([]);
+        setInput('');
+        setIsLoading(false);
     }
-  }, [show, messages.length, initialMessage]);
+}, [show, initialContext, initialMessage]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,9 +101,9 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
     const botMessagePlaceholder: Message = { id: Date.now() + 1, text: '', sender: 'bot', isStreaming: true };
     setMessages(prev => [...prev, botMessagePlaceholder]);
     
-    // Convert local message format to Gemini's expected format
+    // Convert local message format to Gemini's expected format, excluding system messages
     const chatHistoryForAPI: Content[] = messages
-        .filter(m => m.id !== initialMessage.id) // Exclude the initial greeting
+        .filter(m => !m.isSystem)
         .map(m => ({
             role: m.sender === 'user' ? 'user' : 'model',
             parts: [{ text: m.text }]
