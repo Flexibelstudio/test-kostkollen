@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
@@ -547,7 +548,7 @@ const AIFeedbackModal: React.FC<{
               onClick={onDiscuss}
               className="w-full px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95 flex items-center justify-center gap-2 order-1 sm:order-none"
             >
-              <ChatBubbleOvalLeftEllipsisIcon className="w-6 h-6 flex-shrink-0"/>
+              <AICoachIcon className="w-6 h-6 flex-shrink-0"/>
               <span className="text-center">Diskutera analysen med din coach</span>
             </button>
           )}
