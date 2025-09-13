@@ -143,6 +143,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(true);
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
+  const [isGamificationCardExpanded, setIsGamificationCardExpanded] = useState(false);
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const juneFirst = useMemo(() => new Date(currentYear, 5, 1), [currentYear]); // June 1st of current year
@@ -581,6 +582,11 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                 highestStreak={highestStreak}
                                 highestLevelId={highestLevelId}
                                 streakSaver={streakSaver}
+                                isExpanded={isGamificationCardExpanded}
+                                onToggle={() => {
+                                    playAudio('uiClick');
+                                    setIsGamificationCardExpanded(prev => !prev);
+                                }}
                             />
                             
                             <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
