@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { SparklesIcon, XMarkIcon } from './icons';
 import { getAICoachResponseStream } from '../services/geminiService';
@@ -112,7 +111,6 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
     const botMessagePlaceholder: Message = { id: Date.now() + 1, text: '', sender: 'bot', isStreaming: true };
     setMessages(prev => [...prev, botMessagePlaceholder]);
     
-    // Convert local message format to Gemini's expected format, excluding system messages and charts
     const chatHistoryForAPI: Content[] = messages
         .filter(m => !m.isSystem && !m.chartData)
         .map(m => ({
@@ -132,9 +130,15 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
             ));
         }
 
-        // Stream is finished, now try to parse
+        let jsonStrToParse = fullResponseText.trim();
+        const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
+        const match = jsonStrToParse.match(fenceRegex);
+        if (match && match[2]) {
+            jsonStrToParse = match[2].trim();
+        }
+        
         try {
-            const parsed = JSON.parse(fullResponseText);
+            const parsed = JSON.parse(jsonStrToParse);
             if (parsed && parsed.chartType === 'line' && parsed.data && parsed.labels) {
                 playAudio('logSuccess', 0.7);
                 setMessages(prev => prev.map(m =>
@@ -143,13 +147,11 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                         : m
                 ));
             } else {
-                // It's JSON but not a chart. Finalize as text.
                  setMessages(prev => prev.map(m =>
                     m.id === botMessagePlaceholder.id ? { ...m, isStreaming: false } : m
                 ));
             }
         } catch (e) {
-            // Not JSON, finalize as text
             setMessages(prev => prev.map(m =>
                 m.id === botMessagePlaceholder.id ? { ...m, isStreaming: false } : m
             ));
@@ -214,7 +216,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                             ) : (
                                <div className="text-base space-y-2" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
                            )}
-                           {msg.isStreaming && <div className="inline-block w-1.5 h-1.5 bg-neutral-dark rounded-full animate-ping ml-1"></div>}
+                           {msg.isStreaming && !msg.chartData && msg.text.length > 0 && <div className="inline-block w-1.5 h-1.5 bg-neutral-dark rounded-full animate-ping ml-1"></div>}
                        </div>
                     </div>
                 ))}
