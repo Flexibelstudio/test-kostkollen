@@ -3,11 +3,16 @@ import { MentalWellbeingData } from "./components/MentalWellbeingModal";
 
 // --- Core Nutritional & Goal Types ---
 
+export interface ChartDataset {
+  label: string;
+  data: (number | null)[];
+}
+
 export interface ChartData {
   chartType: 'line';
   title: string;
   labels: string[];
-  data: number[];
+  datasets: ChartDataset[];
 }
 
 export interface NutritionalInfo {

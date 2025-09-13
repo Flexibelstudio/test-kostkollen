@@ -139,7 +139,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
         
         try {
             const parsed = JSON.parse(jsonStrToParse);
-            if (parsed && parsed.chartType === 'line' && parsed.data && parsed.labels) {
+            if (parsed && parsed.chartType === 'line' && parsed.datasets && Array.isArray(parsed.datasets) && parsed.labels) {
                 playAudio('logSuccess', 0.7);
                 setMessages(prev => prev.map(m =>
                     m.id === botMessagePlaceholder.id
@@ -207,10 +207,8 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                 {messages.map((msg) => {
                     if (msg.chartData) {
                         return (
-                            <div key={msg.id} className="flex items-start gap-2 justify-start">
-                                <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mt-1" />
-                                <div className="flex-1 p-3 rounded-2xl bg-neutral-light text-neutral-dark rounded-bl-lg min-w-0">
-                                    <p className="font-semibold text-base mb-2">{msg.chartData.title}</p>
+                             <div key={msg.id} className="flex justify-start">
+                                <div className="p-4 rounded-2xl bg-neutral-light text-neutral-dark rounded-bl-lg w-full">
                                     <SimpleLineChart data={msg.chartData} />
                                 </div>
                             </div>
