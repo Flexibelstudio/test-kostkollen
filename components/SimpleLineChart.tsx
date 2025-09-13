@@ -6,8 +6,8 @@ interface SimpleLineChartProps {
 }
 
 const SimpleLineChart: React.FC<SimpleLineChartProps> = ({ data }) => {
-    const svgWidth = 300;
-    const svgHeight = 180;
+    const svgWidth = 400;
+    const svgHeight = 225;
     const margin = { top: 10, right: 10, bottom: 25, left: 25 };
     const width = svgWidth - margin.left - margin.right;
     const height = svgHeight - margin.top - margin.bottom;
@@ -51,7 +51,7 @@ const SimpleLineChart: React.FC<SimpleLineChartProps> = ({ data }) => {
     }
 
     return (
-        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} role="img" aria-label={data.title}>
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} role="img" aria-label={data.title} className="w-full h-auto">
             <g transform={`translate(${margin.left},${margin.top})`}>
                 {/* Y-axis */}
                 {yTicks.map(tick => (

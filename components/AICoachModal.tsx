@@ -204,22 +204,28 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
             </header>
             
             <main className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
-                {messages.map((msg) => (
-                    <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                       {msg.sender === 'bot' && <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mb-1" />}
-                       <div className={`max-w-xs sm:max-w-md p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-primary text-white rounded-br-lg' : 'bg-neutral-light text-neutral-dark rounded-bl-lg'}`}>
-                           {msg.chartData ? (
-                                <div className="space-y-2">
-                                    <p className="font-semibold text-base">{msg.chartData.title}</p>
+                {messages.map((msg) => {
+                    if (msg.chartData) {
+                        return (
+                            <div key={msg.id} className="flex items-start gap-2 justify-start">
+                                <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mt-1" />
+                                <div className="flex-1 p-3 rounded-2xl bg-neutral-light text-neutral-dark rounded-bl-lg min-w-0">
+                                    <p className="font-semibold text-base mb-2">{msg.chartData.title}</p>
                                     <SimpleLineChart data={msg.chartData} />
                                 </div>
-                            ) : (
+                            </div>
+                        );
+                    }
+                    return (
+                        <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                           {msg.sender === 'bot' && <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mb-1" />}
+                           <div className={`max-w-xs sm:max-w-md p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-primary text-white rounded-br-lg' : 'bg-neutral-light text-neutral-dark rounded-bl-lg'}`}>
                                <div className="text-base space-y-2" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
-                           )}
-                           {msg.isStreaming && !msg.chartData && msg.text.length > 0 && <div className="inline-block w-1.5 h-1.5 bg-neutral-dark rounded-full animate-ping ml-1"></div>}
-                       </div>
-                    </div>
-                ))}
+                               {msg.isStreaming && !msg.chartData && msg.text.length > 0 && <div className="inline-block w-1.5 h-1.5 bg-neutral-dark rounded-full animate-ping ml-1"></div>}
+                           </div>
+                        </div>
+                    );
+                })}
                 {isLoading && (
                      <div className="flex items-end gap-2 justify-start">
                         <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mb-1" />
