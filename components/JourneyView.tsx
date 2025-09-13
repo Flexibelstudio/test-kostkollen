@@ -38,6 +38,7 @@ interface JourneyViewProps {
   streakSaver: StreakSaver | null;
   analysisContext: AIDataForJourneyAnalysis;
   setShowAICoachModal: (show: boolean) => void;
+  onDiscussSavedAnalysis: (analysisDate?: string) => void;
 }
 type Tab = 'measurements' | 'overview' | 'goals' | 'achievements';
 
@@ -128,7 +129,8 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       onNavigateToMainWithDate,
       streakSaver,
       analysisContext,
-      setShowAICoachModal
+      setShowAICoachModal,
+      onDiscussSavedAnalysis
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -492,6 +494,15 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                     </div>
                                                 </div>
                                             ))}
+                                             <div className="mt-4 pt-4 border-t border-neutral-light/50">
+                                                <button
+                                                    onClick={() => onDiscussSavedAnalysis(journeyAnalysisFeedback.analysisDate)}
+                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95"
+                                                >
+                                                    <AICoachIcon className="w-6 h-6 flex-shrink-0"/>
+                                                    <span className="text-center">Diskutera analysen med din coach</span>
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </>

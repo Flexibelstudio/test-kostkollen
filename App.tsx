@@ -871,7 +871,7 @@ export const App: React.FC = () => {
   const [aiModalIcon, setAiModalIcon] = useState<JSX.Element>(<AICoachIcon className="w-7 h-7 text-secondary mr-2.5" />);
   const [journeyAnalysisFeedback, setJourneyAnalysisFeedback] = useState<AIStructuredFeedbackResponse | null>(null);
   const [showAICoachModal, setShowAICoachModal] = useState(false);
-  const [coachInitialContext, setCoachInitialContext] = useState<'from_analysis' | null>(null);
+  const [coachInitialContext, setCoachInitialContext] = useState<{ type: 'from_analysis'; date?: string } | null>(null);
   
   // Recipe Feature State
   const [showRecipeModal, setShowRecipeModal] = useState<boolean>(false);
@@ -3209,6 +3209,11 @@ useEffect(() => {
         }
     };
 
+  const handleDiscussSavedAnalysis = (analysisDate?: string) => {
+    playAudio('uiClick');
+    setCoachInitialContext({ type: 'from_analysis', date: analysisDate });
+    setShowAICoachModal(true);
+  };
 
   const handleFabClick = () => {
     playAudio('uiClick');
@@ -3813,6 +3818,7 @@ useEffect(() => {
                 streakSaver={streakSaver}
                 analysisContext={journeyAnalysisData}
                 setShowAICoachModal={setShowAICoachModal}
+                onDiscussSavedAnalysis={handleDiscussSavedAnalysis}
             />
          )}
          {viewMode === 'courseOverview' && (
@@ -4140,7 +4146,7 @@ useEffect(() => {
                 onDiscuss={() => {
                     playAudio('uiClick');
                     setShowAIFeedbackModal(false);
-                    setCoachInitialContext('from_analysis');
+                    setCoachInitialContext({ type: 'from_analysis' });
                     setViewMode('journey');
                     setShowAICoachModal(true);
                 }}

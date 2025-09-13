@@ -10,7 +10,7 @@ interface AICoachModalProps {
   show: boolean;
   onClose: () => void;
   analysisContext: AIDataForJourneyAnalysis;
-  initialContext: 'from_analysis' | null;
+  initialContext: { type: 'from_analysis'; date?: string } | null;
 }
 
 interface Message {
@@ -68,13 +68,23 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   useEffect(() => {
     if (show) {
         const initialMessages: Message[] = [{...initialMessage, id: Date.now()}];
-        if (initialContext === 'from_analysis') {
-            initialMessages.push({
-                id: Date.now() + 1,
-                text: "Jag ser att du precis tittat på din analys. Har du några funderingar kring den?",
-                sender: 'bot',
-                isSystem: true,
-            });
+        if (initialContext?.type === 'from_analysis') {
+            if (initialContext.date) {
+                const formattedDate = new Date(initialContext.date).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' });
+                initialMessages.push({
+                    id: Date.now() + 1,
+                    text: `Hej igen! Jag ser att du tittar på din analys från den ${formattedDate}. Vad har du för funderingar kring den?`,
+                    sender: 'bot',
+                    isSystem: true,
+                });
+            } else {
+                initialMessages.push({
+                    id: Date.now() + 1,
+                    text: "Jag ser att du precis tittat på din analys. Har du några funderingar kring den?",
+                    sender: 'bot',
+                    isSystem: true,
+                });
+            }
         }
         setMessages(initialMessages);
     } else {
