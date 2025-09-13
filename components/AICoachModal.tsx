@@ -38,11 +38,28 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   
-  const initialMessage: Message = useMemo(() => ({
-    id: 0,
-    text: `Hej ${analysisContext.userProfile.name || 'du'}! Jag är Flexibot, din personliga AI-coach. Vad kan jag hjälpa dig analysera idag?`,
-    sender: 'bot',
-  }), [analysisContext.userProfile.name]);
+  const initialMessage: Message = useMemo(() => {
+    const funDescriptions = [
+      "din digitala krydda i vardagsgrytan",
+      "din virtuella visp i smeten",
+      "ditt personliga saltkorn på frukostägget",
+      "din digitala dillkvist på färskpotatisen",
+      "din personliga köttbulle i gräddsåsen",
+      "ditt virtuella strössel på fredagsglassen",
+      "din digitala havregryn i morgongröten",
+      "din virtuella purjolök i soppan",
+      "din digitala morot i höstmörkret"
+    ];
+    const randomDescription = funDescriptions[Math.floor(Math.random() * funDescriptions.length)];
+    const name = analysisContext.userProfile.name || 'du';
+    
+    return {
+        id: 0,
+        text: `Hej ${name}! Jag är din coach här i Kostloggen, men vi gör det lite roligare. Tänk på mig som **${randomDescription}** – här för att peppa dig när motivationen tryter. Oavsett om jag är din virtuella purjolök i soppan eller din digitala morot i höstmörkret, så är jag här för att göra din kostresa lite mer underhållande!`,
+        sender: 'bot',
+    };
+  }, [analysisContext.userProfile.name]);
+
 
   useEffect(() => {
     if (show && messages.length === 0) {
