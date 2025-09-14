@@ -30,7 +30,7 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
   const amountCoveredByBankTodayRounded = Math.round(amountCoveredByBankToday || 0);
 
   const isCalorieBar = label === 'Kalorier';
-  const isGain = (goalType || '').toLowerCase().includes('gain'); // ex: 'gain_muscle'
+  const isGainMuscleGoal = goalType === 'gain_muscle';
 
   // UI state
   let statusText = `${currentRounded} / ${goalRounded > 0 ? goalRounded : '∞'} ${unit}`;
@@ -45,35 +45,37 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
   let orangeSegmentWidth = 0; // "överskott" (lose/maintain), eller "fram till mål" (gain innan mål) / "stort överskott" (gain över guldzon)
   let orangeTitle = '';
 
-  if (isCalorieBar && isGain) {
-    // ====== GAIN LOGIK ======
-    // Målet är ett golv (minimum). Guldzon: goal ~ goal + 300.
-    const optimalSurplus = 300;
-    const optimalCeiling = goalRounded + optimalSurplus;
-    const displayMax = Math.max(optimalCeiling, currentRounded, goalRounded, 1);
+  if (isCalorieBar && isGainMuscleGoal) {
+    // ====== GAIN MUSCLE LOGIC ======
+    // Goal is a floor (TDEE) and a goldilocks zone up to a ceiling (TDEE + surplus).
+    // The `goal` prop passed in is the ceiling (TDEE + 300).
+    const surplus = 300; // From constants CALORIE_ADJUSTMENT.gain_muscle
+    const tdeeFloor = goalRounded > surplus ? goalRounded - surplus : 0;
+    const optimalCeiling = goalRounded;
+    const displayMax = Math.max(optimalCeiling, currentRounded, 1);
 
-    // Text: "Minst X kcal"
-    statusText = `${currentRounded} / minst ${goalRounded} ${unit}`;
+    statusText = `${currentRounded} / minst ${tdeeFloor} ${unit}`;
 
-    if (currentRounded < goalRounded) {
-      // ZON 1: under minimum → orange fyllning mot målet
+    if (currentRounded < tdeeFloor) {
+      // ZON 1: Under TDEE floor -> orange bar
       orangeSegmentWidth = (currentRounded / displayMax) * 100;
+      greenSegmentWidth = 0;
       statusColorClass = 'text-orange-500 font-semibold';
-      descriptiveMessage = `Ät ${(goalRounded - currentRounded).toFixed(0)} ${unit} till för att nå ditt muskelbyggande mål.`;
+      descriptiveMessage = `Ät ${(tdeeFloor - currentRounded).toFixed(0)} ${unit} till för att nå ditt muskelbyggande mål.`;
       descriptiveMessageColorClass = 'text-orange-500';
-      orangeTitle = `På väg mot ditt minimum ${goalRounded} ${unit}`;
+      orangeTitle = `På väg mot ditt minimum ${tdeeFloor} ${unit}`;
     } else {
-      // ZON 2 & 3: uppnått minst goal → grön
+      // ZON 2 & 3: At or above TDEE floor
       greenSegmentWidth = (Math.min(currentRounded, optimalCeiling) / displayMax) * 100;
 
       if (currentRounded <= optimalCeiling) {
-        // ZON 2: i guldzonen (goal..goal+300)
+        // ZON 2: In the goldilocks zone (TDEE to TDEE + 300)
+        orangeSegmentWidth = 0;
         statusColorClass = 'text-primary-darker font-semibold';
         descriptiveMessage = `Perfekt! Du är i ett optimalt överskott för muskeluppbyggnad.`;
         descriptiveMessageColorClass = 'text-primary-darker';
-        // ingen orange topp här
       } else {
-        // ZON 3: stort överskott över guldzonen → lägg en orange topp
+        // ZON 3: Above the goldilocks zone -> add orange surplus bar
         const surplusOverGold = currentRounded - optimalCeiling;
         orangeSegmentWidth = (surplusOverGold / displayMax) * 100;
         statusColorClass = 'text-orange-600 font-semibold';
@@ -82,6 +84,7 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
         orangeTitle = `Stort överskott över ${optimalCeiling} ${unit}`;
       }
     }
+    blueSegmentWidth = 0; // Sparpott is not used for muscle gain goal
   } else if (isCalorieBar) {
     // ====== EXISTING LOGIK: LOSE/MAINTAIN ======
     const effectiveDisplayGoal = Math.max(goalRounded, currentRounded, minSafeThresholdRounded, 1);
@@ -201,9 +204,8 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
           {label}
         </span>
         <span className={`text-base font-medium ${statusColorClass}`}>
-          {isCalorieBar && isGain
-            ? // För gain: visa "Minst X kcal"
-              `${currentRounded} / minst ${goalRounded} ${unit}`
+          {isCalorieBar && isGainMuscleGoal
+            ? statusText
             : statusText}
         </span>
       </div>
@@ -238,10 +240,8 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
             className="bg-orange-400 h-full transition-all duration-300 ease-out"
             style={{ width: `${orangeSegmentWidth}%` }}
             title={
-              isCalorieBar && isGain
-                ? (orangeTitle || (currentRounded < goalRounded
-                    ? `På väg mot ditt minimum ${goalRounded} ${unit}`
-                    : `Stort överskott över ${(goalRounded + 300)} ${unit}`))
+              isCalorieBar && isGainMuscleGoal
+                ? orangeTitle
                 : `Överskridit mål (efter ev. bank)`
             }
           />

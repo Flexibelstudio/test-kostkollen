@@ -77,6 +77,7 @@ export const ACTIVITY_MULTIPLIERS = {
 };
 
 export const PROTEIN_PER_KG_TARGET = 1.5; // g per kg of body weight
+export const PROTEIN_PER_KG_TARGET_GAIN = 1.8; // g per kg for muscle gain
 export const FAT_PERCENTAGE_OF_CALORIES = 0.25; // 25% of calories from fat
 
 export const CALORIES_PER_GRAM = {
