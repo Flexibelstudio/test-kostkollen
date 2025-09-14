@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
@@ -78,6 +79,7 @@ import IosInstallPrompt from './components/IosInstallPrompt.tsx';
 import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 import AICoachModal from './components/AICoachModal';
+import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -929,6 +931,10 @@ export const App: React.FC = () => {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showIosInstallPrompt, setShowIosInstallPrompt] = useState(false);
 
+  // Update Notification State
+  const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
+  const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
+
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
         setToastNotification({ message: 'Pushnotiser stöds inte av din webbläsaare eller så har något gått fel.', type: 'error' });
@@ -1335,6 +1341,31 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             setCommunityInitialSubTab('buddies');
         }
     }, [viewMode]);
+
+  // This effect handles showing the one-time update notice.
+  useEffect(() => {
+    if (isInitialDataLoaded && currentUser) {
+        const UPDATE_NOTICE_KEY = 'updateNotice_v2_ChatAndJourney'; // Unique key for this update
+        try {
+            const noticeShown = localStorage.getItem(UPDATE_NOTICE_KEY);
+            if (!noticeShown) {
+                setShowUpdateNoticePopup(true);
+            }
+        } catch (error) {
+            console.warn('Could not access localStorage for update notice.', error);
+        }
+    }
+  }, [isInitialDataLoaded, currentUser]);
+
+  const handleCloseUpdateNoticePopup = () => {
+      const UPDATE_NOTICE_KEY = 'updateNotice_v2_ChatAndJourney';
+      try {
+          localStorage.setItem(UPDATE_NOTICE_KEY, 'true');
+      } catch (error) {
+          console.warn('Could not save to localStorage for update notice.', error);
+      }
+      setShowUpdateNoticePopup(false);
+  };
 
   const handleLogout = async () => {
     playAudio('uiClick');
@@ -3316,7 +3347,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showUpdateNoticePopup || showLatestUpdateView;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -3328,7 +3359,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showUpdateNoticePopup, showLatestUpdateView]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3640,6 +3671,15 @@ useEffect(() => {
                                     }}
                                 />
                                 <DropdownMenuItem
+                                    icon={<BellIcon />}
+                                    label="Senaste uppdateringen"
+                                    onClick={() => {
+                                        setShowLatestUpdateView(true);
+                                        setShowProfileDropdown(false);
+                                        playAudio('uiClick');
+                                    }}
+                                />
+                                <DropdownMenuItem
                                     icon={<ChatBubbleOvalLeftEllipsisIcon />}
                                     label="Lämna Feedback"
                                     onClick={() => {
@@ -3946,6 +3986,18 @@ useEffect(() => {
         <input type="file" id="ingredientUploadInput" className="hidden" accept="image/*" multiple onChange={handleIngredientImageUpload} />
 
         {/* Modals */}
+        {showUpdateNoticePopup && (
+            <UpdateNoticeModal 
+                show={showUpdateNoticePopup} 
+                onClose={handleCloseUpdateNoticePopup} 
+            />
+        )}
+        {showLatestUpdateView && (
+            <UpdateNoticeModal 
+                show={showLatestUpdateView} 
+                onClose={() => setShowLatestUpdateView(false)} 
+            />
+        )}
         {showOnboardingRewardModal && (
             <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} />
         )}

@@ -19,11 +19,33 @@ root.render(
   </React.StrictMode>
 );
 
-// Service Worker registration
-if ('serviceWorker' in navigator) {
+// Service Worker registration (bara i produktion)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('Service Worker registered:', reg))
-      .catch(err => console.error('Service Worker registration failed:', err));
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        // När en NY SW-version hittas
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker?.addEventListener('statechange', () => {
+            // Om ny SW är installerad och vi redan har en controller → uppdatering
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // Be nya SW:n ta över direkt
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        });
+      })
+      .catch((err) => console.error('Service Worker registration failed:', err));
+  });
+
+  // När kontrollen byts till nya SW → ladda om en gång
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!reloaded) {
+      reloaded = true;
+      window.location.reload();
+    }
   });
 }
