@@ -195,7 +195,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                 <div className="flex items-center gap-2">
                     <SparklesIcon className="w-7 h-7 text-secondary" />
                     <h2 id="ai-coach-modal-title" className="text-xl font-semibold text-neutral-dark">
-                        Fråga Flexibot
+                        Fråga coachen
                     </h2>
                 </div>
                  <button onClick={onClose} className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90 interactive-transition" aria-label="Stäng">
