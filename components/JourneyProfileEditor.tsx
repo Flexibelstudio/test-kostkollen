@@ -283,10 +283,19 @@ const ProfileAndGoalEditor: React.FC<{
                             </section>
 
                             {/* Timeline Preview */}
+                             {timeline.paceFeedback && (
+                                <div className={`mt-3 p-3 rounded-md text-sm font-medium animate-fade-in ${
+                                    timeline.paceFeedback.type === 'error' ? 'bg-red-100 text-red-800' :
+                                    timeline.paceFeedback.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-blue-100 text-blue-800'
+                                }`}>
+                                    {timeline.paceFeedback.text}
+                                </div>
+                            )}
                             {timeline.milestones.length > 0 && (
                                 <div className="mt-6">
                                     <h4 className="text-base font-semibold text-neutral-dark mb-2">Beräknad tidsplan:</h4>
-                                    <GoalTimeline milestones={timeline.milestones} paceFeedback={timeline.paceFeedback} weightLogs={[]} goalType={profile.goalType} currentAppDate={new Date()} />
+                                    <GoalTimeline milestones={timeline.milestones} paceFeedback={null} weightLogs={[]} goalType={profile.goalType} currentAppDate={new Date()} />
                                 </div>
                             )}
                         </div>

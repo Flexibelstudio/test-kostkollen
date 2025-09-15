@@ -25,10 +25,10 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
     } else { // 'inbody' or legacy
         // Prioritize fat change for timeline calculation as it's more directly related to weight pace.
         goalChange = desiredFatMassChangeKg ?? desiredMuscleMassChangeKg;
-        goalTypeLabel = desiredFatMassChangeKg !== undefined ? 'Fettmassa' : (desiredMuscleMassChangeKg !== undefined ? 'Muskelmassa' : null);
+        goalTypeLabel = desiredFatMassChangeKg !== undefined && desiredFatMassChangeKg !== 0 ? 'Fettmassa' : (desiredMuscleMassChangeKg !== undefined && desiredMuscleMassChangeKg !== 0 ? 'Muskelmassa' : null);
     }
     
-    if (!goalChange || !currentWeightKg) {
+    if (goalChange === undefined || goalChange === 0 || !currentWeightKg) {
       return { milestones: [], paceFeedback: null };
     }
     
@@ -46,8 +46,8 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
         }
         
         const totalDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-        const totalWeeks = totalDays / 7;
-        const weeklyChange = goalChange / totalWeeks;
+        const totalWeeks = totalDays > 0 ? totalDays / 7 : 0;
+        const weeklyChange = totalWeeks > 0 ? goalChange / totalWeeks : 0;
 
         if (goalChange < 0) { // It's a loss goal
             const weeklyLossKg = Math.abs(weeklyChange);
@@ -56,6 +56,15 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
                 paceFeedback = { type: 'warning', text: "⚠️ Detta är en mycket snabb takt (>1.2% av kroppsvikten per vecka). Överväg en mer hållbar plan." };
             } else if (weeklyLossPercentage > 0.8) {
                 paceFeedback = { type: 'info', text: "Observera: Detta är en snabb takt. En hållbar takt är ofta 0.5-1% av kroppsvikten per vecka." };
+            }
+        } else if (goalChange > 0 && goalTypeLabel === 'Muskelmassa') { // It's a muscle gain goal
+             const weeklyGainKg = Math.abs(weeklyChange);
+            if (weeklyGainKg > 0.6) {
+                paceFeedback = { type: 'error', text: `Orealistisk takt: ${weeklyGainKg.toFixed(2)} kg/vecka. En så snabb viktökning kommer sannolikt bestå mestadels av fett. En hållbar plan för ${goalChange} kg muskler är ca 3-6 månader.` };
+            } else if (weeklyGainKg > 0.4) {
+                paceFeedback = { type: 'warning', text: `Ambitiös takt: ${weeklyGainKg.toFixed(2)} kg/vecka. Möjligt, men var medveten om ökad risk för fettinlagring.` };
+            } else if (weeklyGainKg >= 0.2) {
+                paceFeedback = { type: 'info', text: `✅ Optimal takt: ${weeklyGainKg.toFixed(2)} kg/vecka. Detta är en hållbar takt för muskelökning.` };
             }
         }
     } else {
@@ -79,11 +88,11 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
         endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + Math.ceil(totalDays));
 
-        const weeklyChange = goalChange / (totalDays / 7);
-        const weeklyLossKg = Math.abs(weeklyChange);
+        const weeklyChange = totalDays > 0 ? goalChange / (totalDays / 7) : 0;
+        const changePerWeekAbs = Math.abs(weeklyChange);
         
         if (goalChange < 0) {
-            paceFeedback = { type: 'info', text: `Med ett rekommenderat underskott på ${Math.abs(CALORIE_ADJUSTMENT.lose_fat)} kcal/dag, uppskattas din viktnedgång till ca ${weeklyLossKg.toFixed(1)} kg/vecka.` };
+            paceFeedback = { type: 'info', text: `Med ett rekommenderat underskott på ${Math.abs(CALORIE_ADJUSTMENT.lose_fat)} kcal/dag, uppskattas din viktnedgång till ca ${changePerWeekAbs.toFixed(1)} kg/vecka.` };
         } else {
              paceFeedback = { type: 'info', text: `Med ett rekommenderat överskott på ${Math.abs(CALORIE_ADJUSTMENT.gain_muscle)} kcal/dag är detta en hållbar takt för muskelökning.` };
         }
