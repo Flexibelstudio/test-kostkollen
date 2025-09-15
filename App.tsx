@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
@@ -1948,12 +1946,25 @@ const newCommonMealData: Omit<CommonMeal, 'id'> = {
 
     if (goalParamsChanged) {
         // When setting a new goal, the starting point must be the user's latest measurement.
-        // Use the up-to-date userProfile state from App.tsx as the source of truth,
-        // rather than potentially stale data from the form.
-        profileToSave.goalStartWeight = userProfile.currentWeightKg;
-        profileToSave.goalStartMuscleMassKg = userProfile.skeletalMuscleMassKg;
-        profileToSave.goalStartFatMassKg = userProfile.bodyFatMassKg;
+        // Get this from the latest weight log, which is the ultimate source of truth,
+        // to prevent any state synchronization issues.
+        const latestWeightLog = weightLogs.length > 0 ? weightLogs[weightLogs.length - 1] : null;
+
+        const latestWeight = latestWeightLog?.weightKg ?? userProfile.currentWeightKg;
+        const latestMuscle = latestWeightLog?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg;
+        const latestFat = latestWeightLog?.bodyFatMassKg ?? userProfile.bodyFatMassKg;
+
+        // Set the starting point for the new goal
+        profileToSave.goalStartWeight = latestWeight;
+        profileToSave.goalStartMuscleMassKg = latestMuscle;
+        profileToSave.goalStartFatMassKg = latestFat;
         profileToSave.mainGoalCompleted = false;
+
+        // Also ensure the `current...` values in the profile being saved are the latest,
+        // to prevent stale form data from overwriting the app's state.
+        profileToSave.currentWeightKg = latestWeight;
+        profileToSave.skeletalMuscleMassKg = latestMuscle;
+        profileToSave.bodyFatMassKg = latestFat;
     } else {
         profileToSave.goalStartWeight = previousProfile.goalStartWeight;
         profileToSave.goalStartMuscleMassKg = previousProfile.goalStartMuscleMassKg;
@@ -2265,7 +2276,7 @@ if (appData) {
 
         return () => {
             window.removeEventListener("focus", onWake);
-            window.removeEventListener("pageshow", onWake);
+            window.removeEventListener("pageshow", onVis);
             document.removeEventListener("visibilitychange", onVis);
         };
     }, [currentUser?.uid, isInitialDataLoaded, ensureYesterdayProcessed]);
