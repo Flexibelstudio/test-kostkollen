@@ -319,54 +319,68 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const fatChangeDetails = formatChangeWithColor(fatChangeNum, userProfile.goalType, 'fat', userProfile.measurementMethod, undefined, undefined);
 
   const { goalProgress, goalProgressText, startValue, targetValue } = useMemo(() => {
-    let start, current, goalChange, goalChangeType;
+    let startValueKg, currentValueKg, goalChangeKg, goalUnit;
 
-    if (userProfile.measurementMethod === 'scale') {
-        start = userProfile.goalStartWeight;
-        current = latestWeightLog?.weightKg;
-        goalChange = userProfile.desiredWeightChangeKg || 0;
-        goalChangeType = 'kg';
-    } else { // inbody
-        if (userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0) {
-            start = userProfile.goalStartFatMassKg;
-            current = latestWeightLog?.bodyFatMassKg;
-            goalChange = userProfile.desiredFatMassChangeKg;
-            goalChangeType = 'kg fett';
-        } else if (userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0) {
-            start = userProfile.goalStartMuscleMassKg;
-            current = latestWeightLog?.skeletalMuscleMassKg;
-            goalChange = userProfile.desiredMuscleMassChangeKg;
-            goalChangeType = 'kg muskler';
-        } else { // Fallback to weight if no specific fat/muscle goal is set
-             start = userProfile.goalStartWeight;
-             current = latestWeightLog?.weightKg;
-             goalChange = 0;
-             goalChangeType = 'kg';
-        }
+    // Determine which metric is the goal
+    const isScaleGoal = userProfile.measurementMethod === 'scale' && userProfile.desiredWeightChangeKg;
+    const isFatLossGoal = userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
+    const isMuscleGainGoal = userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
+
+    if (isFatLossGoal) {
+        startValueKg = userProfile.goalStartFatMassKg;
+        currentValueKg = latestWeightLog?.bodyFatMassKg;
+        goalChangeKg = userProfile.desiredFatMassChangeKg;
+        goalUnit = 'kg fett';
+    } else if (isMuscleGainGoal) {
+        startValueKg = userProfile.goalStartMuscleMassKg;
+        currentValueKg = latestWeightLog?.skeletalMuscleMassKg;
+        goalChangeKg = userProfile.desiredMuscleMassChangeKg;
+        goalUnit = 'kg muskler';
+    } else if (isScaleGoal) {
+        startValueKg = userProfile.goalStartWeight;
+        currentValueKg = latestWeightLog?.weightKg;
+        goalChangeKg = userProfile.desiredWeightChangeKg;
+        goalUnit = 'kg vikt';
+    } else {
+        // No active goal or data to calculate progress
+        return { goalProgress: 0, goalProgressText: 'Inget aktivt mål', startValue: undefined, targetValue: undefined };
     }
     
-    if (start == null || current == null || userProfile.mainGoalCompleted || goalChange === 0) {
-        return { goalProgress: 0, goalProgressText: 'Mål ej satt', startValue: undefined, targetValue: undefined };
+    if (startValueKg == null || currentValueKg == null || userProfile.mainGoalCompleted) {
+        return { goalProgress: 0, goalProgressText: 'Väntar på mätning', startValue: startValueKg, targetValue: startValueKg != null && goalChangeKg != null ? startValueKg + goalChangeKg : undefined };
+    }
+
+    const targetValueKg = startValueKg + goalChangeKg;
+    
+    // Use absolute values to avoid confusion with signs
+    const totalChangeNeeded = Math.abs(goalChangeKg);
+    
+    let changeAchieved;
+    if (goalChangeKg > 0) { // Gain goal
+        changeAchieved = currentValueKg - startValueKg;
+    } else { // Loss goal
+        changeAchieved = startValueKg - currentValueKg;
     }
     
-    const target = start + goalChange;
-    const totalChangeNeeded = start - target;
-    const changeAchieved = start - current;
+    // Don't show negative progress
+    changeAchieved = Math.max(0, changeAchieved);
 
-    if (totalChangeNeeded === 0) {
-        return { goalProgress: 100, goalProgressText: `${start.toFixed(1).replace('.',',')} / ${target.toFixed(1).replace('.',',')} ${goalChangeType.split(' ')[1]}`, startValue: start, targetValue: target };
+    if (totalChangeNeeded < 0.01) { // Effectively zero
+        return { goalProgress: 100, goalProgressText: 'Mål uppnått', startValue: startValueKg, targetValue: targetValueKg };
     }
 
     const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
     const progressClamped = Math.max(0, Math.min(progressRaw, 100));
+    
+    const unit = goalUnit.split(' ')[1] || 'kg';
 
     return {
         goalProgress: progressClamped,
-        goalProgressText: `${current.toFixed(1).replace('.',',')} / ${target.toFixed(1).replace('.',',')} ${goalChangeType.split(' ')[1]}`,
-        startValue: start,
-        targetValue: target
+        goalProgressText: `${currentValueKg.toFixed(1).replace('.',',')} / ${targetValueKg.toFixed(1).replace('.',',')} ${unit}`,
+        startValue: startValueKg,
+        targetValue: targetValueKg
     };
-}, [latestWeightLog, userProfile]);
+  }, [latestWeightLog, userProfile]);
 
   const goalDisplayString = useMemo(() => {
     const { measurementMethod, desiredWeightChangeKg, desiredFatMassChangeKg, desiredMuscleMassChangeKg, goalType, goalCompletionDate } = userProfile;

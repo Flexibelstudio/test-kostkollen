@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
@@ -1946,9 +1947,12 @@ const newCommonMealData: Omit<CommonMeal, 'id'> = {
     profileToSave.completedGoals = previousProfile.completedGoals || [];
 
     if (goalParamsChanged) {
-        profileToSave.goalStartWeight = profileData.currentWeightKg;
-        profileToSave.goalStartMuscleMassKg = profileData.skeletalMuscleMassKg;
-        profileToSave.goalStartFatMassKg = profileData.bodyFatMassKg;
+        // When setting a new goal, the starting point must be the user's latest measurement.
+        // Use the up-to-date userProfile state from App.tsx as the source of truth,
+        // rather than potentially stale data from the form.
+        profileToSave.goalStartWeight = userProfile.currentWeightKg;
+        profileToSave.goalStartMuscleMassKg = userProfile.skeletalMuscleMassKg;
+        profileToSave.goalStartFatMassKg = userProfile.bodyFatMassKg;
         profileToSave.mainGoalCompleted = false;
     } else {
         profileToSave.goalStartWeight = previousProfile.goalStartWeight;
