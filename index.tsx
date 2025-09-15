@@ -20,7 +20,7 @@ root.render(
 );
 
 // Service Worker registration (bara i produktion)
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+if ((import.meta as any).env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')

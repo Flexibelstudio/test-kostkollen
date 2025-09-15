@@ -1,5 +1,6 @@
 import React from 'react';
 import { GoalType } from '../types'; // Import GoalType
+import { CALORIE_ADJUSTMENT } from '../constants';
 
 interface ProgressDisplayProps {
   label: string;
@@ -48,8 +49,8 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
   if (isCalorieBar && isGainMuscleGoal) {
     // ====== GAIN MUSCLE LOGIC ======
     // Goal is a floor (TDEE) and a goldilocks zone up to a ceiling (TDEE + surplus).
-    // The `goal` prop passed in is the ceiling (TDEE + 300).
-    const surplus = 300; // From constants CALORIE_ADJUSTMENT.gain_muscle
+    // The `goal` prop passed in is the ceiling (TDEE + surplus).
+    const surplus = CALORIE_ADJUSTMENT.gain_muscle;
     const tdeeFloor = goalRounded > surplus ? goalRounded - surplus : 0;
     const optimalCeiling = goalRounded;
     const displayMax = Math.max(optimalCeiling, currentRounded, 1);
@@ -66,16 +67,18 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
       orangeTitle = `På väg mot ditt minimum ${tdeeFloor} ${unit}`;
     } else {
       // ZON 2 & 3: At or above TDEE floor
-      greenSegmentWidth = (Math.min(currentRounded, optimalCeiling) / displayMax) * 100;
+      const greenValue = Math.min(currentRounded, optimalCeiling);
+      greenSegmentWidth = ((greenValue - tdeeFloor) / (displayMax - tdeeFloor)) * 100;
 
       if (currentRounded <= optimalCeiling) {
-        // ZON 2: In the goldilocks zone (TDEE to TDEE + 300)
+        // ZON 2: In the goldilocks zone (TDEE to TDEE + surplus)
         orangeSegmentWidth = 0;
         statusColorClass = 'text-primary-darker font-semibold';
         descriptiveMessage = `Perfekt! Du är i ett optimalt överskott för muskeluppbyggnad.`;
         descriptiveMessageColorClass = 'text-primary-darker';
       } else {
         // ZON 3: Above the goldilocks zone -> add orange surplus bar
+        greenSegmentWidth = ((optimalCeiling - tdeeFloor) / (displayMax - tdeeFloor)) * 100;
         const surplusOverGold = currentRounded - optimalCeiling;
         orangeSegmentWidth = (surplusOverGold / displayMax) * 100;
         statusColorClass = 'text-orange-600 font-semibold';
@@ -204,9 +207,7 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
           {label}
         </span>
         <span className={`text-base font-medium ${statusColorClass}`}>
-          {isCalorieBar && isGainMuscleGoal
-            ? statusText
-            : statusText}
+          {statusText}
         </span>
       </div>
 
@@ -218,12 +219,20 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
             title={`Intag: ${currentRounded} ${unit} (Under rekommenderat minimum: ${minSafeThresholdRounded} ${unit})`}
           />
         )}
-
+        
+        {isGainMuscleGoal && orangeSegmentWidth > 0 && currentRounded < Math.round(goal - CALORIE_ADJUSTMENT.gain_muscle) && (
+             <div
+                className="bg-orange-400 h-full transition-all duration-300 ease-out"
+                style={{ width: `${orangeSegmentWidth}%` }}
+                title={orangeTitle}
+            />
+        )}
+        
         {greenSegmentWidth > 0 && (
           <div
-            className="bg-primary h-full transition-all duration-300 ease-out"
+            className={`h-full transition-all duration-300 ease-out ${isGainMuscleGoal ? 'bg-green-500' : 'bg-primary'}`}
             style={{ width: `${greenSegmentWidth}%` }}
-            title={`Intag: ${currentRounded} ${unit}`}
+            title={isGainMuscleGoal ? `Optimalt överskott: ${currentRounded} ${unit}` : `Intag: ${currentRounded} ${unit}`}
           />
         )}
 
@@ -235,16 +244,20 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
           />
         )}
 
-        {orangeSegmentWidth > 0 && (
+        {!isGainMuscleGoal && orangeSegmentWidth > 0 && (
           <div
             className="bg-orange-400 h-full transition-all duration-300 ease-out"
             style={{ width: `${orangeSegmentWidth}%` }}
-            title={
-              isCalorieBar && isGainMuscleGoal
-                ? orangeTitle
-                : `Överskridit mål (efter ev. bank)`
-            }
+            title={`Överskridit mål (efter ev. bank)`}
           />
+        )}
+        
+        {isGainMuscleGoal && orangeSegmentWidth > 0 && currentRounded > goal && (
+             <div
+                className="bg-orange-400 h-full transition-all duration-300 ease-out"
+                style={{ width: `${orangeSegmentWidth}%` }}
+                title={orangeTitle}
+            />
         )}
 
         {/* Fallback för tom stapel */}

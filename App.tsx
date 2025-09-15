@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { auth, db, authPersistencePromise } from './firebase';
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
@@ -26,7 +25,7 @@ import {
   DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML,
   DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
   PIGGY_BANK_ICON_SVG, CALORIES_PER_GRAM, MAX_RECENT_RECIPE_SEARCHES, MAX_INGREDIENT_IMAGES, ACHIEVEMENT_DEFINITIONS,
-  VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG
+  VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG, CALORIE_ADJUSTMENT
 } from './constants.ts';
 
 import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion,
@@ -181,35 +180,40 @@ function sumEntries(entries: any[]) {
 
 // Målmedveten bedömning (gain/maintain/lose)
 function evaluateGoals(entries: any[], profile: any) {
-  const totals = sumEntries(entries);
-  const goals  = (profile?.goals ?? {}) as {
-    calorieGoal?: number; proteinGoal?: number; fatGoal?: number; carbohydrateGoal?: number;
-  };
-  const goalType = String(profile?.goalType ?? "maintain").toLowerCase();
-  const calGoal = Number(goals.calorieGoal) || 0;
+    const totals = sumEntries(entries);
+    const goals = (profile?.goals ?? {}) as {
+        calorieGoal?: number; proteinGoal?: number; fatGoal?: number; carbohydrateGoal?: number;
+    };
+    const goalType = String(profile?.goalType ?? "maintain").toLowerCase() as GoalType;
+    const calGoal = Number(goals.calorieGoal) || 0;
 
-  const minAbs = (typeof MIN_ABSOLUTE_CALORIES_THRESHOLD === "number" ? MIN_ABSOLUTE_CALORIES_THRESHOLD : 600);
-  const minPct = (typeof MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL === "number" ? MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL : 0.9);
-  const minSafe = Math.max(minAbs, Math.round(calGoal * minPct));
+    const minAbs = MIN_ABSOLUTE_CALORIES_THRESHOLD;
+    const minPct = MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
+    const minSafe = Math.max(minAbs, Math.round(calGoal * minPct));
 
-  let ok = false;
-  if (goalType.includes("gain")) {
-    // GAIN: nå upp till målet (med säkerhetsgolv)
-    ok = calGoal ? (totals.calories >= Math.max(calGoal, minSafe)) : (totals.calories >= minSafe);
-  } else if (goalType.includes("lose") || goalType.includes("cut")) {
-    // CUT: under/vid målet
-    ok = calGoal ? (totals.calories <= calGoal) : (totals.calories > 0);
-  } else {
-    // MAINTAIN: inom ±10% runt mål (fallback: minSafe)
-    const tol = 0.10;
-    ok = calGoal
-      ? (totals.calories >= calGoal * (1 - tol) && totals.calories <= calGoal * (1 + tol))
-      : (totals.calories >= minSafe);
-  }
+    let ok = false;
 
-  console.info("[daily] totals", totals, "goalType", goalType, "calGoal", calGoal, "ok", ok);
-  return ok;
+    if (goalType.includes("gain")) {
+        // GAIN: Målet är ett golv (TDEE). Man får streak om man äter >= TDEE.
+        // `calGoal` från databasen är TDEE + surplus. Vi måste räkna ut TDEE.
+        const surplus = CALORIE_ADJUSTMENT.gain_muscle;
+        const tdeeFloor = calGoal > surplus ? calGoal - surplus : 0;
+        ok = totals.calories >= tdeeFloor;
+    } else if (goalType.includes("lose")) {
+        // LOSE: Målet är ett tak. Man får streak om man äter >= minSafe OCH <= calGoal.
+        ok = totals.calories > 0 && totals.calories <= calGoal && totals.calories >= minSafe;
+    } else { // maintain
+        // MAINTAIN: Målet är ett spann. Man får streak om man ligger inom ±10% av målet.
+        const tol = 0.10;
+        ok = calGoal
+            ? (totals.calories >= calGoal * (1 - tol) && totals.calories <= calGoal * (1 + tol))
+            : (totals.calories >= minSafe);
+    }
+    
+    console.info("[daily] totals", totals, "goalType", goalType, "calGoal", calGoal, "ok", ok);
+    return ok;
 }
+
 
 // Använd samma kollektion som UI:t
 const SUMMARY_COLLECTION = "pastDaySummaries";
@@ -385,7 +389,9 @@ const wasCalorieGoalMetForSummary = (
       const tenPercentOfTarget = calorieGoalValue * 0.10;
       return Math.abs(consumedCalories - calorieGoalValue) <= tenPercentOfTarget;
     case 'gain_muscle':
-      return consumedCalories >= calorieGoalValue;
+      const surplus = CALORIE_ADJUSTMENT.gain_muscle;
+      const tdeeFloor = calorieGoalValue > surplus ? calorieGoalValue - surplus : 0;
+      return consumedCalories >= tdeeFloor;
     default: 
       const tenPercentDefault = calorieGoalValue * 0.10;
       return Math.abs(consumedCalories - calorieGoalValue) <= tenPercentDefault;
@@ -3737,10 +3743,17 @@ useEffect(() => {
                         <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Nivå</h3>
                         <p className="text-lg font-bold text-primary truncate" title={currentLevel.name}>{currentLevel.name}</p>
                     </div>
-                    <div className="text-center">
-                        <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
-                        <p className="text-lg font-bold text-primary">{weeklyBank.bankedCalories.toFixed(0)} kcal</p>
-                    </div>
+                    {userProfile?.goalType !== 'gain_muscle' ? (
+                        <div className="text-center">
+                            <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
+                            <p className="text-lg font-bold text-primary">{weeklyBank.bankedCalories.toFixed(0)} kcal</p>
+                        </div>
+                    ) : (
+                        <div className="text-center opacity-50">
+                            <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
+                            <p className="text-lg font-bold text-neutral">Inaktiv</p>
+                        </div>
+                    )}
                 </div>
 
                  <WeeklyProgressDays 
@@ -3753,16 +3766,16 @@ useEffect(() => {
 
                  <div className="mt-4">
                   <ProgressDisplay
-  label="Kalorier"
-  current={totalNutrients.calories}
-  goal={goals.calorieGoal}
-  unit="kcal"
-  icon={<span className="text-2xl" role="img" aria-label="Kalorier">🔥</span>}
-  minSafeThreshold={minSafeCalories}
-  bankedCaloriesAvailable={weeklyBank.bankedCalories}
-  amountCoveredByBankToday={totalCaloriesCoveredByBankToday}
-  goalType={userProfile?.goalType ?? 'lose_fat'}   // <— robust fallback
-/>
+                      label="Kalorier"
+                      current={totalNutrients.calories}
+                      goal={goals.calorieGoal}
+                      unit="kcal"
+                      icon={<span className="text-2xl" role="img" aria-label="Kalorier">🔥</span>}
+                      minSafeThreshold={minSafeCalories}
+                      bankedCaloriesAvailable={weeklyBank.bankedCalories}
+                      amountCoveredByBankToday={totalCaloriesCoveredByBankToday}
+                      goalType={userProfile?.goalType ?? 'lose_fat'}
+                    />
                   <ProgressDisplay
                     label="Protein"
                     current={totalNutrients.protein}
