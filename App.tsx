@@ -767,7 +767,7 @@ const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
 };
 
 
-export const App: React.FC = () => {
+export const App = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -2276,7 +2276,7 @@ if (appData) {
 
         return () => {
             window.removeEventListener("focus", onWake);
-            window.removeEventListener("pageshow", onVis);
+            window.removeEventListener("pageshow", onWake);
             document.removeEventListener("visibilitychange", onVis);
         };
     }, [currentUser?.uid, isInitialDataLoaded, ensureYesterdayProcessed]);
@@ -2875,6 +2875,7 @@ useEffect(() => {
 
       const dataForAnalysis: AIDataForJourneyAnalysis = {
           userProfile,
+          goals: goals,
           allWeightLogs: currentWeightLogs,
           last30DaysSummaries,
           goalTimeline: timeline,
@@ -2892,7 +2893,7 @@ useEffect(() => {
           console.error("Failed to generate and save journey analysis:", e.message);
           return null;
       }
-  }, [currentUser, userProfile, pastDaysSummary, currentDate, userRole, userStatus, streakData.currentStreak]);
+  }, [currentUser, userProfile, goals, pastDaysSummary, currentDate, userRole, userStatus, streakData.currentStreak]);
 
   const handleRecipeSearch = async (searchQuery: string) => {
     setAppStatus(AppStatus.SEARCHING_RECIPE);
@@ -3540,13 +3541,14 @@ useEffect(() => {
 
     return {
       userProfile,
+      goals: goals,
       allWeightLogs: weightLogs,
       last30DaysSummaries,
       mentalWellbeingLogs,
       goalTimeline: timeline,
       currentStreak: streakData.currentStreak,
     };
-  }, [isInitialDataLoaded, userProfile, weightLogs, pastDaysSummary, mentalWellbeingLogs, currentDate, streakData.currentStreak]);
+  }, [isInitialDataLoaded, userProfile, goals, weightLogs, pastDaysSummary, mentalWellbeingLogs, currentDate, streakData.currentStreak]);
 
 
   if (authLoading || isDataLoading) {

@@ -567,7 +567,7 @@ const getUserLevelInfo = (streak: number): { currentLevel: Level } => {
 };
 
 export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis): Promise<AIStructuredFeedbackResponse> => {
-    const { userProfile, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = data;
+    const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = data;
     const isCourseActive = userProfile.isCourseActive || false;
 
     // --- PLATEAU DETECTION ---
@@ -614,6 +614,42 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
         }
     }
 
+    // --- ANALYSIS WINDOW LOGIC & NUTRITIONAL SUMMARY (NEW) ---
+    let analysisPeriodSummaries: PastDaySummary[] = [];
+    let analysisPeriodDescription = "den senaste tiden";
+    let previousLog: WeightLogEntry | null = null;
+    let weightChangeSincePrevious = 0;
+
+    if (allWeightLogs.length >= 2) {
+        const lastLog = allWeightLogs[allWeightLogs.length - 1];
+        previousLog = allWeightLogs[allWeightLogs.length - 2];
+        const startDate = new Date(previousLog.loggedAt).toISOString().split('T')[0];
+        const endDate = new Date(lastLog.loggedAt).toISOString().split('T')[0];
+        analysisPeriodSummaries = last30DaysSummaries.filter(s => s.date >= startDate && s.date < endDate);
+        analysisPeriodDescription = `perioden mellan dina två senaste mätningar (${new Date(startDate + 'T12:00:00Z').toLocaleDateString('sv-SE')} och ${new Date(endDate + 'T12:00:00Z').toLocaleDateString('sv-SE')})`;
+        weightChangeSincePrevious = lastLog.weightKg - previousLog.weightKg;
+    } else {
+        // Fallback for first measurement or if only one exists
+        analysisPeriodSummaries = last30DaysSummaries;
+        analysisPeriodDescription = `perioden sedan din första mätning`;
+        if (allWeightLogs.length === 1 && userProfile.goalStartWeight) {
+            weightChangeSincePrevious = allWeightLogs[0].weightKg - userProfile.goalStartWeight;
+        }
+    }
+
+    const totalDaysInPeriod = analysisPeriodSummaries.length;
+    const successfulDays = analysisPeriodSummaries.filter(s => s.goalMet || s.savedBy).length;
+    const adherencePercentage = totalDaysInPeriod > 0 ? (successfulDays / totalDaysInPeriod) * 100 : 0;
+    const avgCalories = totalDaysInPeriod > 0 ? analysisPeriodSummaries.reduce((sum, s) => sum + s.consumedCalories, 0) / totalDaysInPeriod : 0;
+    
+    const nutritionalSummaryForPrompt = `
+- Analysperiod: ${analysisPeriodDescription}
+- Antal dagar loggade i perioden: ${totalDaysInPeriod}
+- Andel dagar med kalorimål uppfyllt: ${adherencePercentage.toFixed(0)}%
+- Genomsnittligt kaloriintag: ${avgCalories.toFixed(0)} kcal (Ditt mål: ${goals.calorieGoal.toFixed(0)} kcal)
+- Viktförändring under perioden: ${weightChangeSincePrevious.toFixed(1)} kg
+    `;
+
 
     // --- NEW CALCULATIONS ---
     const namn = userProfile.name || 'Användare';
@@ -636,11 +672,6 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     }
 
     const totalaDagar = last30DaysSummaries.length;
-    const antalDagarKalorimål = last30DaysSummaries.filter(s => s.goalMet).length;
-    const antalDagarProteinmål = last30DaysSummaries.filter(s => s.proteinGoalMet).length;
-    const lågtProteinDagar = last30DaysSummaries.filter(s => !s.proteinGoalMet).map(s => new Date(s.date).toLocaleDateString('sv-SE', {day: 'numeric', month: 'short'})).slice(0, 3).join(', ');
-    const högtFettDagar = last30DaysSummaries.filter(s => s.consumedFat > s.fatGoal).map(s => new Date(s.date).toLocaleDateString('sv-SE', {day: 'numeric', month: 'short'})).slice(0, 3).join(', ');
-    
     const waterGoalMetCount = last30DaysSummaries.filter(s => s.waterGoalMet).length;
     const vattenuppfyllnadProcent = totalaDagar > 0 ? ((waterGoalMetCount / totalaDagar) * 100).toFixed(0) : '0';
     
@@ -700,7 +731,7 @@ Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med 
     {
       "emoji": "🥦",
       "title": "Näringsvanor",
-      "content": "Beröm regelbundet loggande och måluppfyllelse. Vid avvikelser: hjälp användaren förstå och justera. T.ex.: 'Titta gärna tillbaka på dagarna den ${lågtProteinDagar || 'som var'} och fundera på vad som gjorde det svårare att nå proteinmålet. Jag kan hjälpa dig att hitta enkla justeringar.' Använd \\n för nya rader."
+      "content": "Analysera **ENDAST** datan från den specificerade analysperioden. Ge en ÖVERSIKTLIG summering av användarens följsamhet till kostplanen. Kommentera den generella trenden (t.ex. 'Du har följt din kaloriplan bra', 'Proteinintaget har varit stabilt'). Koppla ihop näringsintaget med resultatet på vågen (använd 'Viktförändring under perioden' från datan). UNDVIK att nämna enskilda dagar eller specifika datum. Håll det kortfattat och peppande. Använd \\n för nya rader."
     },
     {
       "emoji": "💧",
@@ -733,11 +764,8 @@ Användarens data:
 - Senaste vikt: ${senasteVikt?.toFixed(1) || 'Ej satt'} kg
 ${bodyCompositionDataPrompt}
 - Senaste välbefinnande: ${mentalWellbeingDataString}
-- Kalorimål uppnått: ${antalDagarKalorimål} av ${totalaDagar} dagar
-- Proteinmål uppnått: ${antalDagarProteinmål} av ${totalaDagar} dagar
-- Dagar med lågt proteinintag (exempel): ${lågtProteinDagar || 'Inga'}
-- Dagar med högt fettintag (exempel): ${högtFettDagar || 'Inga'}
-- Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna
+- Summering av näring i analysperioden: ${nutritionalSummaryForPrompt}
+- Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna (senaste 30d)
 - Streak: ${currentStreak} dagar
 - Nivå: ${nivå}
 - Kurs aktiv: ${isCourseActive ? 'ja' : 'nej'}

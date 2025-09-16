@@ -383,6 +383,7 @@ export interface TimelineMilestone {
 
 export interface AIDataForJourneyAnalysis {
   userProfile: UserProfileData;
+  goals: GoalSettings;
   allWeightLogs: WeightLogEntry[];
   last30DaysSummaries: PastDaySummary[];
   goalTimeline: {
