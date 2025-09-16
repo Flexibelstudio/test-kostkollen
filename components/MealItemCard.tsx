@@ -9,9 +9,10 @@ interface MealItemCardProps {
   onUpdate: (mealId: string, updatedInfo: NutritionalInfo) => void;
   onSelectForCommonSave: (meal: LoggedMeal) => void;
   isReadOnly?: boolean; // New prop
+  isNewlyAdded?: boolean;
 }
 
-const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, onSelectForCommonSave, isReadOnly = false }) => {
+const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, onSelectForCommonSave, isReadOnly = false, isNewlyAdded = false }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedFoodItem, setEditedFoodItem] = useState(meal.nutritionalInfo.foodItem || '');
   const [editedCalories, setEditedCalories] = useState(meal.nutritionalInfo.calories.toString());
@@ -131,7 +132,7 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
 
   return (
     <>
-      <div className={`bg-white shadow-soft-lg rounded-lg p-4 border border-neutral-light relative animate-fade-slide-in interactive-transition group hover:shadow-soft-xl ${!isReadOnly ? 'hover:scale-[1.02]' : ''} ${isReadOnly ? 'opacity-70' : ''}`}>
+      <div className={`bg-white shadow-soft-lg rounded-lg p-4 border border-neutral-light relative group hover:shadow-soft-xl ${!isReadOnly ? 'hover:scale-[1.02]' : ''} ${isReadOnly ? 'opacity-70' : ''} ${isNewlyAdded ? 'animate-meal-drop-bounce' : 'animate-fade-slide-in'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3 flex-grow min-w-0"> {/* min-w-0 for truncation */}
             {meal.imageUrl && (
