@@ -113,7 +113,7 @@ export const getDocsSafe = async (queryRef: Query) => {
       console.warn(`Firestore: Server unavailable for query. Trying cache.`);
       try {
         return await getDocsFromCache(queryRef);
-      } catch (cacheError) {
+      } catch (cacheError: any) {
         console.warn(`Firestore: Query results not found in cache.`);
         return {
           empty: true,
@@ -209,9 +209,11 @@ export async function fetchInitialAppData(userId: string) {
   const courseProgressRef = collection(db, 'users', userId, 'courseProgress');
   const pastSummariesRef = collection(db, 'users', userId, 'pastDaySummaries');
   const achievementInteractionsRef = collection(db, 'users', userId, 'achievementInteractions');
+  const mentalWellbeingLogsRef = collection(db, 'users', userId, 'mentalWellbeingLogs');
 
   const commonMealsQuery = query(commonMealsRef, orderBy('name'));
   const weightLogsQuery = query(weightLogsRef, orderBy('loggedAt'));
+  const mentalWellbeingLogsQuery = query(mentalWellbeingLogsRef, orderBy('loggedAt', 'desc'), limit(30));
 
   try {
     const [
@@ -220,14 +222,16 @@ export async function fetchInitialAppData(userId: string) {
       weightLogsSnap,
       courseProgressSnap,
       pastSummariesSnap,
-      achievementInteractionsSnap
+      achievementInteractionsSnap,
+      mentalWellbeingLogsSnap
     ] = await Promise.all([
       getDocSafe(userDocRef),
       getDocsSafe(commonMealsQuery),
       getDocsSafe(weightLogsQuery),
       getDocsSafe(courseProgressRef),
       getDocsSafe(pastSummariesRef),
-      getDocsSafe(achievementInteractionsRef)
+      getDocsSafe(achievementInteractionsRef),
+      getDocsSafe(mentalWellbeingLogsQuery)
     ]);
     
     if (!userDocSnap.exists()) {
@@ -279,6 +283,7 @@ export async function fetchInitialAppData(userId: string) {
     achievementInteractionsSnap.forEach(doc => {
       achievementInteractions[doc.id] = doc.data() as { reactions: Reactions };
     });
+    const mentalWellbeingLogs = mentalWellbeingLogsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as MentalWellbeingLog[];
 
     return {
       role: userDocData.role,
@@ -288,7 +293,7 @@ export async function fetchInitialAppData(userId: string) {
       goals: userDocData.goals,
       currentStreak: userDocData.currentStreak,
       lastDateStreakChecked: userDocData.lastDateStreakChecked,
-      summaryStartDate: userDocData.summaryStartDate ?? null, // <-- NYTT
+      summaryStartDate: userDocData.summaryStartDate ?? null,
       highestStreak: userDocData.highestStreak,
       highestLevelId: userDocData.highestLevelId,
       weeklyBank: userDocData.weeklyBank,
@@ -301,6 +306,7 @@ export async function fetchInitialAppData(userId: string) {
       achievementInteractions,
       journeyAnalysisFeedback: userDocData.journeyAnalysisFeedback,
       pushSubscriptions: userDocData.pushSubscriptions ?? [],
+      mentalWellbeingLogs,
     };
 
   } catch (error) {
@@ -465,9 +471,10 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
 
 /* ===== Wellbeing ===== */
 
-export async function addMentalWellbeingLog(userId: string, logData: Omit<MentalWellbeingLog, 'id'>) {
+export async function addMentalWellbeingLog(userId: string, logData: Omit<MentalWellbeingLog, 'id'>): Promise<string> {
   const wellbeingLogsRef = collection(db, 'users', userId, 'mentalWellbeingLogs');
-  await addDoc(wellbeingLogsRef, logData);
+  const docRef = await addDoc(wellbeingLogsRef, logData);
+  return docRef.id;
 }
 
 export async function fetchMentalWellbeingLogs(userId: string): Promise<MentalWellbeingLog[]> {

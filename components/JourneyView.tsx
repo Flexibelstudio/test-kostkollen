@@ -1,7 +1,8 @@
+
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { User } from '@firebase/auth';
-import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, StreakSaver, Reactions } from '../types';
-import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PencilIcon, ChartLineIcon, SparklesIcon, UserCircleIcon, InformationCircleIcon, CheckIcon, BookOpenIcon, TrophyIcon, BarcodeIcon, UserGroupIcon, ChevronDownIcon, ChevronUpIcon, ShareIcon, HeartIcon, XMarkIcon, LifebuoyIcon } from './icons';
+import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, StreakSaver, Reactions, AIDataForJourneyAnalysis } from '../types';
+import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PencilIcon, ChartLineIcon, SparklesIcon, UserCircleIcon, InformationCircleIcon, CheckIcon, BookOpenIcon, TrophyIcon, BarcodeIcon, UserGroupIcon, ChevronDownIcon, ChevronUpIcon, ShareIcon, HeartIcon, XMarkIcon, LifebuoyIcon, AICoachIcon } from './icons';
 import { User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
 import WeightChart from './WeightChart.tsx'; 
 import { calculateGoalTimeline, TimelineMilestone } from '../utils/timelineUtils.ts';
@@ -12,7 +13,6 @@ import AchievementsView from './AchievementsView.tsx';
 import { fetchTimelineForCurrentUser } from '../services/firestoreService.ts';
 import { auth } from '../firebase';
 import { playAudio } from '../services/audioService';
-
 
 interface JourneyViewProps {
   pastDaysData: PastDaysSummaryCollection;
@@ -25,7 +25,7 @@ interface JourneyViewProps {
   viewingDate: Date;
   setViewingDate: (date: Date) => void;
   currentDate: Date;
-  initialTab: 'weight' | 'calendar' | 'profile' | 'achievements';
+  initialTab: 'calendar' | 'profile' | 'achievements';
   highestStreak: number;
   highestLevelId: string | null;
   minSafeCalories: number;
@@ -36,8 +36,11 @@ interface JourneyViewProps {
   journeyAnalysisFeedback: AIStructuredFeedbackResponse | null;
   onNavigateToMainWithDate: (date: Date) => void;
   streakSaver: StreakSaver | null;
+  analysisContext: AIDataForJourneyAnalysis;
+  setShowAICoachModal: (show: boolean) => void;
+  onDiscussSavedAnalysis: (analysisDate?: string) => void;
 }
-type Tab = 'measurements' | 'overview' | 'goals' | 'achievements';
+type Tab = 'overview' | 'goals' | 'achievements';
 
 
 const getLocalISODateString = (date: Date): string => {
@@ -124,25 +127,38 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       initialTab, highestStreak, highestLevelId, minSafeCalories,
       setToastNotification, achievements, unlockedAchievements, achievementInteractions, journeyAnalysisFeedback,
       onNavigateToMainWithDate,
-      streakSaver
+      streakSaver,
+      analysisContext,
+      setShowAICoachModal,
+      onDiscussSavedAnalysis
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
-    if(initialTab === 'weight') return 'measurements';
     if(initialTab === 'calendar') return 'overview';
     if(initialTab === 'profile') return 'goals';
     if(initialTab === 'achievements') return 'achievements';
-    return 'measurements';
+    return 'overview';
   });
 
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(true);
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
+  const [isGamificationCardExpanded, setIsGamificationCardExpanded] = useState(false);
 
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const juneFirst = useMemo(() => new Date(currentYear, 5, 1), [currentYear]); // June 1st of current year
+
+  const validPastDaysArray = useMemo(() => {
+    return Object.values(pastDaysData)
+      .filter(summary => new Date(summary.date) >= juneFirst)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [pastDaysData, juneFirst]);
+
+  const filteredWeightLogs = useMemo(() => {
+    return weightLogs.filter(log => new Date(log.loggedAt) >= juneFirst);
+  }, [weightLogs, juneFirst]);
   
   const timeline = useMemo(() => calculateGoalTimeline(userProfile), [userProfile]);
-  
-  const validPastDaysArray = useMemo(() => Object.values(pastDaysData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [pastDaysData]);
   
     const weeksMap = useMemo(() => {
         const map = new Map<string, (PastDaySummary | null)[]>();
@@ -197,7 +213,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         return grouped;
     }, [weeksMap]);
 
-    const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
@@ -221,9 +236,9 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     onNavigateToMainWithDate(date);
   };
   
-  const latestWeightLog = weightLogs.length > 0 ? weightLogs[weightLogs.length - 1] : null;
-  const previousWeightLog = weightLogs.length > 1 ? weightLogs[weightLogs.length - 2] : null;
-  const firstWeightLog = weightLogs.length > 0 ? weightLogs[0] : null;
+  const latestWeightLog = filteredWeightLogs.length > 0 ? filteredWeightLogs[filteredWeightLogs.length - 1] : null;
+  const previousWeightLog = filteredWeightLogs.length > 1 ? filteredWeightLogs[filteredWeightLogs.length - 2] : null;
+  const firstWeightLog = filteredWeightLogs.length > 0 ? filteredWeightLogs[0] : null;
 
   const latestWeight = latestWeightLog?.weightKg ?? userProfile.currentWeightKg;
   const latestMuscle = latestWeightLog?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg;
@@ -304,54 +319,68 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const fatChangeDetails = formatChangeWithColor(fatChangeNum, userProfile.goalType, 'fat', userProfile.measurementMethod, undefined, undefined);
 
   const { goalProgress, goalProgressText, startValue, targetValue } = useMemo(() => {
-    let start, current, goalChange, goalChangeType;
+    let startValueKg, currentValueKg, goalChangeKg, goalUnit;
 
-    if (userProfile.measurementMethod === 'scale') {
-        start = userProfile.goalStartWeight;
-        current = latestWeightLog?.weightKg;
-        goalChange = userProfile.desiredWeightChangeKg || 0;
-        goalChangeType = 'kg';
-    } else { // inbody
-        if (userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0) {
-            start = userProfile.goalStartFatMassKg;
-            current = latestWeightLog?.bodyFatMassKg;
-            goalChange = userProfile.desiredFatMassChangeKg;
-            goalChangeType = 'kg fett';
-        } else if (userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0) {
-            start = userProfile.goalStartMuscleMassKg;
-            current = latestWeightLog?.skeletalMuscleMassKg;
-            goalChange = userProfile.desiredMuscleMassChangeKg;
-            goalChangeType = 'kg muskler';
-        } else { // Fallback to weight if no specific fat/muscle goal is set
-             start = userProfile.goalStartWeight;
-             current = latestWeightLog?.weightKg;
-             goalChange = 0;
-             goalChangeType = 'kg';
-        }
+    // Determine which metric is the goal
+    const isScaleGoal = userProfile.measurementMethod === 'scale' && userProfile.desiredWeightChangeKg;
+    const isFatLossGoal = userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
+    const isMuscleGainGoal = userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
+
+    if (isFatLossGoal) {
+        startValueKg = userProfile.goalStartFatMassKg;
+        currentValueKg = latestWeightLog?.bodyFatMassKg;
+        goalChangeKg = userProfile.desiredFatMassChangeKg;
+        goalUnit = 'kg fett';
+    } else if (isMuscleGainGoal) {
+        startValueKg = userProfile.goalStartMuscleMassKg;
+        currentValueKg = latestWeightLog?.skeletalMuscleMassKg;
+        goalChangeKg = userProfile.desiredMuscleMassChangeKg;
+        goalUnit = 'kg muskler';
+    } else if (isScaleGoal) {
+        startValueKg = userProfile.goalStartWeight;
+        currentValueKg = latestWeightLog?.weightKg;
+        goalChangeKg = userProfile.desiredWeightChangeKg;
+        goalUnit = 'kg vikt';
+    } else {
+        // No active goal or data to calculate progress
+        return { goalProgress: 0, goalProgressText: 'Inget aktivt mål', startValue: undefined, targetValue: undefined };
     }
     
-    if (start == null || current == null || userProfile.mainGoalCompleted || goalChange === 0) {
-        return { goalProgress: 0, goalProgressText: 'Mål ej satt', startValue: undefined, targetValue: undefined };
+    if (startValueKg == null || currentValueKg == null || userProfile.mainGoalCompleted) {
+        return { goalProgress: 0, goalProgressText: 'Väntar på mätning', startValue: startValueKg, targetValue: startValueKg != null && goalChangeKg != null ? startValueKg + goalChangeKg : undefined };
+    }
+
+    const targetValueKg = startValueKg + goalChangeKg;
+    
+    // Use absolute values to avoid confusion with signs
+    const totalChangeNeeded = Math.abs(goalChangeKg);
+    
+    let changeAchieved;
+    if (goalChangeKg > 0) { // Gain goal
+        changeAchieved = currentValueKg - startValueKg;
+    } else { // Loss goal
+        changeAchieved = startValueKg - currentValueKg;
     }
     
-    const target = start + goalChange;
-    const totalChangeNeeded = start - target;
-    const changeAchieved = start - current;
+    // Don't show negative progress
+    changeAchieved = Math.max(0, changeAchieved);
 
-    if (totalChangeNeeded === 0) {
-        return { goalProgress: 100, goalProgressText: `${start.toFixed(1).replace('.',',')} / ${target.toFixed(1).replace('.',',')} ${goalChangeType.split(' ')[1]}`, startValue: start, targetValue: target };
+    if (totalChangeNeeded < 0.01) { // Effectively zero
+        return { goalProgress: 100, goalProgressText: 'Mål uppnått', startValue: startValueKg, targetValue: targetValueKg };
     }
 
     const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
     const progressClamped = Math.max(0, Math.min(progressRaw, 100));
+    
+    const unit = goalUnit.split(' ')[1] || 'kg';
 
     return {
         goalProgress: progressClamped,
-        goalProgressText: `${current.toFixed(1).replace('.',',')} / ${target.toFixed(1).replace('.',',')} ${goalChangeType.split(' ')[1]}`,
-        startValue: start,
-        targetValue: target
+        goalProgressText: `${currentValueKg.toFixed(1).replace('.',',')} / ${targetValueKg.toFixed(1).replace('.',',')} ${unit}`,
+        startValue: startValueKg,
+        targetValue: targetValueKg
     };
-}, [latestWeightLog, userProfile]);
+  }, [latestWeightLog, userProfile]);
 
   const goalDisplayString = useMemo(() => {
     const { measurementMethod, desiredWeightChangeKg, desiredFatMassChangeKg, desiredMuscleMassChangeKg, goalType, goalCompletionDate } = userProfile;
@@ -385,7 +414,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
 
   return (
     <>
-      <div className="animate-fade-in">
+      <div className="animate-fade-in relative pb-20">
             
         <div className="space-y-6">
             <section aria-labelledby="journey-summary-heading">
@@ -433,7 +462,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             <div className="bg-white p-2 sm:p-4 rounded-xl shadow-soft-lg border border-neutral-light">
               <nav className="border-b border-neutral-light -mx-2 sm:-mx-4 px-2 sm:px-4 mb-4">
                   <div role="tablist" className="flex items-center justify-around">
-                      <TabButton label="Utveckling" isActive={activeTab === 'measurements'} onClick={() => setActiveTab('measurements')} />
                       <TabButton label="Översikt" isActive={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
                       <TabButton label="Mål" isActive={activeTab === 'goals'} onClick={() => setActiveTab('goals')} />
                       <TabButton label="Bragder" isActive={activeTab === 'achievements'} onClick={() => setActiveTab('achievements')} />
@@ -441,50 +469,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
               </nav>
 
               <div className="mt-4">
-                {activeTab === 'measurements' && (
-                    <div className="space-y-4">
-                        <WeightChart data={weightLogs} />
-                        {journeyAnalysisFeedback && (
-                            <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
-                                <button
-                                    onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
-                                    className="w-full flex justify-between items-center text-left mb-2 group"
-                                    aria-expanded={isAnalysisExpanded}
-                                    aria-controls="journey-analysis-panel"
-                                >
-                                    <div className="flex items-center">
-                                        <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
-                                        <div>
-                                            <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">Senaste Analys från Coachen</h3>
-                                            <p className="text-xs text-neutral">
-                                                {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
-                                </button>
-                                {isAnalysisExpanded && (
-                                    <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
-                                        {journeyAnalysisFeedback.sections.map((section, index) => (
-                                            <div key={index} className="pt-3 border-t border-neutral-light/50">
-                                                <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
-                                                    <span className="text-xl mr-2">{section.emoji}</span>
-                                                    {section.title}
-                                                </h4>
-                                                <div className="text-neutral-dark space-y-1 text-sm pl-8">
-                                                    {section.content.split('\n').map((line, lineIdx) => (
-                                                        <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                )}
-                
                 {activeTab === 'overview' && (() => {
                     const monthNames = ["Januari", "Februari", "Mars", "April", "Maj", "Juni", "Juli", "Augusti", "September", "Oktober", "November", "December"];
                     const sortedYears = Array.from(monthlyGroupedSummaries.keys()).sort((a, b) => b - a);
@@ -529,7 +513,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                                                 const isFutureDay = dayDate > currentDate;
                                                                                 const isToday = dayISO === todayISO;
                                                                                 const isYesterday = dayISO === getLocalISODateString(addDays(currentDate, -1));
-                                                                                const isClickable = isToday || isYesterday;
+                                                                                const isClickable = !isFutureDay;
                                                                                 const isViewingThisDay = dayISO === getLocalISODateString(viewingDate);
                                                                                 const waterGoalWasMet = summary?.waterGoalMet === true;
                                                                                 
@@ -612,7 +596,70 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                 highestStreak={highestStreak}
                                 highestLevelId={highestLevelId}
                                 streakSaver={streakSaver}
+                                isExpanded={isGamificationCardExpanded}
+                                onToggle={() => {
+                                    playAudio('uiClick');
+                                    setIsGamificationCardExpanded(prev => !prev);
+                                }}
                             />
+                            
+                            <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
+                                {journeyAnalysisFeedback ? (
+                                    <>
+                                        <button
+                                            onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
+                                            className="w-full flex justify-between items-center text-left mb-2 group"
+                                            aria-expanded={isAnalysisExpanded}
+                                            aria-controls="journey-analysis-panel"
+                                        >
+                                            <div className="flex items-center">
+                                                <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
+                                                <div>
+                                                    <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">AI-analysen från din coach</h3>
+                                                    <p className="text-xs text-neutral">
+                                                        {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
+                                        </button>
+                                        {isAnalysisExpanded && (
+                                            <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
+                                                {journeyAnalysisFeedback.sections.map((section, index) => (
+                                                    <div key={index} className="pt-3 border-t border-neutral-light/50">
+                                                        <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
+                                                            <span className="text-xl mr-2">{section.emoji}</span>
+                                                            {section.title}
+                                                        </h4>
+                                                        <div className="text-neutral-dark space-y-1 text-sm pl-8">
+                                                            {section.content.split('\n').map((line, lineIdx) => (
+                                                                <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                 <div className="mt-4 pt-4 border-t border-neutral-light/50">
+                                                    <button
+                                                        onClick={() => onDiscussSavedAnalysis(journeyAnalysisFeedback.analysisDate)}
+                                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95"
+                                                    >
+                                                        <AICoachIcon className="w-6 h-6 flex-shrink-0"/>
+                                                        <span className="text-center">Diskutera analysen med din coach</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="text-center p-4">
+                                        <SparklesIcon className="w-10 h-10 text-secondary mx-auto mb-3" />
+                                        <h3 className="text-xl font-semibold text-neutral-dark">Personlig Analys från Coachen</h3>
+                                        <p className="text-neutral mt-2 text-sm">
+                                            Din analys kommer att visas här när du har loggat några dagar och gjort minst två invägningar.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
 
                         </div>
                     );
@@ -636,7 +683,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                             )}
                         </div>
                     </section>
-                    <GoalTimeline milestones={timeline.milestones} paceFeedback={timeline.paceFeedback} weightLogs={weightLogs} goalType={userProfile.goalType} currentAppDate={currentDate}/>
+                    <GoalTimeline milestones={timeline.milestones} paceFeedback={timeline.paceFeedback} weightLogs={filteredWeightLogs} goalType={userProfile.goalType} currentAppDate={currentDate}/>
                     <ProfileAndGoalEditor initialProfile={userProfile} initialGoals={goals} onSave={onSaveProfileAndGoals} />
                     
                     {userProfile.completedGoals && userProfile.completedGoals.length > 0 && (
@@ -677,6 +724,17 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             </div>
         </div>
       </div>
+      
+      <div className="fixed right-6 bottom-6 z-40">
+          <button
+            onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); }}
+            className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white shadow-xl hover:bg-secondary-darker active:scale-95 transform transition-all animate-scale-in"
+            aria-label="Fråga Flexibot AI-Coach"
+          >
+            <AICoachIcon className="w-8 h-8" />
+          </button>
+      </div>
+
     </>
   );
 };

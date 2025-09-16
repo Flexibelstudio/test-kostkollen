@@ -17,7 +17,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ onClose, userName }) => {
     </div>
   );
   
-  const welcomeMessage = userName ? `Välkommen till kostloggen, ${userName}!` : "Välkommen till kostloggen!";
+  const welcomeMessage = userName ? `Välkommen till Kostloggen, ${userName}!` : "Välkommen till Kostloggen!";
 
   return (
     <div 
@@ -46,7 +46,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ onClose, userName }) => {
 
       <div className="space-y-6">
         <FeatureItem icon={<span className="text-2xl w-6 text-center">➕</span>} title="Logga Måltider Mångsidigt">
-          Använd plus-knappen (➕) nere till höger för snabbåtkomst! Skanna en streckkod (<BarcodeIcon className="w-5 h-5 inline-block" />), ta ett foto (<CameraIcon className="w-5 h-5 inline-block" />), ladda upp en bild (<UploadIcon className="w-5 h-5 inline-block" />), sök efter livsmedel med text (<SearchIcon className="w-5 h-5 inline-block" />), eller hitta och logga hela recept (📖). Appen föreslår näringsinnehåll som du kan granska och logga (<CheckCircleIcon className="w-5 h-5 inline-block text-primary" />).
+          Använd plus-knappen nere till höger för snabbåtkomst! Skanna en streckkod, ta ett foto, ladda upp en bild, sök efter livsmedel med text, eller hitta och logga hela recept. Appen föreslår näringsinnehåll som du kan granska och logga.
         </FeatureItem>
         
         <FeatureItem icon={<span className="text-2xl w-6 text-center">🤖</span>} title="AI-Driven Näringsanalys">
@@ -54,7 +54,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ onClose, userName }) => {
         </FeatureItem>
 
         <FeatureItem icon={<span className="text-2xl w-6 text-center">🧍‍♂️</span>} title="Personlig Profil & Mål">
-          Under "Min Profil" (🧍‍♂️) anger du dina grunddata och önskade förändringar i fett/muskelmassa. Baserat på detta beräknar appen ett primärt mål (t.ex. fettminskning) och rekommenderade dagsmål för kalorier (<span role="img" aria-label="Kalorier">🔥</span>), protein (<span role="img" aria-label="Protein">💪</span>), kolhydrater (<span role="img" aria-label="Kolhydrater">🍞</span>) och fett (<span role="img" aria-label="Fett">🥑</span>). Du kan sedan justera dessa mål manuellt.
+          Under "Min Profil" anger du dina grunddata och önskade förändringar i fett/muskelmassa. Baserat på detta beräknar appen ett primärt mål (t.ex. fettminskning) och rekommenderade dagsmål för kalorier, protein, kolhydrater och fett. Du kan sedan justera dessa mål manuellt.
         </FeatureItem>
 
         <FeatureItem 
@@ -72,23 +72,23 @@ const InfoModal: React.FC<InfoModalProps> = ({ onClose, userName }) => {
         </FeatureItem>
         
         <FeatureItem icon={<span className="text-2xl w-6 text-center">📆</span>} title="Automatisk Dagavslutning, Streaks & Nivåer">
-            Varje dag vid midnatt utvärderas din logg. För att bygga din streak (dagar i rad du når målet) och låsa upp nya nivåer (t.ex. 🌱, 🥉, 🥇), behöver du äta inom ett hälsosamt kaloriintervall – varken för lågt, eller över ditt dagliga mål (efter eventuell användning av sparpotten). Kalorier som blir över (inom det hälsosamma intervallet) hamnar i din Sparpott!
+            Varje dag vid midnatt utvärderas din logg. För att bygga din streak (dagar i rad du når målet) och låsa upp nya nivåer, behöver du äta inom ett hälsosamt kaloriintervall – varken för lågt, eller över ditt dagliga mål (efter eventuell användning av sparpotten). Kalorier som blir över (inom det hälsosamma intervallet) hamnar i din Sparpott!
         </FeatureItem>
 
-        <FeatureItem icon={<span className="text-2xl w-6 text-center">🧭</span>} title="Följ din Resa">
-          Under "Min resa" (🧭) kan du följa dina framsteg över tid. Se en kalenderöversikt över uppnådda mål och en detaljerad vy av din viktutveckling med diagram för vikt, muskel- och fettmassa. Du kan logga din vikt och kroppssammansättning (från t.ex. en InBody-våg) här.
+        <FeatureItem icon={<span className="text-2xl w-6 text-center">👣</span>} title="Följ din Resa">
+          Under "Min resa" hittar du allt som rör dina framsteg. Här får du en djupgående AI-analys av din utveckling som sammanfattar dina vanor, trender och kroppssammansättning. Diskutera analysen direkt med din AI-coach i chatten! Utforska din kalender för att se dina dagliga framgångar, hantera dina personliga mål och se alla dina upplåsta "Bragder". Det är också här du loggar dina viktmätningar.
         </FeatureItem>
         
         <FeatureItem icon={<TrophyIcon className="w-6 h-6 text-accent" />} title="Bragder och Belöningar">
           Lås upp 'Bragder' genom att nå milstolpar som att hålla en lång streak, slutföra kursen eller nå dina övergripande mål. Visa dina framsteg under "Min Resa" och fira dina framgångar!
         </FeatureItem>
 
-        <FeatureItem icon={<UserGroupIcon className="w-6 h-6 text-purple-600" />} title="Community & Peppkompisar">
+        <FeatureItem icon={<span className="text-2xl w-6 text-center">👥</span>} title="Community & Peppkompisar">
           Hälsa är en resa som är bättre tillsammans! I Community-vyn kan du hitta och lägga till 'Peppkompisar'. Se varandras framsteg, dela bragder och skicka peppande reaktioner och kommentarer. Stötta varandra och nå era mål tillsammans!
         </FeatureItem>
 
-        <FeatureItem icon={<span className="text-2xl w-6 text-center">🧠</span>} title="Din AI Coach">
-           Få personlig feedback, tips och uppmuntran från din AI Coach (🧠). Coachen analyserar din logg, dina mål och eventuella kursframsteg för att ge dig relevant stöd.
+        <FeatureItem icon={<span className="text-2xl w-6 text-center">✨</span>} title="Din Coach">
+           Få personlig feedback, ställ frågor och få uppmuntran från din AI Coach. Din coach kan både ge dig en djupare analys av dina framsteg (som du hittar under "Min Resa") och svara på dina frågor i en interaktiv chatt. Fråga om din viktkurva, be om tips för att bryta en platå, eller få en snabb summering av din vecka. Coachen finns där för att stötta dig!
         </FeatureItem>
 
         <FeatureItem icon={<span className="text-2xl w-6 text-center">🎓</span>} title="Kurs: Praktisk Viktkontroll">

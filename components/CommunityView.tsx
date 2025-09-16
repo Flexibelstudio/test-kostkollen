@@ -716,6 +716,7 @@ export const CommunityView: React.FC<{
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
   pendingRequestsCount: number;
   initialTab?: 'flode' | 'hantera';
+  initialSubTab?: 'buddies' | 'search' | 'requests';
   highlightEventId?: string | null;
   timelineEvents: TimelineEvent[];
   setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
@@ -730,6 +731,7 @@ export const CommunityView: React.FC<{
   setToastNotification,
   pendingRequestsCount,
   initialTab = 'flode',
+  initialSubTab = 'buddies',
   highlightEventId = null,
   timelineEvents,
   setTimelineEvents,
@@ -923,7 +925,7 @@ export const CommunityView: React.FC<{
                         onDataChanged={onDataChanged}
                         buddyDetails={buddyDetails}
                         achievements={achievements}
-                        initialTab={initialTab === 'hantera' ? 'requests' : 'buddies'}
+                        initialTab={initialSubTab}
                     />
                 )}
             </main>

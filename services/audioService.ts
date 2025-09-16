@@ -1,6 +1,6 @@
 import { Mutex } from 'async-mutex';
 
-export type SoundKey = 'uiClick' | 'logSuccess' | 'levelUp' | 'cameraShutter' | 'calorieBank';
+export type SoundKey = 'uiClick' | 'logSuccess' | 'levelUp' | 'cameraShutter' | 'calorieBank' | 'waterSplash';
 
 const soundFiles: Record<SoundKey, string> = {
   uiClick: 'sounds/ui_click.mp3',
@@ -8,6 +8,7 @@ const soundFiles: Record<SoundKey, string> = {
   levelUp: 'sounds/level_up.mp3',
   cameraShutter: 'sounds/camera-shutter.mp3',
   calorieBank: 'sounds/coin_drop.wav',
+  waterSplash: 'sounds/water_splash.mp3',
 };
 
 const audioBuffers: Partial<Record<SoundKey, AudioBuffer>> = {};

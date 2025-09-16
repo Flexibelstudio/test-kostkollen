@@ -136,6 +136,22 @@
       .animate-heart-pop {
         animation: heart-pop 0.5s ease-out forwards;
       }
+      
+      @keyframes water-splash {
+        from {
+          opacity: 1;
+          transform: translate(0, 0) scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: translate(var(--translateX), var(--translateY)) scale(0.5);
+        }
+      }
+      .animate-water-splash {
+        animation-name: water-splash;
+        animation-fill-mode: forwards;
+        animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      }
 
       .truncate-2-lines {
         display: -webkit-box;
@@ -184,14 +200,14 @@
     "@firebase/app": "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js",
     "@firebase/auth": "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js",
     "@firebase/firestore": "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js",
-    "@firebase/functions": "https://www.gstatic.com/firebasejs/10.10.0/firebase-functions.js",
     "@google/genai": "https://esm.sh/@google/genai@^1.9.0",
     "async-mutex": "https://esm.sh/async-mutex@^0.5.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.400.0",
     "@zxing/library": "https://esm.sh/@zxing/library@^0.21.0",
     "@zxing/browser": "https://esm.sh/@zxing/browser@^0.1.5",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/"
+    "firebase/": "https://aistudiocdn.com/firebase@^12.2.1/"
   }
 }
 </script>

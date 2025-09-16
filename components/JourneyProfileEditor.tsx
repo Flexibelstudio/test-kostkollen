@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, GoalSettings, ActivityLevel, GoalType } from '../types';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations';
+import { calculateGoalTimeline } from '../utils/timelineUtils';
 import BmrTdeeInfoModal from './BmrTdeeInfoModal';
+import GoalTimeline from './JourneyGoalTimeline';
 import { InformationCircleIcon, CheckCircleIcon, CheckIcon, PencilIcon, ExclamationTriangleIcon, XMarkIcon } from './icons';
 
 const activityLevelOptions: { value: ActivityLevel; emoji: string; label: string; description: string; example: string }[] = [
@@ -74,6 +76,15 @@ const ProfileAndGoalEditor: React.FC<{
         }
         return null;
     }, [profile]);
+    
+    const timeline = useMemo(() => {
+        // Only calculate and show the projected timeline when actively setting a new goal
+        if (isEditing && isFullGoalEdit) {
+            return calculateGoalTimeline(profile);
+        }
+        // Return empty state otherwise to avoid showing it in non-edit mode or simple activity edit
+        return { milestones: [], paceFeedback: null };
+    }, [profile, isEditing, isFullGoalEdit]);
 
 
     const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string; type: string } }) => {
@@ -205,66 +216,90 @@ const ProfileAndGoalEditor: React.FC<{
                         </div>
                     </section>
                     
-                    {/* Measurement Method */}
-                    <section aria-labelledby="measurement-method-heading">
-                        <h4 id="measurement-method-heading" className="text-lg font-semibold text-neutral-dark mb-2">Hur mäter du dig?</h4>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
-                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} disabled:bg-gray-200 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed`}
-                                disabled={!isFullGoalEdit}
-                            >
-                                InBody / Avancerad våg
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
-                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} disabled:bg-gray-200 disabled:border-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed`}
-                                disabled={!isFullGoalEdit}
-                            >
-                                Vanlig våg
-                            </button>
-                        </div>
-                    </section>
+                     {isFullGoalEdit && (
+                        <div className="p-4 bg-secondary-100/60 rounded-lg border border-secondary-200/80 animate-fade-in">
+                            <h4 className="text-lg font-semibold text-secondary-darker mb-2">Sätt ditt nya mål</h4>
+                            <p className="text-sm text-neutral-dark mb-4">
+                                Ange din önskade förändring nedan. Appen kommer automatiskt att beräkna en rekommenderad tidsplan. Du kan lägga till ett eget måldatum om du har en specifik tidsram.
+                            </p>
+                            
+                            {/* Measurement Method */}
+                            <section aria-labelledby="measurement-method-heading">
+                                <h5 id="measurement-method-heading" className="text-base font-semibold text-neutral-dark mb-2">Hur mäter du dig?</h5>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
+                                        className={`flex-1 text-center px-4 py-2 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
+                                    >
+                                        InBody / Avancerad våg
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
+                                        className={`flex-1 text-center px-4 py-2 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
+                                    >
+                                        Vanlig våg
+                                    </button>
+                                </div>
+                            </section>
 
-                    {/* Body Comp Goals */}
-                    <section aria-labelledby="body-composition-goals-heading">
-                        <h4 id="body-composition-goals-heading" className="text-lg font-semibold text-neutral-dark mb-2">Önskad förändring</h4>
-                         {profile.measurementMethod === 'scale' ? (
-                             <div className="animate-fade-in">
-                                <label htmlFor="desiredWeightChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad viktförändring (kg)</label>
-                                <div className="flex items-center space-x-2">
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled={!isFullGoalEdit}>-</button>
-                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled={!isFullGoalEdit}/>
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled={!isFullGoalEdit}>+</button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-4 animate-fade-in">
-                                <div>
-                                    <label htmlFor="desiredFatMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Fettmassaförändring (kg)</label>
-                                    <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled={!isFullGoalEdit}>-</button>
-                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled={!isFullGoalEdit}/>
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled={!isFullGoalEdit}>+</button>
+                            {/* Body Comp Goals */}
+                            <section aria-labelledby="body-composition-goals-heading" className="mt-4">
+                                <h5 id="body-composition-goals-heading" className="text-base font-semibold text-neutral-dark mb-2">Önskad förändring</h5>
+                                {profile.measurementMethod === 'scale' ? (
+                                    <div className="animate-fade-in">
+                                        <label htmlFor="desiredWeightChangeKg" className="block text-sm font-medium text-neutral-dark mb-1.5">Önskad viktförändring (kg)</label>
+                                        <div className="flex items-center space-x-2">
+                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
+                                            <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
+                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka">+</button>
+                                        </div>
                                     </div>
-                                </div>
-                                <div>
-                                    <label htmlFor="desiredMuscleMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Muskelmassaförändring (kg)</label>
-                                    <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska" disabled={!isFullGoalEdit}>-</button>
-                                        <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0" disabled={!isFullGoalEdit}/>
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka" disabled={!isFullGoalEdit}>+</button>
+                                ) : (
+                                    <div className="space-y-4 animate-fade-in">
+                                        <div>
+                                            <label htmlFor="desiredFatMassChangeKg" className="block text-sm font-medium text-neutral-dark mb-1.5">Fettmassaförändring (kg)</label>
+                                            <div className="flex items-center space-x-2">
+                                                <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
+                                                <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
+                                                <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka">+</button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label htmlFor="desiredMuscleMassChangeKg" className="block text-sm font-medium text-neutral-dark mb-1.5">Muskelmassaförändring (kg)</label>
+                                            <div className="flex items-center space-x-2">
+                                                <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
+                                                <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
+                                                <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka">+</button>
+                                            </div>
+                                        </div>
                                     </div>
+                                )}
+                                <div className="mt-4">
+                                    <label htmlFor="goalCompletionDate" className="block text-sm font-medium text-neutral-dark mb-1.5">Eget måldatum (valfritt)</label>
+                                    <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass.replace('disabled:bg-gray-200', 'bg-white')} min={new Date().toISOString().split('T')[0]}/>
                                 </div>
-                            </div>
-                        )}
-                        <div className="mt-4">
-                            <label htmlFor="goalCompletionDate" className="block text-base font-medium text-neutral-dark mb-1.5">Måldatum</label>
-                            <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} disabled={!isFullGoalEdit}/>
+                            </section>
+
+                            {/* Timeline Preview */}
+                             {timeline.paceFeedback && (
+                                <div className={`mt-3 p-3 rounded-md text-sm font-medium animate-fade-in ${
+                                    timeline.paceFeedback.type === 'error' ? 'bg-red-100 text-red-800' :
+                                    timeline.paceFeedback.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-blue-100 text-blue-800'
+                                }`}>
+                                    {timeline.paceFeedback.text}
+                                </div>
+                            )}
+                            {timeline.milestones.length > 0 && (
+                                <div className="mt-6">
+                                    <h4 className="text-base font-semibold text-neutral-dark mb-2">Beräknad tidsplan:</h4>
+                                    <GoalTimeline milestones={timeline.milestones} paceFeedback={null} weightLogs={[]} goalType={profile.goalType} currentAppDate={new Date()} />
+                                </div>
+                            )}
                         </div>
-                    </section>
+                    )}
 
                     {/* Save/Cancel Buttons */}
                     <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-neutral-light/70">

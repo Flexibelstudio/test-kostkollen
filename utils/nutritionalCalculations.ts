@@ -1,5 +1,5 @@
 import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations } from '../types.ts';
-import { ACTIVITY_MULTIPLIERS, PROTEIN_PER_KG_TARGET, FAT_PERCENTAGE_OF_CALORIES, CALORIES_PER_GRAM, CALORIE_ADJUSTMENT } from '../constants.ts';
+import { ACTIVITY_MULTIPLIERS, PROTEIN_PER_KG_TARGET, FAT_PERCENTAGE_OF_CALORIES, CALORIES_PER_GRAM, CALORIE_ADJUSTMENT, PROTEIN_PER_KG_TARGET_GAIN } from '../constants.ts';
 
 /**
  * Calculates Basal Metabolic Rate (BMR) using the Mifflin-St Jeor equation.
@@ -84,7 +84,8 @@ export const calculateRecommendations = (profile: UserProfileData): CalculatedNu
   const calorieAdjustment = CALORIE_ADJUSTMENT[goalType];
   const recommendedCalories = tdee + calorieAdjustment;
 
-  const recommendedProteinGrams = currentWeightKg * PROTEIN_PER_KG_TARGET;
+  const proteinTarget = goalType === 'gain_muscle' ? PROTEIN_PER_KG_TARGET_GAIN : PROTEIN_PER_KG_TARGET;
+  const recommendedProteinGrams = currentWeightKg * proteinTarget;
   const proteinCalories = recommendedProteinGrams * CALORIES_PER_GRAM.protein;
 
   const fatCalories = recommendedCalories * FAT_PERCENTAGE_OF_CALORIES;

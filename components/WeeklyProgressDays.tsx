@@ -1,6 +1,6 @@
 import React from 'react';
 import { PastDaysSummaryCollection } from '../types';
-import { CheckCircleIcon, XCircleIcon } from './icons'; // Assuming these icons are suitable
+import { CheckCircleIcon, XCircleIcon, LifebuoyIcon } from './icons';
 
 interface WeeklyProgressDaysProps {
   pastDaysSummary: PastDaysSummaryCollection;
@@ -61,7 +61,7 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
           const isFutureDay = day > today;
           const isToday = dayISO === todayISO;
           const isYesterday = dayISO === yesterdayISO;
-          const isClickable = isToday || isYesterday;
+          const isClickable = !isFutureDay;
 
           const isViewingThisDay = dayISO === viewingDateISO;
           const summary = pastDaysSummary[dayISO];
@@ -92,7 +92,7 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
               }
             } else { // Past day, no summary
               bgColor = 'bg-neutral-light';
-              ariaLabel += 'Ej loggad.';
+              ariaLabel += 'Ej räknad dag.';
             }
           }
           
@@ -100,7 +100,7 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
             <div key={dayISO} className="relative">
               <button
                 onClick={() => isClickable && onDateSelect(day)}
-                disabled={isFutureDay}
+                disabled={!isClickable}
                 className={`flex flex-col items-center justify-around p-1 rounded-md text-xs sm:text-sm font-medium transition-all aspect-square w-full focus:outline-none
                   ${bgColor} 
                   ${isFutureDay ? 'opacity-60 cursor-not-allowed' : ''}
@@ -113,11 +113,14 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
                 <span className={`text-xs font-bold ${iconColorClass}`}>{getDayShortName(day.getDay())}</span>
                 
                 {/* Icons Container */}
-                <div className="flex justify-center items-center w-full px-0.5" style={{ height: '16px' }}>
+                <div className="flex justify-center items-center w-full px-0.5 space-x-0.5" style={{ height: '16px' }}>
                   {summary ? (
                     <>
                       <div className="w-4 h-4 flex items-center justify-center">
                         {summary.proteinGoalMet && <span role="img" aria-label="Proteinmål uppnått" title="Proteinmål uppnått" className="text-sm">💪</span>}
+                      </div>
+                      <div className="w-4 h-4 flex items-center justify-center">
+                        {summary.savedBy === 'streakSaver' && <LifebuoyIcon className="w-4 h-4 text-secondary" title="Streak räddad"/>}
                       </div>
                     </>
                   ) : (

@@ -1,4 +1,4 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Content } from "@google/genai";
 import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel } from '../types.ts';
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS } from '../constants.ts';
 
@@ -389,6 +389,108 @@ JSON-struktur för varje recept i 'recipeSuggestions':
   }
 };
 
+export const getAICoachResponseStream = async (
+  question: string,
+  chatHistory: Content[],
+  context: AIDataForJourneyAnalysis
+) => {
+  const { userProfile, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = context;
+
+  const formattedWeightLogsForAI = allWeightLogs.map(log => ({
+    date: new Date(log.loggedAt).toISOString().split('T')[0],
+    weightKg: log.weightKg,
+    skeletalMuscleMassKg: log.skeletalMuscleMassKg ?? null,
+    bodyFatMassKg: log.bodyFatMassKg ?? null,
+  }));
+
+  const formattedDailySummariesForAI = last30DaysSummaries.map(s => ({
+    date: s.date,
+    consumedCalories: s.consumedCalories,
+    consumedProtein: s.consumedProtein,
+    consumedCarbohydrates: s.consumedCarbohydrates,
+    consumedFat: s.consumedFat,
+    proteinGoalMet: s.proteinGoalMet,
+  })).slice(0, 30);
+
+  const systemInstruction = `Du är Flexibot, en vänlig, kunnig och konkret hälso-coach i appen Kostloggen. Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att analysera användarens loggade data och svara tydligt och personligt. Svara alltid på SVENSKA.
+
+**VIKTIGA REGLER FÖR TEXT-SVAR:**
+1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
+2.  Använd en vänlig och motiverande ton. Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
+3.  **Avsluta ALLTID ditt text-svar** med exakt denna fras: "Säg till om du vill ha ett utförligare svar."
+
+**REGLER FÖR GRAF-SVAR:**
+1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.
+2.  **VÄLJ RÄTT DATAKÄLLA (VIKTIGAST!):**
+    *   Om frågan handlar om **vikt, muskler, fettmassa**, använd EXKLUSIVT data från **Viktloggar**.
+    *   Om frågan handlar om **protein, kalorier, kolhydrater, fettintag**, använd EXKLUSIVT data från **Dagliga Summeringar**.
+    *   Blanda ALDRIG dessa datakällor. Om du är osäker, välj den som bäst matchar nyckelorden i frågan.
+3.  **JSON-Struktur:** Följ exakt denna struktur:
+    {
+      "chartType": "line",
+      "title": "En beskrivande titel för grafen på svenska",
+      "labels": ["en array av sträng-etiketter för x-axeln, t.ex. datum"],
+      "datasets": [
+        {
+          "label": "Etikett för dataserien (t.ex. 'Vikt (kg)')",
+          "data": [en array av siffror eller null, korresponderande mot etiketterna]
+        }
+      ]
+    }
+4.  **Visa All Data:** Inkludera ALLA tillgängliga datapunkter från den valda datakällan. Summera, aggregera eller förenkla INTE datan. Om ingen tidsram anges, använd all tillgänglig data.
+5.  **Formatering:**
+    *   Använd ALLTID \`datasets\`-arrayen, även om det bara är en dataserie.
+    *   Använd \`null\` för saknade datapunkter.
+    *   Formatera datum i \`labels\` som 'dd/mm'.
+
+**Exempel 1 (Vikt):** Fråga: "visa min vikt" -> Använd **Viktloggar**.
+**JSON-svar:**
+{
+  "chartType": "line",
+  "title": "Viktutveckling",
+  "labels": ["23/07", "30/07", "06/08"],
+  "datasets": [ { "label": "Vikt (kg)", "data": [75.8, 75.2, 74.9] } ]
+}
+
+**Exempel 2 (Protein):** Fråga: "Hur ser mitt proteinintag ut?" -> Använd **Dagliga Summeringar**.
+**JSON-svar:**
+{
+  "chartType": "line",
+  "title": "Proteinintag",
+  "labels": ["01/08", "02/08", "03/08", "04/08", "05/08"],
+  "datasets": [ { "label": "Protein (g)", "data": [150, 145, 160, 130, 155] } ]
+}
+
+Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VIKTIGA REGLER FÖR TEXT-SVAR".
+
+**TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
+- **Profil & Mål:** ${JSON.stringify(userProfile)}
+- **Streak:** ${currentStreak} dagar
+- **Viktloggar (ENDAST för vikt, muskler, fett):** ${JSON.stringify(formattedWeightLogsForAI)}
+- **Dagliga Summeringar (ENDAST för protein, kalorier, etc.):** ${JSON.stringify(formattedDailySummariesForAI)}
+- **Välbefinnandeloggar:** ${JSON.stringify(mentalWellbeingLogs)}
+`;
+
+  const contents = [
+    ...chatHistory,
+    { role: 'user', parts: [{ text: question }] }
+  ] as Content[];
+
+  const responseStream = await ai.models.generateContentStream({
+    model: GEMINI_MODEL_NAME_TEXT,
+    contents: contents,
+    config: {
+      systemInstruction: systemInstruction,
+      temperature: 0.7,
+      topK: 40,
+      topP: 0.95
+    }
+  });
+
+  return responseStream;
+};
+
+
 export const getAIPersonalizedLessonIntro = async (
   hint: 'challenges' | 'plateau',
   data: AIDataForLessonIntro
@@ -465,7 +567,7 @@ const getUserLevelInfo = (streak: number): { currentLevel: Level } => {
 };
 
 export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis): Promise<AIStructuredFeedbackResponse> => {
-    const { userProfile, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = data;
+    const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = data;
     const isCourseActive = userProfile.isCourseActive || false;
 
     // --- PLATEAU DETECTION ---
@@ -512,8 +614,43 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
         }
     }
 
+    // --- ANALYSIS WINDOW LOGIC & NUTRITIONAL SUMMARY ---
+    let analysisPeriodSummaries: PastDaySummary[] = [];
+    let analysisPeriodDescription = "den senaste tiden";
+    let previousLog: WeightLogEntry | null = null;
+    let weightChangeSincePrevious = 0;
 
-    // --- NEW CALCULATIONS ---
+    if (allWeightLogs.length >= 2) {
+        const lastLog = allWeightLogs[allWeightLogs.length - 1];
+        previousLog = allWeightLogs[allWeightLogs.length - 2];
+        const startDate = new Date(previousLog.loggedAt).toISOString().split('T')[0];
+        const endDate = new Date(lastLog.loggedAt).toISOString().split('T')[0];
+        analysisPeriodSummaries = last30DaysSummaries.filter(s => s.date >= startDate && s.date < endDate);
+        analysisPeriodDescription = `perioden mellan dina två senaste mätningar (${new Date(startDate + 'T12:00:00Z').toLocaleDateString('sv-SE')} och ${new Date(endDate + 'T12:00:00Z').toLocaleDateString('sv-SE')})`;
+        weightChangeSincePrevious = lastLog.weightKg - previousLog.weightKg;
+    } else {
+        // Fallback for first measurement or if only one exists
+        analysisPeriodSummaries = last30DaysSummaries;
+        analysisPeriodDescription = `perioden sedan din första mätning`;
+        if (allWeightLogs.length === 1 && userProfile.goalStartWeight) {
+            weightChangeSincePrevious = allWeightLogs[0].weightKg - userProfile.goalStartWeight;
+        }
+    }
+
+    const totalDaysInPeriod = analysisPeriodSummaries.length;
+    const successfulDays = analysisPeriodSummaries.filter(s => s.goalMet || s.savedBy).length;
+    const adherencePercentage = totalDaysInPeriod > 0 ? (successfulDays / totalDaysInPeriod) * 100 : 0;
+    const avgCalories = totalDaysInPeriod > 0 ? analysisPeriodSummaries.reduce((sum, s) => sum + s.consumedCalories, 0) / totalDaysInPeriod : 0;
+    
+    const nutritionalSummaryForPrompt = `
+- Analysperiod: ${analysisPeriodDescription}
+- Antal dagar loggade i perioden: ${totalDaysInPeriod}
+- Andel dagar med kalorimål uppfyllt: ${adherencePercentage.toFixed(0)}%
+- Genomsnittligt kaloriintag: ${avgCalories.toFixed(0)} kcal (Ditt mål: ${goals.calorieGoal.toFixed(0)} kcal)
+- Viktförändring under perioden: ${weightChangeSincePrevious.toFixed(1)} kg
+    `;
+
+    // --- DYNAMIC DATA FOR PROMPT ---
     const namn = userProfile.name || 'Användare';
     const antalViktloggar = allWeightLogs.length;
     const antalKostloggar = last30DaysSummaries.length;
@@ -534,11 +671,6 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     }
 
     const totalaDagar = last30DaysSummaries.length;
-    const antalDagarKalorimål = last30DaysSummaries.filter(s => s.goalMet).length;
-    const antalDagarProteinmål = last30DaysSummaries.filter(s => s.proteinGoalMet).length;
-    const lågtProteinDagar = last30DaysSummaries.filter(s => !s.proteinGoalMet).map(s => new Date(s.date).toLocaleDateString('sv-SE', {day: 'numeric', month: 'short'})).slice(0, 3).join(', ');
-    const högtFettDagar = last30DaysSummaries.filter(s => s.consumedFat > s.fatGoal).map(s => new Date(s.date).toLocaleDateString('sv-SE', {day: 'numeric', month: 'short'})).slice(0, 3).join(', ');
-    
     const waterGoalMetCount = last30DaysSummaries.filter(s => s.waterGoalMet).length;
     const vattenuppfyllnadProcent = totalaDagar > 0 ? ((waterGoalMetCount / totalaDagar) * 100).toFixed(0) : '0';
     
@@ -554,19 +686,38 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
         ? `Stress: ${senasteVälbefinnande.stressLevel || 'N/A'}, Energi: ${senasteVälbefinnande.energyLevel || 'N/A'}, Sömn: ${senasteVälbefinnande.sleepQuality || 'N/A'}, Humör: ${senasteVälbefinnande.mood || 'N/A'}`
         : 'Ej loggat';
 
-    // Conditional prompt parts based on measurement method
+    // --- NEW: DYNAMIC PROMPT PARTS BASED ON GOAL ---
     const measurementMethod = userProfile.measurementMethod;
+    const goalType = userProfile.goalType;
     let bodyCompositionContentPrompt: string;
     let bodyCompositionDataPrompt: string;
 
     if (measurementMethod === 'inbody') {
-        bodyCompositionContentPrompt = "Beskriv viktutveckling och muskelmassa. Lyft att stabil muskelmassa vid fettminskning är ett styrketecken. Använd \\n för nya rader.";
-        bodyCompositionDataPrompt = `- Muskelmassa (senaste): ${muskelmassa?.toFixed(1) || 'Ej mätt'} kg
-- Muskeltrend: ${muskelTrend}
-- Fettmassa (senaste): ${fettmassa?.toFixed(1) || 'Ej mätt'} kg`;
+        bodyCompositionDataPrompt = `- Muskelmassa (senaste): ${muskelmassa?.toFixed(1) || 'Ej mätt'} kg\n- Muskeltrend: ${muskelTrend}\n- Fettmassa (senaste): ${fettmassa?.toFixed(1) || 'Ej mätt'} kg`;
+        switch (goalType) {
+            case 'gain_muscle':
+                bodyCompositionContentPrompt = "Målet är muskelökning. Beskriv viktutvecklingen och muskelmassan positivt. En total viktuppgång är MÅLET. Koppla ihop total viktökning med en ökande/stabil muskeltrend som en framgång. Exempel: 'Starkt jobbat! Din vikt har ökat med X kg, och det är fantastiskt att din muskelmassa samtidigt visar en ökande trend. Det här är precis den utveckling vi vill se!'. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+            case 'lose_fat':
+                bodyCompositionContentPrompt = "Målet är fettminskning. Beskriv viktutveckling och muskelmassa. Lyft att en stabil eller ökande muskelmassa under en viktnedgång är ett stort styrketecken. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+            default: // maintain
+                bodyCompositionContentPrompt = "Målet är att bibehålla vikten. Beskriv viktutvecklingen med fokus på stabilitet. Normalisera små viktpendlingar och betona att den långsiktiga trenden är det viktiga. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+        }
     } else { // 'scale' or undefined
-        bodyCompositionContentPrompt = "Beskriv viktutvecklingen baserat på de loggade mätningarna. Kommentera trenden (ner, upp, stabil) och hur den relaterar till användarens mål utan att nämna specifik muskel- eller fettmassa. Använd \\n för nya rader.";
         bodyCompositionDataPrompt = "";
+        switch (goalType) {
+            case 'gain_muscle':
+                bodyCompositionContentPrompt = "Målet är muskelökning. Beskriv viktutvecklingen positivt. En total viktuppgång är MÅLET. Framhäv detta som en framgång. Exempel: 'Bra jobbat! Din vikt har ökat med X kg, vilket är ett tecken på att du är på rätt väg mot ditt mål.'. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+            case 'lose_fat':
+                bodyCompositionContentPrompt = "Målet är fettminskning. Beskriv viktutvecklingen. Kommentera trenden (ner, upp, stabil) och hur den relaterar till målet. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+            default: // maintain
+                bodyCompositionContentPrompt = "Målet är att bibehålla vikten. Beskriv viktutvecklingen med fokus på stabilitet. Normalisera små viktpendlingar. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+        }
     }
 
     const kursFeedbackPrompt = isCourseActive
@@ -598,7 +749,7 @@ Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med 
     {
       "emoji": "🥦",
       "title": "Näringsvanor",
-      "content": "Beröm regelbundet loggande och måluppfyllelse. Vid avvikelser: hjälp användaren förstå och justera. T.ex.: 'Titta gärna tillbaka på dagarna den ${lågtProteinDagar || 'som var'} och fundera på vad som gjorde det svårare att nå proteinmålet. Jag kan hjälpa dig att hitta enkla justeringar.' Använd \\n för nya rader."
+      "content": "Analysera **ENDAST** datan från den specificerade analysperioden. Ge en ÖVERSIKTLIG summering av användarens följsamhet till kostplanen. Kommentera den generella trenden (t.ex. 'Du har följt din kaloriplan bra', 'Proteinintaget har varit stabilt'). Koppla ihop näringsintaget med resultatet på vågen (använd 'Viktförändring under perioden' från datan). UNDVIK att nämna enskilda dagar eller specifika datum. Håll det kortfattat och peppande. Använd \\n för nya rader."
     },
     {
       "emoji": "💧",
@@ -625,17 +776,15 @@ Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med 
 
 Användarens data:
 - Namn: ${namn}
+- Måltyp: ${goalType}
 - Antal viktmätningar: ${antalViktloggar}
 - Antal kostinloggningar (senaste 30d): ${antalKostloggar}
-- Startvikt: ${startvikt?.toFixed(1) || 'Ej satt'} kg
+- Startvikt för detta mål: ${startvikt?.toFixed(1) || 'Ej satt'} kg
 - Senaste vikt: ${senasteVikt?.toFixed(1) || 'Ej satt'} kg
 ${bodyCompositionDataPrompt}
 - Senaste välbefinnande: ${mentalWellbeingDataString}
-- Kalorimål uppnått: ${antalDagarKalorimål} av ${totalaDagar} dagar
-- Proteinmål uppnått: ${antalDagarProteinmål} av ${totalaDagar} dagar
-- Dagar med lågt proteinintag (exempel): ${lågtProteinDagar || 'Inga'}
-- Dagar med högt fettintag (exempel): ${högtFettDagar || 'Inga'}
-- Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna
+- Summering av näring i analysperioden: ${nutritionalSummaryForPrompt}
+- Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna (senaste 30d)
 - Streak: ${currentStreak} dagar
 - Nivå: ${nivå}
 - Kurs aktiv: ${isCourseActive ? 'ja' : 'nej'}
@@ -662,8 +811,21 @@ ${bodyCompositionDataPrompt}
 
         const parsedData = JSON.parse(jsonStr) as AIStructuredFeedbackResponse;
         
-        if (!parsedData.greeting || !Array.isArray(parsedData.sections)) {
-            throw new Error("Invalid JSON structure received from API for journey analysis.");
+        if (!parsedData.greeting || typeof parsedData.greeting !== 'string' || !Array.isArray(parsedData.sections)) {
+            console.error("Invalid JSON structure from Gemini Journey Analysis:", parsedData);
+            throw new Error("Ogiltig eller ofullständig JSON-struktur mottagen från AI-analys (saknar hälsning eller sektioner).");
+        }
+
+        for (const section of parsedData.sections) {
+            if (
+                !section ||
+                typeof section.emoji !== 'string' ||
+                typeof section.title !== 'string' ||
+                typeof section.content !== 'string'
+            ) {
+                console.error("Invalid section found in Gemini Journey Analysis response:", section, "Full response:", parsedData);
+                throw new Error(`AI:n gav ofullständig data för sektionen '${section?.title || 'Okänd'}'. Försök igen.`);
+            }
         }
 
         return parsedData;

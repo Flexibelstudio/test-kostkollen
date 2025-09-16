@@ -4,7 +4,7 @@ import { WaterDropIcon, RotateCcwIcon, PlusCircleIcon } from './icons';
 interface WaterLoggerProps {
   currentWaterMl: number;
   waterGoalMl: number;
-  onLogWater: (amountMl: number) => void;
+  onLogWater: (amountMl: number, event: React.MouseEvent<HTMLButtonElement>) => void;
   onResetWater: () => void;
   disabled?: boolean; // New prop
 }
@@ -67,7 +67,7 @@ const WaterLogger = React.forwardRef<HTMLDivElement, WaterLoggerProps>(({
         {logAmounts.map((amount) => (
           <button
             key={amount}
-            onClick={() => onLogWater(amount)}
+            onClick={(e) => onLogWater(amount, e)}
             className={`${buttonBaseClass} bg-blue-500 hover:bg-blue-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             aria-label={`Logga ${amount} ml vatten`}
             disabled={disabled}

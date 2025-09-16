@@ -24,7 +24,7 @@ import {
   DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML,
   DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
   PIGGY_BANK_ICON_SVG, CALORIES_PER_GRAM, MAX_RECENT_RECIPE_SEARCHES, MAX_INGREDIENT_IMAGES, ACHIEVEMENT_DEFINITIONS,
-  VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG
+  VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG, CALORIE_ADJUSTMENT
 } from './constants.ts';
 
 import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion,
@@ -76,6 +76,9 @@ import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
 import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
+import AICoachModal from './components/AICoachModal';
+import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
+import WaterSplashEffect from './components/WaterSplashEffect';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -177,35 +180,40 @@ function sumEntries(entries: any[]) {
 
 // Målmedveten bedömning (gain/maintain/lose)
 function evaluateGoals(entries: any[], profile: any) {
-  const totals = sumEntries(entries);
-  const goals  = (profile?.goals ?? {}) as {
-    calorieGoal?: number; proteinGoal?: number; fatGoal?: number; carbohydrateGoal?: number;
-  };
-  const goalType = String(profile?.goalType ?? "maintain").toLowerCase();
-  const calGoal = Number(goals.calorieGoal) || 0;
+    const totals = sumEntries(entries);
+    const goals = (profile?.goals ?? {}) as {
+        calorieGoal?: number; proteinGoal?: number; fatGoal?: number; carbohydrateGoal?: number;
+    };
+    const goalType = String(profile?.goalType ?? "maintain").toLowerCase() as GoalType;
+    const calGoal = Number(goals.calorieGoal) || 0;
 
-  const minAbs = (typeof MIN_ABSOLUTE_CALORIES_THRESHOLD === "number" ? MIN_ABSOLUTE_CALORIES_THRESHOLD : 600);
-  const minPct = (typeof MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL === "number" ? MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL : 0.9);
-  const minSafe = Math.max(minAbs, Math.round(calGoal * minPct));
+    const minAbs = MIN_ABSOLUTE_CALORIES_THRESHOLD;
+    const minPct = MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
+    const minSafe = Math.max(minAbs, Math.round(calGoal * minPct));
 
-  let ok = false;
-  if (goalType.includes("gain")) {
-    // GAIN: nå upp till målet (med säkerhetsgolv)
-    ok = calGoal ? (totals.calories >= Math.max(calGoal, minSafe)) : (totals.calories >= minSafe);
-  } else if (goalType.includes("lose") || goalType.includes("cut")) {
-    // CUT: under/vid målet
-    ok = calGoal ? (totals.calories <= calGoal) : (totals.calories > 0);
-  } else {
-    // MAINTAIN: inom ±10% runt mål (fallback: minSafe)
-    const tol = 0.10;
-    ok = calGoal
-      ? (totals.calories >= calGoal * (1 - tol) && totals.calories <= calGoal * (1 + tol))
-      : (totals.calories >= minSafe);
-  }
+    let ok = false;
 
-  console.info("[daily] totals", totals, "goalType", goalType, "calGoal", calGoal, "ok", ok);
-  return ok;
+    if (goalType.includes("gain")) {
+        // GAIN: Målet är ett golv (TDEE). Man får streak om man äter >= TDEE.
+        // `calGoal` från databasen är TDEE + surplus. Vi måste räkna ut TDEE.
+        const surplus = CALORIE_ADJUSTMENT.gain_muscle;
+        const tdeeFloor = calGoal > surplus ? calGoal - surplus : 0;
+        ok = totals.calories >= tdeeFloor;
+    } else if (goalType.includes("lose")) {
+        // LOSE: Målet är ett tak. Man får streak om man äter >= minSafe OCH <= calGoal.
+        ok = totals.calories > 0 && totals.calories <= calGoal && totals.calories >= minSafe;
+    } else { // maintain
+        // MAINTAIN: Målet är ett spann. Man får streak om man ligger inom ±10% av målet.
+        const tol = 0.10;
+        ok = calGoal
+            ? (totals.calories >= calGoal * (1 - tol) && totals.calories <= calGoal * (1 + tol))
+            : (totals.calories >= minSafe);
+    }
+    
+    console.info("[daily] totals", totals, "goalType", goalType, "calGoal", calGoal, "ok", ok);
+    return ok;
 }
+
 
 // Använd samma kollektion som UI:t
 const SUMMARY_COLLECTION = "pastDaySummaries";
@@ -381,7 +389,9 @@ const wasCalorieGoalMetForSummary = (
       const tenPercentOfTarget = calorieGoalValue * 0.10;
       return Math.abs(consumedCalories - calorieGoalValue) <= tenPercentOfTarget;
     case 'gain_muscle':
-      return consumedCalories >= calorieGoalValue;
+      const surplus = CALORIE_ADJUSTMENT.gain_muscle;
+      const tdeeFloor = calorieGoalValue > surplus ? calorieGoalValue - surplus : 0;
+      return consumedCalories >= tdeeFloor;
     default: 
       const tenPercentDefault = calorieGoalValue * 0.10;
       return Math.abs(consumedCalories - calorieGoalValue) <= tenPercentDefault;
@@ -455,7 +465,9 @@ const AIFeedbackModal: React.FC<{
   modalTitle: string;
   modalIcon: JSX.Element;
   isOnboardingContext?: boolean;
-}> = ({ show, onClose, feedbackMessage, isLoading, error, modalTitle, modalIcon, isOnboardingContext }) => {
+  showDiscussButton?: boolean;
+  onDiscuss?: () => void;
+}> = ({ show, onClose, feedbackMessage, isLoading, error, modalTitle, modalIcon, isOnboardingContext, showDiscussButton, onDiscuss }) => {
   if (!show) return null;
 
   return (
@@ -540,6 +552,15 @@ const AIFeedbackModal: React.FC<{
         </div>
 
         <div className="mt-6 flex flex-col sm:flex-row gap-3 flex-shrink-0">
+          {showDiscussButton && onDiscuss && (
+            <button
+              onClick={onDiscuss}
+              className="w-full px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95 flex items-center justify-center gap-2 order-1 sm:order-none"
+            >
+              <AICoachIcon className="w-6 h-6 flex-shrink-0"/>
+              <span className="text-center">Diskutera analysen med din coach</span>
+            </button>
+          )}
           <button
             onClick={onClose}
             className="w-full px-5 py-3 text-lg font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm interactive-transition active:scale-95"
@@ -747,7 +768,7 @@ const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
 };
 
 
-export const App: React.FC = () => {
+export const App = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -758,6 +779,7 @@ export const App: React.FC = () => {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
+  const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
 
   // PATCH-HOOKS START
   useServiceWorkerRegistration();
@@ -807,7 +829,7 @@ export const App: React.FC = () => {
 
   const [pastDaysSummary, setPastDaysSummary] = useState<PastDaysSummaryCollection>({});
   
-  const [journeyInitialTab, setJourneyInitialTab] = useState<'weight' | 'calendar' | 'profile' | 'achievements'>('weight');
+  const [journeyInitialTab, setJourneyInitialTab] = useState<'calendar' | 'profile' | 'achievements'>('calendar');
 
   const [streakData, setStreakData] = useState<{ currentStreak: number; lastDateStreakChecked: string | null }>({ currentStreak: 0, lastDateStreakChecked: null });
   const [lastNotifiedStreakLevelUp, setLastNotifiedStreakLevelUp] = useState<string | null>(null); // This can stay local
@@ -857,6 +879,8 @@ export const App: React.FC = () => {
   const [aiModalTitle, setAiModalTitle] = useState("Din Coach");
   const [aiModalIcon, setAiModalIcon] = useState<JSX.Element>(<AICoachIcon className="w-7 h-7 text-secondary mr-2.5" />);
   const [journeyAnalysisFeedback, setJourneyAnalysisFeedback] = useState<AIStructuredFeedbackResponse | null>(null);
+  const [showAICoachModal, setShowAICoachModal] = useState(false);
+  const [coachInitialContext, setCoachInitialContext] = useState<{ type: 'from_analysis'; date?: string } | null>(null);
   
   // Recipe Feature State
   const [showRecipeModal, setShowRecipeModal] = useState<boolean>(false);
@@ -883,6 +907,7 @@ export const App: React.FC = () => {
   const [showLogWeightModal, setShowLogWeightModal] = useState<boolean>(false);
 
   // Mental Wellbeing State & Flow Management
+  const [mentalWellbeingLogs, setMentalWellbeingLogs] = useState<MentalWellbeingLog[]>([]);
   const [showMentalWellbeingModal, setShowMentalWellbeingModal] = useState<boolean>(false);
   const [relatedWeightLogIdForWellbeing, setRelatedWeightLogIdForWellbeing] = useState<string | null>(null);
   const [pendingGoalFeedbackData, setPendingGoalFeedbackData] = useState<{ profile: UserProfileData, goals: GoalSettings, isOnboarding: boolean } | null>(null);
@@ -899,6 +924,7 @@ export const App: React.FC = () => {
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [communityViewKey, setCommunityViewKey] = useState(Date.now());
   const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera'>('flode');
+  const [communityInitialSubTab, setCommunityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
   const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
   const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
   const previousViewModeRef = useRef<ViewMode>(viewMode);
@@ -911,6 +937,10 @@ export const App: React.FC = () => {
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showIosInstallPrompt, setShowIosInstallPrompt] = useState(false);
+
+  // Update Notification State
+  const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
+  const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -1018,6 +1048,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setUserCourseProgress({});
         setRecentRecipeSearches([]);
         setWeightLogs([]);
+        setMentalWellbeingLogs([]);
         setCommonMeals([]);
         setHighestLevelId(null);
         setHighestStreak(0);
@@ -1068,6 +1099,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                         setHighestLevelId(appData.highestLevelId || null);
                         setCommonMeals(appData.commonMeals || []);
                         setWeightLogs(appData.weightLogs || []);
+                        setMentalWellbeingLogs(appData.mentalWellbeingLogs || []);
                         setPastDaysSummary(appData.pastDaySummaries || {});
                         setUserCourseProgress(appData.courseProgress || {});
                         setUnlockedAchievements(appData.unlockedAchievements || {});
@@ -1308,6 +1340,39 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         
         previousViewModeRef.current = viewMode;
     }, [viewMode]);
+
+    // Effect to reset special community tabs when navigating away
+    useEffect(() => {
+        if (viewMode !== 'community') {
+            setCommunityInitialTab('flode');
+            setCommunityInitialSubTab('buddies');
+        }
+    }, [viewMode]);
+
+  // This effect handles showing the one-time update notice.
+  useEffect(() => {
+    if (isInitialDataLoaded && currentUser) {
+        const UPDATE_NOTICE_KEY = 'updateNotice_v2_ChatAndJourney'; // Unique key for this update
+        try {
+            const noticeShown = localStorage.getItem(UPDATE_NOTICE_KEY);
+            if (!noticeShown) {
+                setShowUpdateNoticePopup(true);
+            }
+        } catch (error) {
+            console.warn('Could not access localStorage for update notice.', error);
+        }
+    }
+  }, [isInitialDataLoaded, currentUser]);
+
+  const handleCloseUpdateNoticePopup = () => {
+      const UPDATE_NOTICE_KEY = 'updateNotice_v2_ChatAndJourney';
+      try {
+          localStorage.setItem(UPDATE_NOTICE_KEY, 'true');
+      } catch (error) {
+          console.warn('Could not save to localStorage for update notice.', error);
+      }
+      setShowUpdateNoticePopup(false);
+  };
 
   const handleLogout = async () => {
     playAudio('uiClick');
@@ -1590,13 +1655,25 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     setImageFileForAnalysis(null);
   };
   
-  const handleLogWater = async (amountMl: number) => {
+  const handleLogWater = async (amountMl: number, event?: React.MouseEvent<HTMLButtonElement>) => {
     if (!isViewingToday || !currentUser) {
         setToastNotification({ message: "Du kan endast logga vatten för idag.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
-    playAudio('uiClick', 0.7);
+
+    if (event) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setSplashEffect({
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+            count: amountMl === 250 ? 15 : 25,
+            id: Date.now(), // Unique key to re-trigger animation on same button
+        });
+    }
+    
+    playAudio('waterSplash');
+    
     const newTotalWater = waterLoggedMl + amountMl;
     setWaterLoggedMl(newTotalWater);
 
@@ -1882,10 +1959,26 @@ const newCommonMealData: Omit<CommonMeal, 'id'> = {
     profileToSave.completedGoals = previousProfile.completedGoals || [];
 
     if (goalParamsChanged) {
-        profileToSave.goalStartWeight = profileData.currentWeightKg;
-        profileToSave.goalStartMuscleMassKg = profileData.skeletalMuscleMassKg;
-        profileToSave.goalStartFatMassKg = profileData.bodyFatMassKg;
+        // When setting a new goal, the starting point must be the user's latest measurement.
+        // Get this from the latest weight log, which is the ultimate source of truth,
+        // to prevent any state synchronization issues.
+        const latestWeightLog = weightLogs.length > 0 ? weightLogs[weightLogs.length - 1] : null;
+
+        const latestWeight = latestWeightLog?.weightKg ?? userProfile.currentWeightKg;
+        const latestMuscle = latestWeightLog?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg;
+        const latestFat = latestWeightLog?.bodyFatMassKg ?? userProfile.bodyFatMassKg;
+
+        // Set the starting point for the new goal
+        profileToSave.goalStartWeight = latestWeight;
+        profileToSave.goalStartMuscleMassKg = latestMuscle;
+        profileToSave.goalStartFatMassKg = latestFat;
         profileToSave.mainGoalCompleted = false;
+
+        // Also ensure the `current...` values in the profile being saved are the latest,
+        // to prevent stale form data from overwriting the app's state.
+        profileToSave.currentWeightKg = latestWeight;
+        profileToSave.skeletalMuscleMassKg = latestMuscle;
+        profileToSave.bodyFatMassKg = latestFat;
     } else {
         profileToSave.goalStartWeight = previousProfile.goalStartWeight;
         profileToSave.goalStartMuscleMassKg = previousProfile.goalStartMuscleMassKg;
@@ -1972,11 +2065,11 @@ const handleFinishOnboarding = async () => {
 
     try {
         await updateUserDocument(currentUser.uid, { 
-  hasCompletedOnboarding: true,
-  summaryStartDate: dayKeySE(new Date()), // <-- rätt: använder SE-tidszon
-  role: userRole, 
-  status: userStatus 
-});
+          hasCompletedOnboarding: true,
+          summaryStartDate: dayKeySE(new Date()),
+          role: userRole, 
+          status: userStatus 
+        });
         playAudio('levelUp');
     } catch (error) {
         handleFirestoreError(error, 'slutföra onboarding');
@@ -1995,7 +2088,13 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     if (!userSnap?.exists()) return;
 
     const userData = userSnap.data() as FirestoreUserDocument;
-    const { lastDateStreakChecked, summaryStartDate } = userData;
+    const { lastDateStreakChecked, summaryStartDate, hasCompletedOnboarding } = userData;
+
+    // FIX: Kör INTE summering innan onboardingen är klar
+    if (!hasCompletedOnboarding) {
+      console.log('Skipping summary: onboarding not completed yet.');
+      return;
+    }
 
     // 1) Hoppa över gårdagen om den ligger före användarens startdatum
     if (summaryStartDate && yKey < summaryStartDate) {
@@ -2003,7 +2102,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         `Skipping summary for ${yKey} because it's before summaryStartDate=${summaryStartDate}.`
       );
       // Markera bara att vi är klara t.o.m. igår – skriv ingen "miss"
-      await updateUserDocument(uid, { lastDateStreakChecked: yKey });
+      await updateUserDocument(uid, { lastDateStreakChecked: yKey, role: userRole, status: userStatus });
       return;
     }
 
@@ -2174,7 +2273,7 @@ if (appData) {
 } finally {
   setAppStatus(AppStatus.IDLE);
 }
-}, [currentUser?.uid]);
+}, [currentUser?.uid, userRole, userStatus]);
 
     /** Hook: trigga ensureYesterdayProcessed när appen blir aktiv/visbar */
     useEffect(() => {
@@ -2455,6 +2554,21 @@ useEffect(() => {
         }
     }, [waterLoggedMl, isViewingToday, checklistState, updateChecklistItem]);
 
+    const handleOnboardingNavigate = (view: 'journey' | 'community', subView?: 'search') => {
+        if (view === 'community') {
+            if (subView === 'search') {
+                setCommunityInitialTab('hantera');
+                setCommunityInitialSubTab('search');
+            } else {
+                setCommunityInitialTab('flode');
+                setCommunityInitialSubTab('buddies');
+            }
+        } else { // journey
+            setJourneyInitialTab('calendar');
+        }
+        setViewMode(view);
+    };
+
     useEffect(() => {
         if (checklistState) {
             if (viewMode === 'journey' && !checklistState.items.journeyViewed) {
@@ -2730,7 +2844,7 @@ useEffect(() => {
             });
 
         // Redirect the user to the payment link.
-        window.location.href = 'https://buy.stripe.com/dRm28s0jcaWSfnjfm38Ra03';
+        window.location.href = 'https://buy.stripe.com/7sYcN64zsfd88YV6Px8Ra06';
     };
 
   // --- Course CTA Handlers ---
@@ -2739,7 +2853,7 @@ useEffect(() => {
     handleFabClick();
   };
 
-  const handleNavigateToJourney = (tab: 'weight' | 'calendar' | 'profile' | 'achievements') => {
+  const handleNavigateToJourney = (tab: 'calendar' | 'profile' | 'achievements') => {
     setJourneyInitialTab(tab);
     setViewMode('journey');
   };
@@ -2775,6 +2889,7 @@ useEffect(() => {
 
       const dataForAnalysis: AIDataForJourneyAnalysis = {
           userProfile,
+          goals: goals,
           allWeightLogs: currentWeightLogs,
           last30DaysSummaries,
           goalTimeline: timeline,
@@ -2792,7 +2907,7 @@ useEffect(() => {
           console.error("Failed to generate and save journey analysis:", e.message);
           return null;
       }
-  }, [currentUser, userProfile, pastDaysSummary, currentDate, userRole, userStatus, streakData.currentStreak]);
+  }, [currentUser, userProfile, goals, pastDaysSummary, currentDate, userRole, userStatus, streakData.currentStreak]);
 
   const handleRecipeSearch = async (searchQuery: string) => {
     setAppStatus(AppStatus.SEARCHING_RECIPE);
@@ -3034,7 +3149,8 @@ useEffect(() => {
                 relatedWeightLogId: relatedWeightLogIdForWellbeing || null,
             };
             try {
-                await addMentalWellbeingLog(currentUser.uid, newLog);
+                const newDocId = await addMentalWellbeingLog(currentUser.uid, newLog);
+                setMentalWellbeingLogs(prev => [{...newLog, id: newDocId}, ...prev].sort((a,b) => b.loggedAt - a.loggedAt));
                 playAudio('logSuccess', 0.8);
             } catch (error) {
                 handleFirestoreError(error, 'spara välbefinnande');
@@ -3160,6 +3276,11 @@ useEffect(() => {
         }
     };
 
+  const handleDiscussSavedAnalysis = (analysisDate?: string) => {
+    playAudio('uiClick');
+    setCoachInitialContext({ type: 'from_analysis', date: analysisDate });
+    setShowAICoachModal(true);
+  };
 
   const handleFabClick = () => {
     playAudio('uiClick');
@@ -3262,7 +3383,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showUpdateNoticePopup || showLatestUpdateView;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -3274,7 +3395,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showUpdateNoticePopup, showLatestUpdateView]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3420,6 +3541,30 @@ useEffect(() => {
 
   }, [dailyLog]);
 
+  const journeyAnalysisData = useMemo<AIDataForJourneyAnalysis | null>(() => {
+    if (!isInitialDataLoaded || !userProfile) return null;
+    
+    const timeline = calculateGoalTimeline(userProfile);
+    const thirtyDaysAgo = new Date(currentDate);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const last30DaysSummaries = Object.values(pastDaysSummary).filter(s => {
+        const summaryDate = new Date(s.date);
+        return summaryDate >= thirtyDaysAgo;
+    });
+
+    return {
+      userProfile,
+      goals: goals,
+      allWeightLogs: weightLogs,
+      last30DaysSummaries,
+      mentalWellbeingLogs,
+      goalTimeline: timeline,
+      currentStreak: streakData.currentStreak,
+    };
+  }, [isInitialDataLoaded, userProfile, goals, weightLogs, pastDaysSummary, mentalWellbeingLogs, currentDate, streakData.currentStreak]);
+
+
   if (authLoading || isDataLoading) {
     return <SplashScreen />;
   }
@@ -3493,7 +3638,7 @@ useEffect(() => {
 
     const navItems = [
       { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); } },
-      { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { playAudio('uiClick'); setJourneyInitialTab('weight'); setViewMode('journey'); } },
+      { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { playAudio('uiClick'); setJourneyInitialTab('calendar'); setViewMode('journey'); } },
       { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { playAudio('uiClick'); setViewMode('courseOverview');} },
       { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { playAudio('uiClick'); if (viewMode === 'community') { setCommunityViewKey(Date.now()); } setViewMode('community'); }, notificationCount: totalNotificationCount },
     ];
@@ -3563,6 +3708,15 @@ useEffect(() => {
                                     }}
                                 />
                                 <DropdownMenuItem
+                                    icon={<BellIcon />}
+                                    label="Senaste uppdateringen"
+                                    onClick={() => {
+                                        setShowLatestUpdateView(true);
+                                        setShowProfileDropdown(false);
+                                        playAudio('uiClick');
+                                    }}
+                                />
+                                <DropdownMenuItem
                                     icon={<ChatBubbleOvalLeftEllipsisIcon />}
                                     label="Lämna Feedback"
                                     onClick={() => {
@@ -3601,7 +3755,7 @@ useEffect(() => {
               {checklistState && (
                 <OnboardingChecklist 
                     state={checklistState}
-                    onNavigate={(view) => setViewMode(view)}
+                    onNavigate={handleOnboardingNavigate}
                     onTriggerLog={handleFabClick}
                     onScrollToWater={handleScrollToWater}
                 />
@@ -3620,10 +3774,17 @@ useEffect(() => {
                         <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Nivå</h3>
                         <p className="text-lg font-bold text-primary truncate" title={currentLevel.name}>{currentLevel.name}</p>
                     </div>
-                    <div className="text-center">
-                        <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
-                        <p className="text-lg font-bold text-primary">{weeklyBank.bankedCalories.toFixed(0)} kcal</p>
-                    </div>
+                    {userProfile?.goalType !== 'gain_muscle' ? (
+                        <div className="text-center">
+                            <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
+                            <p className="text-lg font-bold text-primary">{weeklyBank.bankedCalories.toFixed(0)} kcal</p>
+                        </div>
+                    ) : (
+                        <div className="text-center opacity-50">
+                            <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
+                            <p className="text-lg font-bold text-neutral">Inaktiv</p>
+                        </div>
+                    )}
                 </div>
 
                  <WeeklyProgressDays 
@@ -3636,16 +3797,16 @@ useEffect(() => {
 
                  <div className="mt-4">
                   <ProgressDisplay
-  label="Kalorier"
-  current={totalNutrients.calories}
-  goal={goals.calorieGoal}
-  unit="kcal"
-  icon={<span className="text-2xl" role="img" aria-label="Kalorier">🔥</span>}
-  minSafeThreshold={minSafeCalories}
-  bankedCaloriesAvailable={weeklyBank.bankedCalories}
-  amountCoveredByBankToday={totalCaloriesCoveredByBankToday}
-  goalType={userProfile?.goalType ?? 'lose_fat'}   // <— robust fallback
-/>
+                      label="Kalorier"
+                      current={totalNutrients.calories}
+                      goal={goals.calorieGoal}
+                      unit="kcal"
+                      icon={<span className="text-2xl" role="img" aria-label="Kalorier">🔥</span>}
+                      minSafeThreshold={minSafeCalories}
+                      bankedCaloriesAvailable={weeklyBank.bankedCalories}
+                      amountCoveredByBankToday={totalCaloriesCoveredByBankToday}
+                      goalType={userProfile?.goalType ?? 'lose_fat'}
+                    />
                   <ProgressDisplay
                     label="Protein"
                     current={totalNutrients.protein}
@@ -3716,7 +3877,7 @@ useEffect(() => {
               </section>
             </>
          )}
-         {viewMode === 'journey' && (
+         {viewMode === 'journey' && journeyAnalysisData && (
             <JourneyView 
                 pastDaysData={pastDaysSummary} 
                 weightLogs={weightLogs}
@@ -3739,6 +3900,9 @@ useEffect(() => {
                 journeyAnalysisFeedback={journeyAnalysisFeedback}
                 onNavigateToMainWithDate={handleNavigateToMainWithDate}
                 streakSaver={streakSaver}
+                analysisContext={journeyAnalysisData}
+                setShowAICoachModal={setShowAICoachModal}
+                onDiscussSavedAnalysis={handleDiscussSavedAnalysis}
             />
          )}
          {viewMode === 'courseOverview' && (
@@ -3779,6 +3943,7 @@ useEffect(() => {
               setToastNotification={setToastNotification}
               pendingRequestsCount={pendingRequestsCount}
               initialTab={communityInitialTab}
+              initialSubTab={communityInitialSubTab}
               highlightEventId={highlightEventId}
               lastViewTimestamp={lastCommunityViewTimestamp}
               timelineEvents={timelineEvents}
@@ -3865,6 +4030,18 @@ useEffect(() => {
         <input type="file" id="ingredientUploadInput" className="hidden" accept="image/*" multiple onChange={handleIngredientImageUpload} />
 
         {/* Modals */}
+        {showUpdateNoticePopup && (
+            <UpdateNoticeModal 
+                show={showUpdateNoticePopup} 
+                onClose={handleCloseUpdateNoticePopup} 
+            />
+        )}
+        {showLatestUpdateView && (
+            <UpdateNoticeModal 
+                show={showLatestUpdateView} 
+                onClose={() => setShowLatestUpdateView(false)} 
+            />
+        )}
         {showOnboardingRewardModal && (
             <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} />
         )}
@@ -4061,6 +4238,14 @@ useEffect(() => {
                 modalTitle={aiModalTitle}
                 modalIcon={aiModalIcon}
                 isOnboardingContext={isProfileModalOnboarding}
+                showDiscussButton={aiModalTitle === "Analys av din mätning"}
+                onDiscuss={() => {
+                    playAudio('uiClick');
+                    setShowAIFeedbackModal(false);
+                    setCoachInitialContext({ type: 'from_analysis' });
+                    setViewMode('journey');
+                    setShowAICoachModal(true);
+                }}
             />
         )}
         {showLogWeightModal && (
@@ -4079,6 +4264,17 @@ useEffect(() => {
                 onSave={handleSaveWellbeingAndProceed}
             />
         )}
+        {journeyAnalysisData && (
+            <AICoachModal 
+              show={showAICoachModal}
+              onClose={() => {
+                  setShowAICoachModal(false);
+                  setCoachInitialContext(null);
+              }}
+              analysisContext={journeyAnalysisData}
+              initialContext={coachInitialContext}
+            />
+        )}
 
       </div>
       {(appStatus === AppStatus.ANALYZING || appStatus === AppStatus.ANALYZING_INGREDIENTS) && (
@@ -4088,6 +4284,15 @@ useEffect(() => {
               ? "Analyserar bild..."
               : "Hittar recept från dina bilder..."
           }
+        />
+      )}
+      {splashEffect && (
+        <WaterSplashEffect
+            key={splashEffect.id}
+            x={splashEffect.x}
+            y={splashEffect.y}
+            count={splashEffect.count}
+            onComplete={() => setSplashEffect(null)}
         />
       )}
       {toastNotification && (

@@ -3,6 +3,18 @@ import { MentalWellbeingData } from "./components/MentalWellbeingModal";
 
 // --- Core Nutritional & Goal Types ---
 
+export interface ChartDataset {
+  label: string;
+  data: (number | null)[];
+}
+
+export interface ChartData {
+  chartType: 'line';
+  title: string;
+  labels: string[];
+  datasets: ChartDataset[];
+}
+
 export interface NutritionalInfo {
   calories: number;
   protein: number;
@@ -371,6 +383,7 @@ export interface TimelineMilestone {
 
 export interface AIDataForJourneyAnalysis {
   userProfile: UserProfileData;
+  goals: GoalSettings;
   allWeightLogs: WeightLogEntry[];
   last30DaysSummaries: PastDaySummary[];
   goalTimeline: {

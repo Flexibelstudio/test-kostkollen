@@ -4,252 +4,170 @@ export const courseLessons: CourseLesson[] = [
   {
     id: 'lektion1',
     title: 'Lektion 1 – Din resa börjar här',
-    introduction: 'Denna lektion handlar om att komma igång – att förstå varför du vill göra denna resa och hur du kan börja med små steg som gör stor skillnad.',
-    detailedText: 'Välkommen till din första lektion i Praktisk viktkontroll. Här börjar något viktigt – din egen hälsoresa. Du har redan tagit ett modigt steg genom att vara här, och nu är det dags att börja bygga goda vanor som håller över tid.\nFör att lyckas långsiktigt behöver du veta varför du vill göra en förändring. Är det för att känna dig piggare, starkare, lättare i kroppen – eller något helt annat? Ditt personliga varför är det som hjälper dig hålla kursen även när det känns tufft. Skriv gärna ner det direkt i appen.\nSätt också ett mål att jobba mot – ett som är tydligt och realistiskt. Använd SMART-modellen för att formulera det:\nSpecifikt – Vad vill du uppnå?\nMätbart – Hur ser du att du gör framsteg?\nAccepterat – Är det viktigt för dig personligen?\nRealistiskt – Är det genomförbart i din vardag?\nTidsbundet – När vill du ha nått dit?\nBörja också logga dina måltider i appen. Du behöver inte ändra allt direkt – men att bli medveten om vad du äter är ett kraftfullt första steg.',
+    introduction: 'Välkommen till din första lektion i Praktisk Viktkontroll – och starten på något viktigt. Den här veckan handlar inte om perfektion, utan om att börja. Små steg i rätt riktning bygger stora förändringar.',
+    detailedText: 'För att lyckas långsiktigt behöver du förstå varför du vill göra en förändring. Är det för att känna dig piggare? Bli starkare? Få på dig favoritjeansen igen? Eller något helt annat? Ditt personliga varför hjälper dig att hålla kursen – även när motivationen tryter. Skriv gärna ner det direkt i Kostloggen, antingen i loggen eller genom att skicka det till din coach i chatten. Det är ett första kraftfullt steg.\nSätt ett mål som känns realistiskt och viktigt för dig. Använd gärna SMART-modellen för att formulera det: Specifikt – Vad vill du uppnå? Mätbart – Hur vet du att du gör framsteg? Accepterat – Är det viktigt för dig personligen? Realistiskt – Är det genomförbart i din vardag? Tidsbundet – När vill du ha nått dit?\nExempel: “Jag vill minska 6 kg fett på 12 veckor genom att följa mitt kostprogram och träna tre gånger i veckan.” Du kan också skriva in ditt mål i appen – eller skicka det till coachen i chatten för pepp, återkoppling eller bara för att hålla dig själv ansvarig.\nBörja logga det du äter i Kostloggen varje dag. Du behöver inte ändra allt direkt – men att bli medveten om dina vanor är ett kraftfullt steg. Du kan när som helst skriva till coachen: “Hur ser min vecka ut?”, “Hur ser mitt proteinintag ut?” eller “Vad har jag gjort bra?” Det ger dig direkt feedback, statistik och motivation att fortsätta.',
     focusPoints: [
-      { id: 'l1fp1', text: 'Sätt ett SMART mål (Specifikt, Mätbart, Accepterat, Realistiskt, Tidsbundet)' },
-      { id: 'l1fp2', text: 'Skriv ned varför du vill gå ner i vikt – det är din inre drivkraft' },
-      { 
-        id: 'l1fp3', 
-        text: 'Börja logga vad du äter i appen',
-        cta: {
-            label: "Logga din första måltid",
-            action: "openSpeedDial"
-        }
-      },
+      { id: 'l1fp1', text: 'Skriv ner ditt "Varför".' },
+      { id: 'l1fp2', text: 'Formulera ett SMART-mål.' },
+      { id: 'l1fp3', text: 'Börja logga dina måltider varje dag.', cta: { label: 'Logga din första måltid', action: 'openSpeedDial' } }
     ],
-    tips: [
-      { id: 'l1t1', text: 'Ta en 30-minuters promenad 3 gånger denna lektion. Logga i appen vad du äter. Redan här börjar du ta kontroll!' }
-    ],
-    reflection: {
-      id: 'l1r1',
-      question: 'Vilket hinder tror du kan bli störst? Fundera på en lösning redan nu.'
-    },
+    tips: [{ id: 'l1t1', text: 'Ta tre promenader på 30 minuter. Logga dina måltider varje dag.' }],
+    reflection: { id: 'l1r1', question: 'Vilket hinder tror du kan bli ditt största? Vad kan du göra redan nu för att vara förberedd?' },
     specialAction: {
       type: 'writeWhy',
-      prompt: 'Ditt "Varför" och SMART-mål',
-      description: 'Fundera på VARFÖR du vill göra denna förändring och skriv ner det. Titta sedan på ditt övergripande mål som du angav i din profil (t.ex. om du vill minska fettmassa eller öka muskelmassa) och försök formulera ett mer detaljerat SMART mål här: Specifikt (Vad exakt vill du uppnå?), Mätbart (Hur vet du när du nått det?), Accepterat (Är det verkligen DITT mål?), Realistiskt (Är det möjligt att uppnå?), Tidsbundet (När ska det vara uppnått?).'
+      prompt: 'Ditt Varför & SMART-mål',
+      description: '1. Skriv ner ditt varför. 2. Formulera ett SMART-mål som du kan följa under kursen. 3. Dela det med coachen i chatten om du vill – det är ett första steg mot hållbar förändring.'
     }
   },
   {
     id: 'lektion2',
     title: 'Lektion 2 – Bygg din rutin',
-    introduction: 'Heja dig – du är igång! Nu handlar det om att bygga struktur så att nya vanor blir vardag.',
-    detailedText: 'Starkt jobbat – du har hållit igång i en vecka och det märks! Nu är det dags att bygga vidare. Den här lektionen fokuserar på struktur och regelbundenhet, så att dina nya vanor blir en naturlig del av vardagen.\nSträva efter tre huvudmåltider och ett till två mellanmål varje dag. Logga dem i appen för att få koll och tydlighet.\nDet är också dags för din första veckomätning. Genom att följa både vikt och kroppssammansättning ser du fler delar av din utveckling. För bästa jämförelse, väg dig vid samma tid varje vecka – helst på morgonen innan frukost.\nTitta tillbaka i din matlogg. Finns det något mönster du vill justera? Välj en vana att förbättra och fokusera på den under veckan.',
+    introduction: 'Starkt jobbat – du har hållit igång i en vecka och det märks. Nu är det dags att bygga vidare.',
+    detailedText: 'Den här lektionen fokuserar på struktur och regelbundenhet, så att dina nya vanor blir en naturlig del av vardagen. När du äter ungefär samma tider varje dag får kroppen bättre rytm. Målet är att hitta en balans som funkar för dig – inte att följa ett perfekt schema. Sträva efter tre huvudmåltider och ett till två mellanmål varje dag. Logga dem i appen för att få koll och tydlighet. Du kan när som helst skriva till coachen i Kostloggen: “Hur har min vecka sett ut?” eller “Hur ser mitt intag ut fördelat över dagen?”\nDet är också dags för din första veckomätning. Genom att följa både vikt och kroppssammansättning ser du fler delar av din utveckling. För bästa jämförelse, väg dig vid samma tid varje vecka – helst på morgonen innan frukost. Din viktkurva uppdateras automatiskt i appen, och du kan be coachen visa dig förändringen.\nTitta tillbaka i din matlogg. Finns det något mönster du vill justera? Kanske småäter du på kvällen? Eller glömmer bort mellanmålet och blir för hungrig senare? Välj en vana att förbättra och fokusera på den under veckan.',
     focusPoints: [
-      { id: 'l2fp1', text: 'Regelbundna måltider: 3 huvudmål, 1–2 mellanmål (logga dem i appen!)' },
-      { 
-        id: 'l2fp2', 
-        text: 'Genomför din veckomätning för att följa din vikt och kroppssammansättning.',
-        cta: {
-            label: "Logga Mätning",
-            action: "openLogWeightModal" 
-        }
-      },
-      { id: 'l2fp4', text: 'Identifiera en vana att förbättra (t.ex. småätande, stressmat – se mönster i din matlogg)' },
+      { id: 'l2fp1', text: 'Sikta på regelbundna måltider (3 huvudmål, 1–2 mellanmål).' },
+      { id: 'l2fp2', text: 'Genomför din veckomätning.', cta: { label: 'Logga Mätning', action: 'openLogWeightModal' } },
+      { id: 'l2fp3', text: 'Identifiera en vana att förbättra baserat på din matlogg.' }
     ],
-    tips: [
-      { id: 'l2t1', text: 'Använd tallriksmodellen – hälften grönsaker, en fjärdedel protein, en fjärdedel kolhydrater. Och: vatten till måltiden! Logga vattnet i appen.' },
-      { id: 'l2t2', text: 'För bäst resultat, försök väga dig på samma dag och tid varje vecka, gärna på morgonen innan frukost.' }
-    ],
-    reflection: {
-      id: 'l2r1',
-      question: 'Vad fungerade bra förra lektionen? Vad vill du justera nu?'
-    }
+    tips: [{ id: 'l2t1', text: 'Tallriksmodellen är ett bra verktyg när du vill äta balanserat: Hälften grönsaker, en fjärdedel protein, en fjärdedel kolhydrater. Drick gärna vatten till måltiden – och logga det också i appen.' }],
+    reflection: { id: 'l2r1', question: 'Vad fungerade bra för dig under förra veckan? Vad vill du justera nu för att komma ännu ett steg närmare ditt mål? Du kan skriva dina tankar direkt till coachen i chatten – och få personlig återkoppling.' }
   },
   {
     id: 'lektion3',
     title: 'Lektion 3 – Lär känna din hunger',
-    introduction: 'Du är på gång – toppen! Nu börjar vi lyssna mer på kroppen och äter medvetet.',
-    detailedText: 'Den här lektionen handlar om att lyssna mer på kroppen. Genom att bli uppmärksam på hunger och mättnad får du bättre kontroll och kan fatta medvetna beslut kring maten.\nVi börjar med mindful eating – att äta långsamt och utan distraktioner. Lägg gärna ner besticken mellan tuggorna, och försök sitta ner och äta i lugn och ro.\nStanna upp före varje måltid: Hur hungrig är jag – på en skala från 1 till 10? Och efteråt: Hur mätt är jag nu? Skriv gärna ner det i loggen eller i din reflektion.\nTitta tillbaka i din logg – finns det situationer där du tenderar att äta mer än du behöver? Identifiera dina triggers.\nDen här veckan kan du också testa att lägga till lite rörelse som höjer pulsen, om det känns rätt för dig. Det viktiga är att rörelsen passar dig.',
+    introduction: 'Du har fortsatt jobba mot dina mål – starkt gjort. Den här lektionen handlar om att lyssna mer på kroppen.',
+    detailedText: 'Genom att bli uppmärksam på hunger och mättnad får du bättre kontroll och kan fatta medvetna beslut kring maten. Vi börjar med mindful eating – att äta långsamt och utan distraktioner. När du ger kroppen tid att reagera hinner du känna när du faktiskt är mätt. Lägg gärna ner besticken mellan tuggorna, och försök sitta ner och äta i lugn och ro.\nStanna upp före varje måltid. Hur hungrig är du – på en skala från 1 till 10? Och efteråt: Hur mätt är du nu? Du kan skriva ner dina upplevelser direkt i Kostloggen, antingen i matloggen eller som en reflektion. Titta tillbaka i din logg. Finns det situationer där du tenderar att äta mer än du egentligen behöver? Vad utlöste det – stress, känslor eller miljö? Att bli medveten om triggers gör det lättare att möta dem på ett nytt sätt.\nDen här veckan kan du också testa att lägga till lite rörelse som höjer pulsen, om det känns rätt för dig. Det viktiga är att du rör på dig på ett sätt som passar din nivå och vardag.',
     focusPoints: [
-      { id: 'l3fp1', text: 'Öva "mindful eating": ät långsamt och utan distraktion' },
-      { id: 'l3fp2', text: 'Identifiera triggers som leder till överätande (notera i samband med din matloggning)' },
+      { id: 'l3fp1', text: 'Öva "mindful eating": ät långsamt och utan distraktioner.' },
+      { id: 'l3fp2', text: 'Reflektera över din hunger- och mättnadsskala (1-10).' },
+      { id: 'l3fp3', text: 'Identifiera triggers som leder till överätande.' },
+      { id: 'l3fp4', text: 'Testa att lägga till lite rörelse som höjer pulsen.' }
     ],
-    tips: [
-      { id: 'l3t1', text: 'Lägg ner besticken mellan tuggorna. Känn efter hur hungrig du är innan och efter varje måltid – skriv gärna ned i din logg eller reflektion.' }
-    ],
-    reflection: {
-      id: 'l3r1',
-      question: 'Hur kändes det att äta långsamt? Märkte du när du blev mätt?'
-    }
+    tips: [{ id: 'l3t1', text: 'Om du är osäker kan du be coachen i appen att hjälpa dig tolka mönster i din logg. Vill du ha tips på pass eller rörelseformer kan du fråga coachen direkt i chatten.' }],
+    reflection: { id: 'l3r1', question: 'Hur kändes det att äta långsamt? Märkte du tydligare när du blev mätt? Vad upptäckte du om dina matvanor under veckan?' }
   },
   {
     id: 'lektion4',
     title: 'Lektion 4 – Hantera utmaningar',
-    introduction: 'Nu har du en månad bakom dig – bra jobbat! Den här lektionen fokuserar vi på att lösa hinder som uppstår längs vägen.',
-    detailedText: 'Utmaningar är en naturlig del av alla förändringar. Den här veckan handlar om att lära känna dina mönster – och förbereda dig på att hantera dem.\nTitta i din matlogg – var det någon situation där det blev svårare att följa planen? Kanske en stressig kväll, något socialt eller bara trötthet?\nTesta att tänka så här:\n“Om X händer, så gör jag Y.”\nExempel:\n– Om jag blir sötsugen → då dricker jag ett glas vatten och väntar.\n– Om jag vet att det blir en intensiv helg → då förbereder jag bra mellanmål i förväg.',
+    introduction: 'Härligt att du är vidare till nästa steg i kursen. Den här lektionen fokuserar på något som alla stöter på förr eller senare: utmaningar.',
+    detailedText: 'För att förstå vad som behöver justeras framåt, börja med att titta tillbaka i din matlogg. Finns det situationer där det varit svårare att följa planen? Det kan vara stress, trötthet, sociala tillfällen eller något helt annat. Att se mönstren hjälper dig att bygga nya strategier.\nEn bra metod är att tänka i förväg: “Om X händer, så gör jag Y.” Exempel: Om jag blir sötsugen efter middagen – då tar jag en kopp te och väntar en stund. Om jag vet att helgen blir intensiv – då ser jag till att ha några färdiga alternativ hemma.\nJust helger är ofta en utmaning. Försök planera redan nu – kan du ha nyttiga snacks redo? Fortsätt också med träningen. Försök få in både styrka och rörelse som ökar pulsen. Det behöver inte vara perfekt – men regelbunden rörelse hjälper dig hålla fokus.',
     aiPromptHint: 'challenges',
     focusPoints: [
-      { id: 'l4fp1', text: 'Identifiera en situation där du haft svårt att följa planen (t.ex. genom att titta i din matlogg i appen)' },
-      { id: 'l4fp2', text: 'Skapa en strategi i förväg: "Om X händer, gör jag Y"' },
+      { id: 'l4fp1', text: 'Identifiera en utmanande situation i din matlogg.' },
+      { id: 'l4fp2', text: 'Skapa en "Om X, så Y"-strategi för den situationen.' },
+      { id: 'l4fp3', text: 'Planera inför helgen.' }
     ],
-    tips: [
-      { id: 'l4t1', text: 'Planera för helgen redan nu! Det är ofta då vanor sätts på prov. Kan du ha färdiga nyttiga snacks redo? Kolla dina sparade "Vanliga val" i appen för inspiration.' }
-    ],
-    reflection: {
-      id: 'l4r1',
-      question: 'Vilken utmaning hanterade du bra denna lektion?'
-    }
+    tips: [{ id: 'l4t1', text: 'Du kan be coachen i Kostloggen om hjälp att tolka loggen och ge dig återkoppling. Be gärna coachen i appen om förslag på ”Plan B”-strategier som passar din vardag. Gå gärna in i appen och kolla dina sparade Vanliga val för att förenkla besluten.' }],
+    reflection: { id: 'l4r1', question: 'Vilken utmaning har du stött på nyligen – och hur hanterade du den? Vad kan du ta med dig till nästa gång?' }
   },
   {
     id: 'lektion5',
     title: 'Lektion 5 – Stegra och fira',
-    introduction: 'Du är halvvägs – dags att växla upp lite! Nu bygger vi vidare på det du lärt dig och förstärker dina nya vanor.',
-    detailedText: 'Nu är du inne i andra halvan av kursen. Det är dags att växla upp lite – inte för att pressa dig, utan för att känna kraften i det du redan bygger.\nLägg till en ny hälsovana – något enkelt men konkret. Det kan vara frukt till mellanmålet, ett glas vatten före varje måltid eller något annat du själv väljer.\nTitta även i matloggen: syns det att du får i dig tillräckligt med protein och grönsaker?\nVill du öka aktiviteten lite, gör det på ett sätt som känns roligt och realistiskt. Det viktigaste är att det passar din vardag.',
+    introduction: 'Du är nu inne i den andra halvan av kursen. I den här lektionen bygger vi vidare på det du redan gör bra, och lägger till en nivå till.',
+    detailedText: 'Först: fira något du gjort hittills som du är stolt över. Erkänn din insats – det stärker motivationen.\nNu är det dags att lägga till en ny hälsovana. Det kan vara något enkelt men konkret: frukt till mellanmålet, ett glas vatten före varje måltid eller att stänga köket efter middagen. Välj något du själv känner kan göra skillnad.\nVill du också öka din träningsnivå lite? Lägg till ett extra pass eller förläng ett befintligt med några minuter. Du kan också höja tempot i vardagsrörelsen. Det viktiga är inte hur mycket, utan att du utmanar dig lite mer än innan.\nFortsätt ha fokus på protein och grönsaker i måltiderna. Titta i din matlogg – hur ser det ut? Finns det något du vill justera?',
     focusPoints: [
-      { id: 'l5fp1', text: 'Lägg till en ny hälsovana (t.ex. frukt till mellanmål, logga detta i appen)' },
-      { 
-        id: 'l5fp3', 
-        text: 'Håll fokus på protein och grönsaker i kosten (syns detta i din matlogg?)',
-        cta: {
-            label: "Uppdatera mitt mål",
-            action: "navigateToJourneyGoals"
-        }
-      },
+      { id: 'l5fp1', text: 'Fira något du är stolt över med din resa hittills.' },
+      { id: 'l5fp2', text: 'Lägg till en ny, enkel hälsovana denna vecka.' },
+      { id: 'l5fp3', text: 'Öka din träningsnivå eller vardagsrörelse en aning.', cta: { label: "Uppdatera mitt mål", action: "navigateToJourneyGoals" } }
     ],
-    tips: [
-      { id: 'l5t1', text: 'Sätt ett nytt delmål fram till Lektion 8 – t.ex. en specifik vikt (kan uppdateras i din profil), orka springa 1 km, eller en ny nivå i appen.' }
-    ],
-    reflection: {
-      id: 'l5r1',
-      question: 'Vad har du gjort hittills som du är mest stolt över?'
-    },
+    tips: [{ id: 'l5t1', text: 'Sätt ett nytt delmål fram till Lektion 8. Gör målet tydligt och konkret, gärna enligt SMART-modellen: Specifikt, Mätbart, Accepterat, Realistiskt, Tidsbundet.' }],
+    reflection: { id: 'l5r1', question: 'Vad har du gjort hittills som du är mest stolt över?' },
     specialAction: {
       type: 'smartGoal',
       prompt: 'Sätt ett nytt delmål',
-      description: 'Baserat på tipset, vad är ditt nya delmål fram till Lektion 8? Försök göra det SMART (Specifikt, Mätbart, Accepterat, Realistiskt, Tidsbundet). Skriv ner det här.'
+      description: 'Formulera ett delmål fram till Lektion 8. Vad vill du klara? Skriv ner det – och gör det SMART.'
     }
   },
   {
     id: 'lektion6',
     title: 'Lektion 6 – Halvtidskollen',
-    introduction: 'Halva resan klar – starkt jobbat! Denna lektion stannar vi upp, utvärderar och justerar vid behov.',
-    detailedText: 'Halvvägs! Det är dags att stanna upp och utvärdera vad som fungerar – och vad som kan förbättras.\nGå tillbaka till ditt “Varför” och det mål du satte i Lektion 1. Hur ligger du till? Är målet fortfarande aktuellt, eller behöver det justeras?\nTitta på din kost och rörelse: har något förändrats? Loggen hjälper dig se mönster du annars missar.',
+    introduction: 'Du har nu kommit halvvägs genom kursen – starkt jobbat. Den här lektionen handlar om att stanna upp en stund, utvärdera din resa hittills och justera om det behövs.',
+    detailedText: 'Börja med att gå tillbaka till dina anteckningar från Lektion 1. Läs igenom ditt “Varför” och det SMART-mål du satte upp. Hur ligger du till i förhållande till det? Känns målet fortfarande relevant? Fundera också på om du vill justera något – det är helt okej att omformulera målet utifrån vad du vet idag.\nTitta därefter på din kost och träning. Gå igenom din logg i appen – hur ser det ut med måltiderna? Har balansen mellan protein, grönsaker och kolhydrater hållits? Om du har stagnerat i vikt eller energi – fundera på vad du kan justera, snarare än att börja om.\nDet är också dags att hitta en ny motivationskälla. Det kan vara att kläder börjar sitta bättre, att du har mer ork i vardagen, att du nått en ny nivå i appen – eller bara att du känner dig stolt över att du håller i.',
     focusPoints: [
-      { id: 'l6fp1', text: 'Gå tillbaka till målen från Lektion 1 (ditt "Varför" och SMART-mål i appen): hur ligger du till?' },
-      { id: 'l6fp2', text: 'Justera kost eller träning om du stagnerat (se över dina loggade måltider och aktiviteter i appen)' },
-      { id: 'l6fp3', text: 'Hitta en ny motivationskälla – t.ex. kläder som sitter bättre, eller en ny nivå i appen' },
+      { id: 'l6fp1', text: 'Gå tillbaka till ditt "Varför" och SMART-mål från lektion 1. Behöver något justeras?' },
+      { id: 'l6fp2', text: 'Analysera din logg för att se vad som fungerar och vad som kan förbättras.' },
+      { id: 'l6fp3', text: 'Identifiera en ny motivationskälla för att hålla energin uppe.' }
     ],
-    tips: [
-      { id: 'l6t1', text: 'Skriv upp tre vanor du vill behålla även efter programmet – detta är en livsstilsförändring.' }
-    ],
-    reflection: {
-      id: 'l6r1',
-      question: 'Vad har varit den största lärdomen hittills?'
-    }
+    tips: [{ id: 'l6t1', text: 'Skriv upp tre vanor du vill behålla även efter kursen. Målet är inte en tillfällig förändring – det du bygger nu ska fungera i din vardag, långsiktigt.' }],
+    reflection: { id: 'l6r1', question: 'Vad har varit den största lärdomen för dig hittills?' }
   },
   {
     id: 'lektion7',
     title: 'Lektion 7 – Bryt en platå',
-    introduction: 'Ibland går det långsammare – det är helt okej. Kroppen vänjer sig – nu hjälper vi den vidare.',
-    detailedText: 'Det är vanligt att förändring saktar in. Det betyder inte att du gör fel – det betyder att kroppen anpassar sig. Nu gör vi några små justeringar för att få fart igen.\nTitta på dina portionsstorlekar – har de förändrats? Du kan använda handmodellen eller mått för att få bättre koll.\nFå in mer rörelse i vardagen. Behöver inte vara träning – det kan vara fler steg, lite raskare tempo eller att ta trappor.',
+    introduction: 'Ibland går det långsammare – och det är helt normalt. Den här lektionen handlar om att ta ett steg tillbaka, se över helheten och prova något nytt om det behövs.',
+    detailedText: 'Börja med att titta i din matlogg. Har portionsstorlekarna förändrats med tiden? Kanske har du börjat äta lite mer utan att tänka på det – det är vanligt. Ett enkelt sätt att få överblick är att väga maten under några dagar igen.\nFundera också på hur din vardagsrörelse ser ut. Det behöver inte vara träning – varje rörelse räknas. Att öka den totala aktiviteten kan göra stor skillnad. Ett bra riktmärke är 10 000 steg per dag.\nOm du redan tränar, kanske du kan lägga till något nytt eller byta ut en vana för att skapa variation.\nOch glöm inte det viktigaste: att prata snällt med dig själv. Gå gärna in i appens historik och titta på vad du redan har åstadkommit.',
     aiPromptHint: 'plateau',
     focusPoints: [
-      { id: 'l7fp1', text: 'Revidera portionsstorlek (kolla din logg, väg maten) eller öka vardagsrörelsen' },
-      { id: 'l7fp3', text: 'Prata snällt med dig själv – du gör ett fantastiskt jobb! Titta på dina framsteg i appens historik.' },
+      { id: 'l7fp1', text: 'Se över dina portionsstorlekar – har de ändrats?' },
+      { id: 'l7fp2', text: 'Öka din vardagsrörelse, sikta gärna på 10 000 steg.' },
+      { id: 'l7fp3', text: 'Var snäll mot dig själv och uppmärksamma de framsteg du redan gjort.' }
     ],
-    tips: [
-      { id: 'l7t1', text: 'Försök få in 10 000 steg per dag. Det gör mer skillnad än du tror. Många mobiler eller klockor loggar detta automatiskt.' }
-    ],
-    reflection: {
-      id: 'l7r1',
-      question: 'Vad kan du göra annorlunda denna lektion för att få ny energi?'
-    }
+    tips: [{ id: 'l7t1', text: 'Försök få in lite mer rörelse i vardagen den här veckan – kanske fler steg, en extra promenad eller mer aktivitet i hemmet. Små insatser gör skillnad.' }],
+    reflection: { id: 'l7r1', question: 'Vad kan du göra annorlunda just den här veckan för att få ny energi?' }
   },
   {
     id: 'lektion8',
     title: 'Lektion 8 – Hitta glädjen',
-    introduction: 'Nu är du van – gör det kul! Denna lektion handlar om att hitta motivationen igen.',
-    detailedText: 'När det inte längre känns “nytt” – då behöver vi hitta glädjen i det du gör. Den här veckan handlar om att förnya motivationen.\nTesta något nytt: ett nytt recept, en annan måltidsrutin, eller en annan form av rörelse. Spara nya favoriter som “Vanliga val” i appen.\nTitta på dina nivåer och historik – påminn dig själv om hur långt du har kommit.',
+    introduction: 'Du har tagit dig hela vägen hit – och det är verkligen något att vara stolt över. I den här lektionen handlar det om att hitta tillbaka till glädjen och motivationen.',
+    detailedText: 'För att väcka ny energi – testa något nytt. Det kan vara ett nytt recept, en annan sorts rörelse eller att ändra något litet i din rutin.\nTa också en stund och titta på vad du redan åstadkommit. Se din streak, nivå och historik i appen. Små framsteg över tid blir till stora förändringar.\nFortsätt följa den plan du har satt upp. Gå tillbaka till dina mål i profilen och påminn dig om vart du är på väg. Det viktiga nu är inte att förändra mer – utan att fortsätta hålla i.',
     focusPoints: [
-      { id: 'l8fp1', text: 'Testa ett nytt recept (logga det och spara som "Vanligt val" i appen om det är en hit!) eller träningsform' },
-      { id: 'l8fp2', text: 'Påminn dig själv om hälsofördelarna du redan uppnått (se din streak, nivå och historik i appen)' },
-      { id: 'l8fp3', text: 'Fortsätt följa din plan – du är snart i mål (se dina satta mål i profilen)' },
+      { id: 'l8fp1', text: 'Testa ett nytt recept eller en ny form av rörelse.' },
+      { id: 'l8fp2', text: 'Titta på din historik i appen och påminn dig om hur långt du kommit.' },
+      { id: 'l8fp3', text: 'Håll fast vid din plan – kontinuitet är nyckeln.' }
     ],
-    tips: [
-      { id: 'l8t1', text: 'Bjud in någon till en aktivitet eller gör något som du mår bra av – det förstärker känslan av att du gör något för dig själv.' }
-    ],
-    reflection: {
-      id: 'l8r1',
-      question: 'Vad får dig att le när du tänker på de framsteg du gjort?'
-    }
+    tips: [{ id: 'l8t1', text: 'Gör något kul av din hälsosatsning. Kanske bjuder du in någon till en promenad, testar en utmaning i appen eller hittar ett recept ni kan laga ihop. Glädje och gemenskap gör det lättare.' }],
+    reflection: { id: 'l8r1', question: 'Vad får dig att le när du tänker på de framsteg du gjort?' }
   },
   {
     id: 'lektion9',
     title: 'Lektion 9 – Finjustera',
-    introduction: 'Det är detaljerna som gör skillnad nu. Sista biten handlar om att slipa på småsaker.',
-    detailedText: 'Du har kommit långt – nu handlar det om detaljerna. Den här veckan finjusterar vi för att du ska få ut ännu mer av dina nya vanor.\nTitta på portionsstorlekar – använder du handmodellen eller annan jämförelse? Se också till att varje måltid innehåller protein – det gör stor skillnad för mättnad och återhämtning.\nOm du redan är aktiv: höj tempot lite. Om inte – öka vardagsrörelsen i små steg.',
+    introduction: 'Du har kommit långt – och nu handlar det om detaljerna. Den här lektionen fokuserar på att slipa på det du redan gör bra.',
+    detailedText: 'Börja med att titta på portionsstorlekarna i din matlogg. Har mängderna förändrats med tiden? Om du vill dubbelkolla – använd en handbaserad metod, till exempel handflata för protein, knytnäve för grönsaker, eller mät upp med decilitermått.\nSe också till att varje måltid innehåller en bra proteinkälla. Protein hjälper dig att känna dig mätt, behålla muskelmassa och stödja fettförbränning.\nOm du är igång med fysisk aktivitet kan du prova att öka tempot lite, lägga till fler steg eller testa något nytt. Även utan formell träning går det att öka intensiteten.',
     focusPoints: [
-      { id: 'l9fp1', text: 'Kontrollera portionsstorlekar noggrant (använd matvåg och jämför med din logg i appen)' },
-      { id: 'l9fp2', text: 'Se till att varje måltid innehåller protein (kolla näringsvärdena i din logg)' },
+      { id: 'l9fp1', text: 'Dubbelkolla dina portionsstorlekar.' },
+      { id: 'l9fp2', text: 'Säkerställ att varje huvudmåltid innehåller en bra proteinkälla.' },
+      { id: 'l9fp3', text: 'Öka intensiteten lite i din befintliga rörelse eller träning.' }
     ],
-    tips: [
-      { id: 'l9t1', text: 'Lägg in extra fokus på sömn denna lektion – det hjälper kroppen att bränna fett och återhämta sig.' }
-    ],
-    reflection: {
-      id: 'l9r1',
-      question: 'Vilken liten justering kan ge dig störst effekt just nu?'
-    }
+    tips: [{ id: 'l9t1', text: 'Fokusera gärna lite extra på sömnen den här veckan. Bra sömn hjälper kroppen att återhämta sig, reglera hunger och hantera stress.' }],
+    reflection: { id: 'l9r1', question: 'Vilken liten förändring tror du kan ge dig störst effekt just nu?' }
   },
   {
     id: 'lektion10',
     title: 'Lektion 10 – Ge allt',
-    introduction: 'Nu är det slutspurt! Denna lektion handlar om 100 % följsamhet – du är så nära!',
-    detailedText: 'Sista kraftsamlingen! Den här veckan handlar om att visa dig själv vad du kan när du fokuserar helt och hållet.\nFölj planen fullt ut – logga allt, håll dina rutiner, och känn hur det känns att vara 100 % närvarande i processen.\nTitta på din streak, din historik – allt det är bevis på din insats.',
+    introduction: 'Du har kommit långt – och nu är det dags för slutspurten. Den här lektionen handlar om att gå all in i dina vanor under en kort, tydlig period.',
+    detailedText: 'Försök nu att följa din plan så nära det går. Logga varje måltid, varje dryck, varje vana i appen – inte för att kontrollera dig själv, utan för att ta full kontroll över dina val. Det är bara en vecka – och det är du som styr.\nOm rörelse eller träning är en del av din resa, gör den med glädje och syfte. Påminn dig om vad du faktiskt klarar idag.\nStanna också upp och titta på vad du har byggt upp: din streak, din nivå i appen, din historik. Allt det visar inte bara på disciplin – det visar på engagemang.',
     focusPoints: [
-      { id: 'l10fp1', text: 'Följ planen fullt ut – inga spontana avsteg (håll din logg perfekt i appen!)' },
-      { id: 'l10fp3', text: 'Stärk din tro på dig själv – du är en vinnare (kolla din streak och nivå i appen!)' },
+      { id: 'l10fp1', text: 'Följ din plan så nära det går denna vecka.' },
+      { id: 'l10fp2', text: 'Utför din planerade rörelse med glädje och syfte.' },
+      { id: 'l10fp3', text: 'Uppmärksamma din resa och dina framsteg i appen.' }
     ],
-    tips: [
-      { id: 'l10t1', text: 'Skriv ett peppbrev till dig själv – varför detta är så viktigt för dig. Du kan använda reflektionsfältet i appen för detta.' }
-    ],
-    reflection: {
-      id: 'l10r1',
-      question: 'Vad skulle du säga till en vän som kämpat lika bra som du gjort?'
-    }
+    tips: [{ id: 'l10t1', text: 'Skriv ett peppbrev till dig själv i appens reflektionsfält. Påminn dig om varför du började, vad du har lärt dig och varför det här betyder något för dig.' }],
+    reflection: { id: 'l10r1', question: 'Vad skulle du säga till en vän som kämpat lika bra som du gjort?' }
   },
   {
     id: 'lektion11',
     title: 'Lektion 11 – Plan för framtiden',
-    introduction: 'Du är nästan klar – dags att tänka långsiktigt. Nu förbereder vi övergången till en hållbar vardag.',
-    detailedText: 'Du är nästan i mål – nu förbereder du livet efter kursen. Det här handlar om att göra dina nya vanor hållbara.\nSkriv ner tre vanor du vill behålla. Fundera på hur du vill följa upp dig själv: loggning, nya mål, veckovis reflektion?\nGå tillbaka i appen och se din resa – vad har fungerat? Vad vill du ta med dig?',
+    introduction: 'Du är nästan i mål – men det viktigaste börjar egentligen nu. Målet har inte bara varit att få resultat, utan att bygga en livsstil du kan leva med.',
+    detailedText: 'Börja med att skriva ner tre vanor du vill behålla långsiktigt. Det kan vara enkla men viktiga saker, som att äta frukost varje dag, ta kvällspromenader eller planera maten inför veckan. Välj sådant du vet gör skillnad – och som du trivs med.\nTitta också på hur du vill följa upp dig själv efter kursen. Kanske vill du fortsätta logga vissa måltider i appen, sätta upp nya mål i profilen eller göra en veckosummering varje söndag.\nTa gärna en stund och gå tillbaka genom din resa i appen: matloggar, reflektioner, steg, nivåer. Vad har förändrats – i vanor, tankar och känsla?',
     focusPoints: [
-      { id: 'l11fp1', text: 'Skriv ner 3 vanor du vill behålla långsiktigt' },
-      { id: 'l11fp2', text: 'Gör en plan för hur du ska följa upp dig själv efter kursen (t.ex. fortsätta logga i appen, sätta nya mål i profilen)' },
-      { id: 'l11fp3', text: 'Reflektera över hela din resa (du kan använda appens historik och dina tidigare reflektioner)' },
+      { id: 'l11fp1', text: 'Identifiera och skriv ner 3 vanor du vill behålla långsiktigt.' },
+      { id: 'l11fp2', text: 'Gör en plan för hur du ska följa upp dig själv efter kursen.' },
+      { id: 'l11fp3', text: 'Reflektera över hela din resa och vad som förändrats.' }
     ],
-    tips: [
-      { id: 'l11t1', text: 'Skapa en kalenderplan för de kommande 4 veckorna efter programmet – när tränar du? Hur handlar du mat?' }
-    ],
-    reflection: {
-      id: 'l11r1',
-      question: 'Hur vill du må om 3 månader? Vad behöver du fortsätta göra?'
-    }
+    tips: [{ id: 'l11t1', text: 'Skapa en kalenderplan för de kommande fyra veckorna. Fundera över: När handlar du mat? När lagar du matlådor? När får du in rörelse eller återhämtning?' }],
+    reflection: { id: 'l11r1', question: 'Hur vill du må om tre månader – fysiskt, mentalt och i vardagen? Vad behöver du fortsätta göra för att ta dig dit?' }
   },
   {
     id: 'lektion12',
     title: 'Lektion 12 – Fira och fortsätt',
-    introduction: 'Stort grattis – du har gjort det! Denna lektion firar vi, summerar och blickar framåt.',
-    detailedText: 'Du klarade det! Du har gått hela vägen genom kursen. Nu är det dags att fira – och planera hur du vill fortsätta.\nGör din slutmätning i appen – oavsett om du använder vanlig våg eller InBody. Det ger dig en tydlig bild av din förändring.\nTitta tillbaka i din historik, dina reflektioner, nivåer. Du har åstadkommit något stort.\nNu bygger du vidare – med tydliga val, egna rutiner och appen som ett fortsatt stöd.',
+    introduction: 'Stort grattis – du har gjort det. Du har genomfört hela programmet, vecka för vecka, steg för steg.',
+    detailedText: 'Du har inte bara tagit dig igenom en kurs – du har påbörjat en livsstilsförändring. Och nu är det dags att stanna upp, se vad du åstadkommit och bestämma hur du vill gå vidare.\nBörja med att göra din slutmätning i appen – oavsett om du använder vanlig våg eller InBody.\nTitta sedan tillbaka på hela din resa. Vad har du vunnit – fysiskt, mentalt, i vardagen? Använd appens historik, nivåer och reflektionsfält för att summera.\nNu är det dags att skapa ditt liv efter programmet. Vad behöver du för att hålla i det du har byggt?',
     focusPoints: [
-      { 
-        id: 'l12fp1', 
-        text: 'Gör din slutmätning (vikt/InBody) för att se ditt slutgiltiga resultat!',
-        cta: {
-            label: "Logga Slutmätning",
-            action: "openLogWeightModal"
-        }
-      },
-      { id: 'l12fp2', text: 'Summera dina största vinster – fysiskt och mentalt (titta på din resa i appen via historik och nivåer)' },
-      { id: 'l12fp3', text: 'Skapa ditt liv efter programmet: en stark, balanserad vardag (använd appen som stöd!)' },
+      { id: 'l12fp1', text: 'Gör din slutmätning för att se ditt slutgiltiga resultat!', cta: { label: 'Logga Slutmätning', action: 'openLogWeightModal' } },
+      { id: 'l12fp2', text: 'Summera dina största vinster – fysiskt och mentalt.' },
+      { id: 'l12fp3', text: 'Skapa din plan för att fortsätta din hälsosamma livsstil.' }
     ],
-    tips: [
-      { id: 'l12t1', text: 'Fira på ett sätt som stärker din nya livsstil – kanske en lång vandring, massage eller köpa något som symboliserar förändringen.' }
-    ],
-    reflection: {
-      id: 'l12r1',
-      question: 'Vilken är den viktigaste förändringen du gjort – och hur ska du behålla den?'
-    }
+    tips: [{ id: 'l12t1', text: 'Fira på ett sätt som stärker det du har uppnått. Det kan vara en lång promenad, ett nytt plagg som symboliserar förändringen, en stund för dig själv eller att skriva ner hur stolt du är.' }],
+    reflection: { id: 'l12r1', question: 'Vilken är den viktigaste förändringen du har gjort? Och hur ska du behålla den – inte bara den här veckan, utan även framåt?' }
   }
 ];
