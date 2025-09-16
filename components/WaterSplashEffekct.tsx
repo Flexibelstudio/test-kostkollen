@@ -7,8 +7,7 @@ interface WaterSplashEffectProps {
   onComplete: () => void;
 }
 
-// Define a more specific style type that includes our custom CSS properties
-// and other properties we will set dynamically.
+// Custom style interface to satisfy TypeScript with CSS custom properties
 interface DropletStyle extends React.CSSProperties {
   '--translateX': string;
   '--translateY': string;
@@ -32,10 +31,9 @@ const WaterSplashEffect: React.FC<WaterSplashEffectProps> = ({ x, y, count, onCo
         height: `${size}px`,
         animationDuration: `${duration}s`,
         animationDelay: `${Math.random() * 0.15}s`,
-        // Move styling from className to here for type safety
         position: 'absolute',
         borderRadius: '50%',
-        backgroundColor: '#60a5fa', // Tailwind's bg-blue-400
+        backgroundColor: '#60a5fa', // A pleasant blue
       });
     }
     setDroplets(newDroplets);
@@ -51,7 +49,7 @@ const WaterSplashEffect: React.FC<WaterSplashEffectProps> = ({ x, y, count, onCo
       {droplets.map((style, index) => (
         <div
           key={index}
-          className="animate-water-splash" // Only the animation class remains
+          className="animate-water-splash"
           style={style}
         />
       ))}
