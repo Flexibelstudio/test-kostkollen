@@ -78,6 +78,7 @@ import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 import AICoachModal from './components/AICoachModal';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
+import WaterSplashEffect from './components/WaterSplashEffect.tsx';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -778,6 +779,7 @@ export const App = () => {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
+  const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
 
   // PATCH-HOOKS START
   useServiceWorkerRegistration();
@@ -1653,13 +1655,25 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     setImageFileForAnalysis(null);
   };
   
-  const handleLogWater = async (amountMl: number) => {
+  const handleLogWater = async (amountMl: number, event?: React.MouseEvent<HTMLButtonElement>) => {
     if (!isViewingToday || !currentUser) {
         setToastNotification({ message: "Du kan endast logga vatten för idag.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
-    playAudio('uiClick', 0.7);
+
+    if (event) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setSplashEffect({
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+            count: amountMl === 250 ? 15 : 25,
+            id: Date.now(), // Unique key to re-trigger animation on same button
+        });
+    }
+    
+    playAudio('waterSplash');
+    
     const newTotalWater = waterLoggedMl + amountMl;
     setWaterLoggedMl(newTotalWater);
 
@@ -4270,6 +4284,15 @@ useEffect(() => {
               ? "Analyserar bild..."
               : "Hittar recept från dina bilder..."
           }
+        />
+      )}
+      {splashEffect && (
+        <WaterSplashEffect
+            key={splashEffect.id}
+            x={splashEffect.x}
+            y={splashEffect.y}
+            count={splashEffect.count}
+            onComplete={() => setSplashEffect(null)}
         />
       )}
       {toastNotification && (
