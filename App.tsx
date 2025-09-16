@@ -78,7 +78,7 @@ import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 import AICoachModal from './components/AICoachModal';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
-import WaterSplashEffect from './components/WaterSplashEffect.tsx';
+import WaterSplashEffect from './components/WaterSplashEffect';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
