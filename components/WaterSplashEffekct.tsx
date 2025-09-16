@@ -8,18 +8,16 @@ interface WaterSplashEffectProps {
 }
 
 const WaterSplashEffect: React.FC<WaterSplashEffectProps> = ({ x, y, count, onComplete }) => {
-  const [droplets, setDroplets] = useState<React.CSSProperties[]>([]);
+  const [droplets, setDroplets] = useState<any[]>([]);
 
   useEffect(() => {
-    const newDroplets: React.CSSProperties[] = [];
+    const newDroplets: any[] = [];
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * 2 * Math.PI;
       const distance = Math.random() * 50 + 30; // 30px to 80px
       const size = Math.random() * 8 + 5; // 5px to 13px
       const duration = Math.random() * 0.6 + 0.5; // 0.5s to 1.1s
 
-      // FIX: Cast style object to React.CSSProperties to allow for custom properties (--translateX, --translateY)
-      // which are used by the animation defined in the CSS.
       newDroplets.push({
         // CSS custom properties for the animation
         '--translateX': `${Math.cos(angle) * distance}px`,
@@ -28,7 +26,7 @@ const WaterSplashEffect: React.FC<WaterSplashEffectProps> = ({ x, y, count, onCo
         height: `${size}px`,
         animationDuration: `${duration}s`,
         animationDelay: `${Math.random() * 0.15}s`,
-      } as React.CSSProperties);
+      });
     }
     setDroplets(newDroplets);
 
