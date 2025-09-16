@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { GoalType } from '../types'; // Import GoalType
 import { CALORIE_ADJUSTMENT } from '../constants';
-import { CheckCircleIcon } from './icons';
-import { playAudio } from '../services/audioService';
 
 interface ProgressDisplayProps {
   label: string;
@@ -27,23 +25,6 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
   amountCoveredByBankToday,
   goalType = 'lose_fat', // default
 }) => {
-  const [justMetGoal, setJustMetGoal] = useState(false);
-  const prevCurrentRef = useRef(current);
-
-  useEffect(() => {
-    const goalReached = current >= goal && goal > 0;
-    const prevGoalReached = prevCurrentRef.current >= goal && goal > 0;
-
-    if (goalReached && !prevGoalReached) {
-      setJustMetGoal(true);
-      playAudio('logSuccess', 0.7);
-      const timer = setTimeout(() => setJustMetGoal(false), 2000); // Animation duration
-      return () => clearTimeout(timer);
-    }
-
-    prevCurrentRef.current = current;
-  }, [current, goal]);
-
   const currentRounded = Math.round(current);
   const goalRounded = Math.round(goal);
   const minSafeThresholdRounded = Math.round(minSafeThreshold);
@@ -181,7 +162,7 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
       statusColorClass = 'text-orange-500 font-semibold';
       descriptiveMessage = `Du har överskridit ditt mål med ${(currentRounded - goalRounded).toFixed(0)} ${unit}.`;
       descriptiveMessageColorClass = 'text-orange-500';
-    } else if (currentRounded >= goalRounded && goalRounded > 0) {
+    } else if (currentRounded === goalRounded && goalRounded > 0) {
       statusColorClass = 'text-primary-darker font-semibold';
       descriptiveMessage = `Perfekt! Du har nått ditt mål på ${goalRounded.toFixed(0)} ${unit}.`;
       descriptiveMessageColorClass = 'text-primary-darker';
@@ -224,14 +205,13 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
         <span className="text-base font-medium text-neutral-dark flex items-center">
           {icon && <span className="mr-2.5">{icon}</span>}
           {label}
-          {justMetGoal && <CheckCircleIcon className="w-6 h-6 text-primary ml-2 animate-check-pop-in" />}
         </span>
         <span className={`text-base font-medium ${statusColorClass}`}>
           {statusText}
         </span>
       </div>
 
-      <div className={`w-full bg-neutral-light rounded-full h-5 shadow-inner flex overflow-hidden ${justMetGoal ? 'animate-goal-pulse' : ''}`}>
+      <div className="w-full bg-neutral-light rounded-full h-5 shadow-inner flex overflow-hidden">
         {redSegmentWidth > 0 && (
           <div
             className="bg-red-500 h-full transition-all duration-300 ease-out"

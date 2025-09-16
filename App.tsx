@@ -39,47 +39,46 @@ import {
   getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList
 } from './services/firestoreService.ts';
 
-import WaterLogger from './components/WaterLogger';
-import ProgressDisplay from './components/ProgressDisplay';
-import LoadingSpinner from './components/LoadingSpinner';
-import MealItemCard from './components/MealItemCard';
-import { JourneyView } from './components/JourneyView';
-import SaveCommonMealModal from './components/SaveCommonMealModal';
-import { CommonMealsList } from './components/CommonMealsList';
-import InfoModal from './components/InfoModal';
-import UserProfileModal, { Avatar } from './components/UserProfileModal';
-import CameraModal from './components/CameraModal';
-import BarcodeScannerModal from './components/BarcodeScannerModal';
-import BarcodeSearchResultModal from './components/BarcodeSearchResultModal';
-import ToastNotification from './components/ToastNotification';
-import ImageAnalysisResultModal from './components/ImageAnalysisResultModal';
-import ConfettiCelebration from './components/ConfettiCelebration';
-import LevelUpModal from './components/LevelUpModal';
-import GoalMetModal from './components/GoalMetModal';
-import CourseOverview from './components/course/CourseOverview';
-import LessonDetail from './components/course/LessonDetail';
+import WaterLogger from './components/WaterLogger.tsx';
+import ProgressDisplay from './components/ProgressDisplay.tsx';
+import LoadingSpinner from './components/LoadingSpinner.tsx';
+import MealItemCard from './components/MealItemCard.tsx';
+import { JourneyView } from './components/JourneyView.tsx';
+import SaveCommonMealModal from './components/SaveCommonMealModal.tsx';
+import { CommonMealsList } from './components/CommonMealsList.tsx';
+import InfoModal from './components/InfoModal.tsx';
+import UserProfileModal, { Avatar } from './components/UserProfileModal.tsx';
+import CameraModal from './components/CameraModal.tsx';
+import BarcodeScannerModal from './components/BarcodeScannerModal.tsx';
+import BarcodeSearchResultModal from './components/BarcodeSearchResultModal.tsx';
+import ToastNotification from './components/ToastNotification.tsx';
+import ImageAnalysisResultModal from './components/ImageAnalysisResultModal.tsx';
+import ConfettiCelebration from './components/ConfettiCelebration.tsx';
+import LevelUpModal from './components/LevelUpModal.tsx';
+import GoalMetModal from './components/GoalMetModal.tsx';
+import CourseOverview from './components/course/CourseOverview.tsx';
+import LessonDetail from './components/course/LessonDetail.tsx';
 import { courseLessons } from './courseData.ts';
-import CourseInfoModal from './components/course/CourseInfoModal';
-import NewLessonUnlockedModal from './components/course/NewLessonUnlockedModal';
-import RecipeModal from './components/RecipeModal';
-import TextEntryModal from './components/TextEntryModal';
-import IngredientCaptureModal from './components/IngredientCaptureModal';
-import IngredientRecipeResultsModal from './components/IngredientRecipeResultsModal';
-import WeeklyProgressDays from './components/WeeklyProgressDays';
-import { AuthForm } from './components/AuthForm';
-import GamificationCard from './components/GamificationCard';
-import LogWeightModal from './components/LogWeightModal';
-import MentalWellbeingModal, { MentalWellbeingData } from './components/MentalWellbeingModal';
-import BmrTdeeInfoModal from './components/BmrTdeeInfoModal';
-import OnboardingCompletionScreen from './components/OnboardingCompletionScreen';
-import { CommunityView } from './components/CommunityView';
-import IosInstallPrompt from './components/IosInstallPrompt';
-import { OnboardingChecklist } from './components/OnboardingChecklist';
-import OnboardingRewardModal from './components/OnboardingRewardModal';
+import CourseInfoModal from './components/course/CourseInfoModal.tsx';
+import NewLessonUnlockedModal from './components/course/NewLessonUnlockedModal.tsx';
+import RecipeModal from './components/RecipeModal.tsx';
+import TextEntryModal from './components/TextEntryModal.tsx';
+import IngredientCaptureModal from './components/IngredientCaptureModal.tsx';
+import IngredientRecipeResultsModal from './components/IngredientRecipeResultsModal.tsx';
+import WeeklyProgressDays from './components/WeeklyProgressDays.tsx';
+import { AuthForm } from './components/AuthForm.tsx';
+import GamificationCard from './components/GamificationCard.tsx';
+import LogWeightModal from './components/LogWeightModal.tsx';
+import MentalWellbeingModal, { MentalWellbeingData } from './components/MentalWellbeingModal.tsx';
+import BmrTdeeInfoModal from './components/BmrTdeeInfoModal.tsx';
+import OnboardingCompletionScreen from './components/OnboardingCompletionScreen.tsx';
+import { CommunityView } from './components/CommunityView.tsx';
+import IosInstallPrompt from './components/IosInstallPrompt.tsx';
+import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
+import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 import AICoachModal from './components/AICoachModal';
-import UpdateNoticeModal from './components/UpdateNoticeModal';
+import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
-import CoinFallEffect from './components/CoinFallEffect';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -781,11 +780,6 @@ export const App = () => {
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
-  const [newlyAddedMealId, setNewlyAddedMealId] = useState<string | null>(null);
-  const [streakUpdated, setStreakUpdated] = useState(false);
-  const [coinFallEffect, setCoinFallEffect] = useState<{ x: number; y: number; id: number } | null>(null);
-  const sparpottRef = useRef<HTMLDivElement>(null);
-
 
   // PATCH-HOOKS START
   useServiceWorkerRegistration();
@@ -947,16 +941,6 @@ export const App = () => {
   // Update Notification State
   const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
   const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
-
-    // Effect to track streak updates for animation
-    const previousStreakRef = useRef(streakData.currentStreak);
-    useEffect(() => {
-        if (streakData.currentStreak > previousStreakRef.current && previousStreakRef.current > 0) { // Don't animate from 0 to 1
-        setStreakUpdated(true);
-        setTimeout(() => setStreakUpdated(false), 1000); // Animation duration
-        }
-        previousStreakRef.current = streakData.currentStreak;
-    }, [streakData.currentStreak]);
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -1541,8 +1525,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
         const optimisticMeal: LoggedMeal = { ...newMealData, id: mealId };
         setDailyLog(prevLog => [optimisticMeal, ...prevLog]);
-        setNewlyAddedMealId(mealId); // Trigger animation for new meal
-        setTimeout(() => setNewlyAddedMealId(null), 1000); // Reset after animation is done
         if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
             setWeeklyBank(newBankState);
         }
@@ -2497,16 +2479,6 @@ useEffect(() => {
             setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
         }
         setChecklistState(null);
-        // Trigger coin fall animation
-        if (sparpottRef.current) {
-            const rect = sparpottRef.current.getBoundingClientRect();
-            setCoinFallEffect({
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2,
-                id: Date.now(),
-            });
-            playAudio('calorieBank');
-        }
     };
 
     const updateChecklistItem = useCallback((itemKey: keyof OnboardingChecklistItemStatus) => {
@@ -2547,11 +2519,12 @@ useEffect(() => {
                 
                 // Trigger success UI effects immediately
                 setShowConfetti(true);
+                playAudio('levelUp');
                 setShowOnboardingRewardModal(true);
             };
             handleCompletion();
         }
-    }, [checklistState, currentUser?.uid, isInitialDataLoaded, userRole, userStatus]);
+    }, [checklistState, currentUser, isInitialDataLoaded, userRole, userStatus]);
 
     useEffect(() => {
         if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
@@ -3791,11 +3764,8 @@ useEffect(() => {
                 <h2 id="daily-overview-heading" className="sr-only">Daglig Översikt</h2>
                 <div className="flex items-start justify-between w-full mb-2 gap-4">
                     <div className="text-center">
-                        <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap flex items-center justify-center gap-1">
-                            Streak 
-                            <span className={`transition-transform duration-500 ${streakUpdated ? 'animate-flame-flicker' : ''}`}>🔥</span>
-                        </h3>
-                        <p className={`text-lg font-bold text-secondary ${streakUpdated ? 'animate-flip-in' : ''}`}>{streakData.currentStreak} dagar</p>
+                        <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Streak</h3>
+                        <p className="text-lg font-bold text-secondary">{streakData.currentStreak} dagar</p>
                         {highestStreak > 0 && highestStreak > streakData.currentStreak && (
                             <p className="text-xs text-neutral mt-0.5">(Rekord: {highestStreak})</p>
                         )}
@@ -3804,10 +3774,17 @@ useEffect(() => {
                         <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Nivå</h3>
                         <p className="text-lg font-bold text-primary truncate" title={currentLevel.name}>{currentLevel.name}</p>
                     </div>
-                     <div ref={sparpottRef} className={`text-center ${userProfile?.goalType === 'gain_muscle' ? 'opacity-50' : ''}`}>
-                        <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
-                        <p className="text-lg font-bold text-primary">{weeklyBank.bankedCalories.toFixed(0)} kcal</p>
-                    </div>
+                    {userProfile?.goalType !== 'gain_muscle' ? (
+                        <div className="text-center">
+                            <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
+                            <p className="text-lg font-bold text-primary">{weeklyBank.bankedCalories.toFixed(0)} kcal</p>
+                        </div>
+                    ) : (
+                        <div className="text-center opacity-50">
+                            <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
+                            <p className="text-lg font-bold text-neutral">Inaktiv</p>
+                        </div>
+                    )}
                 </div>
 
                  <WeeklyProgressDays 
@@ -3889,7 +3866,6 @@ useEffect(() => {
                         onUpdate={handleUpdateMeal}
                         onSelectForCommonSave={handleOpenSaveCommonMealModal}
                         isReadOnly={!isViewingToday}
-                        isNewlyAdded={meal.id === newlyAddedMealId}
                       />
                     ))}
                   </div>
@@ -4317,13 +4293,6 @@ useEffect(() => {
             y={splashEffect.y}
             count={splashEffect.count}
             onComplete={() => setSplashEffect(null)}
-        />
-      )}
-      {coinFallEffect && (
-        <CoinFallEffect
-            targetX={coinFallEffect.x}
-            targetY={coinFallEffect.y}
-            onComplete={() => setCoinFallEffect(null)}
         />
       )}
       {toastNotification && (
