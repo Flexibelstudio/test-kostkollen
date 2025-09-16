@@ -614,7 +614,7 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
         }
     }
 
-    // --- ANALYSIS WINDOW LOGIC & NUTRITIONAL SUMMARY (NEW) ---
+    // --- ANALYSIS WINDOW LOGIC & NUTRITIONAL SUMMARY ---
     let analysisPeriodSummaries: PastDaySummary[] = [];
     let analysisPeriodDescription = "den senaste tiden";
     let previousLog: WeightLogEntry | null = null;
@@ -650,8 +650,7 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
 - Viktförändring under perioden: ${weightChangeSincePrevious.toFixed(1)} kg
     `;
 
-
-    // --- NEW CALCULATIONS ---
+    // --- DYNAMIC DATA FOR PROMPT ---
     const namn = userProfile.name || 'Användare';
     const antalViktloggar = allWeightLogs.length;
     const antalKostloggar = last30DaysSummaries.length;
@@ -687,19 +686,38 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
         ? `Stress: ${senasteVälbefinnande.stressLevel || 'N/A'}, Energi: ${senasteVälbefinnande.energyLevel || 'N/A'}, Sömn: ${senasteVälbefinnande.sleepQuality || 'N/A'}, Humör: ${senasteVälbefinnande.mood || 'N/A'}`
         : 'Ej loggat';
 
-    // Conditional prompt parts based on measurement method
+    // --- NEW: DYNAMIC PROMPT PARTS BASED ON GOAL ---
     const measurementMethod = userProfile.measurementMethod;
+    const goalType = userProfile.goalType;
     let bodyCompositionContentPrompt: string;
     let bodyCompositionDataPrompt: string;
 
     if (measurementMethod === 'inbody') {
-        bodyCompositionContentPrompt = "Beskriv viktutveckling och muskelmassa. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referenspunkt för den totala förändringen. Lyft att stabil muskelmassa vid fettminskning är ett styrketecken. Använd \\n för nya rader.";
-        bodyCompositionDataPrompt = `- Muskelmassa (senaste): ${muskelmassa?.toFixed(1) || 'Ej mätt'} kg
-- Muskeltrend: ${muskelTrend}
-- Fettmassa (senaste): ${fettmassa?.toFixed(1) || 'Ej mätt'} kg`;
+        bodyCompositionDataPrompt = `- Muskelmassa (senaste): ${muskelmassa?.toFixed(1) || 'Ej mätt'} kg\n- Muskeltrend: ${muskelTrend}\n- Fettmassa (senaste): ${fettmassa?.toFixed(1) || 'Ej mätt'} kg`;
+        switch (goalType) {
+            case 'gain_muscle':
+                bodyCompositionContentPrompt = "Målet är muskelökning. Beskriv viktutvecklingen och muskelmassan positivt. En total viktuppgång är MÅLET. Koppla ihop total viktökning med en ökande/stabil muskeltrend som en framgång. Exempel: 'Starkt jobbat! Din vikt har ökat med X kg, och det är fantastiskt att din muskelmassa samtidigt visar en ökande trend. Det här är precis den utveckling vi vill se!'. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+            case 'lose_fat':
+                bodyCompositionContentPrompt = "Målet är fettminskning. Beskriv viktutveckling och muskelmassa. Lyft att en stabil eller ökande muskelmassa under en viktnedgång är ett stort styrketecken. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+            default: // maintain
+                bodyCompositionContentPrompt = "Målet är att bibehålla vikten. Beskriv viktutvecklingen med fokus på stabilitet. Normalisera små viktpendlingar och betona att den långsiktiga trenden är det viktiga. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+        }
     } else { // 'scale' or undefined
-        bodyCompositionContentPrompt = "Beskriv viktutvecklingen baserat på de loggade mätningarna. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referenspunkt. Kommentera trenden (ner, upp, stabil) och hur den relaterar till användarens mål utan att nämna specifik muskel- eller fettmassa. Använd \\n för nya rader.";
         bodyCompositionDataPrompt = "";
+        switch (goalType) {
+            case 'gain_muscle':
+                bodyCompositionContentPrompt = "Målet är muskelökning. Beskriv viktutvecklingen positivt. En total viktuppgång är MÅLET. Framhäv detta som en framgång. Exempel: 'Bra jobbat! Din vikt har ökat med X kg, vilket är ett tecken på att du är på rätt väg mot ditt mål.'. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+            case 'lose_fat':
+                bodyCompositionContentPrompt = "Målet är fettminskning. Beskriv viktutvecklingen. Kommentera trenden (ner, upp, stabil) och hur den relaterar till målet. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+            default: // maintain
+                bodyCompositionContentPrompt = "Målet är att bibehålla vikten. Beskriv viktutvecklingen med fokus på stabilitet. Normalisera små viktpendlingar. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                break;
+        }
     }
 
     const kursFeedbackPrompt = isCourseActive
@@ -758,6 +776,7 @@ Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med 
 
 Användarens data:
 - Namn: ${namn}
+- Måltyp: ${goalType}
 - Antal viktmätningar: ${antalViktloggar}
 - Antal kostinloggningar (senaste 30d): ${antalKostloggar}
 - Startvikt för detta mål: ${startvikt?.toFixed(1) || 'Ej satt'} kg
