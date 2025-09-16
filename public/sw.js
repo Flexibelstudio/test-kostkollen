@@ -153,3 +153,97 @@ async function trimCache(cacheName, maxItems) {
     await Promise.all(keys.slice(0, keys.length - maxItems).map((k) => cache.delete(k)));
   }
 }
+
+// --- Push Notification Handlers ---
+
+self.addEventListener('push', (event) => {
+  if (!event.data) {
+    console.warn('[SW] Push event received but no data was sent.');
+    return;
+  }
+
+  let data;
+  try {
+    data = event.data.json();
+  } catch (e) {
+    console.error('[SW] Error parsing push data as JSON:', e);
+    return;
+  }
+
+  // The backend payload is nested under a `notification` key.
+  const notification = data.notification;
+  if (!notification) {
+    console.error('[SW] Push data does not contain a "notification" object.');
+    return;
+  }
+
+  const title = notification.title || 'Ny Notis';
+  const options = {
+    body: notification.body || '',
+    icon: notification.icon || '/icons/icon-192x192.png',
+    badge: notification.badge || '/icons/badge-96x96.png',
+    data: notification.data || { url: '/' },
+    tag: 'kostloggen-notification' // Allows replacing old notifications
+  };
+
+  const promise = self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true
+  }).then(clients => {
+    // If the app is in the foreground, don't show a system notification.
+    // Instead, send a message to the client to show an in-app toast.
+    const isAppInForeground = clients.some(client => client.visibilityState === 'visible' && client.focused);
+
+    if (isAppInForeground) {
+      clients.forEach(client => {
+        if (client.visibilityState === 'visible') {
+           client.postMessage({
+             message: 'push-received-in-foreground',
+             notification: {
+               title: title,
+               body: options.body
+             }
+           });
+        }
+      });
+      console.log('[SW] App is in foreground. Sent message to client instead of showing notification.');
+      return Promise.resolve();
+    }
+
+    // If app is not in foreground, show the system notification.
+    return self.registration.showNotification(title, options);
+  });
+
+  event.waitUntil(promise);
+});
+
+self.addEventListener('notificationclick', (event) => {
+  const notification = event.notification;
+  notification.close(); // Close the notification
+
+  const urlToOpen = notification.data?.url || '/';
+
+  const promise = self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true
+  }).then(clients => {
+    // Check if a window/tab for this app is already open.
+    const matchingClient = clients.find(client => {
+      // Check if the client's URL is what we want to open.
+      const clientUrl = new URL(client.url);
+      const targetUrl = new URL(urlToOpen, self.location.origin);
+      // Compare pathnames and search params for a more robust match
+      return clientUrl.pathname === targetUrl.pathname && clientUrl.search === targetUrl.search;
+    });
+
+    if (matchingClient) {
+      // If found, focus it.
+      return matchingClient.focus();
+    } else {
+      // If not, open a new window.
+      return self.clients.openWindow(urlToOpen);
+    }
+  });
+
+  event.waitUntil(promise);
+});
