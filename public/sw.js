@@ -2,11 +2,9 @@
 // Säker PWA-SW: auto-update, rensar gamla caches, cachear bara säkra assets,
 // nätet-först för HTML, bypass på externtrafik (Firebase m.fl.).
 
-const VERSION = '2025-09-12-2';
-
-// BUMPA när du vill tvinga alla att få ny SW direkt
-const STATIC_CACHE_NAME  = 'kostloggen-static-v15';
-const DYNAMIC_CACHE_NAME = 'kostloggen-dyn-v10';
+const VERSION = '2025-09-12-4';                // <-- bumpa vid nästa release
+const STATIC_CACHE_NAME  = 'kostloggen-static-v17'; // <-- bumpa vid nästa release
+const DYNAMIC_CACHE_NAME = 'kostloggen-dyn-v12';    // <-- bumpa vid nästa release
 const MAX_DYNAMIC_ENTRIES = 80;
 
 // Minimalt precache för offline-fallback (cacha inte massor här)
@@ -157,93 +155,53 @@ async function trimCache(cacheName, maxItems) {
 // --- Push Notification Handlers ---
 
 self.addEventListener('push', (event) => {
-  if (!event.data) {
-    console.warn('[SW] Push event received but no data was sent.');
-    return;
-  }
+  if (!event.data) return;
 
   let data;
-  try {
-    data = event.data.json();
-  } catch (e) {
-    console.error('[SW] Error parsing push data as JSON:', e);
-    return;
-  }
+  try { data = event.data.json(); }
+  catch { return; }
 
-  // The backend payload is nested under a `notification` key.
-  const notification = data.notification;
-  if (!notification) {
-    console.error('[SW] Push data does not contain a "notification" object.');
-    return;
-  }
-
-  const title = notification.title || 'Ny Notis';
+  const n = data.notification || {};
+  const title = n.title || 'Ny notis';
   const options = {
-    body: notification.body || '',
-    icon: notification.icon || '/icons/icon-192x192.png',
-    badge: notification.badge || '/icons/badge-96x96.png',
-    data: notification.data || { url: '/' },
-    tag: 'kostloggen-notification' // Allows replacing old notifications
+    body:  n.body || '',
+    icon:  n.icon  || '/icons/icon-192x192.png',
+    badge: n.badge || '/icons/badge-96x96.png',
+    data:  n.data  || { url: '/' },
+    tag:   'kostloggen-notification'
   };
 
-  const promise = self.clients.matchAll({
-    type: 'window',
-    includeUncontrolled: true
-  }).then(clients => {
-    // If the app is in the foreground, don't show a system notification.
-    // Instead, send a message to the client to show an in-app toast.
-    const isAppInForeground = clients.some(client => client.visibilityState === 'visible' && client.focused);
+  const p = self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then(clients => {
+      const inForeground = clients.some(c => c.visibilityState === 'visible' && c.focused);
+      if (inForeground) {
+        clients.forEach(c => {
+          if (c.visibilityState === 'visible') {
+            c.postMessage({ message: 'push-received-in-foreground', notification: { title, body: options.body } });
+          }
+        });
+        return;
+      }
+      return self.registration.showNotification(title, options);
+    });
 
-    if (isAppInForeground) {
-      clients.forEach(client => {
-        if (client.visibilityState === 'visible') {
-           client.postMessage({
-             message: 'push-received-in-foreground',
-             notification: {
-               title: title,
-               body: options.body
-             }
-           });
-        }
-      });
-      console.log('[SW] App is in foreground. Sent message to client instead of showing notification.');
-      return Promise.resolve();
-    }
-
-    // If app is not in foreground, show the system notification.
-    return self.registration.showNotification(title, options);
-  });
-
-  event.waitUntil(promise);
+  event.waitUntil(p);
 });
 
 self.addEventListener('notificationclick', (event) => {
-  const notification = event.notification;
-  notification.close(); // Close the notification
+  const urlToOpen = event.notification?.data?.url || '/';
+  event.notification?.close();
 
-  const urlToOpen = notification.data?.url || '/';
-
-  const promise = self.clients.matchAll({
-    type: 'window',
-    includeUncontrolled: true
-  }).then(clients => {
-    // Check if a window/tab for this app is already open.
-    const matchingClient = clients.find(client => {
-      // Check if the client's URL is what we want to open.
-      const clientUrl = new URL(client.url);
-      const targetUrl = new URL(urlToOpen, self.location.origin);
-      // Compare pathnames and search params for a more robust match
-      return clientUrl.pathname === targetUrl.pathname && clientUrl.search === targetUrl.search;
+  const p = self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then(clients => {
+      const target = new URL(urlToOpen, self.location.origin);
+      const existing = clients.find(c => {
+        const cu = new URL(c.url);
+        return cu.pathname === target.pathname && cu.search === target.search;
+      });
+      if (existing) return existing.focus();
+      return self.clients.openWindow(urlToOpen);
     });
 
-    if (matchingClient) {
-      // If found, focus it.
-      return matchingClient.focus();
-    } else {
-      // If not, open a new window.
-      return self.clients.openWindow(urlToOpen);
-    }
-  });
-
-  event.waitUntil(promise);
+  event.waitUntil(p);
 });

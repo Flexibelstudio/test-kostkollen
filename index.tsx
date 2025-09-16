@@ -25,22 +25,29 @@ if ((import.meta as any).env.PROD && 'serviceWorker' in navigator) {
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
-        // När en NY SW-version hittas
+        console.log('[SW] registered', reg);
+
+        // Om det redan finns en ny SW som väntar: ta över direkt
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+
+        // När en NY SW-version hittas under körning
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
-          newWorker?.addEventListener('statechange', () => {
-            // Om ny SW är installerad och vi redan har en controller → uppdatering
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // Be nya SW:n ta över direkt
+              // Ny SW är redo → be den hoppa in direkt
               newWorker.postMessage({ type: 'SKIP_WAITING' });
             }
           });
         });
       })
-      .catch((err) => console.error('Service Worker registration failed:', err));
+      .catch((err) => console.error('[SW] registration failed:', err));
   });
 
-  // När kontrollen byts till nya SW → ladda om en gång
+  // När kontrollen byts till nya SW → ladda om EN gång
   let reloaded = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!reloaded) {
