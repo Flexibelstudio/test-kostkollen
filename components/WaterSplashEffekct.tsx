@@ -7,11 +7,18 @@ interface WaterSplashEffectProps {
   onComplete: () => void;
 }
 
+// Define a more specific style type that includes our custom CSS properties
+// and other properties we will set dynamically.
+interface DropletStyle extends React.CSSProperties {
+  '--translateX': string;
+  '--translateY': string;
+}
+
 const WaterSplashEffect: React.FC<WaterSplashEffectProps> = ({ x, y, count, onComplete }) => {
-  const [droplets, setDroplets] = useState<any[]>([]);
+  const [droplets, setDroplets] = useState<DropletStyle[]>([]);
 
   useEffect(() => {
-    const newDroplets: any[] = [];
+    const newDroplets: DropletStyle[] = [];
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * 2 * Math.PI;
       const distance = Math.random() * 50 + 30; // 30px to 80px
@@ -19,13 +26,16 @@ const WaterSplashEffect: React.FC<WaterSplashEffectProps> = ({ x, y, count, onCo
       const duration = Math.random() * 0.6 + 0.5; // 0.5s to 1.1s
 
       newDroplets.push({
-        // CSS custom properties for the animation
         '--translateX': `${Math.cos(angle) * distance}px`,
         '--translateY': `${Math.sin(angle) * distance}px`,
         width: `${size}px`,
         height: `${size}px`,
         animationDuration: `${duration}s`,
         animationDelay: `${Math.random() * 0.15}s`,
+        // Move styling from className to here for type safety
+        position: 'absolute',
+        borderRadius: '50%',
+        backgroundColor: '#60a5fa', // Tailwind's bg-blue-400
       });
     }
     setDroplets(newDroplets);
@@ -41,7 +51,7 @@ const WaterSplashEffect: React.FC<WaterSplashEffectProps> = ({ x, y, count, onCo
       {droplets.map((style, index) => (
         <div
           key={index}
-          className="absolute rounded-full bg-blue-400 animate-water-splash"
+          className="animate-water-splash" // Only the animation class remains
           style={style}
         />
       ))}
