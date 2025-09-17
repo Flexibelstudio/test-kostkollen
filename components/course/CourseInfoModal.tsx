@@ -1,17 +1,21 @@
-
-
 import React from 'react';
 import { InformationCircleIcon, XMarkIcon } from '../icons';
+import { ALL_COURSES, CourseInfo } from '../CoursesView'; // Import from CoursesView
 
 interface CourseInfoModalProps {
   onClose: () => void;
   show: boolean;
+  courseId: CourseInfo['id'];
 }
 
-const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show }) => {
+const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, courseId }) => {
   if (!show) {
     return null;
   }
+  
+  const course = ALL_COURSES.find(c => c.id === courseId);
+  
+  if (!course) return null; // Or show an error
 
   return (
     <div
@@ -29,7 +33,7 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show }) => {
           <div className="flex items-center">
             <InformationCircleIcon className="w-8 h-8 text-primary mr-3" />
             <h2 id="course-info-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
-              Om Kursen
+              Om kursen: {course.title}
             </h2>
           </div>
           <button
@@ -42,21 +46,8 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show }) => {
         </div>
 
         <div className="space-y-4 text-base text-neutral-dark">
-          <p className="font-semibold text-lg text-primary-darker">Praktisk Viktkontroll – Din Resa Mot Hållbar Hälsa</p>
           <p>
-            Välkommen till kursen "Praktisk Viktkontroll"! Detta program är noggrant utformat för att ge dig de verktyg, kunskaper och det stöd du behöver för att uppnå en hållbar viktkontroll och en hälsosammare livsstil.
-          </p>
-          <p>
-            Vi fokuserar på att bygga starka, positiva vanor kring både kost och motion. Du kommer att lära dig att lyssna på din kropps signaler, förstå dina hungermönster och effektivt hantera de utmaningar som kan uppstå längs vägen.
-          </p>
-          <p>
-            Kursen består av 12 lektioner med specifika fokusområden, praktiska tips och reflektionsfrågor. Den första lektionen blir tillgänglig direkt när kursen aktiveras. Därefter låser du upp en ny lektion för varje 7 nya dagar du lyckas hålla din streak, vilket uppmuntrar till konsekvens och hållbara framsteg.
-          </p>
-          <p>
-            Kursen är mer än bara information; den är en guide som uppmuntrar till handling och självinsikt. Målet är att du efter avslutad kurs ska känna dig trygg i dina nya vanor och ha en stabil grund för att fortsätta din hälsoresa på egen hand.
-          </p>
-          <p className="font-medium">
-            Lycka till – vi ser fram emot att följa dina framsteg!
+            {course.longDescription}
           </p>
         </div>
 

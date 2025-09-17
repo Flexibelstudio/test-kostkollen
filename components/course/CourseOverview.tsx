@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
 import { CourseLesson, UserCourseProgress } from '../../types';
 import { CourseIcon, CheckCircleIcon, ArrowRightIcon, LockClosedIcon, InformationCircleIcon } from '../icons';
-import CourseInfoModal from './CourseInfoModal'; // Import the new modal
+import CourseInfoModal from './CourseInfoModal';
+import { ALL_COURSES, CourseInfo } from '../CoursesView';
 
 interface CourseOverviewProps {
   lessons: CourseLesson[];
   userProgress: UserCourseProgress;
   onSelectLesson: (lessonId: string) => void;
   currentStreak: number;
+  courseId: CourseInfo['id'];
 }
 
-const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, onSelectLesson, currentStreak }) => {
+const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, onSelectLesson, currentStreak, courseId }) => {
   const [showCourseInfoModal, setShowCourseInfoModal] = useState(false);
   
+  const course = ALL_COURSES.find(c => c.id === courseId);
+
   let lastUnlockedIndex = -1;
   for (let i = lessons.length - 1; i >= 0; i--) {
     if (userProgress[lessons[i].id]?.unlockedAt) {
@@ -21,14 +25,13 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
     }
   }
 
-
   return (
     <>
       <div className="animate-fade-in">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
             <CourseIcon className="w-8 h-8 text-primary mr-3 flex-shrink-0" />
-            <h1 className="text-2xl sm:text-3xl font-bold text-neutral-dark">Kurs: Praktisk Viktkontroll</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-neutral-dark">Kurs: {course?.title}</h1>
           </div>
           <button
             onClick={() => setShowCourseInfoModal(true)}
@@ -52,17 +55,25 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
               if (!isUnlocked) {
                 const isNextLockedLesson = lastUnlockedIndex !== -1 ? index === lastUnlockedIndex + 1 : index === 0;
 
+                let unlockMessage = "";
+                let showStreakFlames = false;
                 let progressFlames = 0;
-                if (isNextLockedLesson) {
-                    const lastUnlockedProgress = lastUnlockedIndex > -1 ? userProgress[lessons[lastUnlockedIndex].id] : null;
-                    const streakAtUnlock = lastUnlockedProgress?.streakAtUnlock ?? 0;
-                    
-                    if (currentStreak >= streakAtUnlock) {
-                        progressFlames = currentStreak - streakAtUnlock;
-                    } else {
-                        progressFlames = currentStreak;
+
+                if (courseId === 'praktisk-viktkontroll') {
+                    unlockMessage = "Låses upp efter en ny 7-dagars streak!";
+                    if (isNextLockedLesson) {
+                        showStreakFlames = true;
+                        const lastUnlockedProgress = lastUnlockedIndex > -1 ? userProgress[lessons[lastUnlockedIndex].id] : null;
+                        const streakAtUnlock = lastUnlockedProgress?.streakAtUnlock ?? 0;
+                        if (currentStreak >= streakAtUnlock) {
+                            progressFlames = currentStreak - streakAtUnlock;
+                        } else {
+                            progressFlames = currentStreak;
+                        }
+                        progressFlames = Math.max(0, Math.min(7, progressFlames));
                     }
-                    progressFlames = Math.max(0, Math.min(7, progressFlames));
+                } else { // maxa-klimakteriet
+                    unlockMessage = "Låses upp när föregående lektion är klar.";
                 }
 
                 return (
@@ -81,11 +92,11 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                       </div>
                       <div className="flex flex-col items-end flex-shrink-0 ml-0 sm:ml-4">
                           <p className="text-sm font-semibold text-accent text-right">
-                            Låses upp efter en ny 7-dagars streak!
+                            {unlockMessage}
                           </p>
                       </div>
                     </div>
-                     {isNextLockedLesson && (
+                     {showStreakFlames && (
                         <div className="mt-3 pt-3 border-t border-gray-400/50">
                             <h4 className="text-sm font-semibold text-neutral-dark text-center mb-1">Dina framsteg:</h4>
                             <div className="flex justify-center items-center gap-1">
@@ -160,7 +171,7 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
           </div>
         )}
       </div>
-      <CourseInfoModal show={showCourseInfoModal} onClose={() => setShowCourseInfoModal(false)} />
+      <CourseInfoModal show={showCourseInfoModal} onClose={() => setShowCourseInfoModal(false)} courseId={courseId} />
     </>
   );
 };

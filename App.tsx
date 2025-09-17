@@ -77,7 +77,7 @@ import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
 import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
-import AICoachModal from './components/AICoachModal';
+import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
 
@@ -2592,7 +2592,8 @@ useEffect(() => {
     
     try {
         await saveCourseProgress(currentUser.uid, lessonId, newProgress, userRole!, userStatus!);
-        const lesson = courseLessons.find(l => l.id === lessonId);
+        const allLessons = [...courseLessons, ...menopauseCourseLessons];
+        const lesson = allLessons.find(l => l.id === lessonId);
         if (lesson) {
             setNewlyUnlockedLesson(lesson);
             playAudio('levelUp');
@@ -2602,7 +2603,7 @@ useEffect(() => {
     }
   }, [currentUser?.uid, userRole, userStatus]);
 
-  // Combined logic for unlocking the first lesson and subsequent lessons
+  // Streak-based unlocking for "Praktisk Viktkontroll"
   useEffect(() => {
     if (!isInitialDataLoaded || !currentUser || !userProfile.isCourseActive) {
         return;
@@ -2616,46 +2617,32 @@ useEffect(() => {
       }
     }
 
-    // Case 1: No lesson unlocked yet. Unlock the first one.
     if (lastUnlockedIndex === -1 && courseLessons.length > 0) {
         const firstLessonId = courseLessons[0].id;
-        if (!userCourseProgress[firstLessonId]?.unlockedAt) { // Double-check to prevent re-triggering
-            console.log(`Unlocking first lesson as course is active.`);
+        if (!userCourseProgress[firstLessonId]?.unlockedAt) {
             unlockLesson(firstLessonId, streakData.currentStreak);
         }
-        return; // Done for this render
+        return;
     }
     
-    // Case 2: At least one lesson is unlocked. Check for next unlock.
     if (lastUnlockedIndex > -1) {
-        // Fix: Use 'courseLessons' which is defined, instead of 'lessons' which is not.
         const lastUnlockedProgress = userCourseProgress[courseLessons[lastUnlockedIndex].id];
         
         if (lastUnlockedProgress?.unlockedAt) {
             const streakAtUnlock = lastUnlockedProgress.streakAtUnlock ?? 0;
-            
             let shouldUnlock = false;
             
-            // Scenario A: Streak was maintained and has grown by 7 days.
             if (streakData.currentStreak >= streakAtUnlock) {
-                if (streakData.currentStreak >= streakAtUnlock + 7) {
-                    shouldUnlock = true;
-                }
-            } 
-            // Scenario B: Streak was lost, and a new 7-day streak has been achieved.
-            else { // This condition implies streakData.currentStreak < streakAtUnlock
-                if (streakData.currentStreak >= 7) {
-                    shouldUnlock = true;
-                }
+                if (streakData.currentStreak >= streakAtUnlock + 7) { shouldUnlock = true; }
+            } else {
+                if (streakData.currentStreak >= 7) { shouldUnlock = true; }
             }
 
             if (shouldUnlock) {
                 const nextLessonIndex = lastUnlockedIndex + 1;
-
                 if (nextLessonIndex < courseLessons.length) {
                     const nextLesson = courseLessons[nextLessonIndex];
                     if (!userCourseProgress[nextLesson.id]?.unlockedAt) {
-                        console.log(`Unlocking lesson ${nextLesson.title} due to new streak logic.`);
                         unlockLesson(nextLesson.id, streakData.currentStreak);
                     }
                 }
@@ -2663,6 +2650,31 @@ useEffect(() => {
         }
     }
   }, [isInitialDataLoaded, currentUser, userProfile.isCourseActive, userCourseProgress, streakData.currentStreak, unlockLesson]);
+
+  // Completion-based unlocking for "Maxa Klimakteriet"
+  useEffect(() => {
+    if (!isInitialDataLoaded || !currentUser || !userProfile.menopauseCourseActive) {
+        return;
+    }
+
+    const firstLessonId = menopauseCourseLessons[0]?.id;
+    if (firstLessonId && !userCourseProgress[firstLessonId]?.unlockedAt) {
+        unlockLesson(firstLessonId, 0);
+    }
+
+    for (let i = 0; i < menopauseCourseLessons.length - 1; i++) {
+        const currentLessonId = menopauseCourseLessons[i].id;
+        const nextLessonId = menopauseCourseLessons[i + 1].id;
+
+        const currentLessonProgress = userCourseProgress[currentLessonId];
+        const nextLessonProgress = userCourseProgress[nextLessonId];
+
+        if (currentLessonProgress?.isCompleted && !nextLessonProgress?.unlockedAt) {
+            unlockLesson(nextLessonId, 0);
+        }
+    }
+  }, [isInitialDataLoaded, currentUser, userProfile.menopauseCourseActive, userCourseProgress, unlockLesson]);
+
 
   const handleCloseLessonDetail = () => {
     setViewMode('courseOverview');
@@ -2753,13 +2765,16 @@ useEffect(() => {
         setToastNotification({message: "Lektion markerad som slutförd!", type: "success"});
         setTimeout(() => setToastNotification(null), 3000);
 
-        const lesson = courseLessons.find(l => l.id === lessonId);
-        if (lesson) {
+        const allLessons = [...courseLessons, ...menopauseCourseLessons];
+        const lesson = allLessons.find(l => l.id === lessonId);
+        const courseInfo = ALL_COURSES.find(c => (c.id === 'praktisk-viktkontroll' && lessonId.startsWith('lektion')) || (c.id === 'maxa-klimakteriet' && lessonId.startsWith('m-lektion')));
+
+        if (lesson && courseInfo) {
             const eventData = {
                 type: 'course' as const,
                 timestamp: Date.now(),
                 title: `har slutfört "${lesson.title}" `,
-                description: "Ett stort steg framåt i kursen 'Praktisk Viktkontroll'!",
+                description: `Ett stort steg framåt i kursen '${courseInfo.title}'!`,
                 icon: ' ',
                 relatedDocId: `course_${lessonId}`
             };
@@ -3895,6 +3910,7 @@ useEffect(() => {
                userProgress={userCourseProgress}
                onSelectLesson={handleSelectLesson}
                currentStreak={streakData.currentStreak}
+               courseId={activeCourse.id}
             />
          )}
           {viewMode === 'lessonDetail' && currentLessonId && currentLesson && (

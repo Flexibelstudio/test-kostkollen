@@ -24,8 +24,8 @@ export const ALL_COURSES: CourseInfo[] = [
     id: 'maxa-klimakteriet',
     title: 'Maxa Klimakteriet',
     description: 'Få verktygen för att hantera och optimera din hälsa under klimakteriet.',
-    longDescription: 'Den här kursen är för dig som vill förstå och hantera de fysiska och mentala förändringarna under klimakteriet. Vi går igenom kost, träning och livsstilsstrategier för att du ska må så bra som möjligt under denna nya fas i livet.',
-    price: 'Kommer snart',
+    longDescription: 'Den här kursen är för dig som vill förstå och hantera de fysiska och mentala förändringarna under klimakteriet. Vi går igenom kost, träning och livsstilsstrategier för att du ska må så bra som möjligt under denna nya fas i livet. Nya lektioner låses upp sekventiellt när du slutför den föregående, så du kan ta kursen i din egen takt.',
+    price: '295 kr',
     Icon: SparklesIcon,
   },
 ];
@@ -50,7 +50,7 @@ const CourseCard: React.FC<{
     }
     if (course.id === 'maxa-klimakteriet' && userProfile.menopauseCourseInterest) {
         interestShown = true;
-        statusText = "Intresse anmält";
+        statusText = "Inväntar godkännande";
     }
 
   return (
