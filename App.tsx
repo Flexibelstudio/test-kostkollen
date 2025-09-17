@@ -9,7 +9,7 @@ import {
 import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
 import SplashScreen from './components/SplashScreen';
-import { CoursesView } from './components/CoursesView.tsx';
+import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
 
 import {
   NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode,
@@ -59,7 +59,7 @@ import LevelUpModal from './components/LevelUpModal.tsx';
 import GoalMetModal from './components/GoalMetModal.tsx';
 import CourseOverview from './components/course/CourseOverview.tsx';
 import LessonDetail from './components/course/LessonDetail.tsx';
-import { courseLessons } from './courseData.ts';
+import { courseLessons, menopauseCourseLessons } from './courseData.ts';
 import CourseInfoModal from './components/course/CourseInfoModal.tsx';
 import NewLessonUnlockedModal from './components/course/NewLessonUnlockedModal.tsx';
 import RecipeModal from './components/RecipeModal.tsx';
@@ -812,6 +812,7 @@ export const App = () => {
 
 
   // Course state
+  const [activeCourse, setActiveCourse] = useState<CourseInfo | null>(null);
   const [userCourseProgress, setUserCourseProgress] = useState<UserCourseProgress>({});
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
   const [newlyUnlockedLesson, setNewlyUnlockedLesson] = useState<CourseLesson | null>(null);
@@ -1001,6 +1002,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setStreakData({ currentStreak: 0, lastDateStreakChecked: null });
         setWaterLoggedMl(0);
         setUserCourseProgress({});
+        setActiveCourse(null);
         setRecentRecipeSearches([]);
         setWeightLogs([]);
         setMentalWellbeingLogs([]);
@@ -2566,6 +2568,15 @@ useEffect(() => {
   };
   
   // --- Course Logic ---
+  const handleNavigateToCourse = (courseId: CourseInfo['id']) => {
+    const course = ALL_COURSES.find(c => c.id === courseId);
+    if (course) {
+        setActiveCourse(course);
+        setViewMode('courseOverview');
+        playAudio('uiClick');
+    }
+  };
+
   const unlockLesson = useCallback(async (lessonId: string, streakAtUnlock: number) => {
     if (!currentUser) return;
 
@@ -3601,6 +3612,10 @@ useEffect(() => {
 
     const isInstallBannerVisible = showInstallBanner || showIosInstallPrompt;
 
+    const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
+    const lessonsForDetail = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
+    const currentLesson = lessonsForDetail.find(l => l.id === currentLessonId);
+
   return (
     <>
       <div className="min-h-screen bg-neutral-light flex flex-col items-center pb-28"> {/* Increased padding-bottom for the banners */}
@@ -3864,12 +3879,7 @@ useEffect(() => {
          {viewMode === 'coursesView' && (
             <CoursesView
                 userProfile={userProfile}
-                onNavigateToCourse={(courseId) => {
-                  if (courseId === 'praktisk-viktkontroll') {
-                    playAudio('uiClick');
-                    setViewMode('courseOverview');
-                  }
-                }}
+                onNavigateToCourse={handleNavigateToCourse}
                 onExpressInterest={(courseId) => {
                   if (courseId === 'praktisk-viktkontroll') {
                     handleExpressCourseInterest();
@@ -3879,17 +3889,17 @@ useEffect(() => {
                 }}
             />
          )}
-         {viewMode === 'courseOverview' && (
+         {viewMode === 'courseOverview' && activeCourse && (
            <CourseOverview
-               lessons={courseLessons}
+               lessons={lessonsForOverview}
                userProgress={userCourseProgress}
                onSelectLesson={handleSelectLesson}
                currentStreak={streakData.currentStreak}
             />
          )}
-          {viewMode === 'lessonDetail' && currentLessonId && (
+          {viewMode === 'lessonDetail' && currentLessonId && currentLesson && (
             <LessonDetail
-                lesson={courseLessons.find(l => l.id === currentLessonId)!}
+                lesson={currentLesson}
                 progress={userCourseProgress[currentLessonId]}
                 onToggleFocusPoint={handleToggleFocusPoint}
                 onSaveReflection={handleSaveReflection}
@@ -4128,7 +4138,7 @@ useEffect(() => {
                     />
                 </div>
             </div>
-          )}
+        )}
         {showRecipeChoiceModal && (
             <RecipeChoiceModal
                 show={showRecipeChoiceModal}
@@ -4281,18 +4291,19 @@ useEffect(() => {
                     <InstallIcon className="w-12 h-12 text-primary flex-shrink-0" />
                     <div>
                         <h3 className="font-bold text-neutral-dark">Installera Kostloggen</h3>
-                        <p className="text-sm text-neutral">Få en snabbare app-upplevelse direkt från hemskärmen.</p>
+                        <p className="text-sm text-neutral">
+                            Få en bättre upplevelse genom att lägga till appen på din hemskärm.
+                        </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={handleDismissInstallBanner} className="p-2 text-sm text-neutral hover:bg-neutral-light rounded-md">Senare</button>
-                    <button onClick={handleInstallClick} className="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm">Installera</button>
+                    <button onClick={handleDismissInstallBanner} className="p-2 text-sm text-neutral hover:bg-neutral-light/70 rounded-md">Senare</button>
+                    <button onClick={handleInstallClick} className="px-4 py-2 text-sm font-semibold text-white bg-primary rounded-md shadow-sm">Installera</button>
                 </div>
             </div>
         </div>
-    )}
-    {showIosInstallPrompt && <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />}
-
+      )}
+      {showIosInstallPrompt && <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />}
     </>
   );
 };

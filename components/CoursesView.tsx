@@ -32,8 +32,8 @@ export const ALL_COURSES: CourseInfo[] = [
 
 interface CoursesViewProps {
   userProfile: UserProfileData;
-  onNavigateToCourse: (courseId: 'praktisk-viktkontroll') => void;
-  onExpressInterest: (courseId: 'praktisk-viktkontroll' | 'maxa-klimakteriet') => void;
+  onNavigateToCourse: (courseId: CourseInfo['id']) => void;
+  onExpressInterest: (courseId: CourseInfo['id']) => void;
 }
 
 const CourseCard: React.FC<{
@@ -119,7 +119,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, onNavigat
                   course={course}
                   userProfile={userProfile}
                   isActive={true}
-                  onActivate={() => onNavigateToCourse(course.id as 'praktisk-viktkontroll')}
+                  onActivate={() => onNavigateToCourse(course.id)}
                 />
               ))}
             </div>
