@@ -110,37 +110,41 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, onNavigat
       <h1 className="text-3xl font-bold text-neutral-dark">Mina Kurser</h1>
       
       <section>
-        <h2 className="text-2xl font-semibold text-neutral-dark mb-4">Dina Aktiva Kurser</h2>
-        {activeCourses.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {activeCourses.map(course => (
-              <CourseCard
-                key={course.id}
-                course={course}
-                userProfile={userProfile}
-                isActive={true}
-                onActivate={() => onNavigateToCourse(course.id as 'praktisk-viktkontroll')}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-neutral text-center bg-white p-6 rounded-lg border border-neutral-light/50">Du har inga aktiva kurser just nu.</p>
-        )}
+        <div className="bg-white p-6 rounded-xl shadow-soft-lg border border-neutral-light">
+          <h2 className="text-2xl font-semibold text-neutral-dark mb-4">Dina Aktiva Kurser</h2>
+          {activeCourses.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {activeCourses.map(course => (
+                <CourseCard
+                  key={course.id}
+                  course={course}
+                  userProfile={userProfile}
+                  isActive={true}
+                  onActivate={() => onNavigateToCourse(course.id as 'praktisk-viktkontroll')}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-neutral text-center py-4">Du har inga aktiva kurser just nu.</p>
+          )}
+        </div>
       </section>
       
       {discoverCourses.length > 0 && (
           <section>
-            <h2 className="text-2xl font-semibold text-neutral-dark mb-4">Upptäck Fler Kurser</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {discoverCourses.map(course => (
-                <CourseCard
-                    key={course.id}
-                    course={course}
-                    userProfile={userProfile}
-                    isActive={false}
-                    onActivate={() => onExpressInterest(course.id)}
-                />
-                ))}
+             <div className="bg-white p-6 rounded-xl shadow-soft-lg border border-neutral-light">
+              <h2 className="text-2xl font-semibold text-neutral-dark mb-4">Upptäck Fler Kurser</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {discoverCourses.map(course => (
+                  <CourseCard
+                      key={course.id}
+                      course={course}
+                      userProfile={userProfile}
+                      isActive={false}
+                      onActivate={() => onExpressInterest(course.id)}
+                  />
+                  ))}
+              </div>
             </div>
           </section>
       )}
