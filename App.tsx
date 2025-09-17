@@ -9,6 +9,7 @@ import {
 import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
 import SplashScreen from './components/SplashScreen';
+import { CoursesView } from './components/CoursesView.tsx';
 
 import {
   NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode,
@@ -271,7 +272,7 @@ async function ensureYesterdayProcessed(uid: string, now = new Date()) {
 }
 
 // Hook: trigga summering på visibility/focus + vid mount
-export function useDailySummary(uid?: string) {
+function useDailySummary(uid?: string) {
   useEffect(() => {
     if (!uid) return;
     const onWake = () => ensureYesterdayProcessed(uid).catch(console.error);
@@ -293,48 +294,6 @@ export function useDailySummary(uid?: string) {
 
 /* ===========================
    End of new Daily Summary Logic
-   =========================== */
-
-/* ===========================
-   Service Worker-registrering (prod only)
-   =========================== */
-export function useServiceWorkerRegistration() {
-  useEffect(() => {
-    if (!((import.meta as any).env.PROD && "serviceWorker" in navigator)) return;
-
-    const onLoad = () => {
-      navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
-        .then((reg) => {
-          console.log("[SW] registered", reg);
-
-          // Auto-uppdatera om ny SW väntar (valfritt)
-          if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
-          reg.addEventListener("updatefound", () => {
-            const nw = reg.installing;
-            if (!nw) return;
-            nw.addEventListener("statechange", () => {
-              if (nw.state === "installed" && navigator.serviceWorker.controller) {
-                nw.postMessage({ type: "SKIP_WAITING" });
-              }
-            });
-          });
-
-          // När ny SW tar över → ladda om (valfritt)
-          navigator.serviceWorker.addEventListener("controllerchange", () => {
-            window.location.reload();
-          });
-        })
-        .catch((err) => console.error("[SW] register failed", err));
-    };
-
-    if (document.readyState === "complete") onLoad();
-    else window.addEventListener("load", onLoad);
-    return () => window.removeEventListener("load", onLoad);
-  }, []);
-}
-/* ===========================
-   End SW-registrering
    =========================== */
 
 const urlBase64ToUint8Array = (base64String: string) => {
@@ -781,11 +740,8 @@ export const App = () => {
   const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
 
-  // PATCH-HOOKS START
-  useServiceWorkerRegistration();
   const uid = currentUser?.uid;
   useDailySummary(uid);
-  // PATCH-HOOKS END
 
   const [goals, setGoals] = useState<GoalSettings>(DEFAULT_GOALS);
   const [userProfile, setUserProfile] = useState<UserProfileData>(DEFAULT_USER_PROFILE);
@@ -858,7 +814,6 @@ export const App = () => {
   // Course state
   const [userCourseProgress, setUserCourseProgress] = useState<UserCourseProgress>({});
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
-  const [showCourseInfoModalOnLoad, setShowCourseInfoModalOnLoad] = useState<boolean>(false);
   const [newlyUnlockedLesson, setNewlyUnlockedLesson] = useState<CourseLesson | null>(null);
 
   // Onboarding
@@ -2306,21 +2261,6 @@ if (appData) {
     });
   }, []);
 
-  // Service Worker Registration
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => {
-            console.log('Service Worker registered successfully with scope: ', registration.scope);
-          })
-          .catch(error => {
-            console.error('Service Worker registration failed: ', error);
-          });
-      });
-    }
-  }, []);
-
 // PWA Install Prompt Logic (for Android/Desktop)
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
@@ -2846,6 +2786,22 @@ useEffect(() => {
         // Redirect the user to the payment link.
         window.location.href = 'https://buy.stripe.com/7sYcN64zsfd88YV6Px8Ra06';
     };
+
+    const handleExpressMenopauseCourseInterest = async () => {
+        if (!currentUser) return;
+        playAudio('uiClick');
+    
+        setUserProfile(prev => ({ ...prev, menopauseCourseInterest: true }));
+        setToastNotification({ message: "Ditt intresse har anmälts!", type: "success" });
+        setTimeout(() => setToastNotification(null), 3000);
+    
+        try {
+          await updateUserDocument(currentUser.uid, { menopauseCourseInterest: true, role: userRole, status: userStatus });
+        } catch (error) {
+          handleFirestoreError(error, 'anmäla intresse');
+          setUserProfile(prev => ({ ...prev, menopauseCourseInterest: false })); // Rollback on error
+        }
+      };
 
   // --- Course CTA Handlers ---
   const handleOpenSpeedDial = () => {
@@ -3383,7 +3339,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showUpdateNoticePopup || showLatestUpdateView;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || newlyUnlockedLesson || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showUpdateNoticePopup || showLatestUpdateView;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -3395,7 +3351,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showUpdateNoticePopup, showLatestUpdateView]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, newlyUnlockedLesson, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showUpdateNoticePopup, showLatestUpdateView]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3639,7 +3595,7 @@ useEffect(() => {
     const navItems = [
       { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); } },
       { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { playAudio('uiClick'); setJourneyInitialTab('calendar'); setViewMode('journey'); } },
-      { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { playAudio('uiClick'); setViewMode('courseOverview');} },
+      { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { playAudio('uiClick'); setViewMode('coursesView');} },
       { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { playAudio('uiClick'); if (viewMode === 'community') { setCommunityViewKey(Date.now()); } setViewMode('community'); }, notificationCount: totalNotificationCount },
     ];
 
@@ -3905,15 +3861,30 @@ useEffect(() => {
                 onDiscussSavedAnalysis={handleDiscussSavedAnalysis}
             />
          )}
+         {viewMode === 'coursesView' && (
+            <CoursesView
+                userProfile={userProfile}
+                onNavigateToCourse={(courseId) => {
+                  if (courseId === 'praktisk-viktkontroll') {
+                    playAudio('uiClick');
+                    setViewMode('courseOverview');
+                  }
+                }}
+                onExpressInterest={(courseId) => {
+                  if (courseId === 'praktisk-viktkontroll') {
+                    handleExpressCourseInterest();
+                  } else if (courseId === 'maxa-klimakteriet') {
+                    handleExpressMenopauseCourseInterest();
+                  }
+                }}
+            />
+         )}
          {viewMode === 'courseOverview' && (
            <CourseOverview
                lessons={courseLessons}
                userProgress={userCourseProgress}
                onSelectLesson={handleSelectLesson}
-               isCourseActive={userProfile.isCourseActive || false}
                currentStreak={streakData.currentStreak}
-               onExpressCourseInterest={handleExpressCourseInterest}
-               courseInterest={userProfile.courseInterest}
             />
          )}
           {viewMode === 'lessonDetail' && currentLessonId && (

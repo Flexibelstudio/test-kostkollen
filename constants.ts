@@ -54,6 +54,8 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
   desiredMuscleMassChangeKg: undefined,
   goalCompletionDate: undefined,
   isCourseActive: false, // Default course status
+  menopauseCourseActive: false,
+  menopauseCourseInterest: false,
   goalStartWeight: undefined,
   notificationSettings: {
     friendRequests: true,

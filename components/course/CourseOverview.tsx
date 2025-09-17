@@ -1,51 +1,17 @@
 import React, { useState } from 'react';
 import { CourseLesson, UserCourseProgress } from '../../types';
-import { CourseIcon, CheckCircleIcon, ArrowRightIcon, ArrowLeftIcon, LockClosedIcon, InformationCircleIcon, UserCircleIcon } from '../icons';
+import { CourseIcon, CheckCircleIcon, ArrowRightIcon, LockClosedIcon, InformationCircleIcon } from '../icons';
 import CourseInfoModal from './CourseInfoModal'; // Import the new modal
 
 interface CourseOverviewProps {
   lessons: CourseLesson[];
   userProgress: UserCourseProgress;
   onSelectLesson: (lessonId: string) => void;
-  isCourseActive: boolean;
   currentStreak: number;
-  onExpressCourseInterest: () => void;
-  courseInterest?: boolean;
 }
 
-const reviews = [
-  {
-    quote: "Minus 6 kg fett - och en helt ny syn på kost och hälsa!",
-    text: "Mitt bästa beslut 2024 var att anmäla mig till Praktisk viktkontroll. Jag fått ett helt nytt sätt att tänka kring kost, hälsa och vanor. Resultatet? Jag har tappat 6 kg fett - och fått verktyg jag kommer bära med mig resten av livet!",
-    author: "Elisabeth"
-  },
-  {
-    quote: "5,5 kg mindre fett - och mer energi än på länge!",
-    text: "Att delta i Praktisk viktkontroll var den bästa investeringen jag gjorde under 2024. Med praktisk hjälp och tydliga verktyg har jag bytt ut gamla vanor mot nya, hållbara en i taget. Resultatet? 5,5 kg mindre fett, ökad muskelmassa och en kropp som känns pigg och full av energi!",
-    author: "Isabelle"
-  },
-  {
-    quote: "Jag känner mig piggare och orkar mer!",
-    text: "Jag är jättenöjd med Praktisk viktkontroll, det har gett mig ett helt nytt tänk kring mat och hjälpt mig att planera mina dagar bättre. När jag kombinerade träningen med kostprogrammet märkte jag snabbt skillnad - jag känner mig piggare och har mycket mer energi i vardagen. Jag är supernöjd!",
-    author: "Jana"
-  }
-];
-
-const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, onSelectLesson, isCourseActive, currentStreak, onExpressCourseInterest, courseInterest }) => {
+const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, onSelectLesson, currentStreak }) => {
   const [showCourseInfoModal, setShowCourseInfoModal] = useState(false);
-  const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
-
-  const nextReview = () => {
-    setCurrentReviewIndex(prevIndex => (prevIndex + 1) % reviews.length);
-  };
-
-  const prevReview = () => {
-    setCurrentReviewIndex(prevIndex => (prevIndex - 1 + reviews.length) % reviews.length);
-  };
-
-  const goToReview = (index: number) => {
-    setCurrentReviewIndex(index);
-  };
   
   let lastUnlockedIndex = -1;
   for (let i = lessons.length - 1; i >= 0; i--) {
@@ -74,102 +40,7 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
           </button>
         </div>
         
-        {!isCourseActive ? (
-          <>
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-neutral-dark text-center mb-6">Vad säger våra medlemmar?</h2>
-              <div className="relative w-full max-w-xl mx-auto">
-                <div className="overflow-hidden rounded-xl">
-                  {/* Carousel Wrapper */}
-                  <div
-                    className="flex transition-transform duration-500 ease-in-out"
-                    style={{ transform: `translateX(-${currentReviewIndex * 100}%)` }}
-                  >
-                    {reviews.map((review, index) => (
-                      <div key={index} className="w-full flex-shrink-0 p-1">
-                        {/* Card content */}
-                        <div className="bg-white p-5 rounded-xl shadow-soft-lg border border-neutral-light flex flex-col justify-center h-full min-h-[260px] sm:min-h-[240px]">
-                          <p className="text-lg font-semibold text-neutral-dark mb-4 text-center">⭐ "{review.quote}"</p>
-                          <p className="text-neutral-dark italic text-base text-center">{review.text}</p>
-                          <div className="flex items-center mt-3 pt-2 border-t border-neutral-light/50">
-                            <UserCircleIcon className="w-8 h-8 text-primary mr-3 flex-shrink-0" />
-                            <p className="font-semibold text-sm text-neutral">- {review.author}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Navigation Buttons */}
-                <button
-                  onClick={prevReview}
-                  className="absolute top-1/2 -left-3 sm:-left-5 -translate-y-1/2 transform bg-white/70 hover:bg-white rounded-full p-2 shadow-lg interactive-transition z-10"
-                  aria-label="Föregående omdöme"
-                >
-                  <ArrowLeftIcon className="w-5 h-5 sm:w-6 sm:h-6 text-neutral-dark" />
-                </button>
-                <button
-                  onClick={nextReview}
-                  className="absolute top-1/2 -right-3 sm:-right-5 -translate-y-1/2 transform bg-white/70 hover:bg-white rounded-full p-2 shadow-lg interactive-transition z-10"
-                  aria-label="Nästa omdöme"
-                >
-                  <ArrowRightIcon className="w-5 h-5 sm:w-6 sm:h-6 text-neutral-dark" />
-                </button>
-              </div>
-               {/* Dot Indicators */}
-              <div className="mt-4 flex justify-center space-x-2">
-                {reviews.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => goToReview(index)}
-                    className={`w-3 h-3 rounded-full interactive-transition ${
-                      currentReviewIndex === index ? 'bg-primary scale-110' : 'bg-neutral-light hover:bg-primary-lighter'
-                    }`}
-                    aria-label={`Gå till omdöme ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </div>
-          
-            <div className="text-center bg-white p-6 sm:p-8 rounded-xl shadow-soft-lg border border-neutral-light">
-                <div className="w-20 h-20 mx-auto mb-4 bg-primary-100 rounded-full flex items-center justify-center">
-                  <CourseIcon className="w-12 h-12 text-primary" />
-                </div>
-                <h2 className="text-2xl font-bold text-neutral-dark mb-3">Lås upp din fulla potential!</h2>
-                <p className="text-neutral-dark max-w-lg mx-auto mb-4">
-                    Ta din hälsoresa till nästa nivå med vår exklusiva kurs <strong>"Praktisk Viktkontroll"</strong>. Få tillgång till 12 lektioner fyllda med kunskap och verktyg för att bygga hållbara vanor. Nya lektioner låses upp genom att du bygger din dagliga streak, vilket gör lärandet till en motiverande del av din resa.
-                </p>
-                <div className="my-4">
-                  <p className="text-4xl font-bold text-secondary">295 kr</p>
-                  <p className="text-lg text-neutral line-through">Ord. pris 495 kr</p>
-                  <p className="text-sm text-secondary-darker font-semibold mt-1">Kampanjpris (Engångskostnad)</p>
-                </div>
-
-                {courseInterest ? (
-                  <div className="mt-4">
-                    <button
-                      disabled
-                      className="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3 bg-green-200 text-green-800 font-semibold rounded-lg shadow-sm cursor-not-allowed"
-                    >
-                      <CheckCircleIcon className="w-5 h-5 mr-2" />
-                      Inväntar godkännande
-                    </button>
-                     <p className="text-xs text-neutral mt-2"></p>
-                  </div>
-                ) : (
-                   <div className="mt-4">
-                      <button
-                      onClick={onExpressCourseInterest}
-                      className="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3 bg-primary hover:bg-primary-darker text-white font-semibold rounded-lg shadow-md active:scale-95 transform transition-all"
-                      >
-                      Ja, jag vill aktivera kursen!
-                      </button>
-                   </div>
-                )}
-            </div>
-          </>
-        ) : lessons.length === 0 ? (
+        {lessons.length === 0 ? (
           <p className="text-neutral text-center">Inga lektioner tillgängliga just nu.</p>
         ) : (
           <div className="space-y-4">
