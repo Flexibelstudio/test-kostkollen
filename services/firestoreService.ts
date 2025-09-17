@@ -167,6 +167,8 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       goalCompletionDate: null,
       isCourseActive: false,
       courseInterest: false,
+      menopauseCourseActive: false,
+      menopauseCourseInterest: false,
       currentStreak: 0,
       lastDateStreakChecked: dayBeforeYesterdayDateString,
       summaryStartDate: null, // <-- NYTT: sätts vid onboarding-slut
@@ -259,6 +261,8 @@ export async function fetchInitialAppData(userId: string) {
       goalCompletionDate: userDocData.goalCompletionDate ?? undefined,
       isCourseActive: userDocData.isCourseActive,
       courseInterest: userDocData.courseInterest,
+      menopauseCourseActive: userDocData.menopauseCourseActive,
+      menopauseCourseInterest: userDocData.menopauseCourseInterest,
       isSearchable: userDocData.isSearchable,
       goalStartWeight: userDocData.goalStartWeight ?? undefined,
       goalStartMuscleMassKg: userDocData.goalStartMuscleMassKg ?? undefined,
@@ -575,6 +579,8 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
       photoURL: data.photoURL ?? undefined,
       isCourseActive: data.isCourseActive,
       courseInterest: data.courseInterest,
+      menopauseCourseActive: data.menopauseCourseActive,
+      menopauseCourseInterest: data.menopauseCourseInterest,
       memberSince: toDateString(data.createdAt),
       lastLogDate: data.lastLogDate ?? undefined,
       currentStreak: data.currentStreak,
@@ -632,6 +638,8 @@ export async function fetchDetailedMemberDataForCoach(memberId: string): Promise
     goalCompletionDate: userDocData.goalCompletionDate ?? undefined,
     isCourseActive: userDocData.isCourseActive,
     courseInterest: userDocData.courseInterest,
+    menopauseCourseActive: userDocData.menopauseCourseActive,
+    menopauseCourseInterest: userDocData.menopauseCourseInterest,
     isSearchable: userDocData.isSearchable,
     goalStartWeight: userDocData.goalStartWeight,
     goalStartMuscleMassKg: userDocData.goalStartMuscleMassKg,
@@ -655,12 +663,18 @@ export async function fetchDetailedMemberDataForCoach(memberId: string): Promise
 
 /* ===== Admin & roles ===== */
 
-export async function setCourseAccessForMember(memberId: string, access: boolean) {
+export async function setCourseAccessForMember(memberId: string, courseField: 'isCourseActive' | 'menopauseCourseActive', interestField: 'courseInterest' | 'menopauseCourseInterest', access: boolean) {
   const userDocRef = doc(db, 'users', memberId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
     const { role, status } = userDoc.data();
-    await updateDoc(userDocRef, { isCourseActive: access, courseInterest: false, role, status });
+    const updatePayload = {
+        [courseField]: access,
+        [interestField]: false, // Always reset interest on action
+        role,
+        status,
+    };
+    await updateDoc(userDocRef, updatePayload);
   }
 }
 export async function approveMember(memberId: string) {
@@ -699,14 +713,20 @@ export async function bulkApproveMembers(memberIds: string[]) {
   }
   await batch.commit();
 }
-export async function bulkSetCourseAccess(memberIds: string[], access: boolean) {
+export async function bulkSetCourseAccess(memberIds: string[], courseField: 'isCourseActive' | 'menopauseCourseActive', interestField: 'courseInterest' | 'menopauseCourseInterest', access: boolean) {
   const batch = writeBatch(db);
   for (const id of memberIds) {
     const userDocRef = doc(db, 'users', id);
     const userDoc = await getDoc(userDocRef);
     if (userDoc.exists()) {
       const { role, status } = userDoc.data();
-      batch.update(userDocRef, { isCourseActive: access, courseInterest: false, role, status });
+      const updatePayload = {
+        [courseField]: access,
+        [interestField]: false,
+        role,
+        status,
+      };
+      batch.update(userDocRef, updatePayload);
     }
   }
   await batch.commit();
