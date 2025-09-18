@@ -310,3 +310,11 @@ export const InstallIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
     </svg>
 );
+
+export const VenusIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className || "w-6 h-6"} {...props}>
+    <circle cx="12" cy="9" r="5" />
+    <line x1="12" y1="14" x2="12" y2="22" />
+    <line x1="9" y1="19" x2="15" y2="19" />
+  </svg>
+);
