@@ -2817,16 +2817,20 @@ useEffect(() => {
         if (!currentUser) return;
         playAudio('uiClick');
     
+        // Optimistic UI update
         setUserProfile(prev => ({ ...prev, menopauseCourseInterest: true }));
-        setToastNotification({ message: "Ditt intresse har anmälts!", type: "success" });
-        setTimeout(() => setToastNotification(null), 3000);
     
-        try {
-          await updateUserDocument(currentUser.uid, { menopauseCourseInterest: true, role: userRole, status: userStatus });
-        } catch (error) {
-          handleFirestoreError(error, 'anmäla intresse');
-          setUserProfile(prev => ({ ...prev, menopauseCourseInterest: false })); // Rollback on error
-        }
+        // Show toast
+        setToastNotification({ message: "Anmäler intresse & skickar till betalning...", type: "success" });
+        
+        // Update Firestore in the background
+        updateUserDocument(currentUser.uid, { menopauseCourseInterest: true, role: userRole, status: userStatus })
+            .catch(error => {
+                console.error("Firestore error while setting menopause course interest (non-blocking):", error);
+            });
+    
+        // Redirect to the new payment link
+        window.location.href = 'https://buy.stripe.com/fZu6oI2rk8OKfnj2zh8Ra07';
       };
 
   // --- Course CTA Handlers ---
