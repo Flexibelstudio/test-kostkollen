@@ -318,3 +318,12 @@ export const VenusIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, 
     <line x1="9" y1="19" x2="15" y2="19" />
   </svg>
 );
+
+export const BalanceScaleIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className || "w-6 h-6"} {...props}>
+    <path d="m16 16 3-8 3 8c.2.6 0 1.2-.5 1.5-.7.3-1.5 0-1.7-.7L18 13l-1.3 3.8c-.2.7-1 1-1.7.7-.5-.3-.7-.9-.5-1.5z"/>
+    <path d="m2 16 3-8 3 8c.2.6 0 1.2-.5 1.5-.7.3-1.5 0-1.7-.7L4 13l-1.3 3.8c-.2.7-1 1-1.7.7-.5-.3-.7-.9-.5-1.5z"/>
+    <path d="M12 3v18"/>
+    <path d="M3 7h18"/>
+  </svg>
+);

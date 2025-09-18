@@ -32,7 +32,7 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
   ];
 
   return (
-    <div className="bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light mb-6 animate-fade-slide-in relative transition-all duration-300">
+    <div className="bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light animate-fade-slide-in relative transition-all duration-300">
       
       {/* Clickable Header */}
       <button

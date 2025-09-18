@@ -171,7 +171,7 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
           </div>
         )}
       </div>
-      <CourseInfoModal show={showCourseInfoModal} onClose={() => setShowCourseInfoModal(false)} courseId={courseId} />
+      {course && <CourseInfoModal show={showCourseInfoModal} onClose={() => setShowCourseInfoModal(false)} course={course} />}
     </>
   );
 };

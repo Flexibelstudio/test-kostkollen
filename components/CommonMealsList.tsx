@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
 import { PlusCircleIcon, TrashIcon, FireIcon, XMarkIcon, CheckIcon, PencilIcon, ChevronDownIcon, ChevronUpIcon, ProteinIcon, LeafIcon } from './icons.tsx';
@@ -227,7 +228,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
 
   return (
     <>
-      <div className="p-6 bg-white shadow-soft-lg rounded-xl border border-neutral-light">
+      <div className="p-4 sm:p-5 bg-white shadow-soft-lg rounded-xl border border-neutral-light">
         <div className="flex items-center pb-3 border-b border-neutral-light/70 mb-3">
           <span className="text-3xl mr-2.5" role="img" aria-hidden="true">📌</span>
           <h3 className="text-2xl font-semibold text-neutral-dark">Mina vanliga val</h3>

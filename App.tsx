@@ -60,7 +60,6 @@ import GoalMetModal from './components/GoalMetModal.tsx';
 import CourseOverview from './components/course/CourseOverview.tsx';
 import LessonDetail from './components/course/LessonDetail.tsx';
 import { courseLessons, menopauseCourseLessons } from './courseData.ts';
-import CourseInfoModal from './components/course/CourseInfoModal.tsx';
 import NewLessonUnlockedModal from './components/course/NewLessonUnlockedModal.tsx';
 import RecipeModal from './components/RecipeModal.tsx';
 import TextEntryModal from './components/TextEntryModal.tsx';
@@ -3612,7 +3611,7 @@ useEffect(() => {
     </button>
 );
 
-  const mainContentMaxWidth = 'max-w-4xl';
+  const mainContentMaxWidth = 'max-w-[96rem]';
     
     const { currentLevel } = getUserLevelInfo(highestStreak);
 
@@ -3645,7 +3644,7 @@ useEffect(() => {
             </div>
         )}
        <header className="w-full bg-white text-neutral-dark p-4 shadow-lg sticky top-0 z-30">
-            <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="max-w-5xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); }}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
                 </div>
@@ -3741,7 +3740,7 @@ useEffect(() => {
           : `w-full ${mainContentMaxWidth} mx-auto p-4 sm:p-6 flex-grow flex flex-col`
         }>
          {viewMode === 'main' && (
-            <>
+            <div className="space-y-3">
               {checklistState && (
                 <OnboardingChecklist 
                     state={checklistState}
@@ -3750,7 +3749,7 @@ useEffect(() => {
                     onScrollToWater={handleScrollToWater}
                 />
               )}
-              <section aria-labelledby="daily-overview-heading" className="mb-6 bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light">
+              <section aria-labelledby="daily-overview-heading" className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light">
                 <h2 id="daily-overview-heading" className="sr-only">Daglig Översikt</h2>
                 <div className="flex items-start justify-between w-full mb-2 gap-4">
                     <div className="text-center">
@@ -3824,48 +3823,49 @@ useEffect(() => {
                 </div>
               </section>
             
-              <div className="space-y-6 mt-6">
-                <WaterLogger 
-                  ref={waterLoggerRef}
-                  currentWaterMl={waterLoggedMl} 
-                  waterGoalMl={waterGoalMl} 
-                  onLogWater={handleLogWater}
-                  onResetWater={handleResetWater}
-                  disabled={!isViewingToday}
-                />
-                <CommonMealsList
-                  commonMeals={commonMeals}
-                  onLogCommonMeal={logCommonMeal}
-                  onDeleteCommonMeal={deleteCommonMeal}
-                  onUpdateCommonMeal={handleUpdateCommonMeal}
-                  disabled={!isViewingToday}
-                />
-              </div>
+              <WaterLogger 
+                ref={waterLoggerRef}
+                currentWaterMl={waterLoggedMl} 
+                waterGoalMl={waterGoalMl} 
+                onLogWater={handleLogWater}
+                onResetWater={handleResetWater}
+                disabled={!isViewingToday}
+              />
+              <CommonMealsList
+                commonMeals={commonMeals}
+                onLogCommonMeal={logCommonMeal}
+                onDeleteCommonMeal={deleteCommonMeal}
+                onUpdateCommonMeal={handleUpdateCommonMeal}
+                disabled={!isViewingToday}
+              />
 
-              <section aria-labelledby="meal-log-heading" className="mt-6">
-                <h3 id="meal-log-heading" className="text-xl font-semibold text-neutral-dark mb-4">
-                  Loggade måltider
-                </h3>
-                {groupedDailyLog.length > 0 ? (
-                  <div className="space-y-4">
-                    {groupedDailyLog.map((meal) => (
-                      <MealItemCard
-                        key={meal.id}
-                        meal={meal}
-                        onDelete={handleDeleteMeal}
-                        onUpdate={handleUpdateMeal}
-                        onSelectForCommonSave={handleOpenSaveCommonMealModal}
-                        isReadOnly={!isViewingToday}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-neutral py-6 bg-white p-6 rounded-xl shadow-soft-lg border border-neutral-light">
-                    Inga måltider loggade än idag. Använd plus-knappen för att lägga till!
-                  </p>
-                )}
+              <section aria-labelledby="meal-log-heading">
+                <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light">
+                    <h3 id="meal-log-heading" className="text-xl font-semibold text-neutral-dark mb-4">
+                    Loggade måltider
+                    </h3>
+                    {groupedDailyLog.length > 0 ? (
+                    <div className="space-y-4">
+                        {groupedDailyLog.map((meal) => (
+                        <MealItemCard
+                            key={meal.id}
+                            meal={meal}
+                            onDelete={handleDeleteMeal}
+                            onUpdate={handleUpdateMeal}
+                            onSelectForCommonSave={handleOpenSaveCommonMealModal}
+                            isReadOnly={!isViewingToday}
+                            isNewlyAdded={false} // Assuming this logic might change, but for now it's static
+                        />
+                        ))}
+                    </div>
+                    ) : (
+                    <p className="text-center text-neutral py-6 bg-neutral-light/50 p-6 rounded-lg">
+                        Inga måltider loggade än idag. Använd plus-knappen för att lägga till!
+                    </p>
+                    )}
+                </div>
               </section>
-            </>
+            </div>
          )}
          {viewMode === 'journey' && journeyAnalysisData && (
             <JourneyView 

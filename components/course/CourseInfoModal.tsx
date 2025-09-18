@@ -1,21 +1,35 @@
-import React from 'react';
-import { InformationCircleIcon, XMarkIcon } from '../icons';
-import { ALL_COURSES, CourseInfo } from '../CoursesView'; // Import from CoursesView
+import React, { useState } from 'react';
+import { InformationCircleIcon, XMarkIcon, ArrowLeftIcon, ArrowRightIcon, UserCircleIcon } from '../icons';
+import { CourseInfo } from '../CoursesView';
 
 interface CourseInfoModalProps {
   onClose: () => void;
   show: boolean;
-  courseId: CourseInfo['id'];
+  course: CourseInfo;
+  isActive: boolean;
+  onPurchase: (courseId: CourseInfo['id']) => void;
 }
 
-const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, courseId }) => {
-  if (!show) {
+const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course, isActive, onPurchase }) => {
+  const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
+
+  if (!show || !course) {
     return null;
   }
-  
-  const course = ALL_COURSES.find(c => c.id === courseId);
-  
-  if (!course) return null; // Or show an error
+
+  const hasReviews = course.reviews && course.reviews.length > 0;
+
+  const nextReview = () => {
+    if (hasReviews) {
+      setCurrentReviewIndex((prevIndex) => (prevIndex + 1) % course.reviews!.length);
+    }
+  };
+
+  const prevReview = () => {
+    if (hasReviews) {
+      setCurrentReviewIndex((prevIndex) => (prevIndex - 1 + course.reviews!.length) % course.reviews!.length);
+    }
+  };
 
   return (
     <div
@@ -26,14 +40,14 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course
       aria-labelledby="course-info-modal-title"
     >
       <div
-        className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl border border-neutral-light max-h-[90vh] overflow-y-auto custom-scrollbar w-full max-w-lg animate-scale-in"
+        className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl border border-neutral-light max-h-[90vh] overflow-y-auto custom-scrollbar w-full max-w-2xl animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <InformationCircleIcon className="w-8 h-8 text-primary mr-3" />
+            <course.Icon className="w-8 h-8 text-primary mr-3" />
             <h2 id="course-info-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
-              Om kursen: {course.title}
+              Om {course.title}
             </h2>
           </div>
           <button
@@ -45,19 +59,78 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course
           </button>
         </div>
 
-        <div className="space-y-4 text-base text-neutral-dark">
-          <p>
-            {course.longDescription}
-          </p>
+        <div className="space-y-6 text-base text-neutral-dark">
+          <p className="italic">{course.longDescription}</p>
+
+          <div className="p-4 bg-primary-100/50 rounded-lg border border-primary-200/70">
+            <h3 className="font-semibold text-lg text-primary-darker mb-2">Vad du får:</h3>
+            <ul className="list-disc list-inside space-y-1">
+                {course.whatYouGet.map((point, index) => <li key={index}>{point}</li>)}
+            </ul>
+          </div>
+          
+          {hasReviews && (
+            <div className="p-4 bg-secondary-100/50 rounded-lg border border-secondary-200/70">
+                <h3 className="font-semibold text-lg text-secondary-darker mb-3 text-center">Vad våra medlemmar säger:</h3>
+                <div className="relative overflow-hidden min-h-[220px] flex items-center">
+                    <div className="flex transition-transform duration-300 ease-in-out w-full" style={{ transform: `translateX(-${currentReviewIndex * 100}%)` }}>
+                        {course.reviews!.map((review, index) => (
+                            <div key={index} className="w-full flex-shrink-0 px-4 space-y-4 text-left">
+                                <h4 className="text-xl font-semibold text-neutral-dark flex items-center gap-2">
+                                    <span className="text-yellow-400 text-2xl">⭐</span>
+                                    <span>"{review.quote}"</span>
+                                </h4>
+                                <p className="text-base text-neutral-dark italic">
+                                    {review.fullText}
+                                </p>
+                                <div className="flex items-center">
+                                    <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center mr-2">
+                                        <UserCircleIcon className="w-5 h-5 text-primary"/>
+                                    </div>
+                                    <p className="font-semibold text-neutral-dark">- {review.author}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                 <div className="flex items-center justify-center mt-4">
+                    <button onClick={prevReview} className="p-2 rounded-full hover:bg-secondary-200/50" aria-label="Föregående recension"><ArrowLeftIcon className="w-5 h-5"/></button>
+                    <div className="flex gap-2 mx-4">
+                        {course.reviews!.map((_, index) => (
+                            <button key={index} onClick={() => setCurrentReviewIndex(index)} className={`w-2.5 h-2.5 rounded-full transition-colors ${currentReviewIndex === index ? 'bg-secondary' : 'bg-secondary-200/60'}`}></button>
+                        ))}
+                    </div>
+                    <button onClick={nextReview} className="p-2 rounded-full hover:bg-secondary-200/50" aria-label="Nästa recension"><ArrowRightIcon className="w-5 h-5"/></button>
+                </div>
+            </div>
+          )}
+
+          <div className="p-4 bg-neutral-light/60 rounded-lg">
+            <h3 className="font-semibold text-lg text-neutral-dark mb-2">Hur det fungerar:</h3>
+            <p>{course.howItWorks}</p>
+          </div>
+          
+          <div className="p-4 bg-neutral-light/60 rounded-lg">
+            <h3 className="font-semibold text-lg text-neutral-dark mb-2">För vem passar kursen?</h3>
+            <p>{course.forWhom}</p>
+          </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-neutral-light/70 text-center">
-          <button
-            onClick={onClose}
-            className="px-8 py-3 bg-primary text-white text-lg font-semibold rounded-lg shadow-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform"
-          >
-            Jag förstår
-          </button>
+        <div className="mt-8 pt-6 border-t border-neutral-light/70 flex flex-col sm:flex-row justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="w-full sm:w-auto px-6 py-2.5 bg-neutral-light text-neutral-dark text-base font-medium rounded-lg shadow-sm hover:bg-gray-300 active:scale-95 transform"
+            >
+              Stäng
+            </button>
+            {!isActive && (
+                <button
+                  onClick={() => onPurchase(course.id)}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-secondary text-white text-base font-semibold rounded-lg shadow-md hover:bg-secondary-darker active:scale-95 transform"
+                >
+                  Köp kursen nu ({course.price})
+                </button>
+            )}
         </div>
       </div>
     </div>
