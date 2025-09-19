@@ -3611,7 +3611,7 @@ useEffect(() => {
     </button>
 );
 
-  const mainContentMaxWidth = 'max-w-[96rem]';
+  const mainContentMaxWidth = 'max-w-7xl';
     
     const { currentLevel } = getUserLevelInfo(highestStreak);
 
@@ -3644,7 +3644,7 @@ useEffect(() => {
             </div>
         )}
        <header className="w-full bg-white text-neutral-dark p-4 shadow-lg sticky top-0 z-30">
-            <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); }}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
                 </div>
@@ -3737,7 +3737,7 @@ useEffect(() => {
 
         <main className={viewMode === 'community' 
           ? "w-full flex-grow flex flex-col h-full" 
-          : `w-full ${mainContentMaxWidth} mx-auto p-4 sm:p-6 flex-grow flex flex-col`
+          : `w-full ${mainContentMaxWidth} mx-auto p-2 sm:p-4 flex-grow flex flex-col`
         }>
          {viewMode === 'main' && (
             <div className="space-y-3">

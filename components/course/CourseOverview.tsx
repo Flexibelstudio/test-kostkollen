@@ -46,7 +46,7 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
         {lessons.length === 0 ? (
           <p className="text-neutral text-center">Inga lektioner tillgängliga just nu.</p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {lessons.map((lesson, index) => {
               const progress = userProgress[lesson.id];
               const isUnlocked = !!userProgress[lesson.id]?.unlockedAt;
@@ -171,7 +171,8 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
           </div>
         )}
       </div>
-      {course && <CourseInfoModal show={showCourseInfoModal} onClose={() => setShowCourseInfoModal(false)} course={course} />}
+      {/* FIX: Pass missing 'isActive' and 'onPurchase' props. Since this view is for an active course, 'isActive' is true and 'onPurchase' can be a no-op. */}
+      {course && <CourseInfoModal show={showCourseInfoModal} onClose={() => setShowCourseInfoModal(false)} course={course} isActive={true} onPurchase={() => {}} />}
     </>
   );
 };

@@ -174,7 +174,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, onNavigat
 
   return (
     <>
-        <div className="animate-fade-in space-y-8">
+        <div className="animate-fade-in space-y-3">
         
         <section>
             <div className="bg-white p-6 rounded-xl shadow-soft-lg border border-neutral-light">
