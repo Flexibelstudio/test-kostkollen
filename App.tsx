@@ -1308,7 +1308,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   // This effect handles showing the one-time update notice.
   useEffect(() => {
     if (isInitialDataLoaded && currentUser) {
-        const UPDATE_NOTICE_KEY = 'updateNotice_v2_ChatAndJourney'; // Unique key for this update
+        const UPDATE_NOTICE_KEY = 'updateNotice_v4_MenopauseCoursePrice'; // Unique key for this update
         try {
             const noticeShown = localStorage.getItem(UPDATE_NOTICE_KEY);
             if (!noticeShown) {
@@ -1321,13 +1321,25 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   }, [isInitialDataLoaded, currentUser]);
 
   const handleCloseUpdateNoticePopup = () => {
-      const UPDATE_NOTICE_KEY = 'updateNotice_v2_ChatAndJourney';
+      const UPDATE_NOTICE_KEY = 'updateNotice_v4_MenopauseCoursePrice';
       try {
           localStorage.setItem(UPDATE_NOTICE_KEY, 'true');
       } catch (error) {
           console.warn('Could not save to localStorage for update notice.', error);
       }
       setShowUpdateNoticePopup(false);
+  };
+
+  const handleNavigateToCourses = () => {
+    setViewMode('coursesView');
+    // if the one-time popup is open, we need to close it and set the flag
+    if (showUpdateNoticePopup) {
+        handleCloseUpdateNoticePopup();
+    }
+    // if the "latest update" view is open, just close it
+    if (showLatestUpdateView) {
+        setShowLatestUpdateView(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -4034,13 +4046,15 @@ useEffect(() => {
         {showUpdateNoticePopup && (
             <UpdateNoticeModal 
                 show={showUpdateNoticePopup} 
-                onClose={handleCloseUpdateNoticePopup} 
+                onClose={handleCloseUpdateNoticePopup}
+                onNavigateToCourses={handleNavigateToCourses}
             />
         )}
         {showLatestUpdateView && (
             <UpdateNoticeModal 
                 show={showLatestUpdateView} 
-                onClose={() => setShowLatestUpdateView(false)} 
+                onClose={() => setShowLatestUpdateView(false)}
+                onNavigateToCourses={handleNavigateToCourses}
             />
         )}
         {showOnboardingRewardModal && (

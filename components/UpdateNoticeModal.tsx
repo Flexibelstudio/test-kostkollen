@@ -4,9 +4,10 @@ import { XMarkIcon } from './icons';
 interface UpdateNoticeModalProps {
   show: boolean;
   onClose: () => void;
+  onNavigateToCourses?: () => void;
 }
 
-const UpdateNoticeModal: React.FC<UpdateNoticeModalProps> = ({ show, onClose }) => {
+const UpdateNoticeModal: React.FC<UpdateNoticeModalProps> = ({ show, onClose, onNavigateToCourses }) => {
   if (!show) return null;
 
   return (
@@ -22,45 +23,61 @@ const UpdateNoticeModal: React.FC<UpdateNoticeModalProps> = ({ show, onClose }) 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-center mb-4 flex-shrink-0">
-          <span className="text-5xl" role="img" aria-label="Sparkles">✨</span>
+          <span className="text-5xl" role="img" aria-label="Kvinnosymbol">♀️</span>
           <h2 id="update-notice-title" className="text-2xl font-bold text-neutral-dark mt-2">
-            Kostloggen har blivit ännu smartare!
+            Nyhet: Känn dig stark och må bra genom klimakteriet!
           </h2>
         </div>
 
         <div className="overflow-y-auto custom-scrollbar flex-grow">
-            <p className="text-base text-neutral-dark mb-6">
-                Hej! Vi har jobbat hårt med att göra Kostloggen ännu smartare, och vi tackar för ditt tålamod om du märkt av några störningar under tiden. Nu är vi glada att kunna presentera flera spännande uppdateringar som gör din hälsoresa ännu enklare och mer insiktsfull.
-            </p>
+          <p className="text-base text-neutral-dark mb-4">
+            Hej! Vi vet att klimakteriet är en naturlig fas i livet, men det innebär också stora förändringar för kroppen, ämnesomsättningen och energin. Många känner sig vilsna – men det behöver inte vara så.
+          </p>
+          <p className="text-base text-neutral-dark mb-6">
+            Därför lanserar vi nu vår nya, efterlängtade kurs: <strong>Maxa Klimakteriet!</strong> Den är skapad för att ge dig kunskapen och verktygen du behöver för att inte bara hantera, utan <em>maxa</em> den här perioden i livet.
+          </p>
 
-            <div className="space-y-4 text-left">
-                <div className="flex items-start gap-4 p-3 bg-primary-100/50 rounded-lg">
-                    <span className="text-3xl mt-1">🤖</span>
-                    <div>
-                        <h3 className="font-semibold text-neutral-dark">Din nya AI-Coach är här!</h3>
-                        <p className="text-sm text-neutral-dark">
-                            Vi introducerar din personliga AI-coach. Du kan nu chatta direkt för att få snabba svar, be om en graf över din viktutveckling, eller få en analys av din vecka. Du hittar coachen under "Min Resa".
-                        </p>
-                    </div>
-                </div>
-                 <div className="flex items-start gap-4 p-3 bg-secondary-100/50 rounded-lg">
-                    <span className="text-3xl mt-1">🧭</span>
-                    <div>
-                        <h3 className="font-semibold text-neutral-dark">En mer fokuserad "Min Resa"</h3>
-                        <p className="text-sm text-neutral-dark">
-                            För att göra det enklare har vi samlat allt som rör dina framsteg under fliken "Min Resa". Den gamla "Utveckling"-fliken är borttagen, och den kraftfulla AI-analysen du är van vid finns nu här istället, redo att diskuteras med din nya coach.
-                        </p>
-                    </div>
-                </div>
-            </div>
+          <div className="space-y-3 text-left bg-primary-100/50 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold text-neutral-dark mb-2">I kursen får du lära dig:</h3>
+            <ul className="space-y-2">
+              <li className="flex items-start gap-3">
+                <span className="text-2xl mt-0.5">🥗</span>
+                <p className="text-neutral-dark"><strong className="font-semibold">Anpassa kosten:</strong> Förstå hur du ska äta för hormonell balans, minskad inflammation och för att behålla din värdefulla muskelmassa.</p>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-2xl mt-0.5">💪</span>
+                <p className="text-neutral-dark"><strong className="font-semibold">Träna smartare, inte hårdare:</strong> Upptäck den effektiva styrketräningen som stärker skelettet, boostar ämnesomsättningen och ger dig mer energi.</p>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-2xl mt-0.5">🧠</span>
+                <p className="text-neutral-dark"><strong className="font-semibold">Hantera symtomen:</strong> Få konkreta strategier för att förbättra sömnen, hantera vallningar och balansera humöret.</p>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-2xl mt-0.5">✨</span>
+                <p className="text-neutral-dark"><strong className="font-semibold">Ta kontrollen:</strong> Känn dig starkare, piggare och mer i kontroll över din hälsa än någonsin tidigare.</p>
+              </li>
+            </ul>
+          </div>
+
+          <p className="text-base text-neutral-dark mt-6">
+            Det här är din chans att investera i dig själv och navigera klimakteriet med självförtroende. <strong>För endast 295 kr får du livslång tillgång till hela kursen och allt material.</strong>
+          </p>
         </div>
 
-        <div className="mt-6 text-center flex-shrink-0">
+        <div className="mt-6 text-center flex-shrink-0 space-y-3">
+          {onNavigateToCourses && (
+            <button
+              onClick={onNavigateToCourses}
+              className="w-full sm:w-auto px-8 py-3 bg-primary text-white text-lg font-semibold rounded-lg shadow-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform interactive-transition"
+            >
+              Läs mer & kom igång!
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="w-full sm:w-auto px-8 py-3 bg-primary text-white text-lg font-semibold rounded-lg shadow-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform interactive-transition"
+            className="w-full sm:w-auto px-6 py-2 text-sm font-medium text-neutral hover:text-neutral-dark hover:bg-neutral-light rounded-lg interactive-transition"
           >
-            Grymt, jag förstår!
+            Kanske senare
           </button>
         </div>
       </div>
