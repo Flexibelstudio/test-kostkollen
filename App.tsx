@@ -9,6 +9,7 @@ import {
 import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
 import SplashScreen from './components/SplashScreen';
+import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
 
 import {
   NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode,
@@ -58,8 +59,7 @@ import LevelUpModal from './components/LevelUpModal.tsx';
 import GoalMetModal from './components/GoalMetModal.tsx';
 import CourseOverview from './components/course/CourseOverview.tsx';
 import LessonDetail from './components/course/LessonDetail.tsx';
-import { courseLessons } from './courseData.ts';
-import CourseInfoModal from './components/course/CourseInfoModal.tsx';
+import { courseLessons, menopauseCourseLessons } from './courseData.ts';
 import NewLessonUnlockedModal from './components/course/NewLessonUnlockedModal.tsx';
 import RecipeModal from './components/RecipeModal.tsx';
 import TextEntryModal from './components/TextEntryModal.tsx';
@@ -76,7 +76,7 @@ import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
 import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
-import AICoachModal from './components/AICoachModal';
+import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
 
@@ -271,7 +271,7 @@ async function ensureYesterdayProcessed(uid: string, now = new Date()) {
 }
 
 // Hook: trigga summering på visibility/focus + vid mount
-export function useDailySummary(uid?: string) {
+function useDailySummary(uid?: string) {
   useEffect(() => {
     if (!uid) return;
     const onWake = () => ensureYesterdayProcessed(uid).catch(console.error);
@@ -293,48 +293,6 @@ export function useDailySummary(uid?: string) {
 
 /* ===========================
    End of new Daily Summary Logic
-   =========================== */
-
-/* ===========================
-   Service Worker-registrering (prod only)
-   =========================== */
-export function useServiceWorkerRegistration() {
-  useEffect(() => {
-    if (!((import.meta as any).env.PROD && "serviceWorker" in navigator)) return;
-
-    const onLoad = () => {
-      navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
-        .then((reg) => {
-          console.log("[SW] registered", reg);
-
-          // Auto-uppdatera om ny SW väntar (valfritt)
-          if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
-          reg.addEventListener("updatefound", () => {
-            const nw = reg.installing;
-            if (!nw) return;
-            nw.addEventListener("statechange", () => {
-              if (nw.state === "installed" && navigator.serviceWorker.controller) {
-                nw.postMessage({ type: "SKIP_WAITING" });
-              }
-            });
-          });
-
-          // När ny SW tar över → ladda om (valfritt)
-          navigator.serviceWorker.addEventListener("controllerchange", () => {
-            window.location.reload();
-          });
-        })
-        .catch((err) => console.error("[SW] register failed", err));
-    };
-
-    if (document.readyState === "complete") onLoad();
-    else window.addEventListener("load", onLoad);
-    return () => window.removeEventListener("load", onLoad);
-  }, []);
-}
-/* ===========================
-   End SW-registrering
    =========================== */
 
 const urlBase64ToUint8Array = (base64String: string) => {
@@ -781,11 +739,8 @@ export const App = () => {
   const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
 
-  // PATCH-HOOKS START
-  useServiceWorkerRegistration();
   const uid = currentUser?.uid;
   useDailySummary(uid);
-  // PATCH-HOOKS END
 
   const [goals, setGoals] = useState<GoalSettings>(DEFAULT_GOALS);
   const [userProfile, setUserProfile] = useState<UserProfileData>(DEFAULT_USER_PROFILE);
@@ -856,9 +811,9 @@ export const App = () => {
 
 
   // Course state
+  const [activeCourse, setActiveCourse] = useState<CourseInfo | null>(null);
   const [userCourseProgress, setUserCourseProgress] = useState<UserCourseProgress>({});
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
-  const [showCourseInfoModalOnLoad, setShowCourseInfoModalOnLoad] = useState<boolean>(false);
   const [newlyUnlockedLesson, setNewlyUnlockedLesson] = useState<CourseLesson | null>(null);
 
   // Onboarding
@@ -1046,6 +1001,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setStreakData({ currentStreak: 0, lastDateStreakChecked: null });
         setWaterLoggedMl(0);
         setUserCourseProgress({});
+        setActiveCourse(null);
         setRecentRecipeSearches([]);
         setWeightLogs([]);
         setMentalWellbeingLogs([]);
@@ -1352,7 +1308,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   // This effect handles showing the one-time update notice.
   useEffect(() => {
     if (isInitialDataLoaded && currentUser) {
-        const UPDATE_NOTICE_KEY = 'updateNotice_v2_ChatAndJourney'; // Unique key for this update
+        const UPDATE_NOTICE_KEY = 'updateNotice_v4_MenopauseCoursePrice'; // Unique key for this update
         try {
             const noticeShown = localStorage.getItem(UPDATE_NOTICE_KEY);
             if (!noticeShown) {
@@ -1365,13 +1321,25 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   }, [isInitialDataLoaded, currentUser]);
 
   const handleCloseUpdateNoticePopup = () => {
-      const UPDATE_NOTICE_KEY = 'updateNotice_v2_ChatAndJourney';
+      const UPDATE_NOTICE_KEY = 'updateNotice_v4_MenopauseCoursePrice';
       try {
           localStorage.setItem(UPDATE_NOTICE_KEY, 'true');
       } catch (error) {
           console.warn('Could not save to localStorage for update notice.', error);
       }
       setShowUpdateNoticePopup(false);
+  };
+
+  const handleNavigateToCourses = () => {
+    setViewMode('coursesView');
+    // if the one-time popup is open, we need to close it and set the flag
+    if (showUpdateNoticePopup) {
+        handleCloseUpdateNoticePopup();
+    }
+    // if the "latest update" view is open, just close it
+    if (showLatestUpdateView) {
+        setShowLatestUpdateView(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -2306,21 +2274,6 @@ if (appData) {
     });
   }, []);
 
-  // Service Worker Registration
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => {
-            console.log('Service Worker registered successfully with scope: ', registration.scope);
-          })
-          .catch(error => {
-            console.error('Service Worker registration failed: ', error);
-          });
-      });
-    }
-  }, []);
-
 // PWA Install Prompt Logic (for Android/Desktop)
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
@@ -2626,6 +2579,15 @@ useEffect(() => {
   };
   
   // --- Course Logic ---
+  const handleNavigateToCourse = (courseId: CourseInfo['id']) => {
+    const course = ALL_COURSES.find(c => c.id === courseId);
+    if (course) {
+        setActiveCourse(course);
+        setViewMode('courseOverview');
+        playAudio('uiClick');
+    }
+  };
+
   const unlockLesson = useCallback(async (lessonId: string, streakAtUnlock: number) => {
     if (!currentUser) return;
 
@@ -2641,7 +2603,8 @@ useEffect(() => {
     
     try {
         await saveCourseProgress(currentUser.uid, lessonId, newProgress, userRole!, userStatus!);
-        const lesson = courseLessons.find(l => l.id === lessonId);
+        const allLessons = [...courseLessons, ...menopauseCourseLessons];
+        const lesson = allLessons.find(l => l.id === lessonId);
         if (lesson) {
             setNewlyUnlockedLesson(lesson);
             playAudio('levelUp');
@@ -2651,7 +2614,7 @@ useEffect(() => {
     }
   }, [currentUser?.uid, userRole, userStatus]);
 
-  // Combined logic for unlocking the first lesson and subsequent lessons
+  // Streak-based unlocking for "Praktisk Viktkontroll"
   useEffect(() => {
     if (!isInitialDataLoaded || !currentUser || !userProfile.isCourseActive) {
         return;
@@ -2665,46 +2628,32 @@ useEffect(() => {
       }
     }
 
-    // Case 1: No lesson unlocked yet. Unlock the first one.
     if (lastUnlockedIndex === -1 && courseLessons.length > 0) {
         const firstLessonId = courseLessons[0].id;
-        if (!userCourseProgress[firstLessonId]?.unlockedAt) { // Double-check to prevent re-triggering
-            console.log(`Unlocking first lesson as course is active.`);
+        if (!userCourseProgress[firstLessonId]?.unlockedAt) {
             unlockLesson(firstLessonId, streakData.currentStreak);
         }
-        return; // Done for this render
+        return;
     }
     
-    // Case 2: At least one lesson is unlocked. Check for next unlock.
     if (lastUnlockedIndex > -1) {
-        // Fix: Use 'courseLessons' which is defined, instead of 'lessons' which is not.
         const lastUnlockedProgress = userCourseProgress[courseLessons[lastUnlockedIndex].id];
         
         if (lastUnlockedProgress?.unlockedAt) {
             const streakAtUnlock = lastUnlockedProgress.streakAtUnlock ?? 0;
-            
             let shouldUnlock = false;
             
-            // Scenario A: Streak was maintained and has grown by 7 days.
             if (streakData.currentStreak >= streakAtUnlock) {
-                if (streakData.currentStreak >= streakAtUnlock + 7) {
-                    shouldUnlock = true;
-                }
-            } 
-            // Scenario B: Streak was lost, and a new 7-day streak has been achieved.
-            else { // This condition implies streakData.currentStreak < streakAtUnlock
-                if (streakData.currentStreak >= 7) {
-                    shouldUnlock = true;
-                }
+                if (streakData.currentStreak >= streakAtUnlock + 7) { shouldUnlock = true; }
+            } else {
+                if (streakData.currentStreak >= 7) { shouldUnlock = true; }
             }
 
             if (shouldUnlock) {
                 const nextLessonIndex = lastUnlockedIndex + 1;
-
                 if (nextLessonIndex < courseLessons.length) {
                     const nextLesson = courseLessons[nextLessonIndex];
                     if (!userCourseProgress[nextLesson.id]?.unlockedAt) {
-                        console.log(`Unlocking lesson ${nextLesson.title} due to new streak logic.`);
                         unlockLesson(nextLesson.id, streakData.currentStreak);
                     }
                 }
@@ -2712,6 +2661,31 @@ useEffect(() => {
         }
     }
   }, [isInitialDataLoaded, currentUser, userProfile.isCourseActive, userCourseProgress, streakData.currentStreak, unlockLesson]);
+
+  // Completion-based unlocking for "Maxa Klimakteriet"
+  useEffect(() => {
+    if (!isInitialDataLoaded || !currentUser || !userProfile.menopauseCourseActive) {
+        return;
+    }
+
+    const firstLessonId = menopauseCourseLessons[0]?.id;
+    if (firstLessonId && !userCourseProgress[firstLessonId]?.unlockedAt) {
+        unlockLesson(firstLessonId, 0);
+    }
+
+    for (let i = 0; i < menopauseCourseLessons.length - 1; i++) {
+        const currentLessonId = menopauseCourseLessons[i].id;
+        const nextLessonId = menopauseCourseLessons[i + 1].id;
+
+        const currentLessonProgress = userCourseProgress[currentLessonId];
+        const nextLessonProgress = userCourseProgress[nextLessonId];
+
+        if (currentLessonProgress?.isCompleted && !nextLessonProgress?.unlockedAt) {
+            unlockLesson(nextLessonId, 0);
+        }
+    }
+  }, [isInitialDataLoaded, currentUser, userProfile.menopauseCourseActive, userCourseProgress, unlockLesson]);
+
 
   const handleCloseLessonDetail = () => {
     setViewMode('courseOverview');
@@ -2802,13 +2776,16 @@ useEffect(() => {
         setToastNotification({message: "Lektion markerad som slutförd!", type: "success"});
         setTimeout(() => setToastNotification(null), 3000);
 
-        const lesson = courseLessons.find(l => l.id === lessonId);
-        if (lesson) {
+        const allLessons = [...courseLessons, ...menopauseCourseLessons];
+        const lesson = allLessons.find(l => l.id === lessonId);
+        const courseInfo = ALL_COURSES.find(c => (c.id === 'praktisk-viktkontroll' && lessonId.startsWith('lektion')) || (c.id === 'maxa-klimakteriet' && lessonId.startsWith('m-lektion')));
+
+        if (lesson && courseInfo) {
             const eventData = {
                 type: 'course' as const,
                 timestamp: Date.now(),
                 title: `har slutfört "${lesson.title}" `,
-                description: "Ett stort steg framåt i kursen 'Praktisk Viktkontroll'!",
+                description: `Ett stort steg framåt i kursen '${courseInfo.title}'!`,
                 icon: ' ',
                 relatedDocId: `course_${lessonId}`
             };
@@ -2846,6 +2823,26 @@ useEffect(() => {
         // Redirect the user to the payment link.
         window.location.href = 'https://buy.stripe.com/7sYcN64zsfd88YV6Px8Ra06';
     };
+
+    const handleExpressMenopauseCourseInterest = async () => {
+        if (!currentUser) return;
+        playAudio('uiClick');
+    
+        // Optimistic UI update
+        setUserProfile(prev => ({ ...prev, menopauseCourseInterest: true }));
+    
+        // Show toast
+        setToastNotification({ message: "Anmäler intresse & skickar till betalning...", type: "success" });
+        
+        // Update Firestore in the background
+        updateUserDocument(currentUser.uid, { menopauseCourseInterest: true, role: userRole, status: userStatus })
+            .catch(error => {
+                console.error("Firestore error while setting menopause course interest (non-blocking):", error);
+            });
+    
+        // Redirect to the new payment link
+        window.location.href = 'https://buy.stripe.com/fZu6oI2rk8OKfnj2zh8Ra07';
+      };
 
   // --- Course CTA Handlers ---
   const handleOpenSpeedDial = () => {
@@ -3383,7 +3380,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || showCourseInfoModalOnLoad || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showUpdateNoticePopup || showLatestUpdateView;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || newlyUnlockedLesson || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showUpdateNoticePopup || showLatestUpdateView;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -3395,7 +3392,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, showCourseInfoModalOnLoad, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showUpdateNoticePopup, showLatestUpdateView]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, newlyUnlockedLesson, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showUpdateNoticePopup, showLatestUpdateView]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3626,7 +3623,7 @@ useEffect(() => {
     </button>
 );
 
-  const mainContentMaxWidth = 'max-w-4xl';
+  const mainContentMaxWidth = 'max-w-7xl';
     
     const { currentLevel } = getUserLevelInfo(highestStreak);
 
@@ -3639,11 +3636,15 @@ useEffect(() => {
     const navItems = [
       { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); } },
       { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { playAudio('uiClick'); setJourneyInitialTab('calendar'); setViewMode('journey'); } },
-      { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { playAudio('uiClick'); setViewMode('courseOverview');} },
+      { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { playAudio('uiClick'); setViewMode('coursesView');} },
       { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { playAudio('uiClick'); if (viewMode === 'community') { setCommunityViewKey(Date.now()); } setViewMode('community'); }, notificationCount: totalNotificationCount },
     ];
 
     const isInstallBannerVisible = showInstallBanner || showIosInstallPrompt;
+
+    const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
+    const lessonsForDetail = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
+    const currentLesson = lessonsForDetail.find(l => l.id === currentLessonId);
 
   return (
     <>
@@ -3655,7 +3656,7 @@ useEffect(() => {
             </div>
         )}
        <header className="w-full bg-white text-neutral-dark p-4 shadow-lg sticky top-0 z-30">
-            <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => { playAudio('uiClick'); setViewMode('main'); setCurrentLessonId(null); }}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
                 </div>
@@ -3748,10 +3749,10 @@ useEffect(() => {
 
         <main className={viewMode === 'community' 
           ? "w-full flex-grow flex flex-col h-full" 
-          : `w-full ${mainContentMaxWidth} mx-auto p-4 sm:p-6 flex-grow flex flex-col`
+          : `w-full ${mainContentMaxWidth} mx-auto p-2 sm:p-4 flex-grow flex flex-col`
         }>
          {viewMode === 'main' && (
-            <>
+            <div className="space-y-3">
               {checklistState && (
                 <OnboardingChecklist 
                     state={checklistState}
@@ -3760,7 +3761,7 @@ useEffect(() => {
                     onScrollToWater={handleScrollToWater}
                 />
               )}
-              <section aria-labelledby="daily-overview-heading" className="mb-6 bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light">
+              <section aria-labelledby="daily-overview-heading" className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light">
                 <h2 id="daily-overview-heading" className="sr-only">Daglig Översikt</h2>
                 <div className="flex items-start justify-between w-full mb-2 gap-4">
                     <div className="text-center">
@@ -3834,48 +3835,49 @@ useEffect(() => {
                 </div>
               </section>
             
-              <div className="space-y-6 mt-6">
-                <WaterLogger 
-                  ref={waterLoggerRef}
-                  currentWaterMl={waterLoggedMl} 
-                  waterGoalMl={waterGoalMl} 
-                  onLogWater={handleLogWater}
-                  onResetWater={handleResetWater}
-                  disabled={!isViewingToday}
-                />
-                <CommonMealsList
-                  commonMeals={commonMeals}
-                  onLogCommonMeal={logCommonMeal}
-                  onDeleteCommonMeal={deleteCommonMeal}
-                  onUpdateCommonMeal={handleUpdateCommonMeal}
-                  disabled={!isViewingToday}
-                />
-              </div>
+              <WaterLogger 
+                ref={waterLoggerRef}
+                currentWaterMl={waterLoggedMl} 
+                waterGoalMl={waterGoalMl} 
+                onLogWater={handleLogWater}
+                onResetWater={handleResetWater}
+                disabled={!isViewingToday}
+              />
+              <CommonMealsList
+                commonMeals={commonMeals}
+                onLogCommonMeal={logCommonMeal}
+                onDeleteCommonMeal={deleteCommonMeal}
+                onUpdateCommonMeal={handleUpdateCommonMeal}
+                disabled={!isViewingToday}
+              />
 
-              <section aria-labelledby="meal-log-heading" className="mt-6">
-                <h3 id="meal-log-heading" className="text-xl font-semibold text-neutral-dark mb-4">
-                  Loggade måltider
-                </h3>
-                {groupedDailyLog.length > 0 ? (
-                  <div className="space-y-4">
-                    {groupedDailyLog.map((meal) => (
-                      <MealItemCard
-                        key={meal.id}
-                        meal={meal}
-                        onDelete={handleDeleteMeal}
-                        onUpdate={handleUpdateMeal}
-                        onSelectForCommonSave={handleOpenSaveCommonMealModal}
-                        isReadOnly={!isViewingToday}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-neutral py-6 bg-white p-6 rounded-xl shadow-soft-lg border border-neutral-light">
-                    Inga måltider loggade än idag. Använd plus-knappen för att lägga till!
-                  </p>
-                )}
+              <section aria-labelledby="meal-log-heading">
+                <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light">
+                    <h3 id="meal-log-heading" className="text-xl font-semibold text-neutral-dark mb-4">
+                    Loggade måltider
+                    </h3>
+                    {groupedDailyLog.length > 0 ? (
+                    <div className="space-y-4">
+                        {groupedDailyLog.map((meal) => (
+                        <MealItemCard
+                            key={meal.id}
+                            meal={meal}
+                            onDelete={handleDeleteMeal}
+                            onUpdate={handleUpdateMeal}
+                            onSelectForCommonSave={handleOpenSaveCommonMealModal}
+                            isReadOnly={!isViewingToday}
+                            isNewlyAdded={false} // Assuming this logic might change, but for now it's static
+                        />
+                        ))}
+                    </div>
+                    ) : (
+                    <p className="text-center text-neutral py-6 bg-neutral-light/50 p-6 rounded-lg">
+                        Inga måltider loggade än idag. Använd plus-knappen för att lägga till!
+                    </p>
+                    )}
+                </div>
               </section>
-            </>
+            </div>
          )}
          {viewMode === 'journey' && journeyAnalysisData && (
             <JourneyView 
@@ -3905,20 +3907,31 @@ useEffect(() => {
                 onDiscussSavedAnalysis={handleDiscussSavedAnalysis}
             />
          )}
-         {viewMode === 'courseOverview' && (
-           <CourseOverview
-               lessons={courseLessons}
-               userProgress={userCourseProgress}
-               onSelectLesson={handleSelectLesson}
-               isCourseActive={userProfile.isCourseActive || false}
-               currentStreak={streakData.currentStreak}
-               onExpressCourseInterest={handleExpressCourseInterest}
-               courseInterest={userProfile.courseInterest}
+         {viewMode === 'coursesView' && (
+            <CoursesView
+                userProfile={userProfile}
+                onNavigateToCourse={handleNavigateToCourse}
+                onExpressInterest={(courseId) => {
+                  if (courseId === 'praktisk-viktkontroll') {
+                    handleExpressCourseInterest();
+                  } else if (courseId === 'maxa-klimakteriet') {
+                    handleExpressMenopauseCourseInterest();
+                  }
+                }}
             />
          )}
-          {viewMode === 'lessonDetail' && currentLessonId && (
+         {viewMode === 'courseOverview' && activeCourse && (
+           <CourseOverview
+               lessons={lessonsForOverview}
+               userProgress={userCourseProgress}
+               onSelectLesson={handleSelectLesson}
+               currentStreak={streakData.currentStreak}
+               courseId={activeCourse.id}
+            />
+         )}
+          {viewMode === 'lessonDetail' && currentLessonId && currentLesson && (
             <LessonDetail
-                lesson={courseLessons.find(l => l.id === currentLessonId)!}
+                lesson={currentLesson}
                 progress={userCourseProgress[currentLessonId]}
                 onToggleFocusPoint={handleToggleFocusPoint}
                 onSaveReflection={handleSaveReflection}
@@ -4033,13 +4046,15 @@ useEffect(() => {
         {showUpdateNoticePopup && (
             <UpdateNoticeModal 
                 show={showUpdateNoticePopup} 
-                onClose={handleCloseUpdateNoticePopup} 
+                onClose={handleCloseUpdateNoticePopup}
+                onNavigateToCourses={handleNavigateToCourses}
             />
         )}
         {showLatestUpdateView && (
             <UpdateNoticeModal 
                 show={showLatestUpdateView} 
-                onClose={() => setShowLatestUpdateView(false)} 
+                onClose={() => setShowLatestUpdateView(false)}
+                onNavigateToCourses={handleNavigateToCourses}
             />
         )}
         {showOnboardingRewardModal && (
@@ -4157,7 +4172,7 @@ useEffect(() => {
                     />
                 </div>
             </div>
-          )}
+        )}
         {showRecipeChoiceModal && (
             <RecipeChoiceModal
                 show={showRecipeChoiceModal}
@@ -4310,18 +4325,19 @@ useEffect(() => {
                     <InstallIcon className="w-12 h-12 text-primary flex-shrink-0" />
                     <div>
                         <h3 className="font-bold text-neutral-dark">Installera Kostloggen</h3>
-                        <p className="text-sm text-neutral">Få en snabbare app-upplevelse direkt från hemskärmen.</p>
+                        <p className="text-sm text-neutral">
+                            Få en bättre upplevelse genom att lägga till appen på din hemskärm.
+                        </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={handleDismissInstallBanner} className="p-2 text-sm text-neutral hover:bg-neutral-light rounded-md">Senare</button>
-                    <button onClick={handleInstallClick} className="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm">Installera</button>
+                    <button onClick={handleDismissInstallBanner} className="p-2 text-sm text-neutral hover:bg-neutral-light/70 rounded-md">Senare</button>
+                    <button onClick={handleInstallClick} className="px-4 py-2 text-sm font-semibold text-white bg-primary rounded-md shadow-sm">Installera</button>
                 </div>
             </div>
         </div>
-    )}
-    {showIosInstallPrompt && <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />}
-
+      )}
+      {showIosInstallPrompt && <IosInstallPrompt onClose={handleCloseIosInstallPrompt} />}
     </>
   );
 };

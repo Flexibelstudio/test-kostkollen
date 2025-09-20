@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
 import { PlusCircleIcon, TrashIcon, FireIcon, XMarkIcon, CheckIcon, PencilIcon, ChevronDownIcon, ChevronUpIcon, ProteinIcon, LeafIcon } from './icons.tsx';
@@ -77,31 +78,46 @@ const CommonMealCard: React.FC<{
       <div className="bg-white shadow-soft-xl rounded-lg p-5 border border-primary-lighter relative space-y-4 animate-fade-in">
         <div>
           <label htmlFor={`foodItem-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Måltid</label>
-          <input
-            type="text"
-            id={`foodItem-${meal.id}`}
-            value={editedName}
-            onChange={(e) => setEditedName(e.target.value)}
-            className={inputClass}
-            aria-label="Måltidsnamn"
-          />
+          <div className="relative">
+              <input
+                type="text"
+                id={`foodItem-${meal.id}`}
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                className={`${inputClass} pr-8`}
+                aria-label="Måltidsnamn"
+              />
+              <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-x-5 gap-y-3">
           <div>
             <label htmlFor={`calories-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Kalorier (kcal)</label>
-            <input type="number" id={`calories-${meal.id}`} value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="1" className={inputClass} aria-label="Kalorier" />
+            <div className="relative">
+                <input type="number" id={`calories-${meal.id}`} value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Kalorier" />
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
           <div>
             <label htmlFor={`protein-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Protein (g)</label>
-            <input type="number" id={`protein-${meal.id}`} value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="1" className={inputClass} aria-label="Protein" />
+            <div className="relative">
+                <input type="number" id={`protein-${meal.id}`} value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Protein" />
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
           <div>
             <label htmlFor={`carbs-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Kolhydrater (g)</label>
-            <input type="number" id={`carbs-${meal.id}`} value={editedCarbs} onChange={createNumericHandler(setEditedCarbs)} min="0" step="1" className={inputClass} aria-label="Kolhydrater" />
+            <div className="relative">
+                <input type="number" id={`carbs-${meal.id}`} value={editedCarbs} onChange={createNumericHandler(setEditedCarbs)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Kolhydrater" />
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
           <div>
             <label htmlFor={`fat-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Fett (g)</label>
-            <input type="number" id={`fat-${meal.id}`} value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="1" className={inputClass} aria-label="Fett" />
+            <div className="relative">
+                <input type="number" id={`fat-${meal.id}`} value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Fett" />
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
         </div>
         <div className="flex justify-end space-x-3 mt-4">
@@ -227,7 +243,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
 
   return (
     <>
-      <div className="p-6 bg-white shadow-soft-lg rounded-xl border border-neutral-light">
+      <div className="p-4 sm:p-5 bg-white shadow-soft-lg rounded-xl border border-neutral-light">
         <div className="flex items-center pb-3 border-b border-neutral-light/70 mb-3">
           <span className="text-3xl mr-2.5" role="img" aria-hidden="true">📌</span>
           <h3 className="text-2xl font-semibold text-neutral-dark">Mina vanliga val</h3>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NutritionalInfo, BarcodeScannedFoodInfo } from '../types.ts';
-import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, BarcodeIcon } from './icons.tsx';
+import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, BarcodeIcon, PencilIcon } from './icons.tsx';
 import { playAudio } from '../services/audioService.ts';
 
 interface BarcodeSearchResultModalProps {
@@ -88,7 +88,10 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sca
         <div className="grid grid-cols-2 gap-4">
             <div>
                 <label htmlFor="amount" className={labelClass}>Mängd</label>
-                <input type="text" id="amount" value={amount} onChange={handleAmountChange} className={inputClass} inputMode="decimal" />
+                <div className="relative">
+                    <input type="text" id="amount" value={amount} onChange={handleAmountChange} className={`${inputClass} pr-8`} inputMode="decimal" />
+                    <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+                </div>
             </div>
              <div>
                 <label htmlFor="unit" className={labelClass}>Enhet</label>

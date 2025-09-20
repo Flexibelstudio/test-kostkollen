@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { SearchedFoodInfo } from '../types.ts';
 import { getNutritionalInfoForTextSearch } from '../services/geminiService.ts';
-import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, SearchIcon } from './icons.tsx';
+import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, SearchIcon, PencilIcon } from './icons.tsx';
 import { playAudio } from '../services/audioService.ts';
 
 interface TextEntryModalProps {
@@ -179,36 +179,57 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({ show, onClose, onLog })
                     <div className="space-y-4">
                         <div>
                             <label htmlFor="foodItemTextModal" className={labelClass}>Livsmedel</label>
-                            <input type="text" id="foodItemTextModal" value={editedFoodItem} onChange={(e) => setEditedFoodItem(e.target.value)} className={inputClass} />
+                             <div className="relative">
+                                <input type="text" id="foodItemTextModal" value={editedFoodItem} onChange={(e) => setEditedFoodItem(e.target.value)} className={`${inputClass} pr-8`} />
+                                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+                            </div>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-x-5">
                             <div>
                                 <label htmlFor="servingDescriptionTextModal" className={labelClass}>Basportion (för Antal = 1)</label>
-                                <input type="text" id="servingDescriptionTextModal" value={editedServingDescription} onChange={(e) => setEditedServingDescription(e.target.value)} className={inputClass} />
+                                 <div className="relative">
+                                    <input type="text" id="servingDescriptionTextModal" value={editedServingDescription} onChange={(e) => setEditedServingDescription(e.target.value)} className={`${inputClass} pr-8`} />
+                                    <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+                                </div>
                             </div>
                             <div>
                                 <label htmlFor="quantityTextModal" className={labelClass}>Antal</label>
-                                <input type="text" id="quantityTextModal" value={quantity} onChange={handleQuantityChange} className={inputClass} placeholder="1" inputMode="decimal" />
+                                 <div className="relative">
+                                    <input type="text" id="quantityTextModal" value={quantity} onChange={handleQuantityChange} className={`${inputClass} pr-8`} placeholder="1" inputMode="decimal" />
+                                    <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+                                </div>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-x-5 gap-y-3 pt-2">
                             <div>
                                 <label htmlFor="caloriesTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span>Kalorier (kcal)</label>
-                                <input type="number" id="caloriesTextModal" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="1" className={inputClass} />
+                                <div className="relative">
+                                    <input type="number" id="caloriesTextModal" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                    <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+                                </div>
                             </div>
                             <div>
                                 <label htmlFor="proteinTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Protein">💪</span>Protein (g)</label>
-                                <input type="number" id="proteinTextModal" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="1" className={inputClass} />
+                                 <div className="relative">
+                                    <input type="number" id="proteinTextModal" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                    <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+                                </div>
                             </div>
                             <div>
                                 <label htmlFor="carbohydratesTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span>Kolhydrater (g)</label>
-                                <input type="number" id="carbohydratesTextModal" value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="1" className={inputClass} />
+                                <div className="relative">
+                                    <input type="number" id="carbohydratesTextModal" value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                    <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+                                </div>
                             </div>
                             <div>
                                 <label htmlFor="fatTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Fett">🥑</span>Fett (g)</label>
-                                <input type="number" id="fatTextModal" value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="1" className={inputClass} />
+                                <div className="relative">
+                                    <input type="number" id="fatTextModal" value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                    <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+                                </div>
                             </div>
                         </div>
                         

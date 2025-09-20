@@ -149,6 +149,7 @@ export enum AppStatus {
 export type ViewMode =
   | "main"
   | "journey"
+  | "coursesView"
   | "courseOverview"
   | "lessonDetail"
   | "community";
@@ -201,6 +202,8 @@ export interface UserProfileData {
   goalCompletionDate?: string;
   isCourseActive?: boolean;
   courseInterest?: boolean;
+  menopauseCourseActive?: boolean;
+  menopauseCourseInterest?: boolean;
   isSearchable?: boolean;
   goalStartWeight?: number;
   goalStartMuscleMassKg?: number;
@@ -446,6 +449,8 @@ export interface CoachViewMember {
   photoURL?: string;
   isCourseActive?: boolean;
   courseInterest?: boolean;
+  menopauseCourseActive?: boolean;
+  menopauseCourseInterest?: boolean;
   memberSince: string;
   lastLogDate?: string;
   currentStreak: number;

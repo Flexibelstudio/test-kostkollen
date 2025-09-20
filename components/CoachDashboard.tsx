@@ -3,8 +3,6 @@ import { CoachViewMember, UserRole } from '../types';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon as CloseIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon } from './icons';
 import { User, PieChart } from 'lucide-react'; // Import new Lucide icons
 import { playAudio } from '../services/audioService';
-import { auth } from '../firebase';
-import { getFunctions, httpsCallable } from "@firebase/functions";
 import { 
     fetchCoachViewMembers, 
     setCourseAccessForMember, 
@@ -77,7 +75,7 @@ const BulkActionButton: React.FC<{ onClick: () => void; children: React.ReactNod
     <button onClick={onClick} disabled={disabled} className={`px-3 py-1.5 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${className}`}>{children}</button>
 );
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; onManualSummary: () => void; isSummarizing: boolean; }> = ({ membersList, isExpanded, onToggle, onManualSummary, isSummarizing }) => {
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void }> = ({ membersList, isExpanded, onToggle }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
@@ -115,27 +113,10 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
 
     return (
         <section className="bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light">
-            <div className="flex justify-between items-center mb-2 flex-wrap gap-4">
-                 <button onClick={onToggle} className="flex-1 flex justify-between items-center text-left group" aria-expanded={isExpanded} aria-controls="group-insights-panel">
-                    <h2 className="text-2xl font-semibold text-neutral-dark group-hover:text-primary transition-colors">Insikter på gruppnivå</h2>
-                    {isExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
-                </button>
-                 <button 
-                    onClick={onManualSummary} 
-                    disabled={isSummarizing}
-                    className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-secondary hover:bg-secondary-darker rounded-lg shadow-md active:scale-95 transform transition-all disabled:opacity-60 disabled:cursor-wait"
-                    title="Kör en manuell summering av gårdagen för alla användare. Används om den automatiska processen misslyckats."
-                 >
-                    {isSummarizing ? (
-                        <>
-                            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
-                            Summerar...
-                        </>
-                    ) : (
-                        "⚡ Summera Gårdagen Manuellt"
-                    )}
-                 </button>
-            </div>
+            <button onClick={onToggle} className="w-full flex justify-between items-center text-left mb-2 group" aria-expanded={isExpanded} aria-controls="group-insights-panel">
+                <h2 className="text-2xl font-semibold text-neutral-dark group-hover:text-primary transition-colors">Insikter på gruppnivå</h2>
+                {isExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
+            </button>
             {isExpanded && (
                 <div id="group-insights-panel" className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-fade-in">
                     <StatCard icon={<UserGroupIcon className="w-6 h-6 text-blue-800" />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} colorClass="bg-blue-100" />
@@ -173,15 +154,17 @@ const MemberFilters: React.FC<{
 const BulkActionsBar: React.FC<{
     selectedCount: number;
     onClearSelection: () => void;
-    onBulkAction: (action: 'approve' | 'activateCourse' | 'deactivateCourse' | 'setRoleCoach' | 'setRoleMember') => void;
+    onBulkAction: (action: 'approve' | 'activateCoursePV' | 'deactivateCoursePV' | 'activateCourseMK' | 'deactivateCourseMK' | 'setRoleCoach' | 'setRoleMember') => void;
     isBulkUpdating: boolean;
 }> = ({ selectedCount, onClearSelection, onBulkAction, isBulkUpdating }) => (
     <div className="bg-primary-100 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-[88px] z-30 mb-4 animate-fade-in shadow-md">
         <span className="font-semibold text-primary-darker">{selectedCount} medlemmar valda</span>
         <div className="flex items-center gap-2 flex-wrap justify-center">
             <BulkActionButton onClick={() => onBulkAction('approve')} disabled={isBulkUpdating} className="bg-primary-200 text-primary-darker hover:bg-primary-lighter">Godkänn</BulkActionButton>
-            <BulkActionButton onClick={() => onBulkAction('activateCourse')} disabled={isBulkUpdating} className="bg-blue-200 text-blue-800 hover:bg-blue-300">Aktivera Kurs</BulkActionButton>
-            <BulkActionButton onClick={() => onBulkAction('deactivateCourse')} disabled={isBulkUpdating} className="bg-red-200 text-red-800 hover:bg-red-300">Avaktivera Kurs</BulkActionButton>
+            <BulkActionButton onClick={() => onBulkAction('activateCoursePV')} disabled={isBulkUpdating} className="bg-blue-200 text-blue-800 hover:bg-blue-300">Aktivera Viktkontroll</BulkActionButton>
+            <BulkActionButton onClick={() => onBulkAction('deactivateCoursePV')} disabled={isBulkUpdating} className="bg-red-200 text-red-800 hover:bg-red-300">Avaktivera Viktkontroll</BulkActionButton>
+            <BulkActionButton onClick={() => onBulkAction('activateCourseMK')} disabled={isBulkUpdating} className="bg-blue-200 text-blue-800 hover:bg-blue-300">Aktivera Klimakteriet</BulkActionButton>
+            <BulkActionButton onClick={() => onBulkAction('deactivateCourseMK')} disabled={isBulkUpdating} className="bg-red-200 text-red-800 hover:bg-red-300">Avaktivera Klimakteriet</BulkActionButton>
             <BulkActionButton onClick={() => onBulkAction('setRoleCoach')} disabled={isBulkUpdating} className="bg-purple-200 text-purple-800 hover:bg-purple-300">Gör till Coach</BulkActionButton>
             <BulkActionButton onClick={() => onBulkAction('setRoleMember')} disabled={isBulkUpdating} className="bg-yellow-200 text-yellow-800 hover:bg-yellow-300">Gör till Medlem</BulkActionButton>
         </div>
@@ -202,7 +185,7 @@ const MemberListTable: React.FC<{
     onShowDetails: (member: CoachViewMember) => void;
     onApprove: (id: string) => void;
     onRevoke: (id: string) => void;
-    onToggleCourse: (id: string, currentStatus: boolean) => void;
+    onToggleCourse: (id: string, courseField: 'isCourseActive' | 'menopauseCourseActive', interestField: 'courseInterest' | 'menopauseCourseInterest', currentStatus: boolean) => void;
     onUpdateRole: (id: string, newRole: UserRole) => void;
 }> = (props) => (
     <div className="overflow-x-auto custom-scrollbar">
@@ -216,7 +199,7 @@ const MemberListTable: React.FC<{
                     <SortableHeader column="goalSummary" label="Mål" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                     <SortableHeader column="numberOfBuddies" label="Kompisar" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                     <SortableHeader column="status" label="Status" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
-                    <SortableHeader column="isCourseActive" label="Kurs" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
+                    <SortableHeader column="isCourseActive" label="Kurser" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                     <th scope="col" className="px-4 py-3.5 text-left text-xs sm:text-sm font-medium text-neutral-dark uppercase tracking-wider">Åtgärder</th>
                 </tr>
             </thead>
@@ -230,14 +213,27 @@ const MemberListTable: React.FC<{
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral">{member.goalSummary}</td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral text-center">{member.numberOfBuddies ?? 0}</td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral"><StatusBadge status={member.status} /></td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-center">{member.isCourseActive ? <CheckCircleIcon className="w-5 h-5 text-primary mx-auto" title="Kursen är aktiv" /> : <span className="text-neutral">-</span>}</td>
+                        <td className="px-4 py-4 whitespace-nowrap text-xs text-neutral-dark space-y-2">
+                           <div className="flex items-center gap-2">
+                                <span className="font-semibold w-20">Viktkontroll:</span>
+                                {member.isCourseActive ? <CheckCircleIcon className="w-4 h-4 text-primary flex-shrink-0" title="Kursen är aktiv"/> : (member.courseInterest ? <span className="text-yellow-500 animate-pulse font-bold text-lg flex-shrink-0" title="Medlemmen vill aktivera kursen">💲</span> : <span>-</span>)}
+                           </div>
+                           <div className="flex items-center gap-2">
+                                <span className="font-semibold w-20">Klimakteriet:</span>
+                                {member.menopauseCourseActive ? <CheckCircleIcon className="w-4 h-4 text-primary flex-shrink-0" title="Kursen är aktiv"/> : (member.menopauseCourseInterest ? <span className="text-yellow-500 animate-pulse font-bold text-lg flex-shrink-0" title="Medlemmen vill aktivera kursen">💲</span> : <span>-</span>)}
+                           </div>
+                        </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex items-center flex-wrap gap-2">
-                                <button onClick={() => props.onShowDetails(member)} className="text-primary hover:text-primary-darker hover:underline flex items-center" aria-label={`Visa detaljer för ${member.name}`}><EyeIcon className="w-4 h-4 mr-1" /> Visa</button>
-                                {member.status === 'pending' ? (<button onClick={() => props.onApprove(member.id)} disabled={props.updatingMemberId === member.id} className="px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 bg-primary-100 text-primary-darker hover:bg-primary-200 flex items-center"><CheckCircleIcon className="w-4 h-4 mr-1"/> Godkänn</button>) : (<button onClick={() => props.onRevoke(member.id)} disabled={props.updatingMemberId === member.id} className="px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 bg-yellow-100 text-yellow-800 hover:bg-yellow-200 flex items-center"><XCircleIcon className="w-4 h-4 mr-1"/> Dra tillbaka</button>)}
-                                {member.courseInterest && !member.isCourseActive && <span title="Medlemmen vill aktivera kursen" className="text-yellow-500 animate-pulse text-lg font-bold">💲</span>}
-                                <button onClick={() => props.onToggleCourse(member.id, member.isCourseActive || false)} disabled={props.updatingMemberId === member.id} className={`px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${member.isCourseActive ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${member.courseInterest && !member.isCourseActive ? 'ring-2 ring-yellow-400 font-bold' : ''}`}>{props.updatingMemberId === member.id ? 'Sparar...' : (member.isCourseActive ? 'Avaktivera Kurs' : 'Aktivera Kurs')}</button>
-                                {member.status === 'approved' && member.id !== props.currentUserId && (<button onClick={() => props.onUpdateRole(member.id, member.role === 'coach' ? 'member' : 'coach')} disabled={props.updatingMemberId === member.id} className={`px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${member.role === 'coach' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-purple-100 text-purple-800 hover:bg-purple-200'}`}>{props.updatingMemberId === member.id ? 'Sparar...' : (member.role === 'coach' ? 'Degradera' : 'Befordra')}</button>)}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center flex-wrap gap-2">
+                                    <button onClick={() => props.onShowDetails(member)} className="text-primary hover:text-primary-darker hover:underline flex items-center" aria-label={`Visa detaljer för ${member.name}`}><EyeIcon className="w-4 h-4 mr-1" /> Visa</button>
+                                    {member.status === 'pending' ? (<button onClick={() => props.onApprove(member.id)} disabled={props.updatingMemberId === member.id} className="px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 bg-primary-100 text-primary-darker hover:bg-primary-200 flex items-center"><CheckCircleIcon className="w-4 h-4 mr-1"/> Godkänn</button>) : (<button onClick={() => props.onRevoke(member.id)} disabled={props.updatingMemberId === member.id} className="px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 bg-yellow-100 text-yellow-800 hover:bg-yellow-200 flex items-center"><XCircleIcon className="w-4 h-4 mr-1"/> Dra tillbaka</button>)}
+                                    {member.status === 'approved' && member.id !== props.currentUserId && (<button onClick={() => props.onUpdateRole(member.id, member.role === 'coach' ? 'member' : 'coach')} disabled={props.updatingMemberId === member.id} className={`px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${member.role === 'coach' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-purple-100 text-purple-800 hover:bg-purple-200'}`}>{props.updatingMemberId === member.id ? 'Sparar...' : (member.role === 'coach' ? 'Degradera' : 'Befordra')}</button>)}
+                                </div>
+                                <div className="border-t pt-2 flex flex-wrap gap-2">
+                                    <button onClick={() => props.onToggleCourse(member.id, 'isCourseActive', 'courseInterest', member.isCourseActive || false)} disabled={props.updatingMemberId === member.id} className={`px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${member.isCourseActive ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${member.courseInterest && !member.isCourseActive ? 'ring-2 ring-yellow-400 font-bold' : ''}`}>{props.updatingMemberId === member.id ? 'Sparar...' : (member.isCourseActive ? 'Avakt. Vikt' : 'Aktivera Vikt')}</button>
+                                    <button onClick={() => props.onToggleCourse(member.id, 'menopauseCourseActive', 'menopauseCourseInterest', member.menopauseCourseActive || false)} disabled={props.updatingMemberId === member.id} className={`px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${member.menopauseCourseActive ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${member.menopauseCourseInterest && !member.menopauseCourseActive ? 'ring-2 ring-yellow-400 font-bold' : ''}`}>{props.updatingMemberId === member.id ? 'Sparar...' : (member.menopauseCourseActive ? 'Avakt. Klim.' : 'Aktivera Klim.')}</button>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -262,8 +258,6 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialSortOrder);
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [isSummarizing, setIsSummarizing] = useState(false);
-
 
     const fetchMembers = useCallback(async () => {
         setIsLoadingMembers(true);
@@ -296,9 +290,9 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         }
     }, []);
 
-    const handleToggleCourseAccess = useCallback((memberId: string, currentStatus: boolean) => {
-        handleAction(setCourseAccessForMember(memberId, !currentStatus), memberId).then(() => {
-            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, isCourseActive: !currentStatus, courseInterest: false } : m));
+    const handleToggleCourseAccess = useCallback((memberId: string, courseField: 'isCourseActive' | 'menopauseCourseActive', interestField: 'courseInterest' | 'menopauseCourseInterest', currentStatus: boolean) => {
+        handleAction(setCourseAccessForMember(memberId, courseField, interestField, !currentStatus), memberId).then(() => {
+            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, [courseField]: !currentStatus, [interestField]: false } : m));
         });
     }, [handleAction]);
 
@@ -320,15 +314,17 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         });
     }, [handleAction]);
 
-    const handleBulkAction = useCallback(async (action: 'approve' | 'activateCourse' | 'deactivateCourse' | 'setRoleCoach' | 'setRoleMember') => {
+    const handleBulkAction = useCallback(async (action: 'approve' | 'activateCoursePV' | 'deactivateCoursePV' | 'activateCourseMK' | 'deactivateCourseMK' | 'setRoleCoach' | 'setRoleMember') => {
         const idsToUpdate = Array.from(selectedMemberIds);
         if (idsToUpdate.length === 0) return;
         setIsBulkUpdating(true);
         try {
             const actions = {
                 'approve': bulkApproveMembers(idsToUpdate),
-                'activateCourse': bulkSetCourseAccess(idsToUpdate, true),
-                'deactivateCourse': bulkSetCourseAccess(idsToUpdate, false),
+                'activateCoursePV': bulkSetCourseAccess(idsToUpdate, 'isCourseActive', 'courseInterest', true),
+                'deactivateCoursePV': bulkSetCourseAccess(idsToUpdate, 'isCourseActive', 'courseInterest', false),
+                'activateCourseMK': bulkSetCourseAccess(idsToUpdate, 'menopauseCourseActive', 'menopauseCourseInterest', true),
+                'deactivateCourseMK': bulkSetCourseAccess(idsToUpdate, 'menopauseCourseActive', 'menopauseCourseInterest', false),
                 'setRoleCoach': bulkUpdateUserRole(idsToUpdate, 'coach'),
                 'setRoleMember': bulkUpdateUserRole(idsToUpdate, 'member')
             };
@@ -343,41 +339,13 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
             setIsBulkUpdating(false);
         }
     }, [selectedMemberIds, fetchMembers]);
-    
-    const handleManualSummary = async () => {
-        playAudio('uiClick');
-        if (!window.confirm("Är du säker på att du vill köra en manuell summering av gårdagen för ALLA användare? Detta kan inte ångras och kan ta en stund.")) {
-            return;
-        }
-        setIsSummarizing(true);
-        try {
-            const functions = getFunctions();
-            const manualSummarize = httpsCallable(functions, 'manualSummarizeYesterday');
-            const result = await manualSummarize({});
-            const data = result.data as { success: boolean; message: string };
-            alert(data.message || "Summering slutförd!");
-        } catch (error) {
-            console.error("Manual summary failed:", error);
-            const err = error as any;
-            let errorMessage = "Ett okänt fel uppstod vid anrop.";
-            if (err.code === 'internal') {
-                errorMessage = "Summeringen misslyckades på servern (internal error). Detta kan bero på hög belastning eller ett timeout-fel. Försök igen om en stund.";
-            } else if (err.message) {
-                errorMessage = err.message;
-            }
-            alert(`Ett fel uppstod: ${errorMessage}`);
-        } finally {
-            setIsSummarizing(false);
-        }
-    };
-
 
     const filteredMembers = useMemo(() => membersList.filter(member => {
         const searchMatches = searchQuery.trim() === '' || member.name.toLowerCase().includes(searchQuery.toLowerCase()) || member.email.toLowerCase().includes(searchQuery.toLowerCase());
         if (!searchMatches) return false;
         if (!showOnlyPending && !showOnlyInterest) return true;
         const isPending = showOnlyPending && member.status === 'pending';
-        const hasInterest = showOnlyInterest && member.courseInterest && !member.isCourseActive;
+        const hasInterest = showOnlyInterest && (member.courseInterest || member.menopauseCourseInterest);
         return isPending || hasInterest;
     }), [membersList, showOnlyPending, showOnlyInterest, searchQuery]);
 
@@ -402,10 +370,14 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     }, [filteredMembers, sortBy, sortOrder]);
     
     const pendingCount = useMemo(() => membersList.filter(m => m.status === 'pending').length, [membersList]);
-    const interestCount = useMemo(() => membersList.filter(m => m.courseInterest && !m.isCourseActive).length, [membersList]);
+    const interestCount = useMemo(() => membersList.filter(m => (m.courseInterest && !m.isCourseActive) || (m.menopauseCourseInterest && !m.menopauseCourseActive)).length, [membersList]);
+
 
     return {
-        membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending, showOnlyInterest, setShowOnlyInterest, selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating, searchQuery, setSearchQuery, fetchMembers, handleToggleCourseAccess, handleApproveMember, handleRevokeApproval, handleUpdateRole, handleBulkAction, handleManualSummary, isSummarizing, sortedAndFilteredMembers, pendingCount, interestCount
+        membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending, showOnlyInterest,
+        setShowOnlyInterest, selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
+        searchQuery, setSearchQuery, fetchMembers, handleToggleCourseAccess, handleApproveMember, handleRevokeApproval,
+        handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount, interestCount
     };
 };
 
@@ -428,7 +400,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending, showOnlyInterest,
       setShowOnlyInterest, selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
       searchQuery, setSearchQuery, fetchMembers, handleToggleCourseAccess, handleApproveMember, handleRevokeApproval,
-      handleUpdateRole, handleBulkAction, handleManualSummary, isSummarizing, sortedAndFilteredMembers, pendingCount, interestCount
+      handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount, interestCount
   } = useCoachDashboard();
   
   const handleSort = (column: SortableKeys) => {
@@ -469,7 +441,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         </div>
       </header>
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
-        <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} onManualSummary={handleManualSummary} isSummarizing={isSummarizing} />
+        <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} />
         <section className="bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light">
           <MemberFilters searchQuery={searchQuery} onSearchChange={setSearchQuery} showOnlyPending={showOnlyPending} onPendingChange={setShowOnlyPending} pendingCount={pendingCount} showOnlyInterest={showOnlyInterest} onInterestChange={setShowOnlyInterest} interestCount={interestCount} onRefresh={fetchMembers} isRefreshDisabled={isLoadingMembers || isBulkUpdating} />
           {selectedMemberIds.size > 0 && <BulkActionsBar selectedCount={selectedMemberIds.size} onClearSelection={() => setSelectedMemberIds(new Set())} onBulkAction={handleBulkAction} isBulkUpdating={isBulkUpdating} />}
