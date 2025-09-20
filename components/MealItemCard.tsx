@@ -9,9 +9,10 @@ interface MealItemCardProps {
   onUpdate: (mealId: string, updatedInfo: NutritionalInfo) => void;
   onSelectForCommonSave: (meal: LoggedMeal) => void;
   isReadOnly?: boolean; // New prop
+  isNewlyAdded?: boolean;
 }
 
-const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, onSelectForCommonSave, isReadOnly = false }) => {
+const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, onSelectForCommonSave, isReadOnly = false, isNewlyAdded = false }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedFoodItem, setEditedFoodItem] = useState(meal.nutritionalInfo.foodItem || '');
   const [editedCalories, setEditedCalories] = useState(meal.nutritionalInfo.calories.toString());
@@ -79,32 +80,47 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
       <div className={`bg-white shadow-soft-xl rounded-lg p-5 border border-primary-lighter relative space-y-4 animate-fade-in`}> {/* Enhanced shadow for editing state */}
         <div>
           <label htmlFor={`foodItem-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Måltid</label>
-          <input
-            type="text"
-            id={`foodItem-${meal.id}`}
-            value={editedFoodItem}
-            onChange={(e) => setEditedFoodItem(e.target.value)}
-            className={inputClass}
-            aria-label="Måltidsnamn"
-            readOnly={isReadOnly}
-          />
+           <div className="relative">
+              <input
+                type="text"
+                id={`foodItem-${meal.id}`}
+                value={editedFoodItem}
+                onChange={(e) => setEditedFoodItem(e.target.value)}
+                className={`${inputClass} pr-8`}
+                aria-label="Måltidsnamn"
+                readOnly={isReadOnly}
+              />
+              <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-x-5 gap-y-3">
           <div>
             <label htmlFor={`calories-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Kalorier (kcal)</label>
-            <input type="number" id={`calories-${meal.id}`} value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="1" className={inputClass} aria-label="Kalorier" readOnly={isReadOnly}/>
+             <div className="relative">
+                <input type="number" id={`calories-${meal.id}`} value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Kalorier" readOnly={isReadOnly}/>
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
           <div>
             <label htmlFor={`protein-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Protein (g)</label>
-            <input type="number" id={`protein-${meal.id}`} value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="1" className={inputClass} aria-label="Protein" readOnly={isReadOnly}/>
+             <div className="relative">
+                <input type="number" id={`protein-${meal.id}`} value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Protein" readOnly={isReadOnly}/>
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
           <div>
             <label htmlFor={`carbs-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Kolhydrater (g)</label>
-            <input type="number" id={`carbs-${meal.id}`} value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="1" className={inputClass} aria-label="Kolhydrater" readOnly={isReadOnly}/>
+             <div className="relative">
+                <input type="number" id={`carbs-${meal.id}`} value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Kolhydrater" readOnly={isReadOnly}/>
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
           <div>
             <label htmlFor={`fat-${meal.id}`} className="block text-sm font-medium text-neutral-dark">Fett (g)</label>
-            <input type="number" id={`fat-${meal.id}`} value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="1" className={inputClass} aria-label="Fett" readOnly={isReadOnly}/>
+             <div className="relative">
+                <input type="number" id={`fat-${meal.id}`} value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Fett" readOnly={isReadOnly}/>
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
         </div>
         <div className="flex justify-end space-x-3 mt-4">
@@ -131,7 +147,7 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
 
   return (
     <>
-      <div className={`bg-white shadow-soft-lg rounded-lg p-4 border border-neutral-light relative animate-fade-slide-in interactive-transition group hover:shadow-soft-xl ${!isReadOnly ? 'hover:scale-[1.02]' : ''} ${isReadOnly ? 'opacity-70' : ''}`}>
+      <div className={`bg-white shadow-soft-lg rounded-lg p-4 border border-neutral-light relative group hover:shadow-soft-xl ${!isReadOnly ? 'hover:scale-[1.02]' : ''} ${isReadOnly ? 'opacity-70' : ''} ${isNewlyAdded ? 'animate-meal-drop-bounce' : 'animate-fade-slide-in'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3 flex-grow min-w-0"> {/* min-w-0 for truncation */}
             {meal.imageUrl && (

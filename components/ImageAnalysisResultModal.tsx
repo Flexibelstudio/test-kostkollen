@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { NutritionalInfo } from '../types.ts';
-import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, CameraIcon } from './icons.tsx'; 
+import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, CameraIcon, PencilIcon } from './icons.tsx'; 
 import { playAudio } from '../services/audioService.ts';
 
 interface ImageAnalysisResultModalProps {
@@ -92,25 +92,40 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ ana
         
         <div>
           <label htmlFor="foodItemModal" className={labelClass}>Identifierat livsmedel</label>
-          <input type="text" name="foodItem" id="foodItemModal" value={editedInfo.foodItem || ''} onChange={handleChange} className={inputClass} />
+           <div className="relative">
+                <input type="text" name="foodItem" id="foodItemModal" value={editedInfo.foodItem || ''} onChange={handleChange} className={`${inputClass} pr-8`} />
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
         </div>
         
         <div className="grid grid-cols-2 gap-x-5 gap-y-3">
           <div>
             <label htmlFor="caloriesModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span>Kalorier (kcal)</label>
-            <input type="number" name="calories" id="caloriesModal" value={editedInfo.calories} onChange={handleChange} min="0" step="1" className={inputClass} />
+            <div className="relative">
+                <input type="number" name="calories" id="caloriesModal" value={editedInfo.calories} onChange={handleChange} min="0" step="1" className={`${inputClass} pr-8`} />
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
           <div>
             <label htmlFor="proteinModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Protein">💪</span>Protein (g)</label>
-            <input type="number" name="protein" id="proteinModal" value={editedInfo.protein} onChange={handleChange} min="0" step="1" className={inputClass} />
+            <div className="relative">
+                <input type="number" name="protein" id="proteinModal" value={editedInfo.protein} onChange={handleChange} min="0" step="1" className={`${inputClass} pr-8`} />
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
           <div>
             <label htmlFor="carbohydratesModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span>Kolhydrater (g)</label>
-            <input type="number" name="carbohydrates" id="carbohydratesModal" value={editedInfo.carbohydrates} onChange={handleChange} min="0" step="1" className={inputClass} />
+            <div className="relative">
+                <input type="number" name="carbohydrates" id="carbohydratesModal" value={editedInfo.carbohydrates} onChange={handleChange} min="0" step="1" className={`${inputClass} pr-8`} />
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
           <div>
             <label htmlFor="fatModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Fett">🥑</span>Fett (g)</label>
-            <input type="number" name="fat" id="fatModal" value={editedInfo.fat} onChange={handleChange} min="0" step="1" className={inputClass} />
+            <div className="relative">
+                <input type="number" name="fat" id="fatModal" value={editedInfo.fat} onChange={handleChange} min="0" step="1" className={`${inputClass} pr-8`} />
+                <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+            </div>
           </div>
         </div>
         
