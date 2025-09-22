@@ -2217,9 +2217,29 @@ if (appData) {
   setPastDaysSummary(appData.pastDaySummaries);
 
   if (wasDaySuccessful) {
+    const newStreakValue = summaryForThisDay.streakForThisDay || 0;
+    
+    // Skapa en händelse för +1 streak i flödet
+    if (newStreakValue > 0 && currentUser) {
+        try {
+            const streakEventData = {
+                type: 'streak' as const,
+                timestamp: Date.now(),
+                title: `har fått +1 på sin Streak!`,
+                description: `Ny streak: ${newStreakValue} dagar i följd.`,
+                icon: '🔥',
+                relatedDocId: `streak_${yKey}`
+            };
+            await addTimelineEvent(currentUser.uid, streakEventData);
+        } catch (error) {
+            console.error("Failed to create streak timeline event:", error);
+            // Non-blocking error
+        }
+    }
+    
     setShowGoalMetModalData({
       date: yKey,
-      streak: summaryForThisDay.streakForThisDay || 0,
+      streak: newStreakValue,
     });
     setShowConfetti(true);
     playAudio("levelUp");
