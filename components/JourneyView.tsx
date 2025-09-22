@@ -728,10 +728,10 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       <div className="fixed right-6 bottom-6 z-40">
           <button
             onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); }}
-            className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white shadow-xl hover:bg-secondary-darker active:scale-95 transform transition-all animate-scale-in"
+            className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-xl hover:bg-blue-600 active:scale-95 transform transition-all animate-pulse-blue"
             aria-label="Fråga Flexibot AI-Coach"
           >
-            <AICoachIcon className="w-8 h-8" />
+            <AICoachIcon className="w-10 h-10" />
           </button>
       </div>
 
