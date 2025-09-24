@@ -72,7 +72,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ onClose, userName }) => {
         </FeatureItem>
         
         <FeatureItem icon={<span className="text-2xl w-6 text-center">📆</span>} title="Automatisk Dagavslutning, Streaks & Nivåer">
-            Varje dag vid midnatt utvärderas din logg. För att bygga din streak (dagar i rad du når målet) och låsa upp nya nivåer, behöver du äta inom ett hälsosamt kaloriintervall – varken för lågt, eller över ditt dagliga mål (efter eventuell användning av sparpotten). Kalorier som blir över (inom det hälsosamma intervallet) hamnar i din Sparpott!
+            Varje dag vid midnatt utvärderas din logg. Din streak (🔥) ökar så länge du loggar minst en måltid per dag – det belönar vanan! Kalenderdagarna blir gröna när du når ditt kalorimål (efter ev. sparpott), och orange om du loggat men hamnat utanför målet.
         </FeatureItem>
 
         <FeatureItem icon={<span className="text-2xl w-6 text-center">👣</span>} title="Följ din Resa">

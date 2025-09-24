@@ -2091,6 +2091,9 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       fetchMealLogsForDate(uid, yKey),
       fetchWaterLog(uid, yKey),
     ]);
+    
+    // NEW: A streak is earned if any meal was logged.
+    const wasYesterdayLogged = dailyLogForDate.length > 0;
 
     // --- Summera näring ---
     const totalNutrientsForDay = dailyLogForDate.reduce(
@@ -2163,8 +2166,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       const prevStreak = userDataTx.currentStreak ?? 0;
       const prevHighest = userDataTx.highestStreak ?? 0;
 
-      const nextStreak = wasDaySuccessful ? prevStreak + 1 : 0;
-      const newHighestStreak = Math.max(prevHighest, nextStreak); // <-- FIX
+      const nextStreak = wasYesterdayLogged ? prevStreak + 1 : 0;
+      const newHighestStreak = Math.max(prevHighest, nextStreak);
 
       summaryForThisDay.streakForThisDay = nextStreak;
 
@@ -2204,7 +2207,6 @@ tx.update(userRef, {
 });
 }); // <-- slut på runTransaction
 
-// ✅ Re-fetch ligger nu INNE i den async-funktionen (så await är tillåtet)
 const appData = await fetchInitialAppData(uid);
 if (appData) {
   setStreakData({
@@ -2245,10 +2247,12 @@ if (appData) {
     playAudio("levelUp");
     setTimeout(() => setShowConfetti(false), 5000);
   } else {
-    if (appData.streakSaver?.available) {
-      setDayToPotentiallySave(summaryForThisDay);
-    } else {
-      setShowMotivationModal(summaryForThisDay);
+    if (wasYesterdayLogged) {
+        if (appData.streakSaver?.available) {
+            setDayToPotentiallySave(summaryForThisDay);
+        } else {
+            setShowMotivationModal(summaryForThisDay);
+        }
     }
   }
 }

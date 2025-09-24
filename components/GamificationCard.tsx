@@ -51,7 +51,7 @@ const GamificationCard: React.FC<GamificationCardProps> = ({
               <div className="flex items-start space-x-3">
               <span className="text-3xl" role="img" aria-label="Streak-ikon">🔥</span>
               <p className="text-sm text-neutral">
-                  För att bygga din streak: ät minst {minSafeCalories.toFixed(0)} kcal, och håll ditt effektiva intag (efter ev. användning av sparpott) under {goals.calorieGoal.toFixed(0)} kcal för dagen.
+                  För att bygga din streak (🔥), logga minst en måltid varje dag. Kalenderdagarna blir gröna när du håller dig inom ditt kaloriintervall.
               </p>
               </div>
           </div>
