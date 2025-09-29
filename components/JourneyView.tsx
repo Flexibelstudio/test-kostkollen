@@ -1,7 +1,6 @@
-
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { User } from '@firebase/auth';
-import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, StreakSaver, Reactions, AIDataForJourneyAnalysis } from '../types';
+import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
 import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PencilIcon, ChartLineIcon, SparklesIcon, UserCircleIcon, InformationCircleIcon, CheckIcon, BookOpenIcon, TrophyIcon, BarcodeIcon, UserGroupIcon, ChevronDownIcon, ChevronUpIcon, ShareIcon, HeartIcon, XMarkIcon, LifebuoyIcon, AICoachIcon } from './icons';
 import { User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
 import WeightChart from './WeightChart.tsx'; 
@@ -35,6 +34,7 @@ interface JourneyViewProps {
   achievementInteractions: { [id: string]: { reactions: Reactions } };
   journeyAnalysisFeedback: AIStructuredFeedbackResponse | null;
   onNavigateToMainWithDate: (date: Date) => void;
+  // FIX: Add streakSaver to the props interface.
   streakSaver: StreakSaver | null;
   analysisContext: AIDataForJourneyAnalysis;
   setShowAICoachModal: (show: boolean) => void;
@@ -127,10 +127,9 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       initialTab, highestStreak, highestLevelId, minSafeCalories,
       setToastNotification, achievements, unlockedAchievements, achievementInteractions, journeyAnalysisFeedback,
       onNavigateToMainWithDate,
-      streakSaver,
       analysisContext,
       setShowAICoachModal,
-      onDiscussSavedAnalysis
+      onDiscussSavedAnalysis,
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -512,7 +511,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                                                 const dayISO = getLocalISODateString(dayDate);
                                                                                 const isFutureDay = dayDate > currentDate;
                                                                                 const isToday = dayISO === todayISO;
-                                                                                const isYesterday = dayISO === getLocalISODateString(addDays(currentDate, -1));
                                                                                 const isClickable = !isFutureDay;
                                                                                 const isViewingThisDay = dayISO === getLocalISODateString(viewingDate);
                                                                                 const waterGoalWasMet = summary?.waterGoalMet === true;
@@ -552,7 +550,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                                                                             {summary.proteinGoalMet && <span role="img" aria-label="Proteinmål uppnått" title="Proteinmål uppnått" className="text-sm">💪</span>}
                                                                                                         </div>
                                                                                                         <div className="w-4 h-4 flex items-center justify-center">
-                                                                                                            {summary.savedBy === 'streakSaver' && <LifebuoyIcon className="w-4 h-4 text-secondary" title="Streak räddad"/>}
                                                                                                         </div>
                                                                                                     </>
                                                                                                 )}
@@ -595,7 +592,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                 minSafeCalories={minSafeCalories}
                                 highestStreak={highestStreak}
                                 highestLevelId={highestLevelId}
-                                streakSaver={streakSaver}
                                 isExpanded={isGamificationCardExpanded}
                                 onToggle={() => {
                                     playAudio('uiClick');

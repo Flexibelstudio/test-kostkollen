@@ -4,7 +4,7 @@ import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import {
   doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction,
   serverTimestamp, getDocs, query, where, orderBy, setDoc, updateDoc, limit, Timestamp
-} from "firebase/firestore";
+} from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
@@ -94,7 +94,7 @@ import {
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 
 /* ===========================
-   Start of new Daily Summary Logic
+   Start of Daily Summary Helpers
    =========================== */
 
 const TZ = "Europe/Stockholm";
@@ -117,182 +117,8 @@ const yesterdayRangeSE = (now = new Date()) => {
   return { start, end, yKey: dayKeySE(start) };
 };
 
-// Hämta entries för gårdagen (stöd för timestamp(ms), Firestore Timestamp och dateString)
-async function getEntriesBetween(uid: string, start: Date, end: Date) {
-  const ref = collection(db!, "users", uid, "mealLogs");
-  const yKey = dayKeySE(start); // t.ex. "2025-09-09"
-
-  const out: any[] = [];
-  const seen = new Set<string>();
-  const push = (snap: any) =>
-    snap.forEach((d: any) => {
-      if (!seen.has(d.id)) {
-        seen.add(d.id);
-        out.push({ id: d.id, ...d.data() });
-      }
-    });
-
-  // 1) timestamp i millisekunder [start, end)
-  try {
-    const q0 = query(
-      ref,
-      where("timestamp", ">=", +start),
-      where("timestamp", "<", +end)
-    );
-    push(await getDocs(q0));
-  } catch {}
-
-  // 2) Firestore Timestamp (om vissa docs har createdAt)
-  try {
-    const q1 = query(
-      ref,
-      where("createdAt", ">=", Timestamp.fromDate(start)),
-      where("createdAt", "<", Timestamp.fromDate(end))
-    );
-    push(await getDocs(q1));
-  } catch {}
-
-  // 3) Strängnyckel för datum (vanligast hos er: dateString)
-  for (const field of ["dateString", "dateKey", "date", "dayKey", "dateStr"]) {
-    try {
-      const q2 = query(ref, where(field as any, "==", yKey));
-      push(await getDocs(q2));
-      if (out.length) break; // hittade något → klart
-    } catch {}
-  }
-
-  console.info("[daily] entries found", out.length, { yKey });
-  return out;
-}
-
-// Summera näring från mealLogs
-function sumEntries(entries: any[]) {
-  let calories = 0, protein = 0, carbs = 0, fat = 0;
-  for (const e of entries) {
-    const n = (e.nutritionalInfo || e.nutrition || {}) as any;
-    calories += Number(n.calories) || 0;
-    protein  += Number(n.protein) || 0;
-    carbs    += Number(n.carbohydrates) || 0;
-    fat      += Number(n.fat) || 0;
-  }
-  return { calories, protein, carbs, fat };
-}
-
-// Målmedveten bedömning (gain/maintain/lose)
-function evaluateGoals(entries: any[], profile: any) {
-    const totals = sumEntries(entries);
-    const goals = (profile?.goals ?? {}) as {
-        calorieGoal?: number; proteinGoal?: number; fatGoal?: number; carbohydrateGoal?: number;
-    };
-    const goalType = String(profile?.goalType ?? "maintain").toLowerCase() as GoalType;
-    const calGoal = Number(goals.calorieGoal) || 0;
-
-    const minAbs = MIN_ABSOLUTE_CALORIES_THRESHOLD;
-    const minPct = MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
-    const minSafe = Math.max(minAbs, Math.round(calGoal * minPct));
-
-    let ok = false;
-
-    if (goalType.includes("gain")) {
-        // GAIN: Målet är ett golv (TDEE). Man får streak om man äter >= TDEE.
-        // `calGoal` från databasen är TDEE + surplus. Vi måste räkna ut TDEE.
-        const surplus = CALORIE_ADJUSTMENT.gain_muscle;
-        const tdeeFloor = calGoal > surplus ? calGoal - surplus : 0;
-        ok = totals.calories >= tdeeFloor;
-    } else if (goalType.includes("lose")) {
-        // LOSE: Målet är ett tak. Man får streak om man äter >= minSafe OCH <= calGoal.
-        ok = totals.calories > 0 && totals.calories <= calGoal && totals.calories >= minSafe;
-    } else { // maintain
-        // MAINTAIN: Målet är ett spann. Man får streak om man ligger inom ±10% av målet.
-        const tol = 0.10;
-        ok = calGoal
-            ? (totals.calories >= calGoal * (1 - tol) && totals.calories <= calGoal * (1 + tol))
-            : (totals.calories >= minSafe);
-    }
-    
-    console.info("[daily] totals", totals, "goalType", goalType, "calGoal", calGoal, "ok", ok);
-    return ok;
-}
-
-
-// Använd samma kollektion som UI:t
-const SUMMARY_COLLECTION = "pastDaySummaries";
-
-// Skriv alltid sammanfattning + streak (idempotent)
-async function writeSummaryAndStreak(uid: string, yKey: string, completed: boolean) {
-  const sumRef   = doc(db!, "users", uid, SUMMARY_COLLECTION, yKey);
-  const statsRef = doc(db!, "users", uid, "stats", "current");
-  const stateRef = doc(db!, "users", uid, "meta", "state");
-
-  await runTransaction(db!, async tx => {
-    const statsSnap = await tx.get(statsRef);
-    const prev = statsSnap.exists() ? ((statsSnap.data() as any).streak ?? 0) : 0;
-    const next = completed ? prev + 1 : 0;
-
-    tx.set(
-      sumRef,
-      {
-        date: yKey,
-        completed,
-        status: completed ? "success" : "miss",
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    tx.set(statsRef, { streak: next, updatedAt: serverTimestamp() }, { merge: true });
-    tx.set(stateRef, { lastDateStreakChecked: yKey }, { merge: true }); // klart t.o.m. igår
-  });
-}
-
-// Kör igår-summeringen när appen blir aktiv/visbar
-async function ensureYesterdayProcessed(uid: string, now = new Date()) {
-  const { start, end, yKey } = yesterdayRangeSE(now);
-
-  // Läs state från server (undvik cache-race)
-  const stateRef = doc(db!, "users", uid, "meta", "state");
-  const s = await getDocFromServer(stateRef).catch(() => null);
-  const lastStr: string | undefined = s?.data()?.lastDateStreakChecked;
-
-  // Redan klar t.o.m. igår?
-  if (lastStr) {
-    const last = startOfDaySE(new Date(`${lastStr}T12:00:00`));
-    if (last >= start) return;
-  }
-
-  const entries = await getEntriesBetween(uid, start, end);
-
-  // Hämta profil (mål + goalType) från users/{uid}
-  const userSnap = await getDocFromServer(doc(db!, "users", uid)).catch(() => null);
-  const profile = userSnap?.exists() ? userSnap.data() : {};
-
-  const completed = evaluateGoals(entries, profile);
-  await writeSummaryAndStreak(uid, yKey, completed);
-}
-
-// Hook: trigga summering på visibility/focus + vid mount
-function useDailySummary(uid?: string) {
-  useEffect(() => {
-    if (!uid) return;
-    const onWake = () => ensureYesterdayProcessed(uid).catch(console.error);
-    const onVis  = () => { if (!document.hidden) onWake(); };
-
-    window.addEventListener("focus", onWake);
-    window.addEventListener("pageshow", onWake); // iOS Safari
-    document.addEventListener("visibilitychange", onVis);
-
-    onWake(); // kör direkt vid mount
-
-    return () => {
-      window.removeEventListener("focus", onWake);
-      window.removeEventListener("pageshow", onWake);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [uid]);
-}
-
 /* ===========================
-   End of new Daily Summary Logic
+   End of Daily Summary Helpers
    =========================== */
 
 const urlBase64ToUint8Array = (base64String: string) => {
@@ -410,7 +236,8 @@ const formatChange = (change: number | undefined, invertColor: boolean = false):
 };
 
 interface ProcessDayEndLogicOptions {
-  disableBankUpdate?: boolean;
+  force?: boolean;
+  silent?: boolean;
 }
 
 // AI Feedback Modal Component
@@ -740,7 +567,6 @@ export const App = () => {
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
 
   const uid = currentUser?.uid;
-  useDailySummary(uid);
 
   const [goals, setGoals] = useState<GoalSettings>(DEFAULT_GOALS);
   const [userProfile, setUserProfile] = useState<UserProfileData>(DEFAULT_USER_PROFILE);
@@ -760,6 +586,8 @@ export const App = () => {
     yesterday.setDate(currentDate.getDate() - 1);
     return viewingDate.toDateString() === yesterday.toDateString();
   }, [viewingDate, currentDate]);
+
+  const isEditableLogDate = useMemo(() => isViewingToday || isViewingAppYesterday, [isViewingToday, isViewingAppYesterday]);
 
   const [dailyLog, setDailyLog] = useState<LoggedMeal[]>([]);
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
@@ -1419,8 +1247,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
 
   const addMealToLog = async (nutritionalInfo: NutritionalInfo, options: { base64Image?: string; commonMealId?: string } = {}) => {
-    if (!isViewingToday || !currentUser) {
-        setToastNotification({ message: "Du kan endast logga måltider för idag.", type: 'error' });
+    if (!isEditableLogDate || !currentUser) {
+        const message = isViewingToday ? "Du kan endast logga måltider för idag och igår." : "Du kan endast logga måltider för idag och igår.";
+        setToastNotification({ message, type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
@@ -1512,6 +1341,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         // 6. Save bank update to Firestore if it changed
         if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
             await updateUserDocument(currentUser.uid, { weeklyBank: newBankState, role: userRole, status: userStatus });
+        }
+        
+        if (isViewingAppYesterday) {
+            await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
         }
 
     } catch (error) {
@@ -1624,8 +1457,8 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   };
   
   const handleLogWater = async (amountMl: number, event?: React.MouseEvent<HTMLButtonElement>) => {
-    if (!isViewingToday || !currentUser) {
-        setToastNotification({ message: "Du kan endast logga vatten för idag.", type: 'error' });
+    if (!isEditableLogDate || !currentUser) {
+        setToastNotification({ message: "Du kan endast logga vatten för idag och igår.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
@@ -1656,7 +1489,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   };
 
   const handleResetWater = async () => {
-    if (!isViewingToday || !currentUser) return;
+    if (!isEditableLogDate || !currentUser) return;
     playAudio('uiClick', 0.7);
     const previousAmount = waterLoggedMl;
     setWaterLoggedMl(0);
@@ -1670,8 +1503,8 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   };
   
 const handleDeleteMeal = async (mealId: string) => {
-    if (!isViewingToday || !currentUser) {
-        setToastNotification({ message: "Du kan endast radera måltider för idag.", type: 'error' });
+    if (!isEditableLogDate || !currentUser) {
+        setToastNotification({ message: "Du kan endast radera måltider för idag eller igår.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
@@ -1737,6 +1570,10 @@ const handleDeleteMeal = async (mealId: string) => {
 
         setToastNotification({ message: "Måltid borttagen.", type: 'success' });
         setTimeout(() => setToastNotification(null), 3000);
+        
+        if (isViewingAppYesterday) {
+            await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+        }
     } catch (error) {
         handleFirestoreError(error, 'ta bort måltid');
         setDailyLog(originalDailyLog);
@@ -1745,8 +1582,8 @@ const handleDeleteMeal = async (mealId: string) => {
 };
 
 const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) => {
-    if (!isViewingToday || !currentUser) {
-        setToastNotification({ message: "Du kan endast uppdatera måltider för idag.", type: 'error' });
+    if (!isEditableLogDate || !currentUser) {
+        setToastNotification({ message: "Du kan endast uppdatera måltider för idag eller igår.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
@@ -1814,6 +1651,10 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
         await batch.commit();
         setToastNotification({ message: "Måltid uppdaterad.", type: 'success' });
         setTimeout(() => setToastNotification(null), 3000);
+
+        if (isViewingAppYesterday) {
+            await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+        }
     } catch (error) {
         handleFirestoreError(error, 'uppdatera måltid');
         setDailyLog(originalDailyLog);
@@ -1854,8 +1695,8 @@ const newCommonMealData: Omit<CommonMeal, 'id'> = {
   };
 
   const logCommonMeal = (commonMeal: CommonMeal) => {
-     if (!isViewingToday) {
-        setToastNotification({ message: "Du kan endast logga måltider för idag.", type: 'error' });
+     if (!isEditableLogDate) {
+        setToastNotification({ message: "Du kan endast logga måltider för idag eller igår.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
@@ -1890,8 +1731,8 @@ const newCommonMealData: Omit<CommonMeal, 'id'> = {
   };
 
   const handleManualLog = (manualNutritionalInfo: NutritionalInfo, options: { saveAsCommon: boolean }) => {
-    if (!isViewingToday) {
-        setToastNotification({ message: "Du kan endast logga måltider för idag.", type: 'error' });
+    if (!isEditableLogDate) {
+        setToastNotification({ message: "Du kan endast logga måltider för idag eller igår.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
@@ -2046,7 +1887,7 @@ const handleFinishOnboarding = async () => {
 
 
 // New, robust day-end summary logic (fixed)
-const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date()) => {
+const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}) => {
   setAppStatus(AppStatus.PROCESSING_DAY_END);
   try {
     const { start, end, yKey } = yesterdayRangeSE(now);
@@ -2057,45 +1898,50 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     const userData = userSnap.data() as FirestoreUserDocument;
     const { lastDateStreakChecked, summaryStartDate, hasCompletedOnboarding } = userData;
-
-    // FIX: Kör INTE summering innan onboardingen är klar
+    
     if (!hasCompletedOnboarding) {
       console.log('Skipping summary: onboarding not completed yet.');
       return;
     }
-
-    // 1) Hoppa över gårdagen om den ligger före användarens startdatum
+    
     if (summaryStartDate && yKey < summaryStartDate) {
-      console.log(
-        `Skipping summary for ${yKey} because it's before summaryStartDate=${summaryStartDate}.`
-      );
-      // Markera bara att vi är klara t.o.m. igår – skriv ingen "miss"
+      console.log(`Skipping summary for ${yKey} because it's before summaryStartDate=${summaryStartDate}.`);
       await updateUserDocument(uid, { lastDateStreakChecked: yKey, role: userRole, status: userStatus });
       return;
     }
-
-    // 2) Redan klar t.o.m. igår?
-    if (lastDateStreakChecked) {
-      const last = startOfDaySE(new Date(`${lastDateStreakChecked}T12:00:00`));
-      if (last >= start) return;
+    
+    if (lastDateStreakChecked && lastDateStreakChecked >= yKey && !options.force) {
+      return;
     }
 
     console.log(`Processing summary for yesterday: ${yKey}`);
+    
+    const [dailyLogForDate] = await Promise.all([fetchMealLogsForDate(uid, yKey)]);
+    
+    if (dailyLogForDate.length === 0) {
+      console.log(`No logs for ${yKey}. Resetting streak and marking as checked.`);
+      await runTransaction(db, async (tx) => {
+        const userSnapTx = await tx.get(userRef);
+        if (!userSnapTx.exists()) return;
+        tx.update(userRef, { currentStreak: 0, lastDateStreakChecked: yKey });
+      });
 
-    // --- Hämta lokala mål/profil ---
+      // Update local state after transaction
+      const updatedData = await fetchInitialAppData(uid);
+      if (updatedData) {
+        setStreakData({
+          currentStreak: updatedData.currentStreak,
+          lastDateStreakChecked: updatedData.lastDateStreakChecked,
+        });
+        setPastDaysSummary(updatedData.pastDaySummaries); // To clear any potentially stale data
+      }
+      return; // Stop execution here
+    }
+    
     const localGoals = userData.goals || DEFAULT_GOALS;
     const localProfile = { ...DEFAULT_USER_PROFILE, ...userData } as UserProfileData;
+    const waterLogForDate = await fetchWaterLog(uid, yKey);
 
-    // --- Hämta gårdagens loggar + vatten ---
-    const [dailyLogForDate, waterLogForDate] = await Promise.all([
-      fetchMealLogsForDate(uid, yKey),
-      fetchWaterLog(uid, yKey),
-    ]);
-    
-    // NEW: A streak is earned if any meal was logged.
-    const wasYesterdayLogged = dailyLogForDate.length > 0;
-
-    // --- Summera näring ---
     const totalNutrientsForDay = dailyLogForDate.reduce(
       (acc, meal) => {
         acc.calories += meal.nutritionalInfo.calories;
@@ -2111,161 +1957,115 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       (sum, meal) => sum + (meal.caloriesCoveredByBank || 0),
       0
     );
+    
+    const effectiveCaloriesConsumed = totalNutrientsForDay.calories - totalCoveredByBankForDay;
+    const minSafeCaloriesForDay = Math.max(localGoals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+    const wasGoalMet = wasCalorieGoalMetForSummary(effectiveCaloriesConsumed, localGoals.calorieGoal, localProfile.goalType);
+    const wasDaySuccessful = totalNutrientsForDay.calories > 0 && totalNutrientsForDay.calories >= minSafeCaloriesForDay && wasGoalMet;
 
-    // Effektiva kalorier för måluppfyllelse (tar hänsyn till pott)
-    const effectiveCaloriesConsumed =
-      totalNutrientsForDay.calories - totalCoveredByBankForDay;
-
-    const minSafeCaloriesForDay = Math.max(
-      localGoals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
-      MIN_ABSOLUTE_CALORIES_THRESHOLD
-    );
-
-    // Måluppfyllelse (hanterar lose/maintain/gain)
-    const wasGoalMet = wasCalorieGoalMetForSummary(
-      effectiveCaloriesConsumed,
-      localGoals.calorieGoal,
-      localProfile.goalType
-    );
-
-    // Sätt “dag lyckad” = något loggat + över minSafe + målet uppnått
-    const wasDaySuccessful =
-      totalNutrientsForDay.calories > 0 &&
-      totalNutrientsForDay.calories >= minSafeCaloriesForDay &&
-      wasGoalMet;
-
-    // Banka bara om dag lyckad och under kaloriMÅL (gäller för nedgång/maintain-logik)
     let bankedAmountThisDay = 0;
     if (wasDaySuccessful && totalNutrientsForDay.calories < localGoals.calorieGoal) {
       bankedAmountThisDay = localGoals.calorieGoal - totalNutrientsForDay.calories;
     }
-
-    const summaryForThisDay: PastDaySummary = {
-      date: yKey,
-      goalMet: wasDaySuccessful,
-      consumedCalories: totalNutrientsForDay.calories,
-      calorieGoal: localGoals.calorieGoal,
-      proteinGoalMet: totalNutrientsForDay.protein >= localGoals.proteinGoal,
-      consumedProtein: totalNutrientsForDay.protein,
-      proteinGoal: localGoals.proteinGoal,
-      consumedCarbohydrates: totalNutrientsForDay.carbohydrates,
-      carbohydrateGoal: localGoals.carbohydrateGoal,
-      consumedFat: totalNutrientsForDay.fat,
-      fatGoal: localGoals.fatGoal,
-      goalType: localProfile.goalType,
-      waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
-      streakForThisDay: 0,
-    };
-
-    // --- Skriv summary + streak atomiskt ---
+    
     await runTransaction(db, async (tx) => {
       const userSnapTx = await tx.get(userRef);
       if (!userSnapTx.exists()) return;
 
       const userDataTx = userSnapTx.data() as FirestoreUserDocument;
-      const prevStreak = userDataTx.currentStreak ?? 0;
+      
+      const dayBeforeYDate = new Date(start);
+      dayBeforeYDate.setDate(dayBeforeYDate.getDate() - 1);
+      const dayBeforeYKey = dayKeySE(dayBeforeYDate);
+      const prevSummaryRef = doc(db, "users", uid, "pastDaySummaries", dayBeforeYKey);
+      const prevSummarySnap = await tx.get(prevSummaryRef);
+      const prevStreak = prevSummarySnap.exists() ? (prevSummarySnap.data() as PastDaySummary).streakForThisDay ?? 0 : 0;
+      
       const prevHighest = userDataTx.highestStreak ?? 0;
+      const nextStreak = wasDaySuccessful ? prevStreak + 1 : 0;
 
-      const nextStreak = wasYesterdayLogged ? prevStreak + 1 : 0;
-      const newHighestStreak = Math.max(prevHighest, nextStreak);
-
-      summaryForThisDay.streakForThisDay = nextStreak;
-
-      // Veckopott (resettas vid ny vecka)
+      const summaryForThisDay: PastDaySummary = {
+        date: yKey,
+        goalMet: wasDaySuccessful,
+        consumedCalories: totalNutrientsForDay.calories,
+        calorieGoal: localGoals.calorieGoal,
+        proteinGoalMet: totalNutrientsForDay.protein >= localGoals.proteinGoal,
+        consumedProtein: totalNutrientsForDay.protein,
+        proteinGoal: localGoals.proteinGoal,
+        consumedCarbohydrates: totalNutrientsForDay.carbohydrates,
+        carbohydrateGoal: localGoals.carbohydrateGoal,
+        consumedFat: totalNutrientsForDay.fat,
+        fatGoal: localGoals.fatGoal,
+        goalType: localProfile.goalType,
+        waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
+        streakForThisDay: nextStreak,
+      };
+      
       const weekInfoYesterday = getWeekInfo(new Date(`${yKey}T12:00:00`));
-      let finalBank =
-        userDataTx.weeklyBank || {
-          weekId: weekInfoYesterday.weekId,
-          bankedCalories: 0,
-          startDate: weekInfoYesterday.startDate,
-          endDate: weekInfoYesterday.endDate,
-        };
+      let finalBank = userDataTx.weeklyBank || { weekId: weekInfoYesterday.weekId, bankedCalories: 0, startDate: weekInfoYesterday.startDate, endDate: weekInfoYesterday.endDate };
 
       if (finalBank.weekId !== weekInfoYesterday.weekId) {
-        // Ny vecka → starta om banken med ev. bankning från igår
-        finalBank = {
-          weekId: weekInfoYesterday.weekId,
-          startDate: weekInfoYesterday.startDate,
-          endDate: weekInfoYesterday.endDate,
-          bankedCalories: bankedAmountThisDay,
-        };
+        finalBank = { weekId: weekInfoYesterday.weekId, startDate: weekInfoYesterday.startDate, endDate: weekInfoYesterday.endDate, bankedCalories: bankedAmountThisDay };
       } else {
-        finalBank = {
-          ...finalBank,
-          bankedCalories: (finalBank.bankedCalories || 0) + bankedAmountThisDay,
-        };
+        finalBank = { ...finalBank, bankedCalories: (finalBank.bankedCalories || 0) + bankedAmountThisDay };
       }
+      
+      const sumRef = doc(db, "users", uid, "pastDaySummaries", yKey);
+      tx.set(sumRef, summaryForThisDay, { merge: true });
 
-const sumRef = doc(db, "users", uid, "pastDaySummaries", yKey);
-tx.set(sumRef, summaryForThisDay, { merge: true });
-
-tx.update(userRef, {
-  currentStreak: nextStreak,
-  lastDateStreakChecked: yKey,
-  highestStreak: Math.max(prevHighest, nextStreak), // ✅ fix: jämför mot nextStreak
-  weeklyBank: finalBank,
-});
-}); // <-- slut på runTransaction
-
-const appData = await fetchInitialAppData(uid);
-if (appData) {
-  setStreakData({
-    currentStreak: appData.currentStreak || 0,
-    lastDateStreakChecked: appData.lastDateStreakChecked || null,
-  });
-  setWeeklyBank(appData.weeklyBank);
-  setStreakSaver(appData.streakSaver);
-  setHighestStreak(appData.highestStreak);
-  setPastDaysSummary(appData.pastDaySummaries);
-
-  if (wasDaySuccessful) {
-    const newStreakValue = summaryForThisDay.streakForThisDay || 0;
-    
-    // Skapa en händelse för +1 streak i flödet
-    if (newStreakValue > 0 && currentUser) {
-        try {
-            const streakEventData = {
-                type: 'streak' as const,
-                timestamp: Date.now(),
-                title: `har fått +1 på sin Streak!`,
-                description: `Ny streak: ${newStreakValue} dagar i följd.`,
-                icon: '🔥',
-                relatedDocId: `streak_${yKey}`
-            };
-            await addTimelineEvent(currentUser.uid, streakEventData);
-        } catch (error) {
-            console.error("Failed to create streak timeline event:", error);
-            // Non-blocking error
-        }
-    }
-    
-    setShowGoalMetModalData({
-      date: yKey,
-      streak: newStreakValue,
+      tx.update(userRef, {
+        currentStreak: nextStreak,
+        lastDateStreakChecked: yKey,
+        highestStreak: Math.max(prevHighest, nextStreak),
+        weeklyBank: finalBank,
+      });
     });
-    setShowConfetti(true);
-    playAudio("levelUp");
-    setTimeout(() => setShowConfetti(false), 5000);
-  } else {
-    if (wasYesterdayLogged) {
-        if (appData.streakSaver?.available) {
-            setDayToPotentiallySave(summaryForThisDay);
+
+    const appData = await fetchInitialAppData(uid);
+    if (appData) {
+      setStreakData({ currentStreak: appData.currentStreak || 0, lastDateStreakChecked: appData.lastDateStreakChecked || null });
+      setWeeklyBank(appData.weeklyBank);
+      setStreakSaver(appData.streakSaver);
+      setHighestStreak(appData.highestStreak);
+      setPastDaysSummary(appData.pastDaySummaries);
+
+      if (!options.silent) {
+        if (wasDaySuccessful) {
+          const newStreakValue = appData.currentStreak || 0;
+          if (newStreakValue > 0 && currentUser) {
+              try {
+                  const streakEventData = {
+                      type: 'streak' as const,
+                      timestamp: Date.now(),
+                      title: `har fått +1 på sin Streak!`,
+                      description: `Ny streak: ${newStreakValue} dagar i följd.`,
+                      icon: '🔥',
+                      relatedDocId: `streak_${yKey}`
+                  };
+                  await addTimelineEvent(currentUser.uid, streakEventData);
+              } catch (error) { console.error("Failed to create streak timeline event:", error); }
+          }
+          setShowGoalMetModalData({ date: yKey, streak: newStreakValue });
+          setShowConfetti(true);
+          playAudio("levelUp");
+          setTimeout(() => setShowConfetti(false), 5000);
         } else {
-            setShowMotivationModal(summaryForThisDay);
+          const summaryForThisDay = appData.pastDaySummaries[yKey];
+          if (appData.streakSaver?.available && summaryForThisDay) {
+              setDayToPotentiallySave(summaryForThisDay);
+          } else if (summaryForThisDay) {
+              setShowMotivationModal(summaryForThisDay);
+          }
         }
+      }
     }
-  }
-}
 } catch (err) {
   console.error("Error during daily summary processing:", err);
-  setToastNotification({
-    message: "Ett fel uppstod vid summering av dagen.",
-    type: "error",
-  });
+  setToastNotification({ message: "Ett fel uppstod vid summering av dagen.", type: "error" });
 } finally {
   setAppStatus(AppStatus.IDLE);
 }
-}, [currentUser?.uid, userRole, userStatus]);
+}, [currentUser?.uid, userRole, userStatus, currentDate]);
 
     /** Hook: trigga ensureYesterdayProcessed när appen blir aktiv/visbar */
     useEffect(() => {
@@ -2953,8 +2753,8 @@ useEffect(() => {
   };
 
   const handleLogRecipe = (nutritionalInfo: NutritionalInfo) => {
-     if (!isViewingToday) {
-        setToastNotification({ message: "Du kan endast logga recept för idag.", type: 'error' });
+     if (!isEditableLogDate) {
+        setToastNotification({ message: "Du kan endast logga recept för idag eller igår.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
@@ -3026,8 +2826,8 @@ useEffect(() => {
   };
 
   const handleLogRecipeFromIngredients = (nutritionalInfo: NutritionalInfo) => {
-    if (!isViewingToday) {
-        setToastNotification({ message: "Du kan endast logga recept för idag.", type: 'error' });
+    if (!isEditableLogDate) {
+        setToastNotification({ message: "Du kan endast logga recept för idag eller igår.", type: 'error' });
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
@@ -3053,7 +2853,7 @@ useEffect(() => {
   };
 
   const handleLogFromBarcode = (nutritionalInfo: NutritionalInfo) => {
-    if (isViewingToday) {
+    if (isEditableLogDate) {
       addMealToLog(nutritionalInfo, { base64Image: barcodeScanResult?.imageUrl, commonMealId: 'barcode' });
       setBarcodeScanResult(null);
     }
@@ -3308,8 +3108,8 @@ useEffect(() => {
     if (showSpotlight) {
         handleDismissSpotlight();
     }
-    if (!isViewingToday) {
-        setToastNotification({message: "Du kan endast logga för idag.", type: "error"});
+    if (!isEditableLogDate) {
+        setToastNotification({message: "Du kan endast logga för idag eller igår.", type: "error"});
         setTimeout(() => setToastNotification(null), 3000);
         return;
     }
@@ -3818,7 +3618,7 @@ useEffect(() => {
                     viewingDate={viewingDate}
                     onDateSelect={handleNavigateToMainWithDate}
                 />
-                 <p className="text-xl font-semibold text-neutral-dark text-center mt-3 -mb-1">{isViewingToday ? "Dagens framsteg" : formattedViewingDate}</p>
+                 <p className="text-xl font-semibold text-neutral-dark text-center mt-3 -mb-1">{formattedViewingDate}</p>
 
                  <div className="mt-4">
                   <ProgressDisplay
@@ -3865,14 +3665,14 @@ useEffect(() => {
                 waterGoalMl={waterGoalMl} 
                 onLogWater={handleLogWater}
                 onResetWater={handleResetWater}
-                disabled={!isViewingToday}
+                disabled={!isEditableLogDate}
               />
               <CommonMealsList
                 commonMeals={commonMeals}
                 onLogCommonMeal={logCommonMeal}
                 onDeleteCommonMeal={deleteCommonMeal}
                 onUpdateCommonMeal={handleUpdateCommonMeal}
-                disabled={!isViewingToday}
+                disabled={!isEditableLogDate}
               />
 
               <section aria-labelledby="meal-log-heading">
@@ -3889,7 +3689,7 @@ useEffect(() => {
                             onDelete={handleDeleteMeal}
                             onUpdate={handleUpdateMeal}
                             onSelectForCommonSave={handleOpenSaveCommonMealModal}
-                            isReadOnly={!isViewingToday}
+                            isReadOnly={!isEditableLogDate}
                             isNewlyAdded={false} // Assuming this logic might change, but for now it's static
                         />
                         ))}
@@ -4015,6 +3815,7 @@ useEffect(() => {
               aria-label="Lägg till måltid"
               aria-haspopup="true"
               aria-expanded="false"
+              disabled={!isEditableLogDate}
             >
               <PlusIcon className="w-8 h-8" />
             </button>
@@ -4215,7 +4016,7 @@ useEffect(() => {
                 recipe={currentRecipe}
                 isLoading={appStatus === AppStatus.SEARCHING_RECIPE}
                 error={errorMessage}
-                isLoggingDisabled={!isViewingToday}
+                isLoggingDisabled={!isEditableLogDate}
                 recentSearches={recentRecipeSearches}
                 setToastNotification={setToastNotification}
             />
@@ -4243,7 +4044,7 @@ useEffect(() => {
                 onLogRecipe={handleLogRecipeFromIngredients}
                 isLoading={appStatus === AppStatus.ANALYZING_INGREDIENTS}
                 error={errorMessage}
-                isLoggingDisabled={!isViewingToday}
+                isLoggingDisabled={!isEditableLogDate}
             />
         )}
         {showLevelUpModal && (

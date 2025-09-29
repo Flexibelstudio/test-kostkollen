@@ -99,9 +99,10 @@ export interface WeeklyCalorieBank {
   endDate: string; // YYYY-MM-DD
 }
 
+// FIX: Define StreakSaver interface
 export interface StreakSaver {
+  weekId: string;
   available: boolean;
-  weekId: string; // e.g., "2024-W30"
 }
 
 export interface PastDaySummary {
@@ -121,6 +122,7 @@ export interface PastDaySummary {
   waterGoalMet?: boolean;
   reactions?: Reactions;
   streakForThisDay?: number;
+  // FIX: Allow 'streakSaver' as a valid value for savedBy
   savedBy?: "sparpott" | "streakSaver";
 }
 
@@ -231,11 +233,11 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, "name"> {
 
   /** Första dag vi tillåter dagssummeringar. Format: 'YYYY-MM-DD' (Europe/Stockholm). */
   summaryStartDate?: string | null; // <-- tillagt fält
+  streakSaver?: StreakSaver | null; // FIX: Add streakSaver property
 
   highestStreak: number;
   highestLevelId: string | null;
   weeklyBank: WeeklyCalorieBank;
-  streakSaver: StreakSaver;
   unlockedAchievements: { [id: string]: string };
   achievementInteractions?: { [achievementId: string]: { reactions: Reactions } };
   journeyAnalysisFeedback: AIStructuredFeedbackResponse | null;

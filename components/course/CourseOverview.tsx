@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { CourseLesson, UserCourseProgress } from '../../types';
 import { CourseIcon, CheckCircleIcon, ArrowRightIcon, LockClosedIcon, InformationCircleIcon } from '../icons';

@@ -81,16 +81,20 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
             ariaLabel += 'Framtida dag.';
           } else { // It's a past day
             if (summary) {
-              if (summary.goalMet) {
-                bgColor = 'bg-primary/70';
+              if (summary.consumedCalories <= 0) {
+                  bgColor = 'bg-neutral-light'; // White/Grey for unlogged day
+                  ariaLabel += 'Ingen logg.';
+              } else if (summary.goalMet) {
+                bgColor = 'bg-primary/70'; // Green
                 iconColorClass = 'text-white';
                 ariaLabel += 'Mål uppnått.';
               } else {
-                bgColor = 'bg-secondary/70';
+                // Orange for logged but goal missed
+                bgColor = 'bg-secondary/70'; 
                 iconColorClass = 'text-white';
                 ariaLabel += 'Mål ej uppnått.';
               }
-            } else { // Past day, no summary
+            } else { // Past day, no summary (before user started)
               bgColor = 'bg-neutral-light';
               ariaLabel += 'Ej räknad dag.';
             }
@@ -120,7 +124,6 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
                         {summary.proteinGoalMet && <span role="img" aria-label="Proteinmål uppnått" title="Proteinmål uppnått" className="text-sm">💪</span>}
                       </div>
                       <div className="w-4 h-4 flex items-center justify-center">
-                        {summary.savedBy === 'streakSaver' && <LifebuoyIcon className="w-4 h-4 text-secondary" title="Streak räddad"/>}
                       </div>
                     </>
                   ) : (
