@@ -1960,11 +1960,13 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     
     const effectiveCaloriesConsumed = totalNutrientsForDay.calories - totalCoveredByBankForDay;
     const minSafeCaloriesForDay = Math.max(localGoals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-    const wasGoalMet = wasCalorieGoalMetForSummary(effectiveCaloriesConsumed, localGoals.calorieGoal, localProfile.goalType);
-    const wasDaySuccessful = totalNutrientsForDay.calories > 0 && totalNutrientsForDay.calories >= minSafeCaloriesForDay && wasGoalMet;
+    
+    const wasCalorieGoalMet = wasCalorieGoalMetForSummary(effectiveCaloriesConsumed, localGoals.calorieGoal, localProfile.goalType);
+    const goalMetForCalendar = totalNutrientsForDay.calories >= minSafeCaloriesForDay && wasCalorieGoalMet;
+    const habitMetForStreak = dailyLogForDate.length > 0;
 
     let bankedAmountThisDay = 0;
-    if (wasDaySuccessful && totalNutrientsForDay.calories < localGoals.calorieGoal) {
+    if (goalMetForCalendar && totalNutrientsForDay.calories < localGoals.calorieGoal) {
       bankedAmountThisDay = localGoals.calorieGoal - totalNutrientsForDay.calories;
     }
     
@@ -1982,11 +1984,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       const prevStreak = prevSummarySnap.exists() ? (prevSummarySnap.data() as PastDaySummary).streakForThisDay ?? 0 : 0;
       
       const prevHighest = userDataTx.highestStreak ?? 0;
-      const nextStreak = wasDaySuccessful ? prevStreak + 1 : 0;
+      const nextStreak = habitMetForStreak ? prevStreak + 1 : 0;
 
       const summaryForThisDay: PastDaySummary = {
         date: yKey,
-        goalMet: wasDaySuccessful,
+        goalMet: goalMetForCalendar,
         consumedCalories: totalNutrientsForDay.calories,
         calorieGoal: localGoals.calorieGoal,
         proteinGoalMet: totalNutrientsForDay.protein >= localGoals.proteinGoal,
@@ -2030,7 +2032,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       setPastDaysSummary(appData.pastDaySummaries);
 
       if (!options.silent) {
-        if (wasDaySuccessful) {
+        if (goalMetForCalendar) {
           const newStreakValue = appData.currentStreak || 0;
           if (newStreakValue > 0 && currentUser) {
               try {
