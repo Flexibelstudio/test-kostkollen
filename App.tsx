@@ -722,8 +722,8 @@ export const App = () => {
   const [showIosInstallPrompt, setShowIosInstallPrompt] = useState(false);
 
   // Update Notification State
-  const [showUpdateNoticePopup, setShowUpdateNoticePopup] = useState(false);
   const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
+  const [hasUnseenUpdate, setHasUnseenUpdate] = useState(false);
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -1133,14 +1133,14 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
     }, [viewMode]);
 
-  // This effect handles showing the one-time update notice.
+  // This effect checks for unseen update notices and sets a flag.
   useEffect(() => {
     if (isInitialDataLoaded && currentUser) {
-        const UPDATE_NOTICE_KEY = 'updateNotice_v4_MenopauseCoursePrice'; // Unique key for this update
+        const UPDATE_NOTICE_KEY = 'updateNotice_v5_StreakUpdate'; // Unique key for this update
         try {
             const noticeShown = localStorage.getItem(UPDATE_NOTICE_KEY);
             if (!noticeShown) {
-                setShowUpdateNoticePopup(true);
+                setHasUnseenUpdate(true);
             }
         } catch (error) {
             console.warn('Could not access localStorage for update notice.', error);
@@ -1148,22 +1148,24 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
   }, [isInitialDataLoaded, currentUser]);
 
-  const handleCloseUpdateNoticePopup = () => {
-      const UPDATE_NOTICE_KEY = 'updateNotice_v4_MenopauseCoursePrice';
-      try {
-          localStorage.setItem(UPDATE_NOTICE_KEY, 'true');
-      } catch (error) {
-          console.warn('Could not save to localStorage for update notice.', error);
-      }
-      setShowUpdateNoticePopup(false);
+  const handleViewLatestUpdate = () => {
+    setShowLatestUpdateView(true);
+    setShowProfileDropdown(false);
+    playAudio('uiClick');
+
+    if (hasUnseenUpdate) {
+        const UPDATE_NOTICE_KEY = 'updateNotice_v5_StreakUpdate';
+        try {
+            localStorage.setItem(UPDATE_NOTICE_KEY, 'true');
+        } catch (error) {
+            console.warn('Could not save to localStorage for update notice.', error);
+        }
+        setHasUnseenUpdate(false);
+    }
   };
 
   const handleNavigateToCourses = () => {
     setViewMode('coursesView');
-    // if the one-time popup is open, we need to close it and set the flag
-    if (showUpdateNoticePopup) {
-        handleCloseUpdateNoticePopup();
-    }
     // if the "latest update" view is open, just close it
     if (showLatestUpdateView) {
         setShowLatestUpdateView(false);
@@ -3206,7 +3208,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || newlyUnlockedLesson || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showUpdateNoticePopup || showLatestUpdateView;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || newlyUnlockedLesson || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showLatestUpdateView;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -3218,7 +3220,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, newlyUnlockedLesson, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showUpdateNoticePopup, showLatestUpdateView]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, newlyUnlockedLesson, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showLatestUpdateView]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3439,13 +3441,17 @@ useEffect(() => {
     icon: JSX.Element;
     label: string;
     className?: string;
-  }> = ({ onClick, icon, label, className }) => (
+    hasNotification?: boolean;
+  }> = ({ onClick, icon, label, className, hasNotification }) => (
     <button
         onClick={onClick}
         className={`w-full text-left px-4 py-2.5 text-sm text-neutral-dark hover:bg-neutral-light/70 flex items-center rounded-md transition-colors ${className || ''}`}
     >
         {React.cloneElement(icon, { className: "w-5 h-5 mr-2.5 text-neutral" })}
-        {label}
+        <span className="flex-grow">{label}</span>
+        {hasNotification && (
+            <span className="ml-auto h-2.5 w-2.5 rounded-full bg-red-500"></span>
+        )}
     </button>
 );
 
@@ -3510,8 +3516,11 @@ useEffect(() => {
                             className={`nav-btn ${showProfileDropdown ? "active" : ""}`}
                             onClick={() => { playAudio('uiClick'); setShowProfileDropdown(prev => !prev);}}
                         >
-                             <div className="icon-wrap p-0">
+                             <div className="icon-wrap p-0 relative">
                                 <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
+                                {hasUnseenUpdate && (
+                                    <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"></span>
+                                )}
                              </div>
                         </button>
                         {showProfileDropdown && (
@@ -3537,11 +3546,8 @@ useEffect(() => {
                                 <DropdownMenuItem
                                     icon={<BellIcon />}
                                     label="Senaste uppdateringen"
-                                    onClick={() => {
-                                        setShowLatestUpdateView(true);
-                                        setShowProfileDropdown(false);
-                                        playAudio('uiClick');
-                                    }}
+                                    hasNotification={hasUnseenUpdate}
+                                    onClick={handleViewLatestUpdate}
                                 />
                                 <DropdownMenuItem
                                     icon={<ChatBubbleOvalLeftEllipsisIcon />}
@@ -3870,13 +3876,6 @@ useEffect(() => {
         <input type="file" id="ingredientUploadInput" className="hidden" accept="image/*" multiple onChange={handleIngredientImageUpload} />
 
         {/* Modals */}
-        {showUpdateNoticePopup && (
-            <UpdateNoticeModal 
-                show={showUpdateNoticePopup} 
-                onClose={handleCloseUpdateNoticePopup}
-                onNavigateToCourses={handleNavigateToCourses}
-            />
-        )}
         {showLatestUpdateView && (
             <UpdateNoticeModal 
                 show={showLatestUpdateView} 

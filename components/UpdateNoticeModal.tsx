@@ -22,62 +22,53 @@ const UpdateNoticeModal: React.FC<UpdateNoticeModalProps> = ({ show, onClose, on
         className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg animate-scale-in max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-center mb-4 flex-shrink-0">
-          <span className="text-5xl" role="img" aria-label="Kvinnosymbol">♀️</span>
-          <h2 id="update-notice-title" className="text-2xl font-bold text-neutral-dark mt-2">
-            Nyhet: Känn dig stark och må bra genom klimakteriet!
-          </h2>
+        <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <h2 id="update-notice-title" className="text-2xl font-bold text-neutral-dark">
+                Uppdateringar som gör din resa enklare!
+            </h2>
+            <button
+                onClick={onClose}
+                className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90"
+                aria-label="Stäng"
+            >
+                <XMarkIcon className="w-6 h-6" />
+            </button>
         </div>
 
         <div className="overflow-y-auto custom-scrollbar flex-grow">
-          <p className="text-base text-neutral-dark mb-4">
-            Hej! Vi vet att klimakteriet är en naturlig fas i livet, men det innebär också stora förändringar för kroppen, ämnesomsättningen och energin. Många känner sig vilsna – men det behöver inte vara så.
-          </p>
           <p className="text-base text-neutral-dark mb-6">
-            Därför lanserar vi nu vår nya, efterlängtade kurs: <strong>Maxa Klimakteriet!</strong> Den är skapad för att ge dig kunskapen och verktygen du behöver för att inte bara hantera, utan <em>maxa</em> den här perioden i livet.
+            Hej! Vi har lyssnat på er feedback och gjort några spännande uppdateringar i Kostloggen för att göra appen ännu bättre och mer motiverande.
           </p>
 
-          <div className="space-y-3 text-left bg-primary-100/50 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold text-neutral-dark mb-2">I kursen får du lära dig:</h3>
-            <ul className="space-y-2">
+          <div className="space-y-4 text-left bg-primary-100/50 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold text-neutral-dark mb-2">Här är de viktigaste nyheterna:</h3>
+            <ul className="space-y-3">
               <li className="flex items-start gap-3">
-                <span className="text-2xl mt-0.5">🥗</span>
-                <p className="text-neutral-dark"><strong className="font-semibold">Anpassa kosten:</strong> Förstå hur du ska äta för hormonell balans, minskad inflammation och för att behålla din värdefulla muskelmassa.</p>
+                <span className="text-2xl mt-0.5">🔥</span>
+                <p className="text-neutral-dark"><strong className="font-semibold">Streaks blir enklare och mer rättvisa!</strong><br/>Nu får du din streak genom att logga minst en måltid per dag. Det handlar om att bygga vanan, inte om att vara perfekt varje dag. Konsekvens över tid är det som ger resultat!</p>
               </li>
               <li className="flex items-start gap-3">
-                <span className="text-2xl mt-0.5">💪</span>
-                <p className="text-neutral-dark"><strong className="font-semibold">Träna smartare, inte hårdare:</strong> Upptäck den effektiva styrketräningen som stärker skelettet, boostar ämnesomsättningen och ger dig mer energi.</p>
+                <span className="text-2xl mt-0.5">🗓️</span>
+                <p className="text-neutral-dark"><strong className="font-semibold">Missat en dag? Inga problem!</strong><br/>Du kan nu gå tillbaka och logga för gårdagen. Perfekt för att hålla din streak vid liv även om du glömmer bort att logga en kväll.</p>
               </li>
               <li className="flex items-start gap-3">
-                <span className="text-2xl mt-0.5">🧠</span>
-                <p className="text-neutral-dark"><strong className="font-semibold">Hantera symtomen:</strong> Få konkreta strategier för att förbättra sömnen, hantera vallningar och balansera humöret.</p>
+                <span className="text-2xl mt-0.5">🛡️</span>
+                <p className="text-neutral-dark"><strong className="font-semibold">Streakräddaren har gått i pension.</strong><br/>Eftersom du nu kan logga för gårdagen har vi tagit bort den gamla "streakräddaren". Det blir enklare och mer logiskt!</p>
               </li>
               <li className="flex items-start gap-3">
-                <span className="text-2xl mt-0.5">✨</span>
-                <p className="text-neutral-dark"><strong className="font-semibold">Ta kontrollen:</strong> Känn dig starkare, piggare och mer i kontroll över din hälsa än någonsin tidigare.</p>
+                <span className="text-2xl mt-0.5">♀️</span>
+                 <p className="text-neutral-dark"><strong className="font-semibold">Ny kurs: Maxa Klimakteriet!</strong><br/>Vi har lanserat en helt ny kurs speciellt framtagen för att hjälpa dig navigera klimakteriet med kunskap om kost, träning och välmående. Du hittar den under "Kurs" i menyn.</p>
               </li>
             </ul>
           </div>
-
-          <p className="text-base text-neutral-dark mt-6">
-            Det här är din chans att investera i dig själv och navigera klimakteriet med självförtroende. <strong>För endast 295 kr får du livslång tillgång till hela kursen och allt material.</strong>
-          </p>
         </div>
 
         <div className="mt-6 text-center flex-shrink-0 space-y-3">
-          {onNavigateToCourses && (
-            <button
-              onClick={onNavigateToCourses}
-              className="w-full sm:w-auto px-8 py-3 bg-primary text-white text-lg font-semibold rounded-lg shadow-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform interactive-transition"
-            >
-              Läs mer & kom igång!
-            </button>
-          )}
           <button
             onClick={onClose}
-            className="w-full sm:w-auto px-6 py-2 text-sm font-medium text-neutral hover:text-neutral-dark hover:bg-neutral-light rounded-lg interactive-transition"
+            className="w-full sm:w-auto px-8 py-3 bg-primary text-white text-lg font-semibold rounded-lg shadow-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform interactive-transition"
           >
-            Kanske senare
+            Stäng
           </button>
         </div>
       </div>
