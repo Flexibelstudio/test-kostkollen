@@ -1,4 +1,5 @@
-import { Timestamp } from "@firebase/firestore";
+// FIX: Corrected import path for Firestore's Timestamp type
+import { Timestamp } from "firebase/firestore";
 import { MentalWellbeingData } from "./components/MentalWellbeingModal";
 
 // --- Core Nutritional & Goal Types ---

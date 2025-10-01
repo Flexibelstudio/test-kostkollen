@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CameraIcon, XMarkIcon } from './icons';
 import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType, NotFoundException } from '@zxing/library';
+import { FileText } from 'lucide-react';
 
 
 interface BarcodeScannerModalProps {
@@ -9,9 +10,10 @@ interface BarcodeScannerModalProps {
   onClose: () => void;
   onBarcodeScanned: (barcode: string) => void;
   onCameraError: (errorMessage: string) => void;
+  onScanFallback: () => void;
 }
 
-const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose, onBarcodeScanned, onCameraError }) => {
+const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose, onBarcodeScanned, onCameraError, onScanFallback }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +139,15 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose
                 <p className="text-sm">{error}</p>
               </div>
             )}
+        </div>
+        <div className="text-center mb-4">
+            <button
+              onClick={onScanFallback}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary-darker hover:underline focus:outline-none focus:ring-2 focus:ring-primary-lighter rounded-md px-2 py-1"
+            >
+              <FileText className="w-5 h-5" />
+              Problem att skanna? Fota näringsinfo istället
+            </button>
         </div>
         <button
           onClick={onClose}

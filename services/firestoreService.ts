@@ -1,5 +1,6 @@
 import { db } from "../firebase";
 import type { User } from '@firebase/auth';
+// FIX: Corrected import paths
 import { 
     collection, 
     addDoc, 
@@ -26,7 +27,7 @@ import {
     runTransaction,
     arrayUnion,
     Transaction,
-} from "@firebase/firestore";
+} from "firebase/firestore";
 import type { 
     LoggedMeal, 
     UserProfileData, 

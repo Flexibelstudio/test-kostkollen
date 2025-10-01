@@ -1,4 +1,5 @@
 
+
 import { UserProfileData, GoalSettings, LoggedMeal, PastDaysSummaryCollection, WeightLogEntry, CommonMeal, UserCourseProgress, WeeklyCalorieBank, FirestoreUserDocument, UserRole, PastDaySummary, CoachViewMember, AIStructuredFeedbackResponse } from '../types';
 import { DEFAULT_GOALS, DEFAULT_USER_PROFILE, DEFAULT_WATER_GOAL_ML } from '../constants';
 import { courseLessons } from '../courseData.ts';
@@ -213,6 +214,7 @@ export const mockFirestoreUser: FirestoreUserDocument = {
     highestStreak: 10,
     highestLevelId: 'level1',
     weeklyBank: mockWeeklyBank,
+    streakSaver: null,
     courseProgressSummary: {
         started: true,
         completedLessons: 1,

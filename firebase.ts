@@ -7,6 +7,8 @@ import {
   browserLocalPersistence,
   type Auth,
 } from "firebase/auth";
+// FIX: Corrected import path for Firestore functions and types from 'firebase/firestore' to '@firebase/firestore'.
+// FIX: Corrected import path for Firestore functions
 import {
   getFirestore,
   enableIndexedDbPersistence,
