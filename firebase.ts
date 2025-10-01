@@ -9,11 +9,12 @@ import {
 } from "firebase/auth";
 // FIX: Corrected import path for Firestore functions and types from 'firebase/firestore' to '@firebase/firestore'.
 // FIX: Corrected import path for Firestore functions
+// FIX: Changed import from 'firebase/firestore' to '@firebase/firestore' to resolve missing member errors.
 import {
   getFirestore,
   enableIndexedDbPersistence,
   type Firestore,
-} from "firebase/firestore";
+} from "@firebase/firestore";
 
 // ?mock=true aktiverar mock-läge (praktiskt för lokal test)
 const isMockQuery =

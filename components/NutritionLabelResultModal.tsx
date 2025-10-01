@@ -70,7 +70,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
             <div className="space-y-4">
                 <div className="p-4 bg-neutral-light/70 rounded-lg">
                     <p className="text-lg font-bold text-neutral-dark">{analysisResult.foodItem || 'Okänd Produkt'}</p>
-                    <p className="text-sm text-neutral-dark">Näringsvärde per 100g/ml:</p>
+                    <p className="text-sm text-neutral-dark">Näringsvärde per 100g:</p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-sm">
                         <span>🔥 Kalorier: {Math.round(analysisResult.calories)} kcal</span>
                         <span>💪 Protein: {analysisResult.protein.toFixed(1)} g</span>
@@ -80,7 +80,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                 </div>
 
                 <div>
-                    <label htmlFor="amountGrams" className={`${labelClass} text-center`}>Hur många gram/ml åt/drack du?</label>
+                    <label htmlFor="amountGrams" className={`${labelClass} text-center`}>Hur många gram åt/drack du?</label>
                     <div className="relative mt-1 max-w-xs mx-auto">
                         <input
                             type="text"
@@ -91,7 +91,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                             inputMode="decimal"
                             autoFocus
                         />
-                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-neutral">g/ml</span>
+                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-neutral">g</span>
                     </div>
                 </div>
 

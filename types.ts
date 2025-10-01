@@ -1,5 +1,6 @@
 // FIX: Corrected import path for Firestore's Timestamp type
-import { Timestamp } from "firebase/firestore";
+// FIX: Changed import from 'firebase/firestore' to '@firebase/firestore' to resolve missing member error.
+import { Timestamp } from "@firebase/firestore";
 import { MentalWellbeingData } from "./components/MentalWellbeingModal";
 
 // --- Core Nutritional & Goal Types ---

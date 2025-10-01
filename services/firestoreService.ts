@@ -1,6 +1,7 @@
 import { db } from "../firebase";
 import type { User } from '@firebase/auth';
 // FIX: Corrected import paths
+// FIX: Changed import from 'firebase/firestore' to '@firebase/firestore' to resolve multiple missing member errors.
 import { 
     collection, 
     addDoc, 
@@ -27,7 +28,7 @@ import {
     runTransaction,
     arrayUnion,
     Transaction,
-} from "firebase/firestore";
+} from "@firebase/firestore";
 import type { 
     LoggedMeal, 
     UserProfileData, 
