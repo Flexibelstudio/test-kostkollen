@@ -6,7 +6,7 @@ import {
   serverTimestamp, getDocs, query, where, orderBy, setDoc, updateDoc, limit, Timestamp
 } from "@firebase/firestore";
 
-// import CoachDashboard from './components/CoachDashboard'; // File missing
+import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
 import SplashScreen from './components/SplashScreen';
 import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
@@ -28,10 +28,8 @@ import {
   VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG, CALORIE_ADJUSTMENT
 } from './constants.ts';
 
-import { 
-  analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion,
-  getRecipesFromIngredientsImage, getDetailedJourneyAnalysis, analyzeNutritionLabelImage 
-} from './services/geminiService.ts';
+import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion,
+  getRecipesFromIngredientsImage, getDetailedJourneyAnalysis } from './services/geminiService.ts';
 import { getFoodInfoFromBarcode } from './services/openFoodFactsService.ts';
 
 import {
@@ -46,7 +44,7 @@ import WaterLogger from './components/WaterLogger.tsx';
 import ProgressDisplay from './components/ProgressDisplay.tsx';
 import LoadingSpinner from './components/LoadingSpinner.tsx';
 import MealItemCard from './components/MealItemCard.tsx';
-// import { JourneyView } from './components/JourneyView.tsx'; // File missing
+import { JourneyView } from './components/JourneyView.tsx';
 import SaveCommonMealModal from './components/SaveCommonMealModal.tsx';
 import { CommonMealsList } from './components/CommonMealsList.tsx';
 import InfoModal from './components/InfoModal.tsx';
@@ -62,7 +60,7 @@ import GoalMetModal from './components/GoalMetModal.tsx';
 import CourseOverview from './components/course/CourseOverview.tsx';
 import LessonDetail from './components/course/LessonDetail.tsx';
 import { courseLessons, menopauseCourseLessons } from './courseData.ts';
-// import NewLessonUnlockedModal from './components/course/NewLessonUnlockedModal.tsx'; // File missing
+import NewLessonUnlockedModal from './components/course/NewLessonUnlockedModal.tsx';
 import RecipeModal from './components/RecipeModal.tsx';
 import TextEntryModal from './components/TextEntryModal.tsx';
 import IngredientCaptureModal from './components/IngredientCaptureModal.tsx';
@@ -74,15 +72,13 @@ import LogWeightModal from './components/LogWeightModal.tsx';
 import MentalWellbeingModal, { MentalWellbeingData } from './components/MentalWellbeingModal.tsx';
 import BmrTdeeInfoModal from './components/BmrTdeeInfoModal.tsx';
 import OnboardingCompletionScreen from './components/OnboardingCompletionScreen.tsx';
-import { CommunityView } from './CommunityView.tsx'; // Corrected path
+import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
 import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
-import WaterSplashEffect from './components/WaterSplashEffect.tsx';
-import NutritionLabelResultModal from './components/NutritionLabelResultModal.tsx';
-
+import WaterSplashEffect from './components/WaterSplashEffect';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -729,13 +725,9 @@ export const App = () => {
   const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
   const [hasUnseenUpdate, setHasUnseenUpdate] = useState(false);
 
-  // --- NEW: State for nutrition label flow ---
-  const [cameraMode, setCameraMode] = useState<'food' | 'nutritionLabel'>('food');
-  const [nutritionLabelAnalysisResult, setNutritionLabelAnalysisResult] = useState<NutritionalInfo | null>(null);
-
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-        setToastNotification({ message: 'Pushnotiser stöds inte av din webblärare eller så har något gått fel.', type: 'error' });
+        setToastNotification({ message: 'Pushnotiser stöds inte av din webbläsaare eller så har något gått fel.', type: 'error' });
         setTimeout(() => setToastNotification(null), 4000);
         return false;
     }
@@ -1287,7 +1279,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 finalImageUrl = SEARCH_ICON_SVG;
             } else if (options.commonMealId === 'recipe' || options.commonMealId === 'ingredient_recipe') {
                 finalImageUrl = RECIPE_ICON_SVG;
-            } else if (options.commonMealId === 'barcode' || options.commonMealId === 'barcode_fallback') {
+            } else if (options.commonMealId === 'barcode') {
                 finalImageUrl = BARCODE_ICON_SVG;
             } else if (options.commonMealId) {
                 // This assumes any other non-empty commonMealId is a saved common meal
@@ -1371,28 +1363,14 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
 
   const handleImageCapture = async (base64ImageData: string, fromFileUpload: boolean = false) => {
-    setShowCameraModal(false);
+    setShowCameraModal(false); 
     if (!fromFileUpload) {
         setImageFileForAnalysis(null);
     }
-
-    if (cameraMode === 'nutritionLabel') { // Handle the new nutrition label flow
-        setAppStatus(AppStatus.ANALYZING);
-        try {
-            const analysis = await analyzeNutritionLabelImage(base64ImageData);
-            setNutritionLabelAnalysisResult(analysis);
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : "Okänt analysfel";
-            setToastNotification({ message: `Analysfel: ${errorMsg}`, type: 'error' });
-            setTimeout(() => setToastNotification(null), 3500);
-        } finally {
-            setAppStatus(AppStatus.IDLE);
-            setCameraMode('food'); // Reset mode after use
-        }
-    } else if (isCapturingForIngredients) { // Keep existing ingredient flow
+    if (isCapturingForIngredients) {
         setIngredientImagesForCapture(prev => [...prev, `data:image/jpeg;base64,${base64ImageData}`]);
         openModal(setShowIngredientCaptureModal);
-    } else { // Keep existing food analysis flow
+    } else {
         setCameraImageForAnalysis(base64ImageData);
         setAppStatus(AppStatus.ANALYZING);
         try {
@@ -1402,7 +1380,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : "Okänt analysfel";
             setErrorMessage(errorMsg);
-            setToastNotification({ message: `Analysfel: ${errorMsg}`, type: 'error' });
+            setToastNotification({ message: `Analysfel: ${errorMsg}`, type: 'error'});
             setTimeout(() => setToastNotification(null), 3500);
             setAppStatus(AppStatus.ERROR);
         }
@@ -2085,12 +2063,12 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         }
       }
     }
-  } catch (err) {
-    console.error("Error during daily summary processing:", err);
-    setToastNotification({ message: "Ett fel uppstod vid summering av dagen.", type: "error" });
-  } finally {
-    setAppStatus(AppStatus.IDLE);
-  }
+} catch (err) {
+  console.error("Error during daily summary processing:", err);
+  setToastNotification({ message: "Ett fel uppstod vid summering av dagen.", type: "error" });
+} finally {
+  setAppStatus(AppStatus.IDLE);
+}
 }, [currentUser?.uid, userRole, userStatus, currentDate]);
 
     /** Hook: trigga ensureYesterdayProcessed när appen blir aktiv/visbar */
@@ -3230,7 +3208,7 @@ useEffect(() => {
 
   const originalBodyOverflow = useRef(document.body.style.overflow);
   useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || newlyUnlockedLesson || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showLatestUpdateView || !!nutritionLabelAnalysisResult;
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || newlyUnlockedLesson || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showLatestUpdateView;
     
     if (isAnyModalOpen) {
         document.body.style.overflow = 'hidden';
@@ -3242,7 +3220,7 @@ useEffect(() => {
             document.body.style.overflow = originalBodyOverflow.current;
         }
     };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, newlyUnlockedLesson, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showLatestUpdateView, nutritionLabelAnalysisResult]);
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, newlyUnlockedLesson, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showLatestUpdateView]);
   
   // Scroll to top on view change
   useEffect(() => {
@@ -3342,7 +3320,7 @@ useEffect(() => {
 
     // Separate common meals from others
     for (const meal of dailyLog) {
-      if (meal.commonMealId && !['manual', 'text_search', 'recipe', 'ingredient_recipe', 'barcode', 'barcode_fallback'].includes(meal.commonMealId)) {
+      if (meal.commonMealId && !['manual', 'text_search', 'recipe', 'ingredient_recipe', 'barcode'].includes(meal.commonMealId)) {
         if (!commonMealGroups.has(meal.commonMealId)) {
           commonMealGroups.set(meal.commonMealId, []);
         }
@@ -3425,7 +3403,12 @@ useEffect(() => {
   }
   
   if (userRole === 'coach' && currentInterface === 'coach') {
-    return <div className="p-8 text-center">Coach view is currently unavailable.</div>;
+    return <CoachDashboard 
+              onLogout={handleLogout} 
+              currentUserEmail={currentUser.email || "Coach"} 
+              currentUserId={currentUser.uid}
+              onToggleInterface={toggleInterfaceView}
+            />;
   }
 
 
@@ -3434,12 +3417,10 @@ useEffect(() => {
     playAudio('uiClick');
     switch (option) {
       case 'camera':
-        setCameraMode('food');
         setIsCapturingForIngredients(false); // Ensure this is for single meal
         openModal(setShowCameraModal);
         break;
       case 'upload':
-        setCameraMode('food');
         setIsCapturingForIngredients(false); // Ensure this is for single meal
         document.getElementById('imageUploadInputMain')?.click(); // Trigger hidden input
         break;
@@ -3496,14 +3477,6 @@ useEffect(() => {
     const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
     const lessonsForDetail = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
     const currentLesson = lessonsForDetail.find(l => l.id === currentLessonId);
-
-  // --- NEW: Handler for barcode scan fallback ---
-  const handleScanFallback = () => {
-    closeModal(setShowBarcodeScannerModal);
-    setCameraMode('nutritionLabel');
-    openModal(setShowCameraModal);
-  };
-
 
   return (
     <>
@@ -3738,11 +3711,33 @@ useEffect(() => {
               </section>
             </div>
          )}
-         {viewMode === 'journey' && (
-             <div className="p-4 text-center">
-                <h2 className="text-2xl font-bold">Min resa</h2>
-                <p className="mt-4 text-neutral">Den här vyn är för närvarande under utveckling.</p>
-            </div>
+         {viewMode === 'journey' && journeyAnalysisData && (
+            <JourneyView 
+                pastDaysData={pastDaysSummary} 
+                weightLogs={weightLogs}
+                userProfile={userProfile}
+                goals={goals}
+                onSaveProfileAndGoals={handleSaveProfileAndGoals}
+                onOpenLogWeightModal={() => openModal(setShowLogWeightModal)}
+                playAudio={playAudio}
+                viewingDate={viewingDate}
+                setViewingDate={setViewingDate}
+                currentDate={currentDate}
+                initialTab={journeyInitialTab}
+                highestStreak={highestStreak}
+                highestLevelId={highestLevelId}
+                minSafeCalories={minSafeCalories}
+                setToastNotification={setToastNotification}
+                achievements={ACHIEVEMENT_DEFINITIONS}
+                unlockedAchievements={unlockedAchievements}
+                achievementInteractions={achievementInteractions}
+                journeyAnalysisFeedback={journeyAnalysisFeedback}
+                onNavigateToMainWithDate={handleNavigateToMainWithDate}
+                streakSaver={streakSaver}
+                analysisContext={journeyAnalysisData}
+                setShowAICoachModal={setShowAICoachModal}
+                onDiscussSavedAnalysis={handleDiscussSavedAnalysis}
+            />
          )}
          {viewMode === 'coursesView' && (
             <CoursesView
@@ -3962,20 +3957,12 @@ useEffect(() => {
           {showCameraModal && (
             <CameraModal
                 show={showCameraModal}
-                onClose={() => {
-                    closeModal(setShowCameraModal);
-                    setCameraMode('food'); // Always reset on close
-                }}
+                onClose={() => closeModal(setShowCameraModal)}
                 onImageCapture={handleImageCapture}
                 onCameraError={(msg) => {
                     setToastNotification({ message: `Kamerafel: ${msg}`, type: 'error'});
                     setTimeout(() => setToastNotification(null), 3500);
                 }}
-                instructionText={
-                    cameraMode === 'nutritionLabel'
-                        ? 'Placera hela näringsdeklarationen i rutan och ta en bild'
-                        : 'Placera maten i rutan och ta en bild'
-                }
             />
           )}
           {showBarcodeScannerModal && (
@@ -3987,7 +3974,6 @@ useEffect(() => {
                   setToastNotification({ message: `Kamerafel: ${msg}`, type: 'error' });
                   setTimeout(() => setToastNotification(null), 3500);
               }}
-              onScanFallback={handleScanFallback}
             />
           )}
           {barcodeScanResult && (
@@ -4000,17 +3986,6 @@ useEffect(() => {
                 />
               </div>
             </div>
-          )}
-          {nutritionLabelAnalysisResult && (
-            <NutritionLabelResultModal
-                show={!!nutritionLabelAnalysisResult}
-                onClose={() => setNutritionLabelAnalysisResult(null)}
-                analysisResult={nutritionLabelAnalysisResult}
-                onLog={(finalNutrients) => {
-                    addMealToLog(finalNutrients, { commonMealId: 'barcode_fallback' });
-                    setNutritionLabelAnalysisResult(null);
-                }}
-            />
           )}
           {showSaveCommonMealModal && mealToSaveAsCommon && (
             <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowSaveCommonMealModal)}>
@@ -4083,14 +4058,10 @@ useEffect(() => {
           />
         )}
         {newlyUnlockedLesson && (
-            <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-md flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setNewlyUnlockedLesson(null)}>
-                {/* Placeholder for NewLessonUnlockedModal */}
-                <div className="bg-white p-8 rounded-xl shadow-soft-xl text-center max-w-md w-full animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                    <h2 className="text-3xl font-bold text-neutral-dark mb-3">Ny Lektion Upplåst!</h2>
-                    <p className="text-xl text-neutral-dark mb-6">{newlyUnlockedLesson.title}</p>
-                    <button onClick={() => setNewlyUnlockedLesson(null)} className="w-full px-6 py-3 bg-primary text-white text-lg font-semibold rounded-lg shadow-md">Stäng</button>
-                </div>
-            </div>
+          <NewLessonUnlockedModal 
+            lessonTitle={newlyUnlockedLesson.title} 
+            onClose={() => setNewlyUnlockedLesson(null)} 
+          />
         )}
         {showAIFeedbackModal && (
             <AIFeedbackModal
