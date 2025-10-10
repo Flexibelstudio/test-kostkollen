@@ -28,8 +28,9 @@ import {
   VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG, CALORIE_ADJUSTMENT
 } from './constants.ts';
 
+// FIX: Import analyzeNutritionLabelImage
 import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion,
-  getRecipesFromIngredientsImage, getDetailedJourneyAnalysis } from './services/geminiService.ts';
+  getRecipesFromIngredientsImage, getDetailedJourneyAnalysis, analyzeNutritionLabelImage } from './services/geminiService.ts';
 import { getFoodInfoFromBarcode } from './services/openFoodFactsService.ts';
 
 import {
@@ -79,6 +80,8 @@ import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
+// FIX: Import NutritionLabelResultModal
+import NutritionLabelResultModal from './components/NutritionLabelResultModal.tsx';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -681,6 +684,10 @@ export const App = () => {
   // Barcode Scanner State
   const [showBarcodeScannerModal, setShowBarcodeScannerModal] = useState<boolean>(false);
   const [barcodeScanResult, setBarcodeScanResult] = useState<BarcodeScannedFoodInfo | null>(null);
+  // FIX: Add state for label scanning flow
+  const [isCapturingForLabel, setIsCapturingForLabel] = useState<boolean>(false);
+  const [showNutritionLabelResultModal, setShowNutritionLabelResultModal] = useState(false);
+  const [nutritionLabelResult, setNutritionLabelResult] = useState<NutritionalInfo | null>(null);
 
 
   const [showSpeedDial, setShowSpeedDial] = useState(false);
@@ -1370,6 +1377,22 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     if (isCapturingForIngredients) {
         setIngredientImagesForCapture(prev => [...prev, `data:image/jpeg;base64,${base64ImageData}`]);
         openModal(setShowIngredientCaptureModal);
+    } else if (isCapturingForLabel) {
+        setAppStatus(AppStatus.ANALYZING);
+        try {
+            const analysis = await analyzeNutritionLabelImage(base64ImageData);
+            setNutritionLabelResult(analysis);
+            setShowNutritionLabelResultModal(true);
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : "Okänt analysfel";
+            setErrorMessage(errorMsg);
+            setToastNotification({ message: `Analysfel: ${errorMsg}`, type: 'error'});
+            setTimeout(() => setToastNotification(null), 3500);
+            setAppStatus(AppStatus.ERROR);
+        } finally {
+            setAppStatus(AppStatus.IDLE);
+            setIsCapturingForLabel(false); // Reset the flag
+        }
     } else {
         setCameraImageForAnalysis(base64ImageData);
         setAppStatus(AppStatus.ANALYZING);
@@ -2005,13 +2028,27 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         streakForThisDay: nextStreak,
       };
       
+      const isProcessingOnMonday = now.getDay() === 1; // 1 = Monday
       const weekInfoYesterday = getWeekInfo(new Date(`${yKey}T12:00:00`));
       let finalBank = userDataTx.weeklyBank || { weekId: weekInfoYesterday.weekId, bankedCalories: 0, startDate: weekInfoYesterday.startDate, endDate: weekInfoYesterday.endDate };
-
-      if (finalBank.weekId !== weekInfoYesterday.weekId) {
-        finalBank = { weekId: weekInfoYesterday.weekId, startDate: weekInfoYesterday.startDate, endDate: weekInfoYesterday.endDate, bankedCalories: bankedAmountThisDay };
+      
+      if (isProcessingOnMonday) {
+          // On Monday, we process Sunday, but we MUST reset the bank for the NEW week starting today (Monday).
+          // Any calories banked from Sunday are discarded, as per user request.
+          const weekInfoToday = getWeekInfo(now);
+          finalBank = {
+              weekId: weekInfoToday.weekId,
+              bankedCalories: 0,
+              startDate: weekInfoToday.startDate,
+              endDate: weekInfoToday.endDate
+          };
       } else {
-        finalBank = { ...finalBank, bankedCalories: (finalBank.bankedCalories || 0) + bankedAmountThisDay };
+          // Existing logic for Tue-Sun
+          if (finalBank.weekId !== weekInfoYesterday.weekId) {
+              finalBank = { weekId: weekInfoYesterday.weekId, startDate: weekInfoYesterday.startDate, endDate: weekInfoYesterday.endDate, bankedCalories: bankedAmountThisDay };
+          } else {
+              finalBank = { ...finalBank, bankedCalories: (finalBank.bankedCalories || 0) + bankedAmountThisDay };
+          }
       }
       
       const sumRef = doc(db, "users", uid, "pastDaySummaries", yKey);
@@ -2784,6 +2821,7 @@ useEffect(() => {
     setShowRecipeChoiceModal(false);
     setIngredientImagesForCapture([]); // Clear any previous images
     setIsCapturingForIngredients(true);
+    setIsCapturingForLabel(false);
     openModal(setShowCameraModal);
   };
 
@@ -3389,6 +3427,23 @@ useEffect(() => {
     };
   }, [isInitialDataLoaded, userProfile, goals, weightLogs, pastDaysSummary, mentalWellbeingLogs, currentDate, streakData.currentStreak]);
 
+  // FIX: Add handler for nutrition label log
+  const handleLogFromLabel = (nutritionalInfo: NutritionalInfo) => {
+    addMealToLog(nutritionalInfo, { commonMealId: 'nutrition_label' });
+    setShowNutritionLabelResultModal(false);
+    setNutritionLabelResult(null);
+    setToastNotification({ message: `"${nutritionalInfo.foodItem}" loggades!`, type: 'success' });
+    setTimeout(() => setToastNotification(null), 3000);
+  };
+  
+  // FIX: Add handler for barcode scan fallback
+  const handleScanFallback = () => {
+    closeModal(setShowBarcodeScannerModal);
+    setIsCapturingForLabel(true);
+    setIsCapturingForIngredients(false);
+    openModal(setShowCameraModal);
+  };
+
 
   if (authLoading || isDataLoading) {
     return <SplashScreen />;
@@ -3418,10 +3473,12 @@ useEffect(() => {
     switch (option) {
       case 'camera':
         setIsCapturingForIngredients(false); // Ensure this is for single meal
+        setIsCapturingForLabel(false);
         openModal(setShowCameraModal);
         break;
       case 'upload':
         setIsCapturingForIngredients(false); // Ensure this is for single meal
+        setIsCapturingForLabel(false);
         document.getElementById('imageUploadInputMain')?.click(); // Trigger hidden input
         break;
       case 'text':
@@ -3780,7 +3837,7 @@ useEffect(() => {
             />
          )}
          {viewMode === 'community' && (
-            <CommunityView 
+            <CommunityView
               key={communityViewKey}
               currentUser={currentUser}
               userProfile={userProfile}
@@ -3790,12 +3847,12 @@ useEffect(() => {
               initialTab={communityInitialTab}
               initialSubTab={communityInitialSubTab}
               highlightEventId={highlightEventId}
-              lastViewTimestamp={lastCommunityViewTimestamp}
               timelineEvents={timelineEvents}
               setTimelineEvents={setTimelineEvents}
               buddyDetails={buddyDetails}
               isLoading={isLoadingCommunityData}
               onDataChanged={loadCommunityData}
+              lastViewTimestamp={lastCommunityViewTimestamp}
             />
          )}
         </main>
@@ -3974,6 +4031,7 @@ useEffect(() => {
                   setToastNotification({ message: `Kamerafel: ${msg}`, type: 'error' });
                   setTimeout(() => setToastNotification(null), 3500);
               }}
+              onScanFallback={handleScanFallback}
             />
           )}
           {barcodeScanResult && (
@@ -4115,6 +4173,17 @@ useEffect(() => {
               analysisContext={journeyAnalysisData}
               initialContext={coachInitialContext}
             />
+        )}
+        {showNutritionLabelResultModal && nutritionLabelResult && (
+          <NutritionLabelResultModal
+            show={showNutritionLabelResultModal}
+            onClose={() => {
+              setShowNutritionLabelResultModal(false);
+              setNutritionLabelResult(null);
+            }}
+            analysisResult={nutritionLabelResult}
+            onLog={handleLogFromLabel}
+          />
         )}
 
       </div>
