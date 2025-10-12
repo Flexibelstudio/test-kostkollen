@@ -1353,7 +1353,19 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
         
         if (isViewingAppYesterday) {
-            await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+            const processResult = await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+            
+            if (processResult) {
+                if (processResult.summary) {
+                    setPastDaysSummary(prev => ({
+                        ...prev,
+                        [processResult.summary!.date]: processResult.summary!,
+                    }));
+                }
+                setStreakData(processResult.streakData);
+                setWeeklyBank(processResult.weeklyBank);
+                setHighestStreak(processResult.highestStreak);
+            }
         }
 
     } catch (error) {
@@ -1597,7 +1609,15 @@ const handleDeleteMeal = async (mealId: string) => {
         setTimeout(() => setToastNotification(null), 3000);
         
         if (isViewingAppYesterday) {
-            await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+            const processResult = await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+            if (processResult) {
+                if (processResult.summary) {
+                    setPastDaysSummary(prev => ({ ...prev, [processResult.summary!.date]: processResult.summary! }));
+                }
+                setStreakData(processResult.streakData);
+                setWeeklyBank(processResult.weeklyBank);
+                setHighestStreak(processResult.highestStreak);
+            }
         }
     } catch (error) {
         handleFirestoreError(error, 'ta bort måltid');
@@ -1678,7 +1698,15 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
         setTimeout(() => setToastNotification(null), 3000);
 
         if (isViewingAppYesterday) {
-            await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+            const processResult = await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+            if (processResult) {
+                if (processResult.summary) {
+                    setPastDaysSummary(prev => ({ ...prev, [processResult.summary!.date]: processResult.summary! }));
+                }
+                setStreakData(processResult.streakData);
+                setWeeklyBank(processResult.weeklyBank);
+                setHighestStreak(processResult.highestStreak);
+            }
         }
     } catch (error) {
         handleFirestoreError(error, 'uppdatera måltid');
@@ -1912,7 +1940,7 @@ const handleFinishOnboarding = async () => {
 
 
 // New, robust day-end summary logic (fixed)
-const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}) => {
+const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}): Promise<{ summary: PastDaySummary | null; streakData: { currentStreak: number; lastDateStreakChecked: string | null }; weeklyBank: WeeklyCalorieBank; highestStreak: number; } | void> => {
   setAppStatus(AppStatus.PROCESSING_DAY_END);
   try {
     const { start, end, yKey } = yesterdayRangeSE(now);
@@ -1945,22 +1973,33 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     
     if (dailyLogForDate.length === 0) {
       console.log(`No logs for ${yKey}. Resetting streak and marking as checked.`);
+      let updatedDataForReturn: any;
       await runTransaction(db, async (tx) => {
         const userSnapTx = await tx.get(userRef);
         if (!userSnapTx.exists()) return;
+        const userDataTx = userSnapTx.data() as FirestoreUserDocument;
         tx.update(userRef, { currentStreak: 0, lastDateStreakChecked: yKey });
+        
+        updatedDataForReturn = {
+          summary: null,
+          streakData: { currentStreak: 0, lastDateStreakChecked: yKey },
+          weeklyBank: userDataTx.weeklyBank,
+          highestStreak: userDataTx.highestStreak,
+        };
       });
 
-      // Update local state after transaction
-      const updatedData = await fetchInitialAppData(uid);
-      if (updatedData) {
-        setStreakData({
-          currentStreak: updatedData.currentStreak,
-          lastDateStreakChecked: updatedData.lastDateStreakChecked,
-        });
-        setPastDaysSummary(updatedData.pastDaySummaries); // To clear any potentially stale data
+      if (updatedDataForReturn) {
+          if (!options.silent) {
+              setStreakData(updatedDataForReturn.streakData);
+              setPastDaysSummary(prev => {
+                  const newSummaries = { ...prev };
+                  delete newSummaries[yKey];
+                  return newSummaries;
+              });
+          }
+          return updatedDataForReturn;
       }
-      return; // Stop execution here
+      return;
     }
     
     const localGoals = userData.goals || DEFAULT_GOALS;
@@ -1995,6 +2034,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       bankedAmountThisDay = localGoals.calorieGoal - totalNutrientsForDay.calories;
     }
     
+    let resultData: any = null;
     await runTransaction(db, async (tx) => {
       const userSnapTx = await tx.get(userRef);
       if (!userSnapTx.exists()) return;
@@ -2010,6 +2050,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       
       const prevHighest = userDataTx.highestStreak ?? 0;
       const nextStreak = habitMetForStreak ? prevStreak + 1 : 0;
+      const newHighestStreak = Math.max(prevHighest, nextStreak);
 
       const summaryForThisDay: PastDaySummary = {
         date: yKey,
@@ -2033,8 +2074,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       let finalBank = userDataTx.weeklyBank || { weekId: weekInfoYesterday.weekId, bankedCalories: 0, startDate: weekInfoYesterday.startDate, endDate: weekInfoYesterday.endDate };
       
       if (isProcessingOnMonday) {
-          // On Monday, we process Sunday, but we MUST reset the bank for the NEW week starting today (Monday).
-          // Any calories banked from Sunday are discarded, as per user request.
           const weekInfoToday = getWeekInfo(now);
           finalBank = {
               weekId: weekInfoToday.weekId,
@@ -2043,7 +2082,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
               endDate: weekInfoToday.endDate
           };
       } else {
-          // Existing logic for Tue-Sun
           if (finalBank.weekId !== weekInfoYesterday.weekId) {
               finalBank = { weekId: weekInfoYesterday.weekId, startDate: weekInfoYesterday.startDate, endDate: weekInfoYesterday.endDate, bankedCalories: bankedAmountThisDay };
           } else {
@@ -2057,48 +2095,53 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       tx.update(userRef, {
         currentStreak: nextStreak,
         lastDateStreakChecked: yKey,
-        highestStreak: Math.max(prevHighest, nextStreak),
+        highestStreak: newHighestStreak,
         weeklyBank: finalBank,
       });
+
+      resultData = {
+          summary: summaryForThisDay,
+          streakData: { currentStreak: nextStreak, lastDateStreakChecked: yKey },
+          weeklyBank: finalBank,
+          highestStreak: newHighestStreak
+      };
     });
 
-    const appData = await fetchInitialAppData(uid);
-    if (appData) {
-      setStreakData({ currentStreak: appData.currentStreak || 0, lastDateStreakChecked: appData.lastDateStreakChecked || null });
-      setWeeklyBank(appData.weeklyBank);
-      setStreakSaver(appData.streakSaver);
-      setHighestStreak(appData.highestStreak);
-      setPastDaysSummary(appData.pastDaySummaries);
-
-      if (!options.silent) {
-        if (goalMetForCalendar) {
-          const newStreakValue = appData.currentStreak || 0;
-          if (newStreakValue > 0 && currentUser) {
-              try {
-                  const streakEventData = {
-                      type: 'streak' as const,
-                      timestamp: Date.now(),
-                      title: `har fått +1 på sin Streak!`,
-                      description: `Ny streak: ${newStreakValue} dagar i följd.`,
-                      icon: '🔥',
-                      relatedDocId: `streak_${yKey}`
-                  };
-                  await addTimelineEvent(currentUser.uid, streakEventData);
-              } catch (error) { console.error("Failed to create streak timeline event:", error); }
-          }
-          setShowGoalMetModalData({ date: yKey, streak: newStreakValue });
-          setShowConfetti(true);
-          playAudio("levelUp");
-          setTimeout(() => setShowConfetti(false), 5000);
-        } else {
-          const summaryForThisDay = appData.pastDaySummaries[yKey];
-          if (appData.streakSaver?.available && summaryForThisDay) {
-              setDayToPotentiallySave(summaryForThisDay);
-          } else if (summaryForThisDay) {
-              setShowMotivationModal(summaryForThisDay);
-          }
+    if (resultData) {
+        if (!options.silent) {
+            setStreakData(resultData.streakData);
+            setWeeklyBank(resultData.weeklyBank);
+            setHighestStreak(resultData.highestStreak);
+            setPastDaysSummary(prev => ({...prev, [yKey]: resultData.summary}));
+            
+            if (resultData.summary.goalMet) {
+                const newStreakValue = resultData.streakData.currentStreak;
+                if (newStreakValue > 0 && currentUser) {
+                    try {
+                        const streakEventData = {
+                            type: 'streak' as const,
+                            timestamp: Date.now(),
+                            title: `har fått +1 på sin Streak!`,
+                            description: `Ny streak: ${newStreakValue} dagar i följd.`,
+                            icon: '🔥',
+                            relatedDocId: `streak_${yKey}`
+                        };
+                        await addTimelineEvent(currentUser.uid, streakEventData);
+                    } catch (error) { console.error("Failed to create streak timeline event:", error); }
+                }
+                setShowGoalMetModalData({ date: yKey, streak: newStreakValue });
+                setShowConfetti(true);
+                playAudio("levelUp");
+                setTimeout(() => setShowConfetti(false), 5000);
+            } else {
+                if (userData.streakSaver?.available && resultData.summary) {
+                    setDayToPotentiallySave(resultData.summary);
+                } else if (resultData.summary) {
+                    setShowMotivationModal(resultData.summary);
+                }
+            }
         }
-      }
+        return resultData;
     }
 } catch (err) {
   console.error("Error during daily summary processing:", err);
