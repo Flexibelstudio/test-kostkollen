@@ -885,3 +885,71 @@ Skapa en sammanfattning med följande tre rubriker:
         throw new Error("Kunde inte generera AI-sammanfattning på grund av ett okänt fel.");
     }
 };
+
+export const analyzeNutritionLabelImage = async (base64ImageData: string): Promise<NutritionalInfo> => {
+  const imagePart = {
+    inlineData: {
+      mimeType: 'image/jpeg',
+      data: base64ImageData,
+    },
+  };
+
+  const textPart = {
+    text: `Analysera näringsdeklarationen på denna bild. Ditt mål är att extrahera näringsvärdena per 100g eller 100ml.
+Leta efter nyckelord som "Näringsvärde", "per 100g", "per 100 ml", "Energi", "Fett", "Kolhydrater", "Protein".
+Identifiera också produktens namn om det är synligt på bilden.
+
+Svara ENDAST med ett enda JSON-objekt med följande exakta nycklar:
+"foodItem" (string, produktens namn på SVENSKA, t.ex., "Kalles Kaviar", "Ekologisk Mellanmjölk"),
+"calories" (number, i kcal, per 100g/ml),
+"protein" (number, i gram, per 100g/ml),
+"carbohydrates" (number, i gram, per 100g/ml),
+"fat" (number, i gram, per 100g/ml).
+
+Se till att alla näringsvärden är numeriska och representerar värdena per 100g eller 100ml. Om ett värde inte kan hittas, returnera 0 för det fältet. Om du hittar "kJ" för energi, omvandla det till kcal (dividera med 4.184). Extrahera endast siffror.
+Exempel: {"foodItem": "Ekologisk Mellanmjölk", "calories": 45, "protein": 3.5, "carbohydrates": 4.9, "fat": 1.5}`
+  };
+
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL_NAME_TEXT,
+      contents: { parts: [imagePart, textPart] },
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.1, 
+      },
+    });
+
+    let jsonStr = response.text.trim();
+    
+    const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
+    const match = jsonStr.match(fenceRegex);
+    if (match && match[2]) {
+      jsonStr = match[2].trim();
+    }
+
+    const parsedData = JSON.parse(jsonStr) as NutritionalInfo;
+
+    if (typeof parsedData.calories !== 'number' ||
+        typeof parsedData.protein !== 'number' ||
+        typeof parsedData.carbohydrates !== 'number' ||
+        typeof parsedData.fat !== 'number') {
+      throw new Error("Invalid JSON structure from nutrition label analysis. Missing or incorrect numeric types.");
+    }
+    
+    // Ensure non-negative
+    parsedData.calories = Math.max(0, parsedData.calories);
+    parsedData.protein = Math.max(0, parsedData.protein);
+    parsedData.carbohydrates = Math.max(0, parsedData.carbohydrates);
+    parsedData.fat = Math.max(0, parsedData.fat);
+
+    return parsedData;
+
+  } catch (error) {
+    console.error("Error analyzing nutrition label with Gemini:", error);
+    if (error instanceof Error) {
+        throw new Error(`Kunde inte läsa näringsdeklarationen: ${error.message}`);
+    }
+    throw new Error("Kunde inte läsa näringsdeklarationen på grund av ett okänt fel.");
+  }
+};

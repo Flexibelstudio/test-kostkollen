@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { RecipeSuggestion, NutritionalInfo } from '../types';
 import { XMarkIcon, SparklesIcon, FireIcon, ProteinIcon, LeafIcon, CheckIcon as LogIcon, InformationCircleIcon } from './icons';
@@ -78,7 +79,8 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
     onLogRecipe(loggedNutritionalInfo);
   };
   
-  const renderNutrient = (label: string, value: number | undefined, unit: string, icon: JSX.Element) => (
+  // FIX: Changed 'icon' type from JSX.Element to React.ReactNode to resolve namespace error.
+  const renderNutrient = (label: string, value: number | undefined, unit: string, icon: React.ReactNode) => (
     <div className="flex items-center text-sm text-neutral-dark">
       {icon}
       <span className="ml-1.5">{label}: {value !== undefined ? Math.round(value) : '?'} {unit}</span>

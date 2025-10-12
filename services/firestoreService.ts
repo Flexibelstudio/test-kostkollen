@@ -51,7 +51,7 @@ import type {
     Achievement,
     TimelineComment,
     Reactions,
-    CompletedGoal
+    CompletedGoal,
 } from '../types';
 import { DEFAULT_GOALS, LEVEL_DEFINITIONS, DEFAULT_USER_PROFILE } from '../constants';
 import { courseLessons } from '../courseData.ts';
@@ -180,7 +180,6 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
         startDate: currentWeekInfo.startDate,
         endDate: currentWeekInfo.endDate
       },
-      streakSaver: { available: true, weekId: currentWeekInfo.weekId },
       unlockedAchievements: {},
       journeyAnalysisFeedback: null,
       isSearchable: true,
@@ -301,7 +300,8 @@ export async function fetchInitialAppData(userId: string) {
       highestStreak: userDocData.highestStreak,
       highestLevelId: userDocData.highestLevelId,
       weeklyBank: userDocData.weeklyBank,
-      streakSaver: userDocData.streakSaver,
+      // FIX: Include streakSaver in the returned data.
+      streakSaver: userDocData.streakSaver ?? null,
       commonMeals,
       weightLogs,
       pastDaySummaries,

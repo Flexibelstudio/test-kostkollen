@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, FC, useCallback } from 'react';
 import type { User } from '@firebase/auth';
-import { Peppkompis, TimelineEvent, Achievement, Gender, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions } from '../types';
+import { Peppkompis, TimelineEvent, Achievement, Gender, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions } from './types';
 import { 
     searchForBuddies,
     sendFriendRequest,
@@ -11,16 +11,17 @@ import {
     togglePeppOnTimelineEvent,
     addCommentToTimelineEvent,
     toggleLikeOnComment,
+    fetchBuddies,
     cancelFriendRequest
-} from '../services/firestoreService';
+} from './services/firestoreService';
 import { 
     HeartIcon, 
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ChevronDownIcon, ArrowRightIcon,
     ShareIcon, PencilIcon,
-} from './icons';
+} from './components/icons';
 import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
-import { playAudio } from '../services/audioService';
-import { Avatar } from './UserProfileModal';
+import { playAudio } from './services/audioService';
+import { Avatar } from './components/UserProfileModal';
 
 // --- HELPER FUNCTION ---
 const formatChange = (change: number | undefined, isFirstEntry: boolean, invertColors: boolean = false): { text: string; colorClass: string } => {
@@ -716,6 +717,7 @@ export const CommunityView: React.FC<{
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
   pendingRequestsCount: number;
   initialTab?: 'flode' | 'hantera';
+  initialSubTab?: 'buddies' | 'search' | 'requests';
   highlightEventId?: string | null;
   timelineEvents: TimelineEvent[];
   setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
@@ -730,6 +732,7 @@ export const CommunityView: React.FC<{
   setToastNotification,
   pendingRequestsCount,
   initialTab = 'flode',
+  initialSubTab = 'buddies',
   highlightEventId = null,
   timelineEvents,
   setTimelineEvents,
@@ -814,7 +817,7 @@ export const CommunityView: React.FC<{
             id: `local-${clientTimestamp}`, 
             authorUid: currentUser.uid, 
             authorName: userProfile.name || 'Användare', 
-            authorPhotoURL: userProfile.photoURL || undefined,
+            authorPhotoURL: userProfile.photoURL, 
             text: text.trim(), 
             timestamp: clientTimestamp, 
             likes: {} 
@@ -826,8 +829,14 @@ export const CommunityView: React.FC<{
         ));
 
         try {
-            const { id, ...commentDataForFirestore } = optimisticComment;
-            
+            const commentDataForFirestore = { 
+                authorUid: optimisticComment.authorUid, 
+                authorName: optimisticComment.authorName, 
+                authorPhotoURL: optimisticComment.authorPhotoURL, 
+                text: optimisticComment.text, 
+                timestamp: optimisticComment.timestamp,
+                likes: optimisticComment.likes,
+            };
             const newCommentId = await addCommentToTimelineEvent(event.id, commentDataForFirestore);
             setTimelineEvents(prevEvents => prevEvents.map(e => {
                 if (e.id === event.id) {
@@ -917,7 +926,7 @@ export const CommunityView: React.FC<{
                         onDataChanged={onDataChanged}
                         buddyDetails={buddyDetails}
                         achievements={achievements}
-                        initialTab={initialTab === 'hantera' ? 'requests' : 'buddies'}
+                        initialTab={initialSubTab}
                     />
                 )}
             </main>

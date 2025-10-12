@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { CameraIcon, XMarkIcon } from './icons.tsx'; 
 import { playAudio } from '../services/audioService.ts'; // Import the new audio service
@@ -9,9 +7,10 @@ interface CameraModalProps {
   onClose: () => void;
   onImageCapture: (imageDataUrl: string) => void;
   onCameraError: (errorMessage: string) => void;
+  instructionText?: string;
 }
 
-const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture, onCameraError }) => {
+const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture, onCameraError, instructionText }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCameraLoading, setIsCameraLoading] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -211,6 +210,13 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
                 aria-label="Kameravy"
                 aria-hidden={isCameraLoading || !!cameraError}
             />
+             {!isCameraLoading && !cameraError && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 w-11/12 pointer-events-none">
+                  <p className="text-white text-base font-semibold bg-black/50 px-3 py-1 rounded-md text-center">
+                      {instructionText || 'Placera maten i rutan och ta en bild'}
+                  </p>
+              </div>
+            )}
             {isCameraLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center z-10">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-primary mx-auto mb-3"></div>

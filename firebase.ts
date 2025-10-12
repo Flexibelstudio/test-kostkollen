@@ -1,4 +1,4 @@
-/// <reference types="vite/client" />
+
 
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import {
@@ -7,11 +7,14 @@ import {
   browserLocalPersistence,
   type Auth,
 } from "firebase/auth";
+// FIX: Corrected import path for Firestore functions and types from 'firebase/firestore' to '@firebase/firestore'.
+// FIX: Corrected import path for Firestore functions
+// FIX: Changed import from 'firebase/firestore' to '@firebase/firestore' to resolve missing member errors.
 import {
   getFirestore,
   enableIndexedDbPersistence,
   type Firestore,
-} from "firebase/firestore";
+} from "@firebase/firestore";
 
 // ?mock=true aktiverar mock-läge (praktiskt för lokal test)
 const isMockQuery =
@@ -19,20 +22,23 @@ const isMockQuery =
 
 // Läs Firebase-konfig från Vite/Netlify (OBS: import.meta.env i Vite)
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FB_API_KEY,
-  authDomain: import.meta.env.VITE_FB_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FB_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FB_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FB_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FB_APP_ID,
-  ...(import.meta.env.VITE_FB_MEASUREMENT_ID
-    ? { measurementId: import.meta.env.VITE_FB_MEASUREMENT_ID }
+// FIX: Cast `import.meta` to `any` to resolve TypeScript errors when Vite client types are not available.
+  apiKey: (import.meta as any).env.VITE_FB_API_KEY,
+  authDomain: (import.meta as any).env.VITE_FB_AUTH_DOMAIN,
+  projectId: (import.meta as any).env.VITE_FB_PROJECT_ID,
+  storageBucket: (import.meta as any).env.VITE_FB_STORAGE_BUCKET,
+  messagingSenderId: (import.meta as any).env.VITE_FB_MESSAGING_SENDER_ID,
+  appId: (import.meta as any).env.VITE_FB_APP_ID,
+  ...((import.meta as any).env.VITE_FB_MEASUREMENT_ID
+    ? { measurementId: (import.meta as any).env.VITE_FB_MEASUREMENT_ID }
     : {}),
 } as const;
 
-if (import.meta.env.DEV)
+// FIX: Cast `import.meta` to `any` to resolve TypeScript errors.
+if ((import.meta as any).env.DEV)
   console.log("FB project (DEV):", firebaseConfig.projectId ?? "(saknas)");
-if (import.meta.env.PROD)
+// FIX: Cast `import.meta` to `any` to resolve TypeScript errors.
+if ((import.meta as any).env.PROD)
   console.log("FB project (PROD):", firebaseConfig.projectId ?? "(saknas)");
 
 // Enkel mock-auth när config saknas eller ?mock=true

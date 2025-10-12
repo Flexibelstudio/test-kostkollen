@@ -1,4 +1,6 @@
-import { UserProfileData, GoalSettings, LoggedMeal, PastDaysSummaryCollection, WeightLogEntry, CommonMeal, UserCourseProgress, WeeklyCalorieBank, FirestoreUserDocument, UserRole, PastDaySummary, CoachViewMember, AIStructuredFeedbackResponse, StreakSaver } from '../types';
+
+
+import { UserProfileData, GoalSettings, LoggedMeal, PastDaysSummaryCollection, WeightLogEntry, CommonMeal, UserCourseProgress, WeeklyCalorieBank, FirestoreUserDocument, UserRole, PastDaySummary, CoachViewMember, AIStructuredFeedbackResponse } from '../types';
 import { DEFAULT_GOALS, DEFAULT_USER_PROFILE, DEFAULT_WATER_GOAL_ML } from '../constants';
 import { courseLessons } from '../courseData.ts';
 
@@ -115,11 +117,6 @@ export const mockWeeklyBank: WeeklyCalorieBank = {
     endDate: '2024-07-28',
 };
 
-export const mockStreakSaver: StreakSaver = {
-    available: true,
-    weekId: "2024-W30",
-};
-
 export const mockJourneyFeedback: AIStructuredFeedbackResponse = {
     greeting: "Hej Mock Användare!",
     sections: [
@@ -186,6 +183,7 @@ export const mockCoachViewMembers: CoachViewMember[] = [
     }
 ];
 
+// FIX: Add streakSaver to mock user document
 export const mockFirestoreUser: FirestoreUserDocument = {
     uid: MOCK_USER_ID,
     email: 'test@example.com',
@@ -216,7 +214,7 @@ export const mockFirestoreUser: FirestoreUserDocument = {
     highestStreak: 10,
     highestLevelId: 'level1',
     weeklyBank: mockWeeklyBank,
-    streakSaver: mockStreakSaver,
+    streakSaver: null,
     courseProgressSummary: {
         started: true,
         completedLessons: 1,

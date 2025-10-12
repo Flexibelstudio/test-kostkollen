@@ -1,5 +1,5 @@
 import React from 'react';
-import { GoalSettings, UserProfileData, Level, StreakSaver } from '../types';
+import { GoalSettings, UserProfileData, Level } from '../types';
 import { LEVEL_DEFINITIONS } from '../constants';
 import { TrophyIcon, LifebuoyIcon, ChevronDownIcon } from './icons';
 
@@ -8,7 +8,6 @@ interface GamificationCardProps {
   minSafeCalories: number;
   highestStreak: number;
   highestLevelId: string | null;
-  streakSaver: StreakSaver | null;
   isExpanded: boolean;
   onToggle: () => void;
 }
@@ -18,7 +17,6 @@ const GamificationCard: React.FC<GamificationCardProps> = ({
   minSafeCalories,
   highestStreak,
   highestLevelId,
-  streakSaver,
   isExpanded,
   onToggle
 }) => {
@@ -51,22 +49,7 @@ const GamificationCard: React.FC<GamificationCardProps> = ({
               <div className="flex items-start space-x-3">
               <span className="text-3xl" role="img" aria-label="Streak-ikon">🔥</span>
               <p className="text-sm text-neutral">
-                  För att bygga din streak: ät minst {minSafeCalories.toFixed(0)} kcal, och håll ditt effektiva intag (efter ev. användning av sparpott) under {goals.calorieGoal.toFixed(0)} kcal för dagen.
-              </p>
-              </div>
-          </div>
-           <div>
-              <h4 className="text-lg font-medium text-neutral-dark mb-2">Veckans Streakräddare</h4>
-              <div className="flex items-start space-x-3">
-              <LifebuoyIcon className="w-8 h-8 text-secondary flex-shrink-0" />
-              <p className="text-sm text-neutral">
-                  Varje måndag får du en ny 'Streakräddare'. Om du misslyckas med en dag kan du dagen efter använda den för att reparera din streak och fortsätta din resa utan avbrott! 
-                  <br/>
-                  Status: {streakSaver?.available ? (
-                      <span className="font-bold text-primary">Tillgänglig</span>
-                  ) : (
-                      <span className="font-bold text-neutral">Använd</span>
-                  )}
+                  För att bygga din streak (🔥), logga minst en måltid varje dag. Kalenderdagarna blir gröna när du håller dig inom ditt kaloriintervall.
               </p>
               </div>
           </div>
