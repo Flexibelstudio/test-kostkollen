@@ -1,3 +1,4 @@
+
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
@@ -19,7 +20,7 @@ if (vapidPublicKey && vapidPrivateKey) {
 
     try {
         webpush.setVapidDetails(
-          "mailto:din-email@example.com", // Uppdatera denna med din kontakt-email
+          "mailto:support@kostloggen.se", // Uppdatera denna med din kontakt-email
           vapidPublicKey,
           vapidPrivateKey
         );
@@ -115,6 +116,44 @@ exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
 
     await Promise.all(notificationPromises);
 });
+
+exports.onCourseInterest = functions.firestore
+  .document("users/{userId}")
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Check if courseInterest changed from false/undefined to true
+    if (after.courseInterest === true && before.courseInterest !== true) {
+        const name = after.displayName || "En medlem";
+        logger.log(`Course interest shown by: ${name} (ID: ${change.after.id})`);
+
+        const payload = {
+          notification: {
+            title: "Intresse för kurs! 🎓",
+            body: `${name} har visat intresse för kursen 'Praktisk Viktkontroll'.`,
+            icon: "/icons/icon-192x192.png",
+            badge: "/icons/badge-96x96.png",
+            data: {
+              url: "/" // Coach dashboard
+            }
+          }
+        };
+
+        const coachIds = await getCoachAndAdminIds();
+        if (coachIds.length === 0) {
+            logger.warn("No coaches or admins found to notify about course interest.");
+            return;
+        }
+
+        const notificationPromises = coachIds.map((id) =>
+            sendNotificationToUser(id, payload, "newEvents") // Reusing 'newEvents' setting for coach
+        );
+
+        await Promise.all(notificationPromises);
+    }
+  });
+
 
 // 1. Peppkompisförfrågan skapad (notis)
 exports.onFriendRequestCreated = functions.firestore
@@ -439,3 +478,166 @@ exports.scheduledFirestoreExport = functions.pubsub
       throw new Error("Export-operationen misslyckades.");
     }
   });
+
+
+// --- MANUELL SUMMERINGSFUNKTION ---
+
+const getDateUID = (date, timezone) => {
+    const fmt = new Intl.DateTimeFormat("sv-SE", {
+        timeZone: timezone || "Europe/Stockholm",
+        year: "numeric", month: "2-digit", day: "2-digit",
+    });
+    const parts = fmt.formatToParts(date);
+    const get = (type) => parts.find((p) => p.type === type)?.value;
+    return `${get("year")}-${get("month")}-${get("day")}`;
+};
+
+const wasCalorieGoalMetForSummary = (consumed, goal, goalType) => {
+    if (goal <= 0 || consumed <= 0) return false;
+    switch (goalType) {
+        case "lose_fat": return consumed <= goal;
+        case "maintain": return Math.abs(consumed - goal) <= goal * 0.10;
+        case "gain_muscle": return consumed >= goal;
+        default: return Math.abs(consumed - goal) <= goal * 0.10;
+    }
+};
+
+const MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL = 0.80;
+const MIN_ABSOLUTE_CALORIES_THRESHOLD = 1200;
+const DEFAULT_WATER_GOAL_ML = 2000;
+
+exports.manualSummarizeYesterday = functions
+  .region("us-central1")
+  .runWith({timeoutSeconds: 540, memory: "2GB"})
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "User must be authenticated.");
+    }
+    const callerDoc = await db.collection("users").doc(context.auth.uid).get();
+    if (!callerDoc.exists) {
+        throw new functions.https.HttpsError("not-found", "Caller user document not found.");
+    }
+    const callerRole = callerDoc.data().role;
+    if (callerRole !== "admin" && callerRole !== "coach") {
+        throw new functions.https.HttpsError("permission-denied", "User must be an admin or coach.");
+    }
+
+    logger.log(`Manual summary triggered by ${context.auth.uid} (${callerRole})`);
+
+    const serverTime = new Date();
+    const yesterday = new Date(serverTime.toLocaleString("en-US", {timeZone: "Europe/Stockholm"}));
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayDateUID = getDateUID(yesterday, "Europe/Stockholm");
+
+    const usersSnapshot = await db.collection("users").where("status", "==", "approved").get();
+
+    let processedCount = 0;
+    let failedCount = 0;
+    let skippedCount = 0;
+    const allWriteOps = [];
+
+    for (const userDoc of usersSnapshot.docs) {
+        const userId = userDoc.id;
+        const user = userDoc.data();
+
+        if (user.lastDateStreakChecked && user.lastDateStreakChecked >= yesterdayDateUID) {
+            skippedCount++;
+            continue;
+        }
+        if (!user.goals || typeof user.goals.calorieGoal !== "number") {
+            logger.warn(`Skipping user ${userId} due to missing or invalid 'goals' field.`);
+            skippedCount++;
+            continue;
+        }
+
+        try {
+            const mealLogsRef = db.collection("users").doc(userId).collection("mealLogs");
+            const mealLogsQuery = mealLogsRef.where("dateString", "==", yesterdayDateUID);
+            const mealLogsSnap = await mealLogsQuery.get();
+            const dailyLogForDate = mealLogsSnap.docs.map((d) => d.data());
+
+            const waterLogRef = db.collection("users").doc(userId).collection("waterLogs").doc(yesterdayDateUID);
+            const waterLogSnap = await waterLogRef.get();
+            const waterLogForDate = waterLogSnap.exists ? waterLogSnap.data().waterLoggedMl : 0;
+
+            const totalNutrients = dailyLogForDate.reduce((acc, meal) => {
+                acc.calories += meal.nutritionalInfo.calories;
+                acc.protein += meal.nutritionalInfo.protein;
+                acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
+                acc.fat += meal.nutritionalInfo.fat;
+                return acc;
+            }, {calories: 0, protein: 0, carbohydrates: 0, fat: 0});
+
+            const minSafeCalories = Math.max(user.goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+            const wasDaySuccessful = dailyLogForDate.length > 0 &&
+                totalNutrients.calories >= minSafeCalories &&
+                wasCalorieGoalMetForSummary(totalNutrients.calories, user.goals.calorieGoal, user.goalType);
+
+            const newStreak = wasDaySuccessful ? (user.currentStreak || 0) + 1 : 0;
+            const newHighestStreak = Math.max(user.highestStreak || 0, newStreak);
+            const bankedAmountThisDay = wasDaySuccessful && totalNutrients.calories < user.goals.calorieGoal ?
+                user.goals.calorieGoal - totalNutrients.calories : 0;
+
+            const userRef = db.collection("users").doc(userId);
+            const summaryRef = db.collection("users").doc(userId).collection("pastDaySummaries").doc(yesterdayDateUID);
+
+            const summaryData = {
+                date: yesterdayDateUID,
+                goalMet: wasDaySuccessful,
+                consumedCalories: totalNutrients.calories,
+                calorieGoal: user.goals.calorieGoal,
+                proteinGoalMet: totalNutrients.protein >= user.goals.proteinGoal,
+                consumedProtein: totalNutrients.protein,
+                proteinGoal: user.goals.proteinGoal,
+                consumedCarbohydrates: totalNutrients.carbohydrates,
+                carbohydrateGoal: user.goals.carbohydrateGoal,
+                consumedFat: totalNutrients.fat,
+                fatGoal: user.goals.fatGoal,
+                goalType: user.goalType,
+                waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
+                streakForThisDay: newStreak,
+            };
+            allWriteOps.push({ref: summaryRef, data: summaryData, type: "set"});
+
+            const userUpdate = {
+                currentStreak: newStreak,
+                highestStreak: newHighestStreak,
+                lastDateStreakChecked: yesterdayDateUID,
+                "weeklyBank.bankedCalories": admin.firestore.FieldValue.increment(bankedAmountThisDay),
+            };
+            allWriteOps.push({ref: userRef, data: userUpdate, type: "update"});
+            
+            processedCount++;
+        } catch (error) {
+            logger.error(`Failed during data gathering for user ${userId}:`, error);
+            failedCount++;
+        }
+    }
+
+    logger.log(`Gathered ${allWriteOps.length} write operations for ${processedCount} users. Committing in batches.`);
+    const batchPromises = [];
+    for (let i = 0; i < allWriteOps.length; i += 500) {
+        const batch = db.batch();
+        const chunk = allWriteOps.slice(i, i + 500);
+        chunk.forEach((op) => {
+            if (op.type === "set") {
+                batch.set(op.ref, op.data, {merge: true});
+            } else {
+                batch.update(op.ref, op.data);
+            }
+        });
+        batchPromises.push(batch.commit());
+    }
+    
+    try {
+        await Promise.all(batchPromises);
+        logger.log(`Successfully committed ${batchPromises.length} batches.`);
+    } catch (error) {
+        logger.error("Error committing batches:", error);
+        throw new functions.https.HttpsError("internal", "Failed to commit all user updates.", {originalError: error});
+    }
+
+    const message = `Summering klar. ${processedCount} användare bearbetades, ${failedCount} misslyckades, ${skippedCount} hoppades över.`;
+    logger.log(`Manual summary finished. ${message}`);
+    return {success: true, message: message};
+});

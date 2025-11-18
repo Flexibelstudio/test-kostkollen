@@ -6,9 +6,11 @@ interface CourseInfoModalProps {
   onClose: () => void;
   show: boolean;
   course: CourseInfo;
+  isActive: boolean;
+  onPurchase: (courseId: CourseInfo['id']) => void;
 }
 
-const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course }) => {
+const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course, isActive, onPurchase }) => {
   const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
 
   if (!show || !course) {
@@ -117,10 +119,18 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course
         <div className="mt-8 pt-6 border-t border-neutral-light/70 flex flex-col sm:flex-row justify-end gap-3">
             <button
               onClick={onClose}
-              className="w-full sm:w-auto px-6 py-2.5 bg-primary text-white text-base font-medium rounded-lg shadow-sm hover:bg-primary-darker active:scale-95 transform"
+              className="w-full sm:w-auto px-6 py-2.5 bg-neutral-light text-neutral-dark text-base font-medium rounded-lg shadow-sm hover:bg-gray-300 active:scale-95 transform"
             >
               Stäng
             </button>
+            {!isActive && (
+                <button
+                  onClick={() => onPurchase(course.id)}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-secondary text-white text-base font-semibold rounded-lg shadow-md hover:bg-secondary-darker active:scale-95 transform"
+                >
+                  Köp kursen nu ({course.price})
+                </button>
+            )}
         </div>
       </div>
     </div>
