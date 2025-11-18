@@ -7,51 +7,64 @@
     <link rel="icon" type="image/png" href="/icons/favicon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#3bab5a" />
-    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Tailwind-config FÖRE CDN, på window.tailwind -->
     <script>
-      tailwind.config = {
+      window.tailwind = window.tailwind || {};
+      window.tailwind.config = {
         theme: {
           extend: {
             colors: {
               primary: {
-                DEFAULT: '#3bab5a',
-                darker: '#2b8646',
-                lighter: '#5cb979',
-                '100': '#ebf7ee',
-                '200': '#c6e8cf',
+                DEFAULT: "#3bab5a",
+                darker: "#2b8646",
+                lighter: "#5cb979",
+                "100": "#ebf7ee",
+                "200": "#c6e8cf",
               },
               secondary: {
-                DEFAULT: '#f97316', // Orange 500
-                darker: '#c45a12', // Orange 700 (for hover/active)
-                lighter: '#fa8a3a', // Orange 400
-                '100': '#fff0e5',   // Custom very light orange shade
-                '200': '#ffe0ca',   // Custom light orange shade
+                DEFAULT: "#f97316", // Orange 500
+                darker: "#c45a12", // Orange 700 (for hover/active)
+                lighter: "#fa8a3a", // Orange 400
+                "100": "#fff0e5", // Custom very light orange shade
+                "200": "#ffe0ca", // Custom light orange shade
               },
               accent: {
-                DEFAULT: '#F59E0B', // Amber 500
-                darker: '#D97706', // Amber 600 (for hover/active)
-                lighter: '#FBBF24', // Amber 400
+                DEFAULT: "#F59E0B", // Amber 500
+                darker: "#D97706", // Amber 600 (for hover/active)
+                lighter: "#FBBF24", // Amber 400
               },
               neutral: {
-                light: '#F3F4F6', // Gray 100
-                DEFAULT: '#6B7280', // Gray 500
-                dark: '#000000', // Changed Gray 800 to black
-                darker: '#111827' // Gray 900
-              }
+                light: "#F3F4F6", // Gray 100
+                DEFAULT: "#6B7280", // Gray 500
+                dark: "#000000", // Changed Gray 800 to black
+                darker: "#111827", // Gray 900
+              },
             },
             boxShadow: {
-              'soft-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-              'soft-xl': '0 20px 25px -5px rgba(0, 0, 0, 0.07), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-            }
-            // Removed keyframes and animation sections to simplify config for CDN
-          }
-        }
+              "soft-lg":
+                "0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+              "soft-xl":
+                "0 20px 25px -5px rgba(0, 0, 0, 0.07), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+            },
+            // keyframes/animation hanteras via egen CSS nedan
+          },
+        },
       };
     </script>
+
+    <!-- Tailwind via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
     <style type="text/css">
       /* Global transition for interactive elements for smoother hover/active states */
-      .interactive-transition, button, .button-like {
-        transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out, opacity 0.15s ease-in-out, transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      .interactive-transition,
+      button,
+      .button-like {
+        transition: background-color 0.15s ease-in-out,
+          border-color 0.15s ease-in-out, color 0.15s ease-in-out,
+          opacity 0.15s ease-in-out, transform 0.15s ease-in-out,
+          box-shadow 0.15s ease-in-out;
       }
       /* Custom scrollbar for better aesthetics on webkit browsers */
       .custom-scrollbar::-webkit-scrollbar {
@@ -59,66 +72,102 @@
         height: 8px;
       }
       .custom-scrollbar::-webkit-scrollbar-track {
-        background: #F3F4F6; /* neutral-light */
+        background: #f3f4f6; /* neutral-light */
         border-radius: 10px;
       }
       .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #D1D5DB; /* A bit darker than neutral-light */
+        background: #d1d5db; /* A bit darker than neutral-light */
         border-radius: 10px;
       }
       .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: #9CA3AF; /* Even darker on hover */
+        background: #9ca3af; /* Even darker on hover */
       }
 
-      /* Re-add necessary keyframes directly if Tailwind config removal breaks critical animations handled by it */
-      /* For example, if ConfettiCelebration relies on Tailwind generated keyframes, it might need to direct CSS here */
-      /* However, for minimal change, we first try removing from JS config */
-       @keyframes confetti-fall {
-        0% { transform: translateY(-10vh) rotateZ(0deg); opacity: 1; }
-        100% { transform: translateY(110vh) rotateZ(720deg); opacity: 0; }
+      @keyframes confetti-fall {
+        0% {
+          transform: translateY(-10vh) rotateZ(0deg);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(110vh) rotateZ(720deg);
+          opacity: 0;
+        }
       }
-      .animate-confetti-fall { /* Ensure this class is used by ConfettiCelebration.tsx if it was relying on Tailwind before */
+      .animate-confetti-fall {
         animation-name: confetti-fall;
         animation-fill-mode: forwards;
         animation-timing-function: linear;
       }
 
-       @keyframes fade-slide-in {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+      @keyframes fade-slide-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
       .animate-fade-slide-in {
         animation: fade-slide-in 0.3s ease-out forwards;
       }
-      
+
       @keyframes meal-drop-bounce {
-        0% { transform: translateY(-100%) scale(0.8); opacity: 0; }
-        60% { transform: translateY(5px) scale(1.05); opacity: 1; }
-        80% { transform: translateY(-2px) scale(0.98); }
-        100% { transform: translateY(0) scale(1); opacity: 1; }
+        0% {
+          transform: translateY(-100%) scale(0.8);
+          opacity: 0;
+        }
+        60% {
+          transform: translateY(5px) scale(1.05);
+          opacity: 1;
+        }
+        80% {
+          transform: translateY(-2px) scale(0.98);
+        }
+        100% {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+        }
       }
       .animate-meal-drop-bounce {
-        animation: meal-drop-bounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        animation: meal-drop-bounce 0.6s
+          cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
       }
-      
+
       @keyframes goal-pulse {
-        0% { box-shadow: 0 0 0 0 rgba(59, 171, 90, 0.4); }
-        70% { box-shadow: 0 0 0 10px rgba(59, 171, 90, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(59, 171, 90, 0); }
+        0% {
+          box-shadow: 0 0 0 0 rgba(59, 171, 90, 0.4);
+        }
+        70% {
+          box-shadow: 0 0 0 10px rgba(59, 171, 90, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(59, 171, 90, 0);
+        }
       }
       .animate-goal-pulse {
         animation: goal-pulse 1.5s ease-out;
       }
 
       @keyframes check-pop-in {
-        0% { transform: scale(0.5); opacity: 0; }
-        80% { transform: scale(1.2); opacity: 1; }
-        100% { transform: scale(1); opacity: 1; }
+        0% {
+          transform: scale(0.5);
+          opacity: 0;
+        }
+        80% {
+          transform: scale(1.2);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
       }
       .animate-check-pop-in {
         animation: check-pop-in 0.4s ease-out forwards;
       }
-      
+
       @keyframes flip-in {
         from {
           transform: rotateX(-90deg);
@@ -132,70 +181,116 @@
       .animate-flip-in {
         animation: flip-in 0.5s ease-out forwards;
       }
-      
+
       @keyframes flame-flicker {
-        0%, 100% { transform: scale(1); filter: brightness(1); }
-        50% { transform: scale(1.15); filter: brightness(1.3); }
+        0%,
+        100% {
+          transform: scale(1);
+          filter: brightness(1);
+        }
+        50% {
+          transform: scale(1.15);
+          filter: brightness(1.3);
+        }
       }
       .animate-flame-flicker {
         animation: flame-flicker 0.5s ease-in-out;
       }
 
       @keyframes pulse-blue {
-        0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
-        70% { box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        0% {
+          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+        }
+        70% {
+          box-shadow: 0 0 0 12px rgba(59, 130, 246, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+        }
       }
       .animate-pulse-blue {
         animation: pulse-blue 2s infinite;
       }
 
       @keyframes fade-in {
-        from { opacity: 0; }
-        to { opacity: 1; }
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
       }
       .animate-fade-in {
         animation: fade-in 0.3s ease-out forwards;
       }
 
       @keyframes scale-in {
-        from { transform: scale(0.95); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
+        from {
+          transform: scale(0.95);
+          opacity: 0;
+        }
+        to {
+          transform: scale(1);
+          opacity: 1;
+        }
       }
       .animate-scale-in {
         animation: scale-in 0.2s ease-out forwards;
       }
 
       @keyframes slide-up-fade-in {
-        from { transform: translateY(100%); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
+        from {
+          transform: translateY(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
       }
       .animate-slide-up-fade-in {
         animation: slide-up-fade-in 0.3s ease-out forwards;
       }
-      
-       @keyframes fade-out {
-        from { opacity: 1; }
-        to { opacity: 0; }
+
+      @keyframes fade-out {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
       }
       .animate-fade-out {
         animation: fade-out 0.5s ease-out forwards;
       }
 
       @keyframes scan-line {
-        0% { top: 0; }
-        100% { top: 100%; }
+        0% {
+          top: 0;
+        }
+        100% {
+          top: 100%;
+        }
       }
 
       @keyframes heart-pop {
-        0% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.4); opacity: 0.7; }
-        100% { transform: scale(1.6); opacity: 0; }
+        0% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.4);
+          opacity: 0.7;
+        }
+        100% {
+          transform: scale(1.6);
+          opacity: 0;
+        }
       }
       .animate-heart-pop {
         animation: heart-pop 0.5s ease-out forwards;
       }
-      
+
       @keyframes water-splash {
         from {
           opacity: 1;
@@ -203,13 +298,19 @@
         }
         to {
           opacity: 0;
-          transform: translate(var(--translateX), var(--translateY)) scale(0.5);
+          transform: translate(var(--translateX), var(--translateY))
+            scale(0.5);
         }
       }
       .animate-water-splash {
         animation-name: water-splash;
         animation-fill-mode: forwards;
-        animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        animation-timing-function: cubic-bezier(
+          0.25,
+          0.46,
+          0.45,
+          0.94
+        );
       }
 
       .truncate-2-lines {
@@ -218,14 +319,14 @@
         -webkit-box-orient: vertical;
         overflow: hidden;
       }
-      
+
       .nav-btn {
         position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
         padding: 4px;
-        color: #6B7280; /* neutral-DEFAULT */
+        color: #6b7280; /* neutral-DEFAULT */
         transition: color 0.2s ease-in-out;
       }
 
@@ -240,36 +341,38 @@
         background-color: transparent;
         transition: background-color 0.2s ease-in-out;
       }
-      
-      .nav-btn:hover .icon-wrap, .nav-btn.active .icon-wrap {
+
+      .nav-btn:hover .icon-wrap,
+      .nav-btn.active .icon-wrap {
         background-color: #ebf7ee; /* primary-100 */
       }
-      
+
       .nav-btn.active svg {
         stroke-width: 2px;
       }
-
     </style>
+
     <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@18.2.0",
-    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
-    "@firebase/app": "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js",
-    "@firebase/auth": "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js",
-    "@firebase/firestore": "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js",
-    "@google/genai": "https://esm.sh/@google/genai@^1.9.0",
-    "async-mutex": "https://esm.sh/async-mutex@^0.5.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.400.0",
-    "@zxing/library": "https://esm.sh/@zxing/library@^0.21.0",
-    "@zxing/browser": "https://esm.sh/@zxing/browser@^0.1.5",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.2.1/"
-  }
-}
-</script>
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+        "@firebase/app": "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js",
+        "@firebase/auth": "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js",
+        "@firebase/firestore": "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js",
+        "@google/genai": "https://esm.sh/@google/genai@^1.9.0",
+        "async-mutex": "https://esm.sh/async-mutex@^0.5.0",
+        "lucide-react": "https://esm.sh/lucide-react@^0.400.0",
+        "@zxing/library": "https://esm.sh/@zxing/library@^0.21.0",
+        "@zxing/browser": "https://esm.sh/@zxing/browser@^0.1.5",
+        "react/": "https://aistudiocdn.com/react@^19.1.1/",
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+        "firebase/": "https://aistudiocdn.com/firebase@^12.2.1/"
+      }
+    }
+    </script>
+
     <script type="module" src="/index.tsx"></script>
   </head>
   <body>
