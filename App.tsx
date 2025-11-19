@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
-import { auth, db, authPersistencePromise } from './firebase';
-import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { db } from './firebase';
 import {
   doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction,
-  serverTimestamp, getDocs, query, where, orderBy, setDoc, updateDoc, limit, Timestamp
+  where, setDoc, updateDoc
 } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
@@ -12,34 +11,35 @@ import SplashScreen from './components/SplashScreen';
 import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
 
 import {
-  NutritionalInfo, GoalSettings, LoggedMeal, AppStatus, PastDaySummary, PastDaysSummaryCollection, ViewMode,
-  DailyWaterLog, CommonMeal, SearchedFoodInfo, UserProfileData, CalculatedNutritionalRecommendations, Level,
-  GoalType, WeeklyCalorieBank, UserCourseProgress, CourseLesson, UserLessonProgress, RecipeSuggestion,
-  AIDataForFeedback, UserRole, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog,
-  AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, Achievement, AIStructuredFeedbackResponse, AIFeedbackSection,
-  Peppkompis, CompletedGoal, StreakSaver, Reactions, TimelineEvent, BuddyDetails, OnboardingChecklistState,
+  NutritionalInfo, LoggedMeal, AppStatus, PastDaySummary, ViewMode,
+  CommonMeal, SearchedFoodInfo, UserProfileData, 
+  Level, WeeklyCalorieBank, CourseLesson, UserLessonProgress, RecipeSuggestion,
+  AIDataForFeedback, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog,
+  AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, AIStructuredFeedbackResponse, 
+  CompletedGoal, StreakSaver, TimelineEvent, BuddyDetails, OnboardingChecklistState,
   OnboardingChecklistItemStatus
 } from './types.ts';
 
 import {
   DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML,
   DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
-  PIGGY_BANK_ICON_SVG, CALORIES_PER_GRAM, MAX_RECENT_RECIPE_SEARCHES, MAX_INGREDIENT_IMAGES, ACHIEVEMENT_DEFINITIONS,
-  VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG, CALORIE_ADJUSTMENT
+  ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG, CALORIE_ADJUSTMENT
 } from './constants.ts';
 
-// FIX: Import analyzeNutritionLabelImage
 import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion,
   getRecipesFromIngredientsImage, getDetailedJourneyAnalysis, analyzeNutritionLabelImage } from './services/geminiService.ts';
 import { getFoodInfoFromBarcode } from './services/openFoodFactsService.ts';
 
 import {
-  fetchInitialAppData, addMealLog as addMealLogFirestore, deleteMealLog, updateMealLog, fetchMealLogsForDate,
-  setWaterLog, fetchWaterLog, addCommonMeal, deleteCommonMeal as deleteCommonMealFromDB, updateCommonMeal,
+  addMealLog as addMealLogFirestore, setWaterLog, fetchWaterLog, addCommonMeal, deleteCommonMeal as deleteCommonMealFromDB, updateCommonMeal,
   saveProfileAndGoals, saveWeightLog, setPastDaySummary, updateUserDocument, saveCourseProgress,
-  addMentalWellbeingLog, fetchMentalWellbeingLogs, ensureUserProfileInFirestore, listenForFriendRequests,
-  getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList
+  addMentalWellbeingLog, ensureUserProfileInFirestore, listenForFriendRequests,
+  getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate
 } from './services/firestoreService.ts';
+
+// Hooks
+import { useAuth } from './hooks/useAuth';
+import { useUserData } from './hooks/useUserData';
 
 import WaterLogger from './components/WaterLogger.tsx';
 import ProgressDisplay from './components/ProgressDisplay.tsx';
@@ -80,7 +80,6 @@ import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
-// FIX: Import NutritionLabelResultModal
 import NutritionLabelResultModal from './components/NutritionLabelResultModal.tsx';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
@@ -88,11 +87,10 @@ import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
 import {
-  FireIcon, ProteinIcon, LeafIcon, PlusCircleIcon, CheckCircleIcon, HistoryIcon, BookmarkIcon, CameraIcon, UploadIcon,
-  CheckIcon as ConfirmIcon, InformationCircleIcon, XMarkIcon, UserCircleIcon, ExclamationTriangleIcon, CourseIcon,
-  AICoachIcon, RotateCcwIcon as RefreshIcon, PlusIcon, SearchIcon, ArrowRightOnRectangleIcon, RecipeIcon,
-  SwitchHorizontalIcon, SparklesIcon, PencilIcon, ChartLineIcon, BarcodeIcon, PersonIcon,
-  ChatBubbleOvalLeftEllipsisIcon, ArrowRightIcon, BellIcon, HeartIcon, LifebuoyIcon, InstallIcon, ArrowLeftIcon
+  CameraIcon, UploadIcon,
+  InformationCircleIcon, XMarkIcon, AICoachIcon, PlusIcon, SearchIcon, ArrowRightOnRectangleIcon, RecipeIcon,
+  SwitchHorizontalIcon, SparklesIcon, PencilIcon, BarcodeIcon,
+  ChatBubbleOvalLeftEllipsisIcon, BellIcon, InstallIcon
 } from './components/icons.tsx';
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 
@@ -145,9 +143,6 @@ const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
     return item ? JSON.parse(item) : defaultValue;
   } catch (error) {
     console.warn(`Error reading localStorage key "${key}":`, error);
-    // The key LOCAL_STORAGE_KEYS.USER_PROFILE does not exist anymore.
-    // The logic was probably for fallback, but it's better to remove it
-    // to avoid errors and since data is now in Firestore.
     return defaultValue;
   }
 };
@@ -160,11 +155,10 @@ const setLocalStorageItem = <T,>(key: string, value: T): void => {
   }
 };
 
-
 const wasCalorieGoalMetForSummary = ( 
   consumedCalories: number,
   calorieGoalValue: number,
-  goalTypeForDay: GoalType
+  goalTypeForDay: GoalType | undefined
 ): boolean => {
   if (calorieGoalValue <= 0) return false; 
   if (consumedCalories <=0) return false; 
@@ -557,27 +551,61 @@ const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
 
 
 export const App = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [isDataLoading, setIsDataLoading] = useState(true);
-  const [isInitialDataLoaded, setIsInitialDataLoaded] = useState(false);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [userStatus, setUserStatus] = useState<'pending' | 'approved' | null>(null);
+  // Use Custom Hooks
+  const { 
+    currentUser, 
+    authLoading, 
+    persistenceWarning, 
+    logout, 
+    setCurrentUser 
+  } = useAuth();
+
+  // Local UI State
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date()); 
+  const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
+  const [viewMode, setViewMode] = useState<ViewMode>('main');
   const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'>('member');
+  
+  // Use Data Hook - passing currentUser.uid (if exists) and currentDate
+  const {
+    goals, setGoals,
+    userProfile, setUserProfile,
+    dailyLog, setDailyLog,
+    waterLoggedMl, setWaterLoggedMl,
+    commonMeals, setCommonMeals,
+    weightLogs, setWeightLogs,
+    pastDaysSummary, setPastDaysSummary,
+    streakData, setStreakData,
+    weeklyBank, setWeeklyBank,
+    streakSaver, setStreakSaver,
+    highestStreak, setHighestStreak,
+    highestLevelId, setHighestLevelId,
+    unlockedAchievements, setUnlockedAchievements,
+    achievementInteractions, setAchievementInteractions,
+    userCourseProgress, setUserCourseProgress,
+    hasCompletedOnboarding, setHasCompletedOnboarding,
+    userRole,
+    userStatus,
+    journeyAnalysisFeedback, setJourneyAnalysisFeedback,
+    mentalWellbeingLogs, setMentalWellbeingLogs,
+    isDataLoading,
+    isInitialDataLoaded,
+    setIsInitialDataLoaded,
+    resetUserData,
+    refreshUserData
+  } = useUserData(currentUser?.uid, currentDate);
+
+  // UI & Interaction State
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
-  const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
-
-  const uid = currentUser?.uid;
-
-  const [goals, setGoals] = useState<GoalSettings>(DEFAULT_GOALS);
-  const [userProfile, setUserProfile] = useState<UserProfileData>(DEFAULT_USER_PROFILE);
-
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date()); // Use the actual current date
-  const [viewMode, setViewMode] = useState<ViewMode>('main');
-  const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
+  const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
+  // Derived State
+  const uid = currentUser?.uid;
+  const waterGoalMl = DEFAULT_WATER_GOAL_ML;
+
   const isViewingToday = useMemo(() => {
     const todayStr = getDateUID(currentDate);
     const viewingDateStr = getDateUID(viewingDate);
@@ -592,63 +620,41 @@ export const App = () => {
 
   const isEditableLogDate = useMemo(() => isViewingToday || isViewingAppYesterday, [isViewingToday, isViewingAppYesterday]);
 
-  const [dailyLog, setDailyLog] = useState<LoggedMeal[]>([]);
-  const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
-  const [waterLoggedMl, setWaterLoggedMl] = useState<number>(0);
-  const [waterGoalMl, setWaterGoalMl] = useState<number>(DEFAULT_WATER_GOAL_ML);
-  
-  const [commonMeals, setCommonMeals] = useState<CommonMeal[]>([]);
+  // Modal States
   const [showSaveCommonMealModal, setShowSaveCommonMealModal] = useState<boolean>(false);
   const [mealToSaveAsCommon, setMealToSaveAsCommon] = useState<LoggedMeal | null>(null);
-
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState<boolean>(false);
   const [isProfileModalOnboarding, setIsProfileModalOnboarding] = useState(false);
   const [showTextEntryModal, setShowTextEntryModal] = useState<boolean>(false);
   const [showCameraModal, setShowCameraModal] = useState<boolean>(false);
   
+  // Camera/Image Analysis State
   const [cameraImageForAnalysis, setCameraImageForAnalysis] = useState<string | null>(null);
   const [imageFileForAnalysis, setImageFileForAnalysis] = useState<File | null>(null);
   const [analysisResultForModal, setAnalysisResultForModal] = useState<NutritionalInfo | null>(null);
 
-  const [pastDaysSummary, setPastDaysSummary] = useState<PastDaysSummaryCollection>({});
-  
+  // Tab State
   const [journeyInitialTab, setJourneyInitialTab] = useState<'calendar' | 'profile' | 'achievements'>('calendar');
 
-  const [streakData, setStreakData] = useState<{ currentStreak: number; lastDateStreakChecked: string | null }>({ currentStreak: 0, lastDateStreakChecked: null });
-  const [lastNotifiedStreakLevelUp, setLastNotifiedStreakLevelUp] = useState<string | null>(null); // This can stay local
+  // Streak & Level UI
+  const [lastNotifiedStreakLevelUp, setLastNotifiedStreakLevelUp] = useState<string | null>(null);
   const [showLevelUpModal, setShowLevelUpModal] = useState<Level | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; streak: number} | null>(null);
-
-  const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  
-  const [weeklyBank, setWeeklyBank] = useState<WeeklyCalorieBank>(() => {
-    const today = currentDate;
-    const { weekId, startDate, endDate } = getWeekInfo(today);
-    return { weekId, bankedCalories: 0, startDate, endDate };
-  });
-  const [streakSaver, setStreakSaver] = useState<StreakSaver | null>(null);
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
 
 
-  const [highestStreak, setHighestStreak] = useState<number>(0);
-  const [highestLevelId, setHighestLevelId] = useState<string | null>(null);
-  const [unlockedAchievements, setUnlockedAchievements] = useState<{ [id: string]: string }>({});
-  const [achievementInteractions, setAchievementInteractions] = useState<{ [id: string]: { reactions: Reactions } }>({});
-
-
-  // Course state
+  const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  
+  // Course State
   const [activeCourse, setActiveCourse] = useState<CourseInfo | null>(null);
-  const [userCourseProgress, setUserCourseProgress] = useState<UserCourseProgress>({});
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
   const [newlyUnlockedLesson, setNewlyUnlockedLesson] = useState<CourseLesson | null>(null);
 
-  // Onboarding
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
+  // Onboarding UI State
   const [onboardingStep, setOnboardingStep] = useState<'form' | 'feedback'>('form');
   const [showOnboardingCompletion, setShowOnboardingCompletion] = useState<boolean>(false);
   const [showSpotlight, setShowSpotlight] = useState<boolean>(false);
@@ -656,22 +662,20 @@ export const App = () => {
   const waterLoggerRef = useRef<HTMLDivElement>(null);
   const [showOnboardingRewardModal, setShowOnboardingRewardModal] = useState(false);
 
-
   // AI Feedback State
-  const [showAIFeedbackModal, setShowAIFeedbackModal] = useState<boolean>(false); // For regular coach use
+  const [showAIFeedbackModal, setShowAIFeedbackModal] = useState<boolean>(false);
   const [aiFeedbackMessage, setAIFeedbackMessage] = useState<AIStructuredFeedbackResponse | string | null>(null);
   const [aiFeedbackLoading, setAIFeedbackLoading] = useState<boolean>(false);
   const [aiFeedbackError, setAiFeedbackError] = useState<string | null>(null);
   const [aiModalTitle, setAiModalTitle] = useState("Din Coach");
   const [aiModalIcon, setAiModalIcon] = useState<JSX.Element>(<AICoachIcon className="w-7 h-7 text-secondary mr-2.5" />);
-  const [journeyAnalysisFeedback, setJourneyAnalysisFeedback] = useState<AIStructuredFeedbackResponse | null>(null);
   const [showAICoachModal, setShowAICoachModal] = useState(false);
   const [coachInitialContext, setCoachInitialContext] = useState<{ type: 'from_analysis'; date?: string } | null>(null);
   
   // Recipe Feature State
   const [showRecipeModal, setShowRecipeModal] = useState<boolean>(false);
   const [currentRecipe, setCurrentRecipe] = useState<RecipeSuggestion | null>(null);
-  const [recentRecipeSearches, setRecentRecipeSearches] = useState<string[]>([]); // This can be local
+  const [recentRecipeSearches, setRecentRecipeSearches] = useState<string[]>([]);
 
   // Ingredient to Recipe Feature State
   const [showRecipeChoiceModal, setShowRecipeChoiceModal] = useState<boolean>(false);
@@ -684,25 +688,22 @@ export const App = () => {
   // Barcode Scanner State
   const [showBarcodeScannerModal, setShowBarcodeScannerModal] = useState<boolean>(false);
   const [barcodeScanResult, setBarcodeScanResult] = useState<BarcodeScannedFoodInfo | null>(null);
-  // FIX: Add state for label scanning flow
   const [isCapturingForLabel, setIsCapturingForLabel] = useState<boolean>(false);
   const [showNutritionLabelResultModal, setShowNutritionLabelResultModal] = useState(false);
   const [nutritionLabelResult, setNutritionLabelResult] = useState<NutritionalInfo | null>(null);
 
-
   const [showSpeedDial, setShowSpeedDial] = useState(false);
   
-  // Weight Tracking State
-  const [weightLogs, setWeightLogs] = useState<WeightLogEntry[]>([]);
+  // Weight Tracking UI State
   const [showLogWeightModal, setShowLogWeightModal] = useState<boolean>(false);
 
-  // Mental Wellbeing State & Flow Management
-  const [mentalWellbeingLogs, setMentalWellbeingLogs] = useState<MentalWellbeingLog[]>([]);
+  // Mental Wellbeing UI State
   const [showMentalWellbeingModal, setShowMentalWellbeingModal] = useState<boolean>(false);
   const [relatedWeightLogIdForWellbeing, setRelatedWeightLogIdForWellbeing] = useState<string | null>(null);
   const [pendingGoalFeedbackData, setPendingGoalFeedbackData] = useState<{ profile: UserProfileData, goals: GoalSettings, isOnboarding: boolean } | null>(null);
   const [pendingAnalysisData, setPendingAnalysisData] = useState<{ updatedLogs: WeightLogEntry[] } | null>(null);
   
+  // Timeline Pending Events
   type PendingTimelineEvent = 
     | { type: 'weight', data: { newLog: WeightLogEntry; previousLog: WeightLogEntry | null } }
     | { type: 'goal_set', data: { userProfile: UserProfileData } }
@@ -710,7 +711,7 @@ export const App = () => {
 
   const [pendingTimelineEvent, setPendingTimelineEvent] = useState<PendingTimelineEvent | null>(null);
   
-  // --- Community State ---
+  // Community State
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [communityViewKey, setCommunityViewKey] = useState(Date.now());
   const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera'>('flode');
@@ -723,7 +724,7 @@ export const App = () => {
   const [communityNotificationCount, setCommunityNotificationCount] = useState(0);
   const [isLoadingCommunityData, setIsLoadingCommunityData] = useState(true);
 
-// PWA Install Prompt State
+  // PWA Install Prompt State
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showIosInstallPrompt, setShowIosInstallPrompt] = useState(false);
@@ -731,6 +732,76 @@ export const App = () => {
   // Update Notification State
   const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
   const [hasUnseenUpdate, setHasUnseenUpdate] = useState(false);
+
+
+  // -- Effects for Daily Data Loading & App visibility --
+
+    const loadDataForDate = useCallback(async (userId: string, dateToLoad: Date) => {
+        if (!userId) return;
+        const dateUID = getDateUID(dateToLoad);
+        setAppStatus(AppStatus.LOADING_DATA); 
+        try {
+            const [loadedLog, loadedWater] = await Promise.all([
+                fetchMealLogsForDate(userId, dateUID),
+                fetchWaterLog(userId, dateUID)
+            ]);
+            setDailyLog(loadedLog);
+            setWaterLoggedMl(loadedWater);
+        } catch (error: any) {
+            console.error("Error loading daily data from Firestore:", error);
+            const isOfflineError = error.code === 'unavailable' || (error.message && (error.message.toLowerCase().includes('offline') || error.message.toLowerCase().includes('unavailable')));
+            if (isOfflineError) {
+                setToastNotification({ message: 'Offline. Visar senast hämtad data.', type: 'error'});
+            } else {
+                setToastNotification({ message: 'Kunde inte ladda dagens data. Försöker igen senare.', type: 'error'});
+            }
+            setTimeout(() => setToastNotification(null), 4000);
+        } finally {
+            setAppStatus(AppStatus.IDLE);
+        }
+    }, [setDailyLog, setWaterLoggedMl]);
+
+
+    // This separate effect handles loading daily data whenever the user or the viewing date changes.
+    useEffect(() => {
+        if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
+            loadDataForDate(currentUser.uid, viewingDate);
+        }
+    }, [currentUser, viewingDate, isInitialDataLoaded, loadDataForDate, userStatus]);
+    
+    // Ensure user is set up correctly in ensureUserProfileInFirestore is handled within useUserData hook now?
+    // No, useUserData handles fetching. ensureUserProfileInFirestore logic was moved to useUserData.
+
+    // Check for onboarding completion to show modal
+     useEffect(() => {
+        if (isInitialDataLoaded && currentUser && userRole === 'member' && !hasCompletedOnboarding && userStatus === 'approved') {
+             // Only show if we haven't already shown it or if we are not currently showing it
+             if (!showUserProfileModal) {
+                 setShowUserProfileModal(true);
+                 setIsProfileModalOnboarding(true);
+                 setOnboardingStep('form');
+             }
+        }
+    }, [isInitialDataLoaded, currentUser, hasCompletedOnboarding, userRole, userStatus, showUserProfileModal]);
+
+
+    // This effect ensures the app's internal `currentDate` is fresh
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                const now = new Date();
+                if (getDateUID(now) !== getDateUID(currentDate)) {
+                    console.log("App became visible on a new day. Updating current date.");
+                    setCurrentDate(now);
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [currentDate]);
+
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -755,7 +826,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         });
         
         const subscriptionObject = JSON.parse(JSON.stringify(subscription));
-        console.log('Push Subscription Object (för felsökning):', subscriptionObject); // Added for debugging
+        console.log('Push Subscription Object (för felsökning):', subscriptionObject);
 
         await savePushSubscription(currentUser.uid, subscriptionObject);
         setToastNotification({ message: 'Pushnotiser är nu aktiverade!', type: 'success' });
@@ -769,7 +840,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
   };
   
-  // In-app notification listener for push events when app is in foreground
+  // In-app notification listener
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
@@ -783,11 +854,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     };
 
     navigator.serviceWorker.addEventListener('message', handleMessage);
-    
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleMessage);
     };
-  }, []); // Empty dependency array ensures this runs once.
+  }, []); 
 
   const handleFirestoreError = (error: any, operation: string) => {
     console.error(`Firestore error during ${operation}:`, error);
@@ -795,218 +865,28 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     if (error && error.code === 'permission-denied') {
       message = `Behörighet saknas för att ${operation}. Kontrollera dina Firestore-säkerhetsregler.`;
     } else if (error && error.message) {
-      // Avoid showing overly technical Firebase messages to the user
       message = `Ett fel uppstod vid ${operation}. Försök igen.`;
     }
     setToastNotification({ message, type: 'error' });
-    setTimeout(() => setToastNotification(null), 5000); // Longer timeout for errors
+    setTimeout(() => setToastNotification(null), 5000);
   };
 
-    const loadDataForDate = useCallback(async (userId: string, dateToLoad: Date) => {
-        if (!userId) return;
-        const dateUID = getDateUID(dateToLoad);
-        setAppStatus(AppStatus.LOADING_DATA); // Use new specific status
-        try {
-            const [loadedLog, loadedWater] = await Promise.all([
-                fetchMealLogsForDate(userId, dateUID),
-                fetchWaterLog(userId, dateUID)
-            ]);
-            setDailyLog(loadedLog);
-            setWaterLoggedMl(loadedWater);
-        } catch (error: any) {
-            console.error("Error loading daily data from Firestore:", error);
-            const isOfflineError = error.code === 'unavailable' || (error.message && (error.message.toLowerCase().includes('offline') || error.message.toLowerCase().includes('unavailable')));
-            if (isOfflineError) {
-                setToastNotification({ message: 'Offline. Visar senast hämtad data.', type: 'error'});
-            } else {
-                setToastNotification({ message: 'Kunde inte ladda dagens data. Försöker igen senare.', type: 'error'});
-            }
-            setTimeout(() => setToastNotification(null), 4000);
-        } finally {
-            setAppStatus(AppStatus.IDLE);
-        }
-    }, []);
-
-
-    const resetAllLocalState = useCallback(() => {
-        setGoals(DEFAULT_GOALS);
-        setUserProfile(DEFAULT_USER_PROFILE);
-        setDailyLog([]);
-        setPastDaysSummary({});
-        setStreakData({ currentStreak: 0, lastDateStreakChecked: null });
-        setWaterLoggedMl(0);
-        setUserCourseProgress({});
-        setActiveCourse(null);
-        setRecentRecipeSearches([]);
-        setWeightLogs([]);
-        setMentalWellbeingLogs([]);
-        setCommonMeals([]);
-        setHighestLevelId(null);
-        setHighestStreak(0);
-        setUnlockedAchievements({});
-        setAchievementInteractions({});
-        setHasCompletedOnboarding(false);
-        setIsInitialDataLoaded(false);
-        setUserStatus(null);
-        setPendingRequestsCount(0);
-        setCommunityNotificationCount(0);
-        setTimelineEvents([]);
-        setBuddyDetails([]);
-        setJourneyAnalysisFeedback(null);
-        setStreakSaver(null);
-        setShowSpotlight(false);
-        setChecklistState(null);
-    }, []);
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            setAuthLoading(true);
-            
-            const persistenceResult = await authPersistencePromise;
-            if (!persistenceResult.success) {
-                setPersistenceWarning(persistenceResult.message);
-            }
-
-            if (user) {
-                setCurrentUser(user);
-                setIsDataLoading(true);
-                try {
-                    // Ensure user document exists or is created. For new users, this sets status: 'pending'.
-                    await ensureUserProfileInFirestore(user); 
-                    
-                    // Now that we know the document exists, fetch all data.
-                    const appData = await fetchInitialAppData(user.uid);
-                    
-                    if (appData) {
-                        setGoals(appData.goals || DEFAULT_GOALS);
-                        setUserProfile(appData.profile || DEFAULT_USER_PROFILE);
-                        setStreakData({
-                            currentStreak: appData.currentStreak || 0,
-                            lastDateStreakChecked: appData.lastDateStreakChecked || null,
-                        });
-                        setWeeklyBank(appData.weeklyBank || weeklyBank);
-                        setStreakSaver(appData.streakSaver || null);
-                        setHighestStreak(appData.highestStreak || 0);
-                        setHighestLevelId(appData.highestLevelId || null);
-                        setCommonMeals(appData.commonMeals || []);
-                        setWeightLogs(appData.weightLogs || []);
-                        setMentalWellbeingLogs(appData.mentalWellbeingLogs || []);
-                        setPastDaysSummary(appData.pastDaySummaries || {});
-                        setUserCourseProgress(appData.courseProgress || {});
-                        setUnlockedAchievements(appData.unlockedAchievements || {});
-                        setAchievementInteractions(appData.achievementInteractions || {});
-                        setHasCompletedOnboarding(appData.hasCompletedOnboarding || false);
-                        setUserRole(appData.role || 'member');
-                        setUserStatus(appData.status || 'pending');
-                        setCurrentInterface('member');
-                        setJourneyAnalysisFeedback(appData.journeyAnalysisFeedback || null);
-                        
-                        // Healing logic for users who completed a goal before the `completedGoals` array was introduced.
-                        if (appData.profile.mainGoalCompleted && (!appData.profile.completedGoals || appData.profile.completedGoals.length === 0)) {
-                            console.log("Healing legacy completed goal...");
-                            const legacyGoal: CompletedGoal = {
-                                id: 'legacy_goal_main',
-                                achievedOn: '2024-01-01', // A placeholder date as the real one is unknown
-                                description: 'Tidigare uppnått huvudmål',
-                                startWeight: appData.profile.goalStartWeight || appData.profile.currentWeightKg || 0,
-                                endWeight: appData.profile.currentWeightKg || 0
-                            };
-                            const updatedProfile = { ...appData.profile, completedGoals: [legacyGoal] };
-                            setUserProfile(updatedProfile);
-                            updateUserDocument(user.uid, { completedGoals: [legacyGoal], role: appData.role, status: appData.status }).catch(err => {
-                                console.error("Failed to back-fill legacy goal:", err);
-                            });
-                        }
-
-
-                        if ((appData.role === 'member') && !appData.hasCompletedOnboarding && appData.status === 'approved') {
-                            setShowUserProfileModal(true);
-                            setIsProfileModalOnboarding(true);
-                            setOnboardingStep('form');
-                        }
-                        
-                        setIsInitialDataLoaded(true); // <-- THIS WAS THE MISSING PIECE
-
-                    } else {
-                        // This path should now be an actual error, not the new user path.
-                        console.error("Critical error: fetchInitialAppData returned null even though a user document should exist.");
-                        resetAllLocalState();
-                    }
-                } catch (error: any) {
-                    console.error("Error loading initial app data:", error);
-                    const isOfflineError = error.code === 'unavailable' || (error.message && (error.message.toLowerCase().includes('offline') || error.message.toLowerCase().includes('unavailable')));
-
-                    if (isOfflineError) {
-                        const userErrorMessage = "Du är offline. Appen visar data från cachen.";
-                        setToastNotification({ message: userErrorMessage, type: 'error' });
-                        setTimeout(() => setToastNotification(null), 6000);
-                        setIsInitialDataLoaded(true);
-                    } else {
-                        setToastNotification({ message: 'Ett fel uppstod vid laddning av data.', type: 'error'});
-                        setTimeout(() => setToastNotification(null), 5000);
-                        resetAllLocalState();
-                    }
-                } finally {
-                    setIsDataLoading(false);
-                }
-            } else {
-                setCurrentUser(null);
-                setUserRole(null);
-                setUserStatus(null);
-                setCurrentInterface('member');
-                resetAllLocalState();
-                setViewMode('main');
-                setIsDataLoading(false);
-            }
-            setAuthLoading(false);
+  // Friend Requests listener
+  useEffect(() => {
+    if (currentUser && userStatus === 'approved') {
+        const unsubscribeRequests = listenForFriendRequests(currentUser.uid, (requests) => {
+            setPendingRequestsCount(requests.length);
         });
-        return () => unsubscribe();
-    }, [resetAllLocalState]);
-
-    // This separate effect handles loading daily data whenever the user or the viewing date changes.
-    // It's responsible for fetching logs for the currently selected day.
-    useEffect(() => {
-        if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
-            loadDataForDate(currentUser.uid, viewingDate);
-        }
-    }, [currentUser, viewingDate, isInitialDataLoaded, loadDataForDate, userStatus]);
-    
-    // This effect ensures the app's internal `currentDate` is fresh when the app is brought
-    // to the foreground, fixing bugs related to being open over midnight.
-    useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                const now = new Date();
-                if (getDateUID(now) !== getDateUID(currentDate)) {
-                    console.log("App became visible on a new day. Updating current date.");
-                    setCurrentDate(now);
-                }
-            }
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            unsubscribeRequests();
         };
-    }, [currentDate]); // Depend on currentDate to get its latest value for comparison
+    } else {
+        setPendingRequestsCount(0);
+    }
+  }, [currentUser, userStatus]);
 
-    useEffect(() => {
-        if (currentUser && userStatus === 'approved') {
-            const unsubscribeRequests = listenForFriendRequests(currentUser.uid, (requests) => {
-                setPendingRequestsCount(requests.length);
-            });
-    
-            return () => {
-                unsubscribeRequests();
-            };
-        } else {
-            setPendingRequestsCount(0);
-        }
-    }, [currentUser, userStatus]);
-
-    // This effect "heals" past data by adding missing fields, like waterGoalMet.
-    // It runs once when data is loaded and checks the last 30 days.
+    // Data Healing Effect (Water Goal)
     useEffect(() => {
         if (!currentUser || !isInitialDataLoaded || Object.keys(pastDaysSummary).length === 0) {
             return;
@@ -1014,7 +894,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
         const healLast30DaysData = async () => {
             const batch = writeBatch(db);
-            const localUpdatedSummaries: PastDaysSummaryCollection = {};
+            const localUpdatedSummaries = { ...pastDaysSummary }; // Clone for local update
             let updatesMade = false;
 
             const thirtyDaysAgo = new Date(currentDate);
@@ -1026,7 +906,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             });
 
             if (summariesToHeal.length === 0) {
-                return; // Nothing to heal
+                return;
             }
             
             console.log(`Found ${summariesToHeal.length} summaries to heal in the last 30 days.`);
@@ -1048,7 +928,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
             if (updatesMade) {
                 console.log("Applying healed data to state and Firestore...");
-                setPastDaysSummary(prev => ({ ...prev, ...localUpdatedSummaries }));
+                setPastDaysSummary(localUpdatedSummaries);
                 await batch.commit();
                 console.log("Healing complete.");
             }
@@ -1058,7 +938,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             console.error("Data healing process failed:", err);
         });
 
-    }, [isInitialDataLoaded, currentUser?.uid, pastDaysSummary, currentDate]);
+    }, [isInitialDataLoaded, currentUser?.uid, pastDaysSummary, currentDate, setPastDaysSummary]);
 
 
     const loadCommunityData = useCallback(async () => {
@@ -1070,7 +950,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 fetchBuddyDetailsList(currentUser.uid),
             ]);
     
-            // Filter events to only show own and current buddies' events.
             const buddyUids = new Set(details.map(buddy => buddy.uid));
             const filteredEvents = events.filter(event => 
                 event.userId === currentUser.uid || buddyUids.has(event.userId)
@@ -1140,10 +1019,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
     }, [viewMode]);
 
-  // This effect checks for unseen update notices and sets a flag.
+  // Update Notice Logic
   useEffect(() => {
     if (isInitialDataLoaded && currentUser) {
-        const UPDATE_NOTICE_KEY = 'updateNotice_v5_StreakUpdate'; // Unique key for this update
+        const UPDATE_NOTICE_KEY = 'updateNotice_v5_StreakUpdate'; 
         try {
             const noticeShown = localStorage.getItem(UPDATE_NOTICE_KEY);
             if (!noticeShown) {
@@ -1173,7 +1052,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
   const handleNavigateToCourses = () => {
     setViewMode('coursesView');
-    // if the "latest update" view is open, just close it
     if (showLatestUpdateView) {
         setShowLatestUpdateView(false);
     }
@@ -1183,8 +1061,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     playAudio('uiClick');
     setShowProfileDropdown(false);
     try {
-      await signOut(auth);
-      // onAuthStateChanged will handle resetting state
+      await logout();
+      resetUserData();
+      // Auth state change will handle redirect/UI update via hook
     } catch (error) {
       console.error("Logout error:", error);
       setToastNotification({ message: "Utloggning misslyckades.", type: 'error' });
@@ -1224,14 +1103,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   }, [userProfile]);
 
 
-  // Handle Current Date Change (e.g. for dev tool)
+  // Handle Current Date Change (e.g. for dev tool or app wake)
   useEffect(() => {
     setViewingDate(new Date(currentDate));
   }, [currentDate]);
 
 
     useEffect(() => {
-        // Persist recent recipe searches to local storage
         setLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, recentRecipeSearches);
     }, [recentRecipeSearches]);
 
@@ -1263,7 +1141,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         return;
     }
 
-    // 1. Generate ID client-side
     const mealLogCollectionRef = collection(db, 'users', currentUser.uid, 'mealLogs');
     const mealLogDocRef = doc(mealLogCollectionRef);
     const mealId = mealLogDocRef.id;
@@ -1273,12 +1150,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     const originalBankState = { ...weeklyBank };
 
     try {
-        // 2. Handle image if provided
         if (options.base64Image) {
             finalImageUrl = options.base64Image;
         }
 
-        // 3. Handle SVG icon fallback
         if (!finalImageUrl) {
             if (options.commonMealId === 'manual') {
                 finalImageUrl = MANUAL_LOG_FOOD_ICON_SVG;
@@ -1289,15 +1164,12 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             } else if (options.commonMealId === 'barcode') {
                 finalImageUrl = BARCODE_ICON_SVG;
             } else if (options.commonMealId) {
-                // This assumes any other non-empty commonMealId is a saved common meal
                 finalImageUrl = BOOKMARK_ICON_SVG;
             } else {
-                // Fallback for image analysis that failed or any other unforeseen case
                 finalImageUrl = COMMON_MEAL_LOG_ICON_SVG; 
             }
         }
         
-        // 4. Construct meal data and perform optimistic update
         const newMealData: Omit<LoggedMeal, 'id'> = {
             timestamp: Date.now(),
             dateString: getDateUID(viewingDate),
@@ -1310,7 +1182,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             },
         };
 
-        // Add commonMealId ONLY if it has a value, to avoid sending `undefined` to Firestore.
         if (options.commonMealId) {
             newMealData.commonMealId = options.commonMealId;
         }
@@ -1344,10 +1215,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setToastNotification({ message: `"${optimisticMeal.nutritionalInfo.foodItem}" loggades!`, type: 'success' });
         setTimeout(() => setToastNotification(null), 3000);
 
-        // 5. Save to Firestore
+        // Save to Firestore
         await addMealLogFirestore(currentUser.uid, mealId, newMealData);
 
-        // 6. Save bank update to Firestore if it changed
+        // Save bank update to Firestore if it changed
         if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
             await updateUserDocument(currentUser.uid, { weeklyBank: newBankState, role: userRole, status: userStatus });
         }
@@ -1369,12 +1240,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
 
     } catch (error) {
-        // 7. Revert optimistic update on failure
         handleFirestoreError(error, 'spara måltid');
         setDailyLog(originalDailyLog);
         setWeeklyBank(originalBankState);
     } finally {
-        // Reset image analysis state
         setCameraImageForAnalysis(null);
         setImageFileForAnalysis(null);
     }
@@ -1403,7 +1272,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             setAppStatus(AppStatus.ERROR);
         } finally {
             setAppStatus(AppStatus.IDLE);
-            setIsCapturingForLabel(false); // Reset the flag
+            setIsCapturingForLabel(false);
         }
     } else {
         setCameraImageForAnalysis(base64ImageData);
@@ -1443,7 +1312,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setAppStatus(AppStatus.ANALYZING); // Show a generic processing spinner
+      setAppStatus(AppStatus.ANALYZING);
       try {
         const resizedBase64 = await resizeImageForLog(file, 800);
         setImageFileForAnalysis(file);
@@ -1455,13 +1324,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
           setAppStatus(AppStatus.IDLE);
       }
     }
-    if (event.target) event.target.value = ''; // Reset file input
+    if (event.target) event.target.value = '';
   };
 
   const handleLogFromModal = (foodInfo: NutritionalInfo | SearchedFoodInfo, options: { saveAsCommon: boolean }) => {
     const isSearchedFood = 'servingDescription' in foodInfo;
     const baseNutritionalInfo: NutritionalInfo = {
-        foodItem: foodInfo.foodItem, // this will be overwritten, but it's fine
+        foodItem: foodInfo.foodItem,
         calories: foodInfo.calories,
         protein: foodInfo.protein,
         carbohydrates: foodInfo.carbohydrates,
@@ -1469,8 +1338,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     };
     
     const fullFoodItemName = isSearchedFood ? `${foodInfo.foodItem} (${(foodInfo as SearchedFoodInfo).servingDescription})` : foodInfo.foodItem;
-    
-    // cameraImageForAnalysis will contain the resized base64 string from either camera or upload
     const base64ForUpload = cameraImageForAnalysis ? `data:image/jpeg;base64,${cameraImageForAnalysis}` : undefined;
 
     addMealToLog(
@@ -1482,7 +1349,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     );
 
     if (options.saveAsCommon) {
-      // FIX: Use the full descriptive name for both the common meal's name and its internal foodItem property.
       saveCommonMeal(
         { ...baseNutritionalInfo, foodItem: fullFoodItemName || 'Okänt val' },
         fullFoodItemName || 'Okänt val'
@@ -1506,7 +1372,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             x: rect.left + rect.width / 2,
             y: rect.top + rect.height / 2,
             count: amountMl === 250 ? 15 : 25,
-            id: Date.now(), // Unique key to re-trigger animation on same button
+            id: Date.now(),
         });
     }
     
@@ -1520,7 +1386,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       await setWaterLog(currentUser.uid, dateUID, newTotalWater);
     } catch (error) {
       handleFirestoreError(error, 'logga vatten');
-      // Revert state if save fails
       setWaterLoggedMl(current => current - amountMl);
     }
   };
@@ -1718,7 +1583,6 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
   const saveCommonMeal = async (mealInfoToSave: NutritionalInfo, name: string) => {
     if (!currentUser) return;
 
-    // More robust sanitization to handle potential NaN or undefined values.
     const cleanNutritionalInfo: NutritionalInfo = {
         calories: Math.round(Number(mealInfoToSave.calories) || 0),
         protein: Math.round(Number(mealInfoToSave.protein) || 0),
@@ -1728,12 +1592,11 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
     };
 
     const timestamp = Date.now();
-
-const newCommonMealData: Omit<CommonMeal, 'id'> = { 
-  name: name,
-  nutritionalInfo: cleanNutritionalInfo,
-  timestamp,
-};
+    const newCommonMealData: Omit<CommonMeal, 'id'> = { 
+      name: name,
+      nutritionalInfo: cleanNutritionalInfo,
+      timestamp,
+    };
     try {
         const newDocId = await addCommonMeal(currentUser.uid, newCommonMealData);
         setCommonMeals(prev => [{ ...newCommonMealData, id: newDocId }, ...prev]);
@@ -1783,18 +1646,6 @@ const newCommonMealData: Omit<CommonMeal, 'id'> = {
     }
   };
 
-  const handleManualLog = (manualNutritionalInfo: NutritionalInfo, options: { saveAsCommon: boolean }) => {
-    if (!isEditableLogDate) {
-        setToastNotification({ message: "Du kan endast logga måltider för idag eller igår.", type: 'error' });
-        setTimeout(() => setToastNotification(null), 3000);
-        return;
-    }
-    addMealToLog(manualNutritionalInfo, { commonMealId: 'manual' });
-    if (options.saveAsCommon) {
-      saveCommonMeal(manualNutritionalInfo, manualNutritionalInfo.foodItem || 'Manuellt val');
-    }
-  };
-
   const handleSaveProfileAndGoals = async (profileData: UserProfileData, newGoals: GoalSettings, newPhotoDataUrl?: string | null) => {
     if (!currentUser) return;
     setAppStatus(AppStatus.SAVING);
@@ -1821,23 +1672,15 @@ const newCommonMealData: Omit<CommonMeal, 'id'> = {
     profileToSave.completedGoals = previousProfile.completedGoals || [];
 
     if (goalParamsChanged) {
-        // When setting a new goal, the starting point must be the user's latest measurement.
-        // Get this from the latest weight log, which is the ultimate source of truth,
-        // to prevent any state synchronization issues.
         const latestWeightLog = weightLogs.length > 0 ? weightLogs[weightLogs.length - 1] : null;
-
         const latestWeight = latestWeightLog?.weightKg ?? userProfile.currentWeightKg;
         const latestMuscle = latestWeightLog?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg;
         const latestFat = latestWeightLog?.bodyFatMassKg ?? userProfile.bodyFatMassKg;
 
-        // Set the starting point for the new goal
         profileToSave.goalStartWeight = latestWeight;
         profileToSave.goalStartMuscleMassKg = latestMuscle;
         profileToSave.goalStartFatMassKg = latestFat;
         profileToSave.mainGoalCompleted = false;
-
-        // Also ensure the `current...` values in the profile being saved are the latest,
-        // to prevent stale form data from overwriting the app's state.
         profileToSave.currentWeightKg = latestWeight;
         profileToSave.skeletalMuscleMassKg = latestMuscle;
         profileToSave.bodyFatMassKg = latestFat;
@@ -1905,7 +1748,6 @@ const handleCloseUserProfileModal = () => {
         setAIFeedbackMessage(null);
         setAiFeedbackError(null);
     }
-    // Always reset onboarding step state when closing
     setOnboardingStep('form');
 };
 
@@ -1916,7 +1758,6 @@ const handleFinishOnboarding = async () => {
     setHasCompletedOnboarding(true);
     setShowSpotlight(true);
     
-    // Initialize the checklist state for the very first time for this new user.
     const newState: OnboardingChecklistState = {
         firstSeenDate: new Date().toISOString().split('T')[0],
         items: { mealLogged: false, waterLogged: false, journeyViewed: false, communityViewed: false },
@@ -1952,27 +1793,16 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     const userData = userSnap.data() as FirestoreUserDocument;
     const { lastDateStreakChecked, summaryStartDate, hasCompletedOnboarding } = userData;
     
-    if (!hasCompletedOnboarding) {
-      console.log('Skipping summary: onboarding not completed yet.');
-      return;
-    }
-    
+    if (!hasCompletedOnboarding) return;
     if (summaryStartDate && yKey < summaryStartDate) {
-      console.log(`Skipping summary for ${yKey} because it's before summaryStartDate=${summaryStartDate}.`);
       await updateUserDocument(uid, { lastDateStreakChecked: yKey, role: userRole, status: userStatus });
       return;
     }
-    
-    if (lastDateStreakChecked && lastDateStreakChecked >= yKey && !options.force) {
-      return;
-    }
+    if (lastDateStreakChecked && lastDateStreakChecked >= yKey && !options.force) return;
 
-    console.log(`Processing summary for yesterday: ${yKey}`);
-    
     const [dailyLogForDate] = await Promise.all([fetchMealLogsForDate(uid, yKey)]);
     
     if (dailyLogForDate.length === 0) {
-      console.log(`No logs for ${yKey}. Resetting streak and marking as checked.`);
       let updatedDataForReturn: any;
       await runTransaction(db, async (tx) => {
         const userSnapTx = await tx.get(userRef);
@@ -2069,7 +1899,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         streakForThisDay: nextStreak,
       };
       
-      const isProcessingOnMonday = now.getDay() === 1; // 1 = Monday
+      const isProcessingOnMonday = now.getDay() === 1;
       const weekInfoYesterday = getWeekInfo(new Date(`${yKey}T12:00:00`));
       let finalBank = userDataTx.weeklyBank || { weekId: weekInfoYesterday.weekId, bankedCalories: 0, startDate: weekInfoYesterday.startDate, endDate: weekInfoYesterday.endDate };
       
@@ -2159,10 +1989,10 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         const onVis = () => { if (!document.hidden) onWake(); };
 
         window.addEventListener("focus", onWake);
-        window.addEventListener("pageshow", onWake); // iOS Safari
+        window.addEventListener("pageshow", onWake); 
         document.addEventListener("visibilitychange", onVis);
 
-        onWake(); // Run on mount
+        onWake();
 
         return () => {
             window.removeEventListener("focus", onWake);
@@ -2170,8 +2000,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             document.removeEventListener("visibilitychange", onVis);
         };
     }, [currentUser?.uid, isInitialDataLoaded, ensureYesterdayProcessed]);
-
-
 
   
   // Audio Initialization
@@ -2185,17 +2013,13 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 // PWA Install Prompt Logic (for Android/Desktop)
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
-      // Prevent the mini-infobar from appearing on mobile
       event.preventDefault();
-      // Stash the event so it can be triggered later.
       setInstallPromptEvent(event);
-      // Update UI to notify the user they can install the PWA
       setShowInstallBanner(true);
       console.log('`beforeinstallprompt` event was fired.');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
@@ -2211,7 +2035,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     if (isSafariOnIos() && !isInStandaloneMode() && !hasDismissedPrompt) {
       const timer = setTimeout(() => {
         setShowIosInstallPrompt(true);
-      }, 4000); // 4-second delay
+      }, 4000);
       return () => clearTimeout(timer);
     }
   }, []);
@@ -2220,12 +2044,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     if (!installPromptEvent) {
       return;
     }
-    // Show the install prompt
     installPromptEvent.prompt();
-    // Wait for the user to respond to the prompt
     const { outcome } = await installPromptEvent.userChoice;
-    console.log(`User response to the install prompt: ${outcome}`);
-    // We've used the prompt, and can't use it again, so clear it.
     setInstallPromptEvent(null);
     setShowInstallBanner(false);
   };
@@ -2262,8 +2082,7 @@ useEffect(() => {
   }
 }, []);
 
-  // This useEffect will run once when the app loads and the user is authenticated.
-  // It will silently check for and correct any outdated push notification subscriptions.
+  // Check for stale push notifications
   useEffect(() => {
     const ensureValidSubscription = async () => {
         if (!currentUser || !isInitialDataLoaded || !('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -2277,7 +2096,6 @@ useEffect(() => {
             if (subscription) {
                 const keyArrayBuffer = subscription.options.applicationServerKey;
                 if (keyArrayBuffer) {
-                    // Convert ArrayBuffer to URL-safe Base64 string for comparison
                     const existingKey = btoa(String.fromCharCode.apply(null, new Uint8Array(keyArrayBuffer)))
                         .replace(/\+/g, '-')
                         .replace(/_/g, '_')
@@ -2288,7 +2106,7 @@ useEffect(() => {
                     if (existingKey !== currentKey) {
                         console.log("Stale push subscription key found. Unsubscribing.");
                         await subscription.unsubscribe();
-                        subscription = null; // Set to null so the next block re-subscribes
+                        subscription = null; 
                     }
                 } else {
                     console.log("Subscription found without a key. Unsubscribing.");
@@ -2297,11 +2115,9 @@ useEffect(() => {
                 }
             }
 
-            // If there's no subscription at this point, try to create one if permission is granted
             if (!subscription) {
                 const permissionState = await registration.pushManager.permissionState({ userVisibleOnly: true });
                 if (permissionState === 'granted') {
-                    console.log("Permission is granted. Attempting to subscribe automatically.");
                     const newSubscription = await registration.pushManager.subscribe({
                         userVisibleOnly: true,
                         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
@@ -2315,13 +2131,8 @@ useEffect(() => {
                     
                     if (!isAlreadySaved) {
                         await savePushSubscription(currentUser.uid, subscriptionObject);
-                        console.log("New push subscription created and saved automatically.");
-                    } else {
-                        console.log("New push subscription already exists on backend. Skipping save.");
-                    }
-                } else {
-                    console.log(`Permission state is '${permissionState}'. Skipping automatic subscription.`);
-                }
+                    } 
+                } 
             }
         } catch (error) {
             console.error("Error ensuring valid push subscription:", error);
@@ -2360,32 +2171,28 @@ useEffect(() => {
             const handleCompletion = () => {
                 const bonusCalories = 100;
 
-                // Use a functional update to get the latest state without adding a dependency
                 setWeeklyBank(prevBank => {
                     const newBankState: WeeklyCalorieBank = {
                         ...prevBank,
                         bankedCalories: (prevBank.bankedCalories || 0) + bonusCalories
                     };
 
-                    // Fire-and-forget promise for the database update
                     updateUserDocument(currentUser.uid, { weeklyBank: newBankState, role: userRole, status: userStatus })
                         .catch(error => {
-                            // On failure, revert the optimistic UI update
                             handleFirestoreError(error, 'spara bonus till sparpott');
                             setWeeklyBank(prevBank);
                         });
                     
-                    return newBankState; // Return new state for optimistic UI update
+                    return newBankState; 
                 });
                 
-                // Trigger success UI effects immediately
                 setShowConfetti(true);
                 playAudio('levelUp');
                 setShowOnboardingRewardModal(true);
             };
             handleCompletion();
         }
-    }, [checklistState, currentUser, isInitialDataLoaded, userRole, userStatus]);
+    }, [checklistState, currentUser, isInitialDataLoaded, userRole, userStatus, setWeeklyBank]);
 
     useEffect(() => {
         if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
@@ -2424,7 +2231,7 @@ useEffect(() => {
                 setCommunityInitialTab('flode');
                 setCommunityInitialSubTab('buddies');
             }
-        } else { // journey
+        } else { 
             setJourneyInitialTab('calendar');
         }
         setViewMode(view);
@@ -2467,16 +2274,14 @@ useEffect(() => {
   const handleOpenSaveCommonMealModal = (meal: LoggedMeal) => {
     let mealToSave: LoggedMeal = meal;
 
-    // If it's a grouped meal, calculate single serving values for the modal
     if (meal.count && meal.count > 1) {
         const singleNutrition: NutritionalInfo = {
-            foodItem: meal.nutritionalInfo.foodItem, // Name stays the same
+            foodItem: meal.nutritionalInfo.foodItem, 
             calories: meal.nutritionalInfo.calories / meal.count,
             protein: meal.nutritionalInfo.protein / meal.count,
             carbohydrates: meal.nutritionalInfo.carbohydrates / meal.count,
             fat: meal.nutritionalInfo.fat / meal.count,
         };
-        // Create a temporary meal object that represents a single serving
         mealToSave = {
             ...meal,
             nutritionalInfo: singleNutrition,
@@ -2520,12 +2325,10 @@ useEffect(() => {
     } catch (error) {
         handleFirestoreError(error, 'låsa upp lektion');
     }
-  }, [currentUser?.uid, userRole, userStatus]);
+  }, [currentUser?.uid, userRole, userStatus, setUserCourseProgress]);
 
-  // Streak-based unlocking for "Praktisk Viktkontroll"
+  // Streak-based unlocking
   useEffect(() => {
-    // Simplified logic: check if it's time to unlock next lesson based on streak
-    // No longer checks isCourseActive flag as courses are free.
     if (!isInitialDataLoaded || !currentUser) {
         return;
     }
@@ -2572,10 +2375,8 @@ useEffect(() => {
     }
   }, [isInitialDataLoaded, currentUser, userCourseProgress, streakData.currentStreak, unlockLesson]);
 
-  // Completion-based unlocking for "Maxa Klimakteriet"
+  // Completion-based unlocking
   useEffect(() => {
-    // Simplified logic: check completion of previous lesson
-    // No longer checks menopauseCourseActive flag.
     if (!isInitialDataLoaded || !currentUser) {
         return;
     }
@@ -2715,7 +2516,7 @@ useEffect(() => {
 
   // --- Course CTA Handlers ---
   const handleOpenSpeedDial = () => {
-    setViewMode('main'); // Ensure we are on the main view
+    setViewMode('main'); 
     handleFabClick();
   };
 
@@ -2741,8 +2542,8 @@ useEffect(() => {
           return summaryDate >= thirtyDaysAgo;
       });
 
-      const existingWellbeingLogs = await fetchMentalWellbeingLogs(currentUser.uid);
-      let combinedWellbeingLogs: MentalWellbeingLog[] = [...existingWellbeingLogs];
+      // We don't want to mutate the state here directly for temp analysis, so just use what we have
+      let combinedWellbeingLogs: MentalWellbeingLog[] = [...mentalWellbeingLogs];
       if (latestWellbeingLog && Object.values(latestWellbeingLog).some(v => v !== null)) {
           const newLog: MentalWellbeingLog = {
               id: 'transient',
@@ -2773,11 +2574,11 @@ useEffect(() => {
           console.error("Failed to generate and save journey analysis:", e.message);
           return null;
       }
-  }, [currentUser, userProfile, goals, pastDaysSummary, currentDate, userRole, userStatus, streakData.currentStreak]);
+  }, [currentUser, userProfile, goals, pastDaysSummary, currentDate, userRole, userStatus, streakData.currentStreak, mentalWellbeingLogs, setJourneyAnalysisFeedback]);
 
   const handleRecipeSearch = async (searchQuery: string) => {
     setAppStatus(AppStatus.SEARCHING_RECIPE);
-    setCurrentRecipe(null); // Clear previous recipe
+    setCurrentRecipe(null); 
     setErrorMessage(null);
     try {
       const result = await getRecipeSuggestion(searchQuery);
@@ -2785,13 +2586,13 @@ useEffect(() => {
       if (!result.error) {
         setRecentRecipeSearches(prev => {
             const updated = [searchQuery, ...prev.filter(s => s !== searchQuery)];
-            return updated.slice(0, MAX_RECENT_RECIPE_SEARCHES);
+            return updated.slice(0, 5); // Keep 5 most recent
         });
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Okänt receptsökfel";
-      setErrorMessage(errorMsg); // For display in RecipeModal or as toast
-      setCurrentRecipe({ error: errorMsg } as RecipeSuggestion); // Set error on recipe too
+      setErrorMessage(errorMsg); 
+      setCurrentRecipe({ error: errorMsg } as RecipeSuggestion); 
     } finally {
       setAppStatus(AppStatus.IDLE);
     }
@@ -2804,13 +2605,13 @@ useEffect(() => {
         return;
     }
     addMealToLog(nutritionalInfo, { commonMealId: 'recipe' });
-    setShowRecipeModal(false); // Close modal after logging
+    setShowRecipeModal(false); 
     setCurrentRecipe(null);
     setToastNotification({ message: `"${nutritionalInfo.foodItem}" loggades!`, type: 'success' });
     setTimeout(() => setToastNotification(null), 3000);
   };
 
-  // --- Ingredient to Recipe Handlers (Updated Flow) ---
+  // --- Ingredient to Recipe Handlers ---
   const handleOpenRecipeChoiceModal = () => {
     playAudio('uiClick');
     setShowRecipeChoiceModal(true);
@@ -2823,7 +2624,7 @@ useEffect(() => {
   
   const handleChooseTakePhoto = () => {
     setShowRecipeChoiceModal(false);
-    setIngredientImagesForCapture([]); // Clear any previous images
+    setIngredientImagesForCapture([]); 
     setIsCapturingForIngredients(true);
     setIsCapturingForLabel(false);
     openModal(setShowCameraModal);
@@ -2851,15 +2652,15 @@ useEffect(() => {
   };
 
   const handleFindRecipesFromIngredients = async (imagesDataUrls: string[]) => {
-    setShowIngredientCaptureModal(false); // Close capture modal
+    setShowIngredientCaptureModal(false); 
     setAppStatus(AppStatus.ANALYZING_INGREDIENTS);
-    setIngredientAnalysisResult(null); // Clear previous results
+    setIngredientAnalysisResult(null); 
     setErrorMessage(null);
     try {
         const imageBase64Data = imagesDataUrls.map(dataUrl => dataUrl.split(',')[1]).filter(Boolean);
         const result = await getRecipesFromIngredientsImage(imageBase64Data as string[]);
         setIngredientAnalysisResult(result);
-        setShowIngredientRecipeResultsModal(true); // Show results modal
+        setShowIngredientRecipeResultsModal(true); 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Kunde inte generera recept från ingredienser.";
       setErrorMessage(errorMsg);
@@ -2867,7 +2668,7 @@ useEffect(() => {
       setTimeout(() => setToastNotification(null), 3500);
     } finally {
       setAppStatus(AppStatus.IDLE);
-      setIsCapturingForIngredients(false); // Reset flag
+      setIsCapturingForIngredients(false); 
     }
   };
 
@@ -2878,7 +2679,6 @@ useEffect(() => {
         return;
     }
     addMealToLog(nutritionalInfo, { commonMealId: 'ingredient_recipe' });
-    // Keep results modal open for now, user might want to log another
     setToastNotification({ message: `"${nutritionalInfo.foodItem}" loggades!`, type: 'success' });
     setTimeout(() => setToastNotification(null), 3000);
   };
@@ -2914,7 +2714,7 @@ useEffect(() => {
             if (desiredWeightChangeKg == null || goalStartWeight == null) return false;
             const targetWeight = goalStartWeight + desiredWeightChangeKg;
             return desiredWeightChangeKg < 0 ? newLog.weightKg <= targetWeight : newLog.weightKg >= targetWeight;
-        } else { // inbody
+        } else { 
             if (desiredFatMassChangeKg != null && desiredFatMassChangeKg < 0 && goalStartFatMassKg != null && newLog.bodyFatMassKg != null) {
                 const targetFat = goalStartFatMassKg + desiredFatMassChangeKg;
                 return newLog.bodyFatMassKg <= targetFat;
@@ -2956,8 +2756,9 @@ useEffect(() => {
         try {
             const newDocId = await saveWeightLog(currentUser.uid, sanitizedDataForFirestore as Omit<WeightLogEntry, 'id'>);
             const newWeightLogEntry: WeightLogEntry = { id: newDocId, ...data };
-            const updatedLogs = [...weightLogs, newWeightLogEntry].sort((a,b) => a.loggedAt - b.loggedAt);
-            setWeightLogs(updatedLogs);
+            
+            // Update local state immediately
+            setWeightLogs(prevLogs => [...prevLogs, newWeightLogEntry].sort((a,b) => a.loggedAt - b.loggedAt));
             
             setUserProfile(prev => ({ ...prev, currentWeightKg: data.weightKg, skeletalMuscleMassKg: data.skeletalMuscleMassKg ?? prev.skeletalMuscleMassKg, bodyFatMassKg: data.bodyFatMassKg ?? prev.bodyFatMassKg }));
             
@@ -2991,7 +2792,7 @@ useEffect(() => {
             }
             
             setShowLogWeightModal(false);
-            setPendingAnalysisData({ updatedLogs });
+            setPendingAnalysisData({ updatedLogs: [...weightLogs, newWeightLogEntry].sort((a,b) => a.loggedAt - b.loggedAt) });
             setRelatedWeightLogIdForWellbeing(newDocId);
             setShowMentalWellbeingModal(true);
         } catch (error) {
@@ -3135,7 +2936,6 @@ useEffect(() => {
                 setPendingGoalFeedbackData(null);
             }
         } else {
-            // Standalone wellbeing log, just show a toast
             if (isDataLogged) {
                 setToastNotification({ message: 'Välbefinnande sparat!', type: 'success' });
                  setTimeout(() => setToastNotification(null), 3000);
@@ -3226,8 +3026,8 @@ useEffect(() => {
             streakSaver: newStreakSaverState,
             currentStreak: newStreak,
             lastDateStreakChecked: dayToSave.date,
-            role: userRole,
-            status: userStatus
+            role: userRole as UserRole, // Explicit cast
+            status: userStatus as "pending" | "approved"
         };
         if (newHighestStreak > highestStreak) {
             userUpdatePayload.highestStreak = newHighestStreak;
@@ -3264,7 +3064,6 @@ useEffect(() => {
     };
   }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, newlyUnlockedLesson, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showLatestUpdateView]);
   
-  // Scroll to top on view change
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [viewMode, currentLessonId]);
@@ -3275,12 +3074,11 @@ useEffect(() => {
   
   const handleUnlockAchievement = useCallback(async (achievementId: string) => {
     if (!currentUser || unlockedAchievements[achievementId]) {
-      return; // Already unlocked or no user
+      return; 
     }
     
     const unlockedDate = new Date().toISOString();
     
-    // Optimistic update
     const newUnlocked = { ...unlockedAchievements, [achievementId]: unlockedDate };
     setUnlockedAchievements(newUnlocked);
     
@@ -3307,12 +3105,11 @@ useEffect(() => {
       await updateUserDocument(currentUser.uid, { unlockedAchievements: newUnlocked, role: userRole, status: userStatus });
     } catch (error) {
       handleFirestoreError(error, 'uppdatera bragder');
-      // Rollback optimistic update
       const rolledBack = { ...unlockedAchievements };
       delete rolledBack[achievementId];
       setUnlockedAchievements(rolledBack);
     }
-  }, [currentUser, unlockedAchievements, userRole, userStatus]);
+  }, [currentUser?.uid, unlockedAchievements, userRole, userStatus, setUnlockedAchievements]);
 
   useEffect(() => {
     // Level Up Check
@@ -3340,7 +3137,7 @@ useEffect(() => {
             setTimeout(() => setShowConfetti(false), 5000);
         }
     }
-  }, [streakData.currentStreak, lastNotifiedStreakLevelUp, highestLevelId, currentUser, userRole, userStatus]);
+  }, [streakData.currentStreak, lastNotifiedStreakLevelUp, highestLevelId, currentUser, userRole, userStatus, setHighestLevelId]);
 
   useEffect(() => {
     if (highestStreak > 0 && isInitialDataLoaded) {
@@ -3374,7 +3171,6 @@ useEffect(() => {
 
     const processedMeals: LoggedMeal[] = [...otherMeals];
 
-    // Process each group
     for (const group of commonMealGroups.values()) {
       if (group.length > 1) {
         const sortedGroup = [...group].sort((a, b) => b.timestamp - a.timestamp);
@@ -3398,12 +3194,10 @@ useEffect(() => {
           originalIds: sortedGroup.map(m => m.id),
         });
       } else {
-        // If group has only one meal, add it back as is
         processedMeals.push(...group);
       }
     }
 
-    // Sort the final combined list by timestamp
     return processedMeals.sort((a, b) => b.timestamp - a.timestamp);
 
   }, [dailyLog]);
@@ -3431,7 +3225,6 @@ useEffect(() => {
     };
   }, [isInitialDataLoaded, userProfile, goals, weightLogs, pastDaysSummary, mentalWellbeingLogs, currentDate, streakData.currentStreak]);
 
-  // FIX: Add handler for nutrition label log
   const handleLogFromLabel = (nutritionalInfo: NutritionalInfo) => {
     addMealToLog(nutritionalInfo, { commonMealId: 'nutrition_label' });
     setShowNutritionLabelResultModal(false);
@@ -3440,7 +3233,6 @@ useEffect(() => {
     setTimeout(() => setToastNotification(null), 3000);
   };
   
-  // FIX: Add handler for barcode scan fallback
   const handleScanFallback = () => {
     closeModal(setShowBarcodeScannerModal);
     setIsCapturingForLabel(true);
@@ -3472,24 +3264,24 @@ useEffect(() => {
 
 
   const handleAddOptionSelect = (option: 'camera' | 'upload' | 'text' | 'recipe' | 'barcode') => {
-    setShowSpeedDial(false); // Close speed dial menu first
+    setShowSpeedDial(false);
     playAudio('uiClick');
     switch (option) {
       case 'camera':
-        setIsCapturingForIngredients(false); // Ensure this is for single meal
+        setIsCapturingForIngredients(false); 
         setIsCapturingForLabel(false);
         openModal(setShowCameraModal);
         break;
       case 'upload':
-        setIsCapturingForIngredients(false); // Ensure this is for single meal
+        setIsCapturingForIngredients(false); 
         setIsCapturingForLabel(false);
-        document.getElementById('imageUploadInputMain')?.click(); // Trigger hidden input
+        document.getElementById('imageUploadInputMain')?.click(); 
         break;
       case 'text':
         openModal(setShowTextEntryModal);
         break;
       case 'recipe':
-        handleOpenRecipeChoiceModal(); // This opens the choice (search vs scan)
+        handleOpenRecipeChoiceModal();
         break;
       case 'barcode':
         openModal(setShowBarcodeScannerModal);
@@ -3541,7 +3333,7 @@ useEffect(() => {
 
   return (
     <>
-      <div className="min-h-screen bg-neutral-light flex flex-col items-center pb-28"> {/* Increased padding-bottom for the banners */}
+      <div className="min-h-screen bg-neutral-light flex flex-col items-center pb-28">
         {persistenceWarning && (
             <div className="w-full bg-yellow-400 text-yellow-900 p-3 text-center sticky top-0 z-[1000] shadow-md">
                 <p className="font-bold"> Varning för Offlineläge</p>
@@ -3759,7 +3551,7 @@ useEffect(() => {
                             onUpdate={handleUpdateMeal}
                             onSelectForCommonSave={handleOpenSaveCommonMealModal}
                             isReadOnly={!isEditableLogDate}
-                            isNewlyAdded={false} // Assuming this logic might change, but for now it's static
+                            isNewlyAdded={false} 
                         />
                         ))}
                     </div>
@@ -3804,7 +3596,6 @@ useEffect(() => {
             <CoursesView
                 userProfile={userProfile}
                 onNavigateToCourse={handleNavigateToCourse}
-                onExpressInterest={handleNavigateToCourse}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (
@@ -3855,7 +3646,6 @@ useEffect(() => {
          )}
         </main>
         
-        {/* Onboarding Spotlight */}
         {showSpotlight && (
           <div 
             className="fixed inset-0 z-40 animate-fade-in"
@@ -3869,7 +3659,6 @@ useEffect(() => {
           </div>
         )}
         
-        {/* ADD FOOD OVERLAY/MODAL */}
         {viewMode === 'main' && !showSpeedDial && (
           <div className={`fixed right-6 z-40 transition-all duration-300 ${isInstallBannerVisible ? 'bottom-28' : 'bottom-6'}`}>
             <button
