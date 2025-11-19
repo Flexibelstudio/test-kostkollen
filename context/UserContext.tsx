@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '@firebase/auth';
-import { useAuth } from '../hooks/useAuth';
-import { useUserData, UseUserDataReturn } from '../hooks/useUserData';
-import { getDateUID } from '../utils/dateUtils';
+import { useAuth } from './hooks/useAuth';
+import { useUserData, UseUserDataReturn } from './hooks/useUserData';
+import { getDateUID } from './utils/dateUtils';
 
 interface UserContextType extends UseUserDataReturn {
   currentUser: User | null;
