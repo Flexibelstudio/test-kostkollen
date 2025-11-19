@@ -19,7 +19,7 @@ import WaterLogger from '../components/WaterLogger';
 import { CommonMealsList } from '../components/CommonMealsList';
 import MealItemCard from '../components/MealItemCard';
 import SaveCommonMealModal from '../components/SaveCommonMealModal';
-import OnboardingChecklist from '../components/OnboardingChecklist';
+import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CoinFallEffect from '../components/CoinFallEffect';
 
