@@ -9,7 +9,6 @@ import {
 import { Avatar } from './UserProfileModal';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
-import { LOCAL_STORAGE_KEYS } from '../constants';
 
 // Modals
 import UserProfileModal from './UserProfileModal';
@@ -45,6 +44,11 @@ const Layout: React.FC = () => {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
   const [showIosInstallPrompt, setShowIosInstallPrompt] = useState(false);
+
+  // Determine layout width based on current page
+  // Community can benefit from being wider, but Dashboard/Journey should look like a mobile app
+  const isWidePage = location.pathname.startsWith('/community') || location.pathname.startsWith('/courses');
+  const containerWidthClass = isWidePage ? 'max-w-5xl' : 'max-w-lg';
 
   // --- Effects ---
 
@@ -116,7 +120,7 @@ const Layout: React.FC = () => {
     <div className="min-h-screen bg-neutral-light flex flex-col items-center pb-28">
         {/* Header */}
         <header className="w-full bg-white text-neutral-dark p-4 shadow-lg sticky top-0 z-30">
-            <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className={`mx-auto flex items-center justify-between ${containerWidthClass} transition-all duration-300`}>
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => { playAudio('uiClick'); navigate('/'); }}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
                 </div>
@@ -169,7 +173,7 @@ const Layout: React.FC = () => {
         </header>
 
         {/* Main Content */}
-        <main className={`w-full max-w-7xl mx-auto p-2 sm:p-4 flex-grow flex flex-col ${location.pathname === '/community' ? 'h-full' : ''}`}>
+        <main className={`w-full mx-auto p-2 sm:p-4 flex-grow flex flex-col ${containerWidthClass} transition-all duration-300 ${location.pathname === '/community' ? 'h-full' : ''}`}>
             <Outlet context={{ setShowConfetti, setToastNotification }} />
         </main>
         
