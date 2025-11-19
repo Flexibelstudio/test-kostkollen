@@ -2524,7 +2524,9 @@ useEffect(() => {
 
   // Streak-based unlocking for "Praktisk Viktkontroll"
   useEffect(() => {
-    if (!isInitialDataLoaded || !currentUser || !userProfile.isCourseActive) {
+    // Simplified logic: check if it's time to unlock next lesson based on streak
+    // No longer checks isCourseActive flag as courses are free.
+    if (!isInitialDataLoaded || !currentUser) {
         return;
     }
 
@@ -2568,11 +2570,13 @@ useEffect(() => {
             }
         }
     }
-  }, [isInitialDataLoaded, currentUser, userProfile.isCourseActive, userCourseProgress, streakData.currentStreak, unlockLesson]);
+  }, [isInitialDataLoaded, currentUser, userCourseProgress, streakData.currentStreak, unlockLesson]);
 
   // Completion-based unlocking for "Maxa Klimakteriet"
   useEffect(() => {
-    if (!isInitialDataLoaded || !currentUser || !userProfile.menopauseCourseActive) {
+    // Simplified logic: check completion of previous lesson
+    // No longer checks menopauseCourseActive flag.
+    if (!isInitialDataLoaded || !currentUser) {
         return;
     }
 
@@ -2592,7 +2596,7 @@ useEffect(() => {
             unlockLesson(nextLessonId, 0);
         }
     }
-  }, [isInitialDataLoaded, currentUser, userProfile.menopauseCourseActive, userCourseProgress, unlockLesson]);
+  }, [isInitialDataLoaded, currentUser, userCourseProgress, unlockLesson]);
 
 
   const handleCloseLessonDetail = () => {
@@ -2708,49 +2712,6 @@ useEffect(() => {
         handleFirestoreError(error, 'markera lektion som slutförd');
     }
   };
-  
-    const handleExpressCourseInterest = async () => {
-        if (!currentUser) return;
-        playAudio('uiClick');
-
-        // Optimistic UI update
-        setUserProfile(prev => ({ ...prev, courseInterest: true }));
-
-        // Show toast - it will be brief, but good to have
-        setToastNotification({ message: "Anmäler intresse & skickar till betalning...", type: "success" });
-        
-        // Update Firestore but don't wait. Let it run in the background.
-        // Add a catch to log errors without blocking the user flow.
-        updateUserDocument(currentUser.uid, { courseInterest: true, role: userRole, status: userStatus })
-            .catch(error => {
-                console.error("Firestore error while setting course interest (non-blocking):", error);
-                // Can't easily inform the user as they are being redirected.
-                // The optimistic UI update will remain, which is acceptable.
-            });
-
-        // Redirect the user to the payment link.
-        window.location.href = 'https://buy.stripe.com/7sYcN64zsfd88YV6Px8Ra06';
-    };
-
-    const handleExpressMenopauseCourseInterest = async () => {
-        if (!currentUser) return;
-        playAudio('uiClick');
-    
-        // Optimistic UI update
-        setUserProfile(prev => ({ ...prev, menopauseCourseInterest: true }));
-    
-        // Show toast
-        setToastNotification({ message: "Anmäler intresse & skickar till betalning...", type: "success" });
-        
-        // Update Firestore in the background
-        updateUserDocument(currentUser.uid, { menopauseCourseInterest: true, role: userRole, status: userStatus })
-            .catch(error => {
-                console.error("Firestore error while setting menopause course interest (non-blocking):", error);
-            });
-    
-        // Redirect to the new payment link
-        window.location.href = 'https://buy.stripe.com/fZu6oI2rk8OKfnj2zh8Ra07';
-      };
 
   // --- Course CTA Handlers ---
   const handleOpenSpeedDial = () => {
@@ -3843,13 +3804,7 @@ useEffect(() => {
             <CoursesView
                 userProfile={userProfile}
                 onNavigateToCourse={handleNavigateToCourse}
-                onExpressInterest={(courseId) => {
-                  if (courseId === 'praktisk-viktkontroll') {
-                    handleExpressCourseInterest();
-                  } else if (courseId === 'maxa-klimakteriet') {
-                    handleExpressMenopauseCourseInterest();
-                  }
-                }}
+                onExpressInterest={handleNavigateToCourse}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (

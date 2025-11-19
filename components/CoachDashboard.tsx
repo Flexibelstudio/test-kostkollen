@@ -5,12 +5,10 @@ import { User, PieChart } from 'lucide-react'; // Import new Lucide icons
 import { playAudio } from '../services/audioService';
 import { 
     fetchCoachViewMembers, 
-    setCourseAccessForMember, 
     approveMember,
     revokeApproval, 
     updateUserRole,
     bulkApproveMembers,
-    bulkSetCourseAccess,
     bulkUpdateUserRole
 } from '../services/firestoreService';
 import LoadingSpinner from './LoadingSpinner';
@@ -85,7 +83,8 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
         const membersWithStreak = activeMembers.filter(m => (m.currentStreak || 0) > 0);
         const percentWithStreak = (membersWithStreak.length / totalActiveCount) * 100;
         const averageStreak = activeMembers.reduce((sum, m) => sum + (m.currentStreak || 0), 0) / totalActiveCount;
-        const membersOnCourse = activeMembers.filter(m => m.isCourseActive);
+        
+        const membersOnCourse = activeMembers.filter(m => m.courseProgressSummary && m.courseProgressSummary.started);
         const percentOnCourse = (membersOnCourse.length / totalActiveCount) * 100;
         let averageCourseProgress = 0;
         if (membersOnCourse.length > 0) {
@@ -96,6 +95,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             }, 0);
             averageCourseProgress = (totalProgress / membersOnCourse.length) * 100;
         }
+        
         const membersWithWeightLoss = activeMembers.filter(m => m.weeklyWeightChange !== undefined && m.weeklyWeightChange < 0);
         const averageWeeklyLoss = membersWithWeightLoss.length > 0 ? Math.abs(membersWithWeightLoss.reduce((sum, m) => sum + m.weeklyWeightChange!, 0) / membersWithWeightLoss.length) : 0;
         const recordWeeklyLoss = membersWithWeightLoss.length > 0 ? Math.abs(Math.min(...membersWithWeightLoss.map(m => m.weeklyWeightChange!))) : 0;
@@ -137,15 +137,13 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
 const MemberFilters: React.FC<{
     searchQuery: string; onSearchChange: (q: string) => void;
     showOnlyPending: boolean; onPendingChange: (v: boolean) => void; pendingCount: number;
-    showOnlyInterest: boolean; onInterestChange: (v: boolean) => void; interestCount: number;
     onRefresh: () => void; isRefreshDisabled: boolean;
-}> = ({ searchQuery, onSearchChange, showOnlyPending, onPendingChange, pendingCount, showOnlyInterest, onInterestChange, interestCount, onRefresh, isRefreshDisabled }) => (
+}> = ({ searchQuery, onSearchChange, showOnlyPending, onPendingChange, pendingCount, onRefresh, isRefreshDisabled }) => (
     <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-neutral-dark mb-3 sm:mb-0">Medlemsöversikt</h2>
         <div className="flex items-center flex-wrap gap-4">
             <div className="relative"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><SearchIcon className="w-5 h-5 text-gray-400" /></div><input type="text" placeholder="Sök på namn/e-post..." value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} className="w-full sm:w-auto pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:ring-primary focus:border-primary transition" aria-label="Sök medlemmar" /></div>
             <label htmlFor="pendingFilter" className="flex items-center cursor-pointer"><input type="checkbox" id="pendingFilter" checked={showOnlyPending} onChange={() => onPendingChange(!showOnlyPending)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" /><span className="ml-2 text-sm font-medium text-neutral-dark">Visa bara väntande ({pendingCount})</span></label>
-            <label htmlFor="interestFilter" className="flex items-center cursor-pointer"><input type="checkbox" id="interestFilter" checked={showOnlyInterest} onChange={() => onInterestChange(!showOnlyInterest)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" /><span className="ml-2 text-sm font-medium text-neutral-dark">Visa intresse ({interestCount})</span></label>
             <button onClick={onRefresh} className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary-100/50 active:scale-95 transition-colors" disabled={isRefreshDisabled}>{isRefreshDisabled ? 'Laddar...' : 'Uppdatera'}</button>
         </div>
     </div>
@@ -154,17 +152,13 @@ const MemberFilters: React.FC<{
 const BulkActionsBar: React.FC<{
     selectedCount: number;
     onClearSelection: () => void;
-    onBulkAction: (action: 'approve' | 'activateCoursePV' | 'deactivateCoursePV' | 'activateCourseMK' | 'deactivateCourseMK' | 'setRoleCoach' | 'setRoleMember') => void;
+    onBulkAction: (action: 'approve' | 'setRoleCoach' | 'setRoleMember') => void;
     isBulkUpdating: boolean;
 }> = ({ selectedCount, onClearSelection, onBulkAction, isBulkUpdating }) => (
     <div className="bg-primary-100 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-[88px] z-30 mb-4 animate-fade-in shadow-md">
         <span className="font-semibold text-primary-darker">{selectedCount} medlemmar valda</span>
         <div className="flex items-center gap-2 flex-wrap justify-center">
             <BulkActionButton onClick={() => onBulkAction('approve')} disabled={isBulkUpdating} className="bg-primary-200 text-primary-darker hover:bg-primary-lighter">Godkänn</BulkActionButton>
-            <BulkActionButton onClick={() => onBulkAction('activateCoursePV')} disabled={isBulkUpdating} className="bg-blue-200 text-blue-800 hover:bg-blue-300">Aktivera Viktkontroll</BulkActionButton>
-            <BulkActionButton onClick={() => onBulkAction('deactivateCoursePV')} disabled={isBulkUpdating} className="bg-red-200 text-red-800 hover:bg-red-300">Avaktivera Viktkontroll</BulkActionButton>
-            <BulkActionButton onClick={() => onBulkAction('activateCourseMK')} disabled={isBulkUpdating} className="bg-blue-200 text-blue-800 hover:bg-blue-300">Aktivera Klimakteriet</BulkActionButton>
-            <BulkActionButton onClick={() => onBulkAction('deactivateCourseMK')} disabled={isBulkUpdating} className="bg-red-200 text-red-800 hover:bg-red-300">Avaktivera Klimakteriet</BulkActionButton>
             <BulkActionButton onClick={() => onBulkAction('setRoleCoach')} disabled={isBulkUpdating} className="bg-purple-200 text-purple-800 hover:bg-purple-300">Gör till Coach</BulkActionButton>
             <BulkActionButton onClick={() => onBulkAction('setRoleMember')} disabled={isBulkUpdating} className="bg-yellow-200 text-yellow-800 hover:bg-yellow-300">Gör till Medlem</BulkActionButton>
         </div>
@@ -185,7 +179,6 @@ const MemberListTable: React.FC<{
     onShowDetails: (member: CoachViewMember) => void;
     onApprove: (id: string) => void;
     onRevoke: (id: string) => void;
-    onToggleCourse: (id: string, courseField: 'isCourseActive' | 'menopauseCourseActive', interestField: 'courseInterest' | 'menopauseCourseInterest', currentStatus: boolean) => void;
     onUpdateRole: (id: string, newRole: UserRole) => void;
 }> = (props) => (
     <div className="overflow-x-auto custom-scrollbar">
@@ -199,7 +192,6 @@ const MemberListTable: React.FC<{
                     <SortableHeader column="goalSummary" label="Mål" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                     <SortableHeader column="numberOfBuddies" label="Kompisar" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                     <SortableHeader column="status" label="Status" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
-                    <SortableHeader column="isCourseActive" label="Kurser" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                     <th scope="col" className="px-4 py-3.5 text-left text-xs sm:text-sm font-medium text-neutral-dark uppercase tracking-wider">Åtgärder</th>
                 </tr>
             </thead>
@@ -213,26 +205,12 @@ const MemberListTable: React.FC<{
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral">{member.goalSummary}</td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral text-center">{member.numberOfBuddies ?? 0}</td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral"><StatusBadge status={member.status} /></td>
-                        <td className="px-4 py-4 whitespace-nowrap text-xs text-neutral-dark space-y-2">
-                           <div className="flex items-center gap-2">
-                                <span className="font-semibold w-20">Viktkontroll:</span>
-                                {member.isCourseActive ? <CheckCircleIcon className="w-4 h-4 text-primary flex-shrink-0" title="Kursen är aktiv"/> : (member.courseInterest ? <span className="text-yellow-500 animate-pulse font-bold text-lg flex-shrink-0" title="Medlemmen vill aktivera kursen">💲</span> : <span>-</span>)}
-                           </div>
-                           <div className="flex items-center gap-2">
-                                <span className="font-semibold w-20">Klimakteriet:</span>
-                                {member.menopauseCourseActive ? <CheckCircleIcon className="w-4 h-4 text-primary flex-shrink-0" title="Kursen är aktiv"/> : (member.menopauseCourseInterest ? <span className="text-yellow-500 animate-pulse font-bold text-lg flex-shrink-0" title="Medlemmen vill aktivera kursen">💲</span> : <span>-</span>)}
-                           </div>
-                        </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-center flex-wrap gap-2">
                                     <button onClick={() => props.onShowDetails(member)} className="text-primary hover:text-primary-darker hover:underline flex items-center" aria-label={`Visa detaljer för ${member.name}`}><EyeIcon className="w-4 h-4 mr-1" /> Visa</button>
                                     {member.status === 'pending' ? (<button onClick={() => props.onApprove(member.id)} disabled={props.updatingMemberId === member.id} className="px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 bg-primary-100 text-primary-darker hover:bg-primary-200 flex items-center"><CheckCircleIcon className="w-4 h-4 mr-1"/> Godkänn</button>) : (<button onClick={() => props.onRevoke(member.id)} disabled={props.updatingMemberId === member.id} className="px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 bg-yellow-100 text-yellow-800 hover:bg-yellow-200 flex items-center"><XCircleIcon className="w-4 h-4 mr-1"/> Dra tillbaka</button>)}
                                     {member.status === 'approved' && member.id !== props.currentUserId && (<button onClick={() => props.onUpdateRole(member.id, member.role === 'coach' ? 'member' : 'coach')} disabled={props.updatingMemberId === member.id} className={`px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${member.role === 'coach' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-purple-100 text-purple-800 hover:bg-purple-200'}`}>{props.updatingMemberId === member.id ? 'Sparar...' : (member.role === 'coach' ? 'Degradera' : 'Befordra')}</button>)}
-                                </div>
-                                <div className="border-t pt-2 flex flex-wrap gap-2">
-                                    <button onClick={() => props.onToggleCourse(member.id, 'isCourseActive', 'courseInterest', member.isCourseActive || false)} disabled={props.updatingMemberId === member.id} className={`px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${member.isCourseActive ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${member.courseInterest && !member.isCourseActive ? 'ring-2 ring-yellow-400 font-bold' : ''}`}>{props.updatingMemberId === member.id ? 'Sparar...' : (member.isCourseActive ? 'Avakt. Vikt' : 'Aktivera Vikt')}</button>
-                                    <button onClick={() => props.onToggleCourse(member.id, 'menopauseCourseActive', 'menopauseCourseInterest', member.menopauseCourseActive || false)} disabled={props.updatingMemberId === member.id} className={`px-2 py-1 text-xs font-medium rounded interactive-transition disabled:opacity-50 ${member.menopauseCourseActive ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${member.menopauseCourseInterest && !member.menopauseCourseActive ? 'ring-2 ring-yellow-400 font-bold' : ''}`}>{props.updatingMemberId === member.id ? 'Sparar...' : (member.menopauseCourseActive ? 'Avakt. Klim.' : 'Aktivera Klim.')}</button>
                                 </div>
                             </div>
                         </td>
@@ -252,7 +230,6 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const [errorMembers, setErrorMembers] = useState<string | null>(null);
     const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
     const [showOnlyPending, setShowOnlyPending] = useState(false);
-    const [showOnlyInterest, setShowOnlyInterest] = useState(false);
     const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
     const [sortBy, setSortBy] = useState<SortableKeys | null>(initialSortBy);
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialSortOrder);
@@ -290,12 +267,6 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         }
     }, []);
 
-    const handleToggleCourseAccess = useCallback((memberId: string, courseField: 'isCourseActive' | 'menopauseCourseActive', interestField: 'courseInterest' | 'menopauseCourseInterest', currentStatus: boolean) => {
-        handleAction(setCourseAccessForMember(memberId, courseField, interestField, !currentStatus), memberId).then(() => {
-            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, [courseField]: !currentStatus, [interestField]: false } : m));
-        });
-    }, [handleAction]);
-
     const handleApproveMember = useCallback((memberId: string) => {
         handleAction(approveMember(memberId), memberId).then(() => {
             setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, status: 'approved' } : m));
@@ -314,17 +285,13 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         });
     }, [handleAction]);
 
-    const handleBulkAction = useCallback(async (action: 'approve' | 'activateCoursePV' | 'deactivateCoursePV' | 'activateCourseMK' | 'deactivateCourseMK' | 'setRoleCoach' | 'setRoleMember') => {
+    const handleBulkAction = useCallback(async (action: 'approve' | 'setRoleCoach' | 'setRoleMember') => {
         const idsToUpdate = Array.from(selectedMemberIds);
         if (idsToUpdate.length === 0) return;
         setIsBulkUpdating(true);
         try {
             const actions = {
                 'approve': bulkApproveMembers(idsToUpdate),
-                'activateCoursePV': bulkSetCourseAccess(idsToUpdate, 'isCourseActive', 'courseInterest', true),
-                'deactivateCoursePV': bulkSetCourseAccess(idsToUpdate, 'isCourseActive', 'courseInterest', false),
-                'activateCourseMK': bulkSetCourseAccess(idsToUpdate, 'menopauseCourseActive', 'menopauseCourseInterest', true),
-                'deactivateCourseMK': bulkSetCourseAccess(idsToUpdate, 'menopauseCourseActive', 'menopauseCourseInterest', false),
                 'setRoleCoach': bulkUpdateUserRole(idsToUpdate, 'coach'),
                 'setRoleMember': bulkUpdateUserRole(idsToUpdate, 'member')
             };
@@ -343,11 +310,10 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const filteredMembers = useMemo(() => membersList.filter(member => {
         const searchMatches = searchQuery.trim() === '' || member.name.toLowerCase().includes(searchQuery.toLowerCase()) || member.email.toLowerCase().includes(searchQuery.toLowerCase());
         if (!searchMatches) return false;
-        if (!showOnlyPending && !showOnlyInterest) return true;
+        if (!showOnlyPending) return true;
         const isPending = showOnlyPending && member.status === 'pending';
-        const hasInterest = showOnlyInterest && (member.courseInterest || member.menopauseCourseInterest);
-        return isPending || hasInterest;
-    }), [membersList, showOnlyPending, showOnlyInterest, searchQuery]);
+        return isPending;
+    }), [membersList, showOnlyPending, searchQuery]);
 
     const sortedAndFilteredMembers = useMemo(() => {
         const sortable = [...filteredMembers];
@@ -370,14 +336,13 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     }, [filteredMembers, sortBy, sortOrder]);
     
     const pendingCount = useMemo(() => membersList.filter(m => m.status === 'pending').length, [membersList]);
-    const interestCount = useMemo(() => membersList.filter(m => (m.courseInterest && !m.isCourseActive) || (m.menopauseCourseInterest && !m.menopauseCourseActive)).length, [membersList]);
 
 
     return {
-        membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending, showOnlyInterest,
-        setShowOnlyInterest, selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
-        searchQuery, setSearchQuery, fetchMembers, handleToggleCourseAccess, handleApproveMember, handleRevokeApproval,
-        handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount, interestCount
+        membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending,
+        selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
+        searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval,
+        handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount
     };
 };
 
@@ -397,10 +362,10 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
 
   const {
-      membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending, showOnlyInterest,
-      setShowOnlyInterest, selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
-      searchQuery, setSearchQuery, fetchMembers, handleToggleCourseAccess, handleApproveMember, handleRevokeApproval,
-      handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount, interestCount
+      membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending,
+      selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
+      searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval,
+      handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount
   } = useCoachDashboard();
   
   const handleSort = (column: SortableKeys) => {
@@ -443,19 +408,19 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
         <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} />
         <section className="bg-white p-5 sm:p-6 rounded-xl shadow-soft-lg border border-neutral-light">
-          <MemberFilters searchQuery={searchQuery} onSearchChange={setSearchQuery} showOnlyPending={showOnlyPending} onPendingChange={setShowOnlyPending} pendingCount={pendingCount} showOnlyInterest={showOnlyInterest} onInterestChange={setShowOnlyInterest} interestCount={interestCount} onRefresh={fetchMembers} isRefreshDisabled={isLoadingMembers || isBulkUpdating} />
+          <MemberFilters searchQuery={searchQuery} onSearchChange={setSearchQuery} showOnlyPending={showOnlyPending} onPendingChange={setShowOnlyPending} pendingCount={pendingCount} onRefresh={fetchMembers} isRefreshDisabled={isLoadingMembers || isBulkUpdating} />
           {selectedMemberIds.size > 0 && <BulkActionsBar selectedCount={selectedMemberIds.size} onClearSelection={() => setSelectedMemberIds(new Set())} onBulkAction={handleBulkAction} isBulkUpdating={isBulkUpdating} />}
           {(isLoadingMembers || isBulkUpdating) && <LoadingSpinner message={isBulkUpdating ? "Uppdaterar medlemmar..." : "Laddar medlemmar..."} />}
           {errorMembers && !isLoadingMembers && <div className="text-center py-6"><p className="text-red-600 font-medium">{errorMembers}</p></div>}
           {!isLoadingMembers && !isBulkUpdating && !errorMembers && (
             sortedAndFilteredMembers.length > 0 ? (
-                <MemberListTable members={sortedAndFilteredMembers} currentUserId={currentUserId} selectedMemberIds={selectedMemberIds} sortBy={sortBy} sortOrder={sortOrder} updatingMemberId={updatingMemberId} onSelectAll={handleSelectAll} onSelectMember={handleSelectMember} onSort={handleSort} onShowDetails={handleShowMemberDetails} onApprove={handleApproveMember} onRevoke={handleRevokeApproval} onToggleCourse={handleToggleCourseAccess} onUpdateRole={handleUpdateRole} />
+                <MemberListTable members={sortedAndFilteredMembers} currentUserId={currentUserId} selectedMemberIds={selectedMemberIds} sortBy={sortBy} sortOrder={sortOrder} updatingMemberId={updatingMemberId} onSelectAll={handleSelectAll} onSelectMember={handleSelectMember} onSort={handleSort} onShowDetails={handleShowMemberDetails} onApprove={handleApproveMember} onRevoke={handleRevokeApproval} onUpdateRole={handleUpdateRole} />
             ) : (<p className="text-center text-neutral py-6">Inga medlemmar att visa baserat på ditt filter.</p>)
           )}
         </section>
       </main>
       <footer className="text-center py-8 text-neutral-dark"><p>@ 2025 Flexibel Hälsostudio. Alla rättigheter förbehållna.</p></footer>
-      {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowInfoModal(false)} role="dialog" aria-modal="true" aria-labelledby="coach-info-modal-title"><div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-lg animate-scale-in max-h-[80vh] overflow-y-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between mb-4"><h3 id="coach-info-modal-title" className="text-xl font-semibold text-neutral-dark flex items-center"><InformationCircleIcon className="w-6 h-6 mr-2 text-primary" /> Om Admin Dashboard</h3><button onClick={() => setShowInfoModal(false)} className="p-1.5 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90" aria-label="Stäng information"><CloseIcon className="w-5 h-5" /> </button></div><p className="text-neutral-dark mb-3">Välkommen till Admin Dashboard! Detta är din centrala plats för att få en översikt över dina medlemmars framsteg och engagemang.</p><ul className="list-disc list-inside space-y-1.5 text-neutral-dark text-sm mb-4"><li><strong>Godkänn medlemmar:</strong> Nya användare markeras som 'Väntar'. Använd 'Godkänn'-knappen för att ge dem full tillgång.</li><li><strong>Medlemsöversikt:</strong> Se en lista över alla dina medlemmar med nyckelinformation som status, senaste aktivitet och kursframsteg.</li><li><strong>Aktivera kurs:</strong> Ge eller ta bort tillgång till kursen "Praktisk Viktkontroll" för enskilda medlemmar.</li><li><strong>AI-Insikter (Kommande):</strong> Inom kort kommer du här att kunna få automatiska, AI-drivna insikter och sammanfattningar.</li></ul><p className="text-neutral-dark text-sm">Syftet med denna dashboard är att ge dig de verktyg du behöver för att effektivt kunna coacha dina medlemmar mot deras hälsomål.</p><button onClick={() => setShowInfoModal(false)} className="mt-5 w-full px-4 py-2 bg-primary text-white font-medium rounded-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary">Jag förstår</button></div></div>}
+      {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowInfoModal(false)} role="dialog" aria-modal="true" aria-labelledby="coach-info-modal-title"><div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-lg animate-scale-in max-h-[80vh] overflow-y-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between mb-4"><h3 id="coach-info-modal-title" className="text-xl font-semibold text-neutral-dark flex items-center"><InformationCircleIcon className="w-6 h-6 mr-2 text-primary" /> Om Admin Dashboard</h3><button onClick={() => setShowInfoModal(false)} className="p-1.5 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90" aria-label="Stäng information"><CloseIcon className="w-5 h-5" /> </button></div><p className="text-neutral-dark mb-3">Välkommen till Admin Dashboard! Detta är din centrala plats för att få en översikt över dina medlemmars framsteg och engagemang.</p><ul className="list-disc list-inside space-y-1.5 text-neutral-dark text-sm mb-4"><li><strong>Godkänn medlemmar:</strong> Nya användare markeras som 'Väntar'. Använd 'Godkänn'-knappen för att ge dem full tillgång.</li><li><strong>Medlemsöversikt:</strong> Se en lista över alla dina medlemmar med nyckelinformation som status, senaste aktivitet och kursframsteg.</li><li><strong>AI-Insikter (Kommande):</strong> Inom kort kommer du här att kunna få automatiska, AI-drivna insikter och sammanfattningar.</li></ul><p className="text-neutral-dark text-sm">Syftet med denna dashboard är att ge dig de verktyg du behöver för att effektivt kunna coacha dina medlemmar mot deras hälsomål.</p><button onClick={() => setShowInfoModal(false)} className="mt-5 w-full px-4 py-2 bg-primary text-white font-medium rounded-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary">Jag förstår</button></div></div>}
     </div>
     <MemberDetailModal member={selectedMember} onClose={() => setSelectedMember(null)} />
     </>
