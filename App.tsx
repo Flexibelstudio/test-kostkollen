@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'r
 import { db } from './firebase';
 import {
   doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction,
-  where, setDoc, updateDoc
+  where, updateDoc
 } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
@@ -16,14 +16,18 @@ import {
   Level, WeeklyCalorieBank, CourseLesson, UserLessonProgress, RecipeSuggestion,
   AIDataForFeedback, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog,
   AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, AIStructuredFeedbackResponse, 
-  CompletedGoal, StreakSaver, TimelineEvent, BuddyDetails, OnboardingChecklistState,
-  OnboardingChecklistItemStatus
+  CompletedGoal, TimelineEvent, BuddyDetails, OnboardingChecklistState,
+  OnboardingChecklistItemStatus,
+  UserRole,
+  GoalType,
+  GoalSettings
 } from './types.ts';
 
 import {
   DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML,
   DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
-  ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG, CALORIE_ADJUSTMENT
+  ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG, CALORIE_ADJUSTMENT,
+  MAX_INGREDIENT_IMAGES
 } from './constants.ts';
 
 import { analyzeFoodImage, getNutritionalInfoForTextSearch, getAIFeedback, getRecipeSuggestion,
@@ -32,14 +36,13 @@ import { getFoodInfoFromBarcode } from './services/openFoodFactsService.ts';
 
 import {
   addMealLog as addMealLogFirestore, setWaterLog, fetchWaterLog, addCommonMeal, deleteCommonMeal as deleteCommonMealFromDB, updateCommonMeal,
-  saveProfileAndGoals, saveWeightLog, setPastDaySummary, updateUserDocument, saveCourseProgress,
-  addMentalWellbeingLog, ensureUserProfileInFirestore, listenForFriendRequests,
+  saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
+  addMentalWellbeingLog, listenForFriendRequests,
   getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate
 } from './services/firestoreService.ts';
 
-// Hooks
-import { useAuth } from './hooks/useAuth';
-import { useUserData } from './hooks/useUserData';
+// Context
+import { useUserContext } from './context/UserContext';
 
 import WaterLogger from './components/WaterLogger.tsx';
 import ProgressDisplay from './components/ProgressDisplay.tsx';
@@ -71,7 +74,6 @@ import { AuthForm } from './components/AuthForm.tsx';
 import GamificationCard from './components/GamificationCard.tsx';
 import LogWeightModal from './components/LogWeightModal.tsx';
 import MentalWellbeingModal, { MentalWellbeingData } from './components/MentalWellbeingModal.tsx';
-import BmrTdeeInfoModal from './components/BmrTdeeInfoModal.tsx';
 import OnboardingCompletionScreen from './components/OnboardingCompletionScreen.tsx';
 import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
@@ -84,13 +86,13 @@ import NutritionLabelResultModal from './components/NutritionLabelResultModal.ts
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
-import { getWeekInfo } from './utils/dateUtils.ts';
+import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
 import {
   CameraIcon, UploadIcon,
   InformationCircleIcon, XMarkIcon, AICoachIcon, PlusIcon, SearchIcon, ArrowRightOnRectangleIcon, RecipeIcon,
   SwitchHorizontalIcon, SparklesIcon, PencilIcon, BarcodeIcon,
-  ChatBubbleOvalLeftEllipsisIcon, BellIcon, InstallIcon
+  ChatBubbleOvalLeftEllipsisIcon, BellIcon, InstallIcon, LifebuoyIcon
 } from './components/icons.tsx';
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 
@@ -109,11 +111,13 @@ const dayKeySE = (d: Date) =>
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
   }).format(d).replace(/\//g, "-");
 
 const yesterdayRangeSE = (now = new Date()) => {
   const today = startOfDaySE(now);
   const start = new Date(+today - 86400000);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const end = today;
   return { start, end, yKey: dayKeySE(start) };
 };
@@ -166,16 +170,19 @@ const wasCalorieGoalMetForSummary = (
   switch (goalTypeForDay) {
     case 'lose_fat':
       return consumedCalories <= calorieGoalValue;
-    case 'maintain':
+    case 'maintain': {
       const tenPercentOfTarget = calorieGoalValue * 0.10;
       return Math.abs(consumedCalories - calorieGoalValue) <= tenPercentOfTarget;
-    case 'gain_muscle':
+    }
+    case 'gain_muscle': {
       const surplus = CALORIE_ADJUSTMENT.gain_muscle;
       const tdeeFloor = calorieGoalValue > surplus ? calorieGoalValue - surplus : 0;
       return consumedCalories >= tdeeFloor;
-    default: 
+    }
+    default: {
       const tenPercentDefault = calorieGoalValue * 0.10;
       return Math.abs(consumedCalories - calorieGoalValue) <= tenPercentDefault;
+    }
   }
 };
 
@@ -214,14 +221,7 @@ const getUserLevelInfo = (streak: number): { currentLevel: Level, nextLevel: Lev
   return { currentLevel, nextLevel, progressToNextLevelPercentage };
 };
 
-const getDateUID = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
-
-const formatChange = (change: number | undefined, invertColor: boolean = false): string => {
+const formatChange = (change: number | undefined): string => {
     if (change === undefined || change === null || isNaN(change)) {
         return '-';
     }
@@ -551,23 +551,10 @@ const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
 
 
 export const App = () => {
-  // Use Custom Hooks
-  const { 
-    currentUser, 
-    authLoading, 
-    persistenceWarning, 
-    logout, 
-    setCurrentUser 
-  } = useAuth();
-
-  // Local UI State
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date()); 
-  const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
-  const [viewMode, setViewMode] = useState<ViewMode>('main');
-  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'>('member');
-  
-  // Use Data Hook - passing currentUser.uid (if exists) and currentDate
+  // Use Context instead of local hooks
   const {
+    currentUser, authLoading, persistenceWarning, logout, setCurrentUser, // Auth
+    currentDate, setCurrentDate, // Date from context
     goals, setGoals,
     userProfile, setUserProfile,
     dailyLog, setDailyLog,
@@ -590,11 +577,17 @@ export const App = () => {
     mentalWellbeingLogs, setMentalWellbeingLogs,
     isDataLoading,
     isInitialDataLoaded,
-    setIsInitialDataLoaded,
+    // setIsInitialDataLoaded, // Usually not needed directly in UI
     resetUserData,
-    refreshUserData
-  } = useUserData(currentUser?.uid, currentDate);
+    // refreshUserData // Usually handled internally by context/hook
+  } = useUserContext();
 
+  // Local UI State
+  // Note: currentDate is now from context. We only keep viewingDate locally for navigation.
+  const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
+  const [viewMode, setViewMode] = useState<ViewMode>('main');
+  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'>('member');
+  
   // UI & Interaction State
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -603,7 +596,6 @@ export const App = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Derived State
-  const uid = currentUser?.uid;
   const waterGoalMl = DEFAULT_WATER_GOAL_ML;
 
   const isViewingToday = useMemo(() => {
@@ -768,9 +760,6 @@ export const App = () => {
             loadDataForDate(currentUser.uid, viewingDate);
         }
     }, [currentUser, viewingDate, isInitialDataLoaded, loadDataForDate, userStatus]);
-    
-    // Ensure user is set up correctly in ensureUserProfileInFirestore is handled within useUserData hook now?
-    // No, useUserData handles fetching. ensureUserProfileInFirestore logic was moved to useUserData.
 
     // Check for onboarding completion to show modal
      useEffect(() => {
@@ -785,21 +774,9 @@ export const App = () => {
     }, [isInitialDataLoaded, currentUser, hasCompletedOnboarding, userRole, userStatus, showUserProfileModal]);
 
 
-    // This effect ensures the app's internal `currentDate` is fresh
+    // Sync viewing date with context date on visibility change (handled by context)
     useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                const now = new Date();
-                if (getDateUID(now) !== getDateUID(currentDate)) {
-                    console.log("App became visible on a new day. Updating current date.");
-                    setCurrentDate(now);
-                }
-            }
-        };
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
+        setViewingDate(new Date(currentDate));
     }, [currentDate]);
 
 
@@ -1101,12 +1078,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
     return null;
   }, [userProfile]);
-
-
-  // Handle Current Date Change (e.g. for dev tool or app wake)
-  useEffect(() => {
-    setViewingDate(new Date(currentDate));
-  }, [currentDate]);
 
 
     useEffect(() => {
@@ -1735,7 +1706,7 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
     } finally {
         setAppStatus(AppStatus.IDLE);
     }
-};
+  };
 
 const handleCloseUserProfileModal = () => {
     if (isProfileModalOnboarding && onboardingStep === 'feedback') {
@@ -3012,7 +2983,7 @@ useEffect(() => {
             timestamp: Date.now(),
             title: `har fått +1 på sin Streak!`,
             description: `Ny streak: ${newStreak} dagar i följd.`,
-            icon: ' ',
+            icon: '🔥',
             relatedDocId: `streak_${dayToSave.date}`
         };
         await addTimelineEvent(currentUser.uid, streakEventData);
@@ -3022,6 +2993,7 @@ useEffect(() => {
         batch.update(summaryRef, { goalMet: true, savedBy: 'streakSaver', streakForThisDay: newStreak });
 
         const userRef = doc(db, 'users', currentUser.uid);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const userUpdatePayload: Partial<FirestoreUserDocument> = {
             streakSaver: newStreakSaverState,
             currentStreak: newStreak,
@@ -3032,6 +3004,7 @@ useEffect(() => {
         if (newHighestStreak > highestStreak) {
             userUpdatePayload.highestStreak = newHighestStreak;
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         batch.update(userRef, userUpdatePayload as any);
 
         await batch.commit();

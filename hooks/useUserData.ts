@@ -13,7 +13,7 @@ import {
 } from '../services/firestoreService';
 import { getWeekInfo } from '../utils/dateUtils';
 
-interface UseUserDataReturn {
+export interface UseUserDataReturn {
     // State
     goals: GoalSettings;
     setGoals: React.Dispatch<React.SetStateAction<GoalSettings>>;
