@@ -45,10 +45,8 @@ const Layout: React.FC = () => {
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
   const [showIosInstallPrompt, setShowIosInstallPrompt] = useState(false);
 
-  // Determine layout width based on current page
-  // Community can benefit from being wider, but Dashboard/Journey should look like a mobile app
-  const isWidePage = location.pathname.startsWith('/community') || location.pathname.startsWith('/courses');
-  const containerWidthClass = isWidePage ? 'max-w-5xl' : 'max-w-lg';
+  // Responsiv bredd: Anpassa till skärmen men håll ihop det på jättestora skärmar
+  const containerWidthClass = 'max-w-5xl';
 
   // --- Effects ---
 

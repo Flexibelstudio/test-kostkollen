@@ -84,6 +84,7 @@ const Dashboard: React.FC = () => {
 
     // --- Computed Values ---
     const isViewingToday = useMemo(() => getDateUID(currentDate) === getDateUID(viewingDate), [currentDate, viewingDate]);
+    const formattedViewingDate = useMemo(() => viewingDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' }), [viewingDate]);
     const viewingDateUID = useMemo(() => getDateUID(viewingDate), [viewingDate]);
 
     const totalNutrients = useMemo(() => dailyLog.reduce((acc, meal) => ({
@@ -149,9 +150,10 @@ const Dashboard: React.FC = () => {
         };
 
         try {
-            const newId = await addMealLog(currentUser.uid, 'temp_id', newMeal); // ID generated in service or temp
-            // In real flow service generates ID, here we mock optimistic update
-            const mealWithId = { ...newMeal, id: newId || `temp_${Date.now()}` }; 
+            const generatedId = `meal_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            await addMealLog(currentUser.uid, generatedId, newMeal);
+            
+            const mealWithId = { ...newMeal, id: generatedId }; 
             setDailyLog(prev => [mealWithId, ...prev]);
             
             playAudio('logSuccess', 0.6);
@@ -394,6 +396,7 @@ const Dashboard: React.FC = () => {
 
             {/* 4. Meals List */}
             <section aria-label="Loggade måltider" className="space-y-4">
+                <h3 className="text-xl font-semibold text-neutral-dark px-1">Loggade måltider</h3>
                  {isViewingToday && dailyLog.length === 0 && (
                      <div className="text-center py-10 bg-white/50 rounded-xl border-dashed border-2 border-neutral-light">
                          <p className="text-neutral font-medium">Inga måltider loggade idag än.</p>
