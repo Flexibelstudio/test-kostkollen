@@ -100,27 +100,22 @@ import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
 
-import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
-import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
+import { getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
 import {
   InformationCircleIcon,
   AICoachIcon,
   PencilIcon,
-  ChatBubbleOvalLeftEllipsisIcon,
-  BellIcon,
   InstallIcon,
   LifebuoyIcon,
   ArrowRightOnRectangleIcon,
-  SwitchHorizontalIcon,
-  SparklesIcon,
 } from './components/icons.tsx';
 import { Home, Footprints, Users, GraduationCap } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 
 /* ===========================
-   Start of Daily Summary Helpers
+   Daily Summary Helpers
    =========================== */
 
 const TZ = 'Europe/Stockholm';
@@ -139,13 +134,12 @@ const dayKeySE = (d: Date) => {
 const yesterdayRangeSE = (now = new Date()) => {
   const today = startOfDaySE(now);
   const start = new Date(+today - 86400000);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const end = today;
   return { start, end, yKey: dayKeySE(start) };
 };
 
 /* ===========================
-   End of Daily Summary Helpers
+   Utils
    =========================== */
 
 const urlBase64ToUint8Array = (base64String: string) => {
@@ -195,7 +189,7 @@ const wasCalorieGoalMetForSummary = (
       return Math.abs(consumedCalories - calorieGoalValue) <= tenPercentOfTarget;
     }
     case 'gain_muscle': {
-      const surplus = 300; // Simplified const
+      const surplus = 300;
       const tdeeFloor = calorieGoalValue > surplus ? calorieGoalValue - surplus : 0;
       return consumedCalories >= tdeeFloor;
     }
@@ -211,7 +205,10 @@ interface ProcessDayEndLogicOptions {
   silent?: boolean;
 }
 
-// AI Feedback Modal Component
+/* ===========================
+   Modals
+   =========================== */
+
 const AIFeedbackModal: React.FC<{
   show: boolean;
   onClose: () => void;
@@ -223,18 +220,7 @@ const AIFeedbackModal: React.FC<{
   isOnboardingContext?: boolean;
   showDiscussButton?: boolean;
   onDiscuss?: () => void;
-}> = ({
-  show,
-  onClose,
-  feedbackMessage,
-  isLoading,
-  error,
-  modalTitle,
-  modalIcon,
-  isOnboardingContext,
-  showDiscussButton,
-  onDiscuss,
-}) => {
+}> = ({ show, onClose, feedbackMessage, isLoading, error }) => {
   if (!show) return null;
 
   return (
@@ -243,7 +229,6 @@ const AIFeedbackModal: React.FC<{
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="ai-feedback-modal-title"
     >
       <div
         className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-2xl animate-scale-in flex flex-col max-h-[85vh]"
@@ -252,7 +237,9 @@ const AIFeedbackModal: React.FC<{
         <div className="min-h-[100px] flex-grow overflow-y-auto custom-scrollbar">
           {feedbackMessage && !isLoading && !error && (
             <div className="space-y-6">
-              {typeof feedbackMessage === 'string' ? feedbackMessage : feedbackMessage.greeting}
+              {typeof feedbackMessage === 'string'
+                ? feedbackMessage
+                : feedbackMessage.greeting}
             </div>
           )}
         </div>
@@ -273,7 +260,7 @@ const MotivationModal: React.FC<{
   show: boolean;
   onClose: () => void;
   daySummary: PastDaySummary;
-}> = ({ show, onClose, daySummary }) => {
+}> = ({ show, onClose }) => {
   if (!show) return null;
   return (
     <div
@@ -302,7 +289,7 @@ const UseStreakSaverModal: React.FC<{
   onClose: () => void;
   onConfirm: () => void;
   daySummary: PastDaySummary;
-}> = ({ show, onClose, onConfirm, daySummary }) => {
+}> = ({ show, onClose, onConfirm }) => {
   if (!show) return null;
   return (
     <div
@@ -330,6 +317,10 @@ const UseStreakSaverModal: React.FC<{
     </div>
   );
 };
+
+/* ===========================
+   App
+   =========================== */
 
 export const App = () => {
   const {
@@ -388,7 +379,12 @@ export const App = () => {
 
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
-  const [splashEffect, setSplashEffect] = useState<{ x: number; y: number; count: number; id: number } | null>(null);
+  const [splashEffect, setSplashEffect] = useState<{
+    x: number;
+    y: number;
+    count: number;
+    id: number;
+  } | null>(null);
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
 
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
@@ -438,13 +434,14 @@ export const App = () => {
     useState<{ type: 'from_analysis'; date?: string } | null>(null);
 
   const [showLogWeightModal, setShowLogWeightModal] = useState<boolean>(false);
-
   const [showMentalWellbeingModal, setShowMentalWellbeingModal] = useState<boolean>(false);
   const [relatedWeightLogIdForWellbeing, setRelatedWeightLogIdForWellbeing] = useState<
     string | null
   >(null);
   const [pendingGoalFeedbackData, setPendingGoalFeedbackData] =
-    useState<{ profile: UserProfileData; goals: GoalSettings; isOnboarding: boolean } | null>(null);
+    useState<{ profile: UserProfileData; goals: GoalSettings; isOnboarding: boolean } | null>(
+      null
+    );
   const [pendingAnalysisData, setPendingAnalysisData] =
     useState<{ updatedLogs: WeightLogEntry[] } | null>(null);
 
@@ -476,6 +473,21 @@ export const App = () => {
 
   const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
   const [hasUnseenUpdate, setHasUnseenUpdate] = useState(false);
+
+  /* -------------------
+     SAFE currentLevel
+     ------------------- */
+
+  const currentLevel = useMemo<Level | null>(() => {
+    const defs = LEVEL_DEFINITIONS as Level[];
+    if (!defs || defs.length === 0) return null;
+    // Enkel fallback – ta första nivån (t.ex. "Nivå 1")
+    return defs[0];
+  }, []);
+
+  /* -------------------
+     Load daily data
+     ------------------- */
 
   const loadDataForDate = useCallback(
     async (userId: string, dateToLoad: Date) => {
@@ -532,6 +544,10 @@ export const App = () => {
     setViewingDate(new Date(currentDate));
   }, [currentDate]);
 
+  /* -------------------
+     Push / Notifications
+     ------------------- */
+
   const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       return false;
@@ -578,6 +594,10 @@ export const App = () => {
     setTimeout(() => setToastNotification(null), 5000);
   };
 
+  /* -------------------
+     Community
+     ------------------- */
+
   useEffect(() => {
     if (currentUser && userStatus === 'approved') {
       const unsubscribeRequests = listenForFriendRequests(currentUser.uid, (requests) => {
@@ -611,7 +631,7 @@ export const App = () => {
         null
       );
       if (lastViewed && viewMode !== 'community') {
-        // Logic to calculate notification count
+        // ev. notislogik
       }
     } catch (error) {
       console.error('Error loading community data', error);
@@ -647,6 +667,10 @@ export const App = () => {
     }
   }, [viewMode]);
 
+  /* -------------------
+     Update notice
+     ------------------- */
+
   useEffect(() => {
     if (isInitialDataLoaded && currentUser) {
       const UPDATE_NOTICE_KEY = 'updateNotice_v5_StreakUpdate';
@@ -672,6 +696,10 @@ export const App = () => {
     setShowLatestUpdateView(false);
   };
 
+  /* -------------------
+     Auth / logout
+     ------------------- */
+
   const handleLogout = async () => {
     playAudio('uiClick');
     setShowProfileDropdown(false);
@@ -688,6 +716,10 @@ export const App = () => {
     setShowProfileDropdown(false);
     setCurrentInterface((prev) => (prev === 'member' ? 'coach' : 'member'));
   };
+
+  /* -------------------
+     UI helpers
+     ------------------- */
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -718,20 +750,9 @@ export const App = () => {
     return Math.max(goalBasedMin, MIN_ABSOLUTE_CALORIES_THRESHOLD);
   }, [goals.calorieGoal]);
 
-  // NEW: derive currentLevel so it is never null
-  const currentLevel = useMemo<Level>(() => {
-    if (LEVEL_DEFINITIONS && LEVEL_DEFINITIONS.length > 0) {
-      if (highestLevelId) {
-        const byId = LEVEL_DEFINITIONS.find((lvl) => lvl.id === highestLevelId);
-        if (byId) return byId;
-      }
-      return LEVEL_DEFINITIONS[0];
-    }
-    return {
-      id: 'fallback',
-      name: 'Startnivå',
-    } as Level;
-  }, [highestLevelId]);
+  /* -------------------
+     Profile / goals
+     ------------------- */
 
   const handleSaveProfileAndGoals = async (
     profileData: UserProfileData,
@@ -791,6 +812,10 @@ export const App = () => {
       handleFirestoreError(error, 'slutföra onboarding');
     }
   };
+
+  /* -------------------
+     Ensure yesterday processed
+     ------------------- */
 
   const ensureYesterdayProcessed = useCallback(
     async (
@@ -950,6 +975,10 @@ export const App = () => {
     };
   }, [currentUser?.uid, isInitialDataLoaded, ensureYesterdayProcessed]);
 
+  /* -------------------
+     Misc
+     ------------------- */
+
   useEffect(() => {
     initAudio();
   }, []);
@@ -989,7 +1018,10 @@ export const App = () => {
     }
   }, []);
 
-  // Onboarding Logic
+  /* -------------------
+     Onboarding checklist
+     ------------------- */
+
   const handleCloseOnboardingRewardModal = () => {
     setShowOnboardingRewardModal(false);
     setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, {
@@ -1039,7 +1071,7 @@ export const App = () => {
 
   const handleOnboardingNavigate = (view: 'journey' | 'community', subView?: 'search') => {
     if (view === 'community') {
-      // Logic to set tabs if needed
+      // ev. tab-logik
     } else {
       setJourneyInitialTab('calendar');
     }
@@ -1065,6 +1097,10 @@ export const App = () => {
     openModal(setShowInfoModal);
   };
 
+  /* -------------------
+     Courses
+     ------------------- */
+
   const handleNavigateToCourse = (courseId: CourseInfo['id']) => {
     const course = ALL_COURSES.find((c) => c.id === courseId);
     if (course) {
@@ -1085,10 +1121,9 @@ export const App = () => {
   };
 
   const handleMarkLessonComplete = async (lessonId: string) => {
-    // Logic handled inside LessonDetail mostly, just UI update here via context
+    // handled i LessonDetail/Firestore
   };
 
-  // --- Course CTA Handlers ---
   const handleOpenSpeedDial = () => {
     setViewMode('main');
   };
@@ -1125,6 +1160,10 @@ export const App = () => {
     setShowMentalWellbeingModal(false);
   };
 
+  /* -------------------
+     Early returns
+     ------------------- */
+
   if (authLoading || isDataLoading) {
     return <SplashScreen />;
   }
@@ -1149,6 +1188,10 @@ export const App = () => {
       />
     );
   }
+
+  /* -------------------
+     Header + nav
+     ------------------- */
 
   const DropdownMenuItem: React.FC<{
     onClick: () => void;
@@ -1223,6 +1266,10 @@ export const App = () => {
   const lessonsForDetail =
     activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
   const currentLesson = lessonsForDetail.find((l) => l.id === currentLessonId);
+
+  /* -------------------
+     Render
+     ------------------- */
 
   return (
     <>
@@ -1321,7 +1368,7 @@ export const App = () => {
               setToastNotification={setToastNotification}
               streakData={streakData}
               highestStreak={highestStreak}
-              currentLevel={currentLevel}
+              currentLevel={currentLevel || undefined}
               userProfile={userProfile}
               weeklyBank={weeklyBank}
               pastDaysSummary={pastDaysSummary}
@@ -1332,6 +1379,7 @@ export const App = () => {
               waterGoalMl={goals.waterGoalMl ?? DEFAULT_WATER_GOAL_ML}
             />
           )}
+
           {viewMode === 'journey' && (
             <JourneyView
               pastDaysData={pastDaysSummary}
@@ -1360,9 +1408,11 @@ export const App = () => {
               onDiscussSavedAnalysis={handleDiscussSavedAnalysis}
             />
           )}
+
           {viewMode === 'coursesView' && (
             <CoursesView userProfile={userProfile} onNavigateToCourse={handleNavigateToCourse} />
           )}
+
           {viewMode === 'courseOverview' && activeCourse && (
             <CourseOverview
               lessons={lessonsForOverview}
@@ -1372,6 +1422,7 @@ export const App = () => {
               courseId={activeCourse.id}
             />
           )}
+
           {viewMode === 'lessonDetail' && currentLessonId && currentLesson && (
             <LessonDetail
               lesson={currentLesson}
@@ -1390,6 +1441,7 @@ export const App = () => {
               onOpenLogWeightModal={handleOpenLogWeightModal}
             />
           )}
+
           {viewMode === 'community' && (
             <CommunityView
               key={communityViewKey}
@@ -1558,6 +1610,7 @@ export const App = () => {
           />
         )}
       </div>
+
       {(appStatus === AppStatus.ANALYZING ||
         appStatus === AppStatus.ANALYZING_INGREDIENTS) && (
         <LoadingSpinner
