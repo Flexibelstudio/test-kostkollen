@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'r
 import { db } from './firebase';
 import {
   doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction,
-  where, updateDoc
+  where, updateDoc, getDoc
 } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
@@ -76,6 +76,7 @@ import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
 import NutritionLabelResultModal from './components/NutritionLabelResultModal.tsx';
+import RecipeChoiceModal from './components/RecipeChoiceModal.tsx';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -351,68 +352,6 @@ const AIFeedbackModal: React.FC<{
   );
 };
 
-// Updated Recipe Choice Modal Component
-const RecipeChoiceModal: React.FC<{
-  show: boolean;
-  onClose: () => void;
-  onChooseSearch: () => void;
-  onChooseTakePhoto: () => void;
-  onChooseUpload: () => void;
-}> = ({ show, onClose, onChooseSearch, onChooseTakePhoto, onChooseUpload }) => {
-  if (!show) return null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="recipe-choice-modal-title"
-    >
-      <div
-        className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg animate-scale-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center">
-            <RecipeIcon className="w-7 h-7 text-primary mr-2.5" />
-            <h2 id="recipe-choice-modal-title" className="text-2xl font-semibold text-neutral-dark">
-                Hitta recept
-            </h2>
-          </div>
-            <button
-            onClick={onClose}
-            className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90 interactive-transition"
-            aria-label="Stäng"
-          >
-            <XMarkIcon className="w-6 h-6" />
-          </button>
-        </div>
-        <p className="text-neutral-dark mb-6 text-center">Hur vill du hitta ett recept?</p>
-        <div className="space-y-4">
-            <button
-                onClick={() => { playAudio('uiClick'); onChooseSearch(); }}
-                className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
-            >
-                <SearchIcon className="w-5 h-5 mr-2.5" /> Sök recept med text
-            </button>
-            <button
-                onClick={() => { playAudio('uiClick'); onChooseTakePhoto(); }}
-                className="w-full flex items-center justify-center px-5 py-3 bg-secondary hover:bg-secondary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
-            >
-                <CameraIcon className="w-5 h-5 mr-2.5" /> Fota ingredienser (AI)
-            </button>
-             <button
-                onClick={() => { playAudio('uiClick'); onChooseUpload(); }}
-                className="w-full flex items-center justify-center px-5 py-3 bg-accent hover:bg-accent-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
-            >
-                <UploadIcon className="w-5 h-5 mr-2.5" /> Välj bilder från enhet (AI)
-            </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const MotivationModal: React.FC<{
     show: boolean;
@@ -589,7 +528,6 @@ export const App = () => {
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Derived State
   const waterGoalMl = DEFAULT_WATER_GOAL_ML;
@@ -664,6 +602,7 @@ export const App = () => {
   const [showRecipeModal, setShowRecipeModal] = useState<boolean>(false);
   const [currentRecipe, setCurrentRecipe] = useState<RecipeSuggestion | null>(null);
   const [recentRecipeSearches, setRecentRecipeSearches] = useState<string[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Ingredient to Recipe Feature State
   const [showRecipeChoiceModal, setShowRecipeChoiceModal] = useState<boolean>(false);
@@ -806,7 +745,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setTimeout(() => setToastNotification(null), 3000);
         return true;
     } catch (error) {
-        console.error('Failed to subscribe to push notifications:', error);
+        console.error('Failed to to subscribe to push notifications:', error);
         setToastNotification({ message: 'Kunde inte aktivera pushnotiser. Försök igen.', type: 'error' });
         setTimeout(() => setToastNotification(null), 4000);
         return false;
@@ -1168,7 +1107,8 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
 
         const optimisticMeal: LoggedMeal = { ...newMealData, id: mealId };
-        setDailyLog(prevLog => [optimisticMeal, ...prevLog]);
+        const updatedLog = [optimisticMeal, ...dailyLog]; // Prepare the new state immediately for passing
+        setDailyLog(updatedLog);
         if (newBankState.bankedCalories !== originalBankState.bankedCalories) {
             setWeeklyBank(newBankState);
         }
@@ -1191,7 +1131,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
         
         if (isViewingAppYesterday) {
-            const processResult = await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+            const processResult = await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true }, updatedLog);
             
             if (processResult) {
                 if (processResult.summary) {
@@ -1415,7 +1355,9 @@ const handleDeleteMeal = async (mealId: string) => {
     
     const newBankAmount = bankBeforeToday - bankUsedThisDay;
 
-    setDailyLog(newMealsWithBankRecalculated.sort((a, b) => b.timestamp - a.timestamp));
+    // Updated state for processing
+    const updatedLogSorted = newMealsWithBankRecalculated.sort((a, b) => b.timestamp - a.timestamp);
+    setDailyLog(updatedLogSorted);
     setWeeklyBank(prev => ({ ...prev, bankedCalories: newBankAmount }));
 
     try {
@@ -1441,7 +1383,7 @@ const handleDeleteMeal = async (mealId: string) => {
         setTimeout(() => setToastNotification(null), 3000);
         
         if (isViewingAppYesterday) {
-            const processResult = await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+            const processResult = await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true }, updatedLogSorted);
             if (processResult) {
                 if (processResult.summary) {
                     setPastDaysSummary(prev => ({ ...prev, [processResult.summary!.date]: processResult.summary! }));
@@ -1504,7 +1446,8 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
     
     const newBankAmount = bankBeforeToday - bankUsedThisDay;
 
-    setDailyLog(newMealsWithBankRecalculated.sort((a, b) => b.timestamp - a.timestamp));
+    const updatedLogSorted = newMealsWithBankRecalculated.sort((a, b) => b.timestamp - a.timestamp);
+    setDailyLog(updatedLogSorted);
     setWeeklyBank(prev => ({ ...prev, bankedCalories: newBankAmount }));
 
     try {
@@ -1530,7 +1473,7 @@ const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) =>
         setTimeout(() => setToastNotification(null), 3000);
 
         if (isViewingAppYesterday) {
-            const processResult = await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true });
+            const processResult = await ensureYesterdayProcessed(currentUser.uid, currentDate, { force: true, silent: true }, updatedLogSorted);
             if (processResult) {
                 if (processResult.summary) {
                     setPastDaysSummary(prev => ({ ...prev, [processResult.summary!.date]: processResult.summary! }));
@@ -1748,7 +1691,7 @@ const handleFinishOnboarding = async () => {
 
 
 // New, robust day-end summary logic (fixed)
-const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}): Promise<{ summary: PastDaySummary | null; streakData: { currentStreak: number; lastDateStreakChecked: string | null }; weeklyBank: WeeklyCalorieBank; highestStreak: number; } | void> => {
+const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[]): Promise<{ summary: PastDaySummary | null; streakData: { currentStreak: number; lastDateStreakChecked: string | null }; weeklyBank: WeeklyCalorieBank; highestStreak: number; } | void> => {
   setAppStatus(AppStatus.PROCESSING_DAY_END);
   try {
     const { start, end, yKey } = yesterdayRangeSE(now);
@@ -1765,9 +1708,32 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       await updateUserDocument(uid, { lastDateStreakChecked: yKey, role: userRole, status: userStatus });
       return;
     }
-    if (lastDateStreakChecked && lastDateStreakChecked >= yKey && !options.force) return;
 
-    const [dailyLogForDate] = await Promise.all([fetchMealLogsForDate(uid, yKey)]);
+    // Modified Guard: Allow re-check if manualLogOverride is present OR if the goal wasn't met previously.
+    let shouldProcess = true;
+    if (lastDateStreakChecked && lastDateStreakChecked >= yKey && !options.force && !manualLogOverride) {
+         // Check if goal was met. We need to fetch the specific summary doc to know.
+         const summaryRef = doc(db, "users", uid, "pastDaySummaries", yKey);
+         const summarySnap = await getDoc(summaryRef); // Use getDoc to check existance/status
+         if (summarySnap.exists()) {
+             const summary = summarySnap.data() as PastDaySummary;
+             if (summary.goalMet) {
+                 shouldProcess = false; // Already good, don't re-run unless forced or manual override
+             }
+             // If goalMet is false, we proceed (shouldProcess remains true) to see if new data fixes it.
+         } else {
+             // No summary? Process it.
+         }
+    }
+
+    if (!shouldProcess) return;
+
+    let dailyLogForDate: LoggedMeal[];
+    if (manualLogOverride) {
+        dailyLogForDate = manualLogOverride;
+    } else {
+        dailyLogForDate = await fetchMealLogsForDate(uid, yKey);
+    }
     
     if (dailyLogForDate.length === 0) {
       let updatedDataForReturn: any;
