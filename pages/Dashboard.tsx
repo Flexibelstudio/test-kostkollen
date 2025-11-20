@@ -66,7 +66,6 @@ import { collection, doc, writeBatch } from '@firebase/firestore';
 // Modals
 import CameraModal from '../components/CameraModal';
 import TextEntryModal from '../components/TextEntryModal';
-import RecipeChoiceModal from '../components/RecipeChoiceModal';
 import RecipeModal from '../components/RecipeModal';
 import IngredientCaptureModal from '../components/IngredientCaptureModal';
 import IngredientRecipeResultsModal from '../components/IngredientRecipeResultsModal';
