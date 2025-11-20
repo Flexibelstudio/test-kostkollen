@@ -192,16 +192,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         return getDateUID(yesterday) === viewingDateStr;
     }, [currentAppDate, viewingDate]);
     
-    const { currentLevel } = useMemo(() => {
-        // Ideally import getUserLevelInfo, but for now simpler logic or prop if available
-        // Re-implementing simplistic version or assume passed prop? 
-        // Let's just assume standard logic if not imported
-        // For now, let's assume Dashboard doesn't calculate levels deeply but uses passed prop
-        // Wait, I removed prop from App.tsx, need to calculate it or fetch it.
-        // Let's use simple logic for display:
-        return { currentLevel: { name: "Nivå " + Math.floor(streakData.currentStreak / 10) } }; // Placeholder if constants not imported
-    }, [streakData.currentStreak]);
-
 
     // --- Actions ---
 
@@ -571,8 +561,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
                     <div className="text-center border-l border-r border-neutral-light px-4 w-full">
                         <h3 className="text-xs sm:text-sm font-semibold text-neutral uppercase tracking-wide">Nivå</h3>
-                        {/* Temporary level name until imported properly */}
-                        <p className="text-lg sm:text-xl font-bold text-primary truncate">Nivå {Math.floor(streakData.currentStreak / 7) + 1}</p> 
+                        <p className="text-lg sm:text-xl font-bold text-primary truncate">Nivå {Math.floor(streakData.currentStreak / 10)}</p> 
                     </div>
                      <div className="text-center">
                         <h3 className="text-xs sm:text-sm font-semibold text-neutral uppercase tracking-wide">Sparpott</h3>
@@ -652,7 +641,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <MealItemCard
                             key={meal.id}
                             meal={meal}
-                            onDelete={() => {/* Implement local delete or passed prop */}} // Placeholder, logic needs to be in Dashboard or passed
+                            onDelete={() => {/* Implement local delete or passed prop if needed, but App handles logs directly via Context in dashboard now */}} 
                             onUpdate={() => {/* Implement update */}}
                             onSelectForCommonSave={handleOpenSaveCommonMealModal}
                             isReadOnly={!isEditableLogDate}
@@ -796,8 +785,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     onChooseUpload={() => {
                          closeModal(setShowRecipeChoiceModal);
                          setIsCapturingForIngredients(true);
-                         // logic to trigger multiple file upload would go here, 
-                         // for simplicity reusing the single upload logic concept but adapted if needed
+                         document.getElementById('imageUploadInputMain')?.click(); // Reusing same upload input logic for ingredient flow
                     }}
                 />
             )}
