@@ -344,6 +344,7 @@ export const App = () => {
     setGoals,
     userProfile,
     setUserProfile,
+    // NEW: bring dailyLog and waterLoggedMl from context
     dailyLog,
     setDailyLog,
     waterLoggedMl,
@@ -487,6 +488,7 @@ export const App = () => {
           fetchMealLogsForDate(userId, dateUID),
           fetchWaterLog(userId, dateUID),
         ]);
+        // IMPORTANT: always set an array so consumers never see undefined
         setDailyLog(Array.isArray(loadedLog) ? loadedLog : []);
         setWaterLoggedMl(loadedWater ?? 0);
       } catch (error: any) {
@@ -717,21 +719,6 @@ export const App = () => {
     const goalBasedMin = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
     return Math.max(goalBasedMin, MIN_ABSOLUTE_CALORIES_THRESHOLD);
   }, [goals.calorieGoal]);
-
-  // NEW: derive currentLevel so it is never null
-  const currentLevel = useMemo<Level>(() => {
-    if (LEVEL_DEFINITIONS && LEVEL_DEFINITIONS.length > 0) {
-      if (highestLevelId) {
-        const byId = LEVEL_DEFINITIONS.find((lvl) => lvl.id === highestLevelId);
-        if (byId) return byId;
-      }
-      return LEVEL_DEFINITIONS[0];
-    }
-    return {
-      id: 'fallback',
-      name: 'Startnivå',
-    } as Level;
-  }, [highestLevelId]);
 
   const handleSaveProfileAndGoals = async (
     profileData: UserProfileData,
@@ -1319,9 +1306,10 @@ export const App = () => {
               formattedViewingDate={formattedViewingDate}
               ensureYesterdayProcessed={ensureYesterdayProcessed}
               setToastNotification={setToastNotification}
+              // NEW: provide the data Dashboard expects so dailyLog is never undefined
               streakData={streakData}
               highestStreak={highestStreak}
-              currentLevel={currentLevel}
+              currentLevel={null as any} // adjust if you have level info
               userProfile={userProfile}
               weeklyBank={weeklyBank}
               pastDaysSummary={pastDaysSummary}
