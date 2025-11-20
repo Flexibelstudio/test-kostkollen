@@ -76,7 +76,6 @@ import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
 import NutritionLabelResultModal from './components/NutritionLabelResultModal.tsx';
-import RecipeChoiceModal from './components/RecipeChoiceModal.tsx';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
