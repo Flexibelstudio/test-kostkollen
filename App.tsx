@@ -44,13 +44,9 @@ import {
 // Context
 import { useUserContext } from './context/UserContext';
 
-import WaterLogger from './components/WaterLogger.tsx';
-import ProgressDisplay from './components/ProgressDisplay.tsx';
 import LoadingSpinner from './components/LoadingSpinner.tsx';
-import MealItemCard from './components/MealItemCard.tsx';
 import { JourneyView } from './components/JourneyView.tsx';
 import SaveCommonMealModal from './components/SaveCommonMealModal.tsx';
-import { CommonMealsList } from './components/CommonMealsList.tsx';
 import InfoModal from './components/InfoModal.tsx';
 import UserProfileModal, { Avatar } from './components/UserProfileModal.tsx';
 import CameraModal from './components/CameraModal.tsx';
@@ -69,15 +65,12 @@ import RecipeModal from './components/RecipeModal.tsx';
 import TextEntryModal from './components/TextEntryModal.tsx';
 import IngredientCaptureModal from './components/IngredientCaptureModal.tsx';
 import IngredientRecipeResultsModal from './components/IngredientRecipeResultsModal.tsx';
-import WeeklyProgressDays from './components/WeeklyProgressDays.tsx';
 import { AuthForm } from './components/AuthForm.tsx';
-import GamificationCard from './components/GamificationCard.tsx';
 import LogWeightModal from './components/LogWeightModal.tsx';
 import MentalWellbeingModal, { MentalWellbeingData } from './components/MentalWellbeingModal.tsx';
 import OnboardingCompletionScreen from './components/OnboardingCompletionScreen.tsx';
 import { CommunityView } from './components/CommunityView.tsx';
 import IosInstallPrompt from './components/IosInstallPrompt.tsx';
-import { OnboardingChecklist } from './components/OnboardingChecklist.tsx';
 import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
@@ -95,6 +88,7 @@ import {
   ChatBubbleOvalLeftEllipsisIcon, BellIcon, InstallIcon, LifebuoyIcon
 } from './components/icons.tsx';
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
+import Dashboard from './pages/Dashboard';
 
 /* ===========================
    Start of Daily Summary Helpers
@@ -112,6 +106,8 @@ const dayKeySE = (d: Date) =>
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
+    hour12: false,
+    weekday: "long",
   }).format(d).replace(/\//g, "-");
 
 const yesterdayRangeSE = (now = new Date()) => {
@@ -1748,7 +1744,7 @@ const handleFinishOnboarding = async () => {
     } catch (error) {
         handleFirestoreError(error, 'slutföra onboarding');
     }
-};
+  };
 
 
 // New, robust day-end summary logic (fixed)
@@ -2547,6 +2543,254 @@ useEffect(() => {
       }
   }, [currentUser, userProfile, goals, pastDaysSummary, currentDate, userRole, userStatus, streakData.currentStreak, mentalWellbeingLogs, setJourneyAnalysisFeedback]);
 
+  const handleDiscussSavedAnalysis = (analysisDate?: string) => {
+    playAudio('uiClick');
+    setCoachInitialContext({ type: 'from_analysis', date: analysisDate });
+    setShowAICoachModal(true);
+  };
+
+  const handleFabClick = () => {
+    playAudio('uiClick');
+    if (showSpotlight) {
+        handleDismissSpotlight();
+    }
+    if (!isEditableLogDate) {
+        setToastNotification({message: "Du kan endast logga för idag eller igår.", type: "error"});
+        setTimeout(() => setToastNotification(null), 3000);
+        return;
+    }
+    setShowSpeedDial(prev => !prev);
+  };
+
+  const handleNavigateToMainWithDate = (date: Date) => {
+    const yesterday = new Date(currentDate);
+    yesterday.setDate(currentDate.getDate() - 1);
+    const dateUID = getDateUID(date);
+    const yesterdayUID = getDateUID(yesterday);
+    
+    const summaryForDay = pastDaysSummary[dateUID];
+
+    if (dateUID === yesterdayUID && summaryForDay && !summaryForDay.goalMet && streakSaver?.available) {
+        setDayToPotentiallySave(summaryForDay);
+    } else {
+        setViewingDate(date);
+        setViewMode('main');
+    }
+  };
+
+  const handleUseStreakSaver = async () => {
+    if (!currentUser || !dayToPotentiallySave) return;
+
+    const dayToSave = dayToPotentiallySave;
+    setDayToPotentiallySave(null);
+
+    const dayToSaveDate = new Date(dayToSave.date + 'T12:00:00Z');
+    const dayBefore = new Date(dayToSaveDate);
+    dayBefore.setDate(dayBefore.getDate() - 1);
+    const dayBeforeUID = getDateUID(dayBefore);
+    const dayBeforeSummary = pastDaysSummary[dayBeforeUID];
+    const newStreak = (dayBeforeSummary?.streakForThisDay || 0) + 1;
+    const newHighestStreak = Math.max(highestStreak, newStreak);
+    
+    const updatedSummary = { ...dayToSave, goalMet: true, savedBy: 'streakSaver' as const, streakForThisDay: newStreak };
+    setPastDaysSummary(prev => ({ ...prev, [dayToSave.date]: updatedSummary }));
+
+    const newStreakSaverState = { ...streakSaver!, available: false };
+    setStreakSaver(newStreakSaverState);
+
+    setStreakData(prev => ({ ...prev, currentStreak: newStreak, lastDateStreakChecked: dayToSave.date }));
+    if (newHighestStreak > highestStreak) {
+        setHighestStreak(newHighestStreak);
+    }
+    
+    setToastNotification({ message: "Streak räddad! Starkt jobbat!", type: 'success' });
+    playAudio('levelUp');
+
+    try {
+        const streakEventData = {
+            type: 'streak' as const,
+            timestamp: Date.now(),
+            title: `har fått +1 på sin Streak!`,
+            description: `Ny streak: ${newStreak} dagar i följd.`,
+            icon: '🔥',
+            relatedDocId: `streak_${dayToSave.date}`
+        };
+        await addTimelineEvent(currentUser.uid, streakEventData);
+
+        const batch = writeBatch(db);
+        const summaryRef = doc(db, 'users', currentUser.uid, 'pastDaySummaries', dayToSave.date);
+        batch.update(summaryRef, { goalMet: true, savedBy: 'streakSaver', streakForThisDay: newStreak });
+
+        const userRef = doc(db, 'users', currentUser.uid);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const userUpdatePayload: Partial<FirestoreUserDocument> = {
+            streakSaver: newStreakSaverState,
+            currentStreak: newStreak,
+            lastDateStreakChecked: dayToSave.date,
+            role: userRole as UserRole, // Explicit cast
+            status: userStatus as "pending" | "approved"
+        };
+        if (newHighestStreak > highestStreak) {
+            userUpdatePayload.highestStreak = newHighestStreak;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        batch.update(userRef, userUpdatePayload as any);
+
+        await batch.commit();
+
+    } catch (error) {
+        handleFirestoreError(error, 'använda streakräddare');
+        // Rollback optimistic update
+        setPastDaysSummary(prev => ({ ...prev, [dayToSave.date]: dayToSave }));
+        setStreakSaver(streakSaver);
+        setStreakData(prev => ({...prev, currentStreak: streakData.currentStreak}));
+        if(newHighestStreak > highestStreak) {
+            setHighestStreak(highestStreak);
+        }
+    }
+};
+
+  const originalBodyOverflow = useRef(document.body.style.overflow);
+  useEffect(() => {
+    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || newlyUnlockedLesson || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showLatestUpdateView;
+    
+    if (isAnyModalOpen) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = originalBodyOverflow.current;
+    }
+    return () => {
+        if (document.body.style.overflow === 'hidden') {
+            document.body.style.overflow = originalBodyOverflow.current;
+        }
+    };
+  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, newlyUnlockedLesson, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showLatestUpdateView]);
+  
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [viewMode, currentLessonId]);
+
+  const totalCaloriesCoveredByBankToday = useMemo(() => {
+    return dailyLog.reduce((sum, meal) => sum + (meal.caloriesCoveredByBank || 0), 0);
+  }, [dailyLog]);
+  
+  const handleUnlockAchievement = useCallback(async (achievementId: string) => {
+    if (!currentUser || unlockedAchievements[achievementId]) {
+      return; 
+    }
+    
+    const unlockedDate = new Date().toISOString();
+    
+    const newUnlocked = { ...unlockedAchievements, [achievementId]: unlockedDate };
+    setUnlockedAchievements(newUnlocked);
+    
+    const achievement = ACHIEVEMENT_DEFINITIONS.find(a => a.id === achievementId);
+    if (achievement) {
+        setToastNotification({ message: `Bragd upplåst: ${achievement.name}`, type: 'success' });
+        setTimeout(() => setToastNotification(null), 4000);
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 5000);
+        playAudio('levelUp');
+        
+        const eventData = {
+            type: 'achievement' as const,
+            timestamp: new Date(unlockedDate).getTime(),
+            title: `har låst upp en bragden "${achievement.name} ${achievement.icon}"`,
+            description: achievement.description,
+            icon: achievement.icon,
+            relatedDocId: `ach_${achievement.id}`
+        };
+        await addTimelineEvent(currentUser.uid, eventData);
+    }
+
+    try {
+      await updateUserDocument(currentUser.uid, { unlockedAchievements: newUnlocked, role: userRole, status: userStatus });
+    } catch (error) {
+      handleFirestoreError(error, 'uppdatera bragder');
+      const rolledBack = { ...unlockedAchievements };
+      delete rolledBack[achievementId];
+      setUnlockedAchievements(rolledBack);
+    }
+  }, [currentUser?.uid, unlockedAchievements, userRole, userStatus, setUnlockedAchievements]);
+
+  useEffect(() => {
+    // Level Up Check
+    const { currentLevel } = getUserLevelInfo(streakData.currentStreak);
+    if (currentLevel.id !== lastNotifiedStreakLevelUp && currentLevel.id !== LEVEL_DEFINITIONS[0].id) {
+        if (currentLevel.id > (highestLevelId || 'level0')) {
+            setShowLevelUpModal(currentLevel);
+            setLastNotifiedStreakLevelUp(currentLevel.id);
+            const newHighestLevelId = currentLevel.id;
+            setHighestLevelId(newHighestLevelId);
+            if (currentUser) {
+                updateUserDocument(currentUser.uid, { highestLevelId: newHighestLevelId, role: userRole, status: userStatus });
+                const eventData = {
+                    type: 'level' as const,
+                    timestamp: Date.now(),
+                    title: `har nått en ny Nivå: ${currentLevel.name} ${currentLevel.icon}`,
+                    description: currentLevel.description,
+                    icon: currentLevel.icon,
+                    relatedDocId: `lvl_${currentLevel.id}`
+                };
+                addTimelineEvent(currentUser.uid, eventData);
+            }
+            setShowConfetti(true);
+            playAudio('levelUp');
+            setTimeout(() => setShowConfetti(false), 5000);
+        }
+    }
+  }, [streakData.currentStreak, lastNotifiedStreakLevelUp, highestLevelId, currentUser, userRole, userStatus, setHighestLevelId]);
+
+  useEffect(() => {
+    if (highestStreak > 0 && isInitialDataLoaded) {
+        ACHIEVEMENT_DEFINITIONS.forEach(ach => {
+            if (ach.type === 'streak' && highestStreak >= ach.requiredValue) {
+                handleUnlockAchievement(ach.id);
+            }
+        });
+    }
+  }, [highestStreak, isInitialDataLoaded, handleUnlockAchievement]);
+
+   // Logic for grouped daily log moved to Dashboard component, passed via dailyLog
+
+  const journeyAnalysisData = useMemo<AIDataForJourneyAnalysis | null>(() => {
+    if (!isInitialDataLoaded || !userProfile) return null;
+    
+    const timeline = calculateGoalTimeline(userProfile);
+    const thirtyDaysAgo = new Date(currentDate);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const last30DaysSummaries = Object.values(pastDaysSummary).filter(s => {
+        const summaryDate = new Date(s.date);
+        return summaryDate >= thirtyDaysAgo;
+    });
+
+    return {
+      userProfile,
+      goals: goals,
+      allWeightLogs: weightLogs,
+      last30DaysSummaries,
+      mentalWellbeingLogs,
+      goalTimeline: timeline,
+      currentStreak: streakData.currentStreak,
+    };
+  }, [isInitialDataLoaded, userProfile, goals, weightLogs, pastDaysSummary, mentalWellbeingLogs, currentDate, streakData.currentStreak]);
+
+  const handleLogFromLabel = (nutritionalInfo: NutritionalInfo) => {
+    addMealToLog(nutritionalInfo, { commonMealId: 'nutrition_label' });
+    setShowNutritionLabelResultModal(false);
+    setNutritionLabelResult(null);
+    setToastNotification({ message: `"${nutritionalInfo.foodItem}" loggades!`, type: 'success' });
+    setTimeout(() => setToastNotification(null), 3000);
+  };
+  
+  const handleScanFallback = () => {
+    closeModal(setShowBarcodeScannerModal);
+    setIsCapturingForLabel(true);
+    setIsCapturingForIngredients(false);
+    openModal(setShowCameraModal);
+  };
+  
   const handleRecipeSearch = async (searchQuery: string) => {
     setAppStatus(AppStatus.SEARCHING_RECIPE);
     setCurrentRecipe(null); 
@@ -2581,8 +2825,7 @@ useEffect(() => {
     setToastNotification({ message: `"${nutritionalInfo.foodItem}" loggades!`, type: 'success' });
     setTimeout(() => setToastNotification(null), 3000);
   };
-
-  // --- Ingredient to Recipe Handlers ---
+  
   const handleOpenRecipeChoiceModal = () => {
     playAudio('uiClick');
     setShowRecipeChoiceModal(true);
@@ -2607,7 +2850,7 @@ useEffect(() => {
     setIsCapturingForIngredients(true);
     document.getElementById('ingredientUploadInput')?.click();
   };
-  
+
   const handleIngredientImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
@@ -2668,14 +2911,14 @@ useEffect(() => {
       setAppStatus(AppStatus.IDLE);
     }
   };
-
+  
   const handleLogFromBarcode = (nutritionalInfo: NutritionalInfo) => {
     if (isEditableLogDate) {
       addMealToLog(nutritionalInfo, { base64Image: barcodeScanResult?.imageUrl, commonMealId: 'barcode' });
       setBarcodeScanResult(null);
     }
   };
-
+  
     const checkGoalCompletion = (newLog: WeightLogEntry, profile: UserProfileData): boolean => {
         if (profile.mainGoalCompleted) return false;
 
@@ -2914,303 +3157,30 @@ useEffect(() => {
         }
     };
 
-  const handleDiscussSavedAnalysis = (analysisDate?: string) => {
-    playAudio('uiClick');
-    setCoachInitialContext({ type: 'from_analysis', date: analysisDate });
-    setShowAICoachModal(true);
-  };
-
-  const handleFabClick = () => {
-    playAudio('uiClick');
-    if (showSpotlight) {
-        handleDismissSpotlight();
-    }
-    if (!isEditableLogDate) {
-        setToastNotification({message: "Du kan endast logga för idag eller igår.", type: "error"});
-        setTimeout(() => setToastNotification(null), 3000);
-        return;
-    }
-    setShowSpeedDial(prev => !prev);
-  };
-
-  const handleNavigateToMainWithDate = (date: Date) => {
-    const yesterday = new Date(currentDate);
-    yesterday.setDate(currentDate.getDate() - 1);
-    const dateUID = getDateUID(date);
-    const yesterdayUID = getDateUID(yesterday);
-    
-    const summaryForDay = pastDaysSummary[dateUID];
-
-    if (dateUID === yesterdayUID && summaryForDay && !summaryForDay.goalMet && streakSaver?.available) {
-        setDayToPotentiallySave(summaryForDay);
-    } else {
-        setViewingDate(date);
-        setViewMode('main');
-    }
-  };
-
-  const handleUseStreakSaver = async () => {
-    if (!currentUser || !dayToPotentiallySave) return;
-
-    const dayToSave = dayToPotentiallySave;
-    setDayToPotentiallySave(null);
-
-    const dayToSaveDate = new Date(dayToSave.date + 'T12:00:00Z');
-    const dayBefore = new Date(dayToSaveDate);
-    dayBefore.setDate(dayBefore.getDate() - 1);
-    const dayBeforeUID = getDateUID(dayBefore);
-    const dayBeforeSummary = pastDaysSummary[dayBeforeUID];
-    const newStreak = (dayBeforeSummary?.streakForThisDay || 0) + 1;
-    const newHighestStreak = Math.max(highestStreak, newStreak);
-    
-    const updatedSummary = { ...dayToSave, goalMet: true, savedBy: 'streakSaver' as const, streakForThisDay: newStreak };
-    setPastDaysSummary(prev => ({ ...prev, [dayToSave.date]: updatedSummary }));
-
-    const newStreakSaverState = { ...streakSaver!, available: false };
-    setStreakSaver(newStreakSaverState);
-
-    setStreakData(prev => ({ ...prev, currentStreak: newStreak, lastDateStreakChecked: dayToSave.date }));
-    if (newHighestStreak > highestStreak) {
-        setHighestStreak(newHighestStreak);
-    }
-    
-    setToastNotification({ message: "Streak räddad! Starkt jobbat!", type: 'success' });
-    playAudio('levelUp');
-
-    try {
-        const streakEventData = {
-            type: 'streak' as const,
-            timestamp: Date.now(),
-            title: `har fått +1 på sin Streak!`,
-            description: `Ny streak: ${newStreak} dagar i följd.`,
-            icon: '🔥',
-            relatedDocId: `streak_${dayToSave.date}`
-        };
-        await addTimelineEvent(currentUser.uid, streakEventData);
-
-        const batch = writeBatch(db);
-        const summaryRef = doc(db, 'users', currentUser.uid, 'pastDaySummaries', dayToSave.date);
-        batch.update(summaryRef, { goalMet: true, savedBy: 'streakSaver', streakForThisDay: newStreak });
-
-        const userRef = doc(db, 'users', currentUser.uid);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const userUpdatePayload: Partial<FirestoreUserDocument> = {
-            streakSaver: newStreakSaverState,
-            currentStreak: newStreak,
-            lastDateStreakChecked: dayToSave.date,
-            role: userRole as UserRole, // Explicit cast
-            status: userStatus as "pending" | "approved"
-        };
-        if (newHighestStreak > highestStreak) {
-            userUpdatePayload.highestStreak = newHighestStreak;
+    const handleAddOptionSelect = (option: 'camera' | 'upload' | 'text' | 'recipe' | 'barcode') => {
+        setShowSpeedDial(false);
+        playAudio('uiClick');
+        switch (option) {
+        case 'camera':
+            setIsCapturingForIngredients(false); 
+            setIsCapturingForLabel(false);
+            openModal(setShowCameraModal);
+            break;
+        case 'upload':
+            setIsCapturingForIngredients(false); 
+            setIsCapturingForLabel(false);
+            document.getElementById('imageUploadInputMain')?.click(); 
+            break;
+        case 'text':
+            openModal(setShowTextEntryModal);
+            break;
+        case 'recipe':
+            handleOpenRecipeChoiceModal();
+            break;
+        case 'barcode':
+            openModal(setShowBarcodeScannerModal);
+            break;
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        batch.update(userRef, userUpdatePayload as any);
-
-        await batch.commit();
-
-    } catch (error) {
-        handleFirestoreError(error, 'använda streakräddare');
-        // Rollback optimistic update
-        setPastDaysSummary(prev => ({ ...prev, [dayToSave.date]: dayToSave }));
-        setStreakSaver(streakSaver);
-        setStreakData(prev => ({...prev, currentStreak: streakData.currentStreak}));
-        if(newHighestStreak > highestStreak) {
-            setHighestStreak(highestStreak);
-        }
-    }
-};
-
-  const originalBodyOverflow = useRef(document.body.style.overflow);
-  useEffect(() => {
-    const isAnyModalOpen = showUserProfileModal || showInfoModal || showRecipeModal || showCameraModal || showTextEntryModal || showSaveCommonMealModal || showIngredientCaptureModal || showIngredientRecipeResultsModal || showRecipeChoiceModal || showLevelUpModal || showGoalMetModalData || newlyUnlockedLesson || showAIFeedbackModal || showLogWeightModal || showMentalWellbeingModal || showOnboardingCompletion || showBarcodeScannerModal || !!barcodeScanResult || !!newlyUnlockedLesson || showSpeedDial || !!dayToPotentiallySave || !!showMotivationModal || showIosInstallPrompt || showOnboardingRewardModal || showAICoachModal || showLatestUpdateView;
-    
-    if (isAnyModalOpen) {
-        document.body.style.overflow = 'hidden';
-    } else {
-        document.body.style.overflow = originalBodyOverflow.current;
-    }
-    return () => {
-        if (document.body.style.overflow === 'hidden') {
-            document.body.style.overflow = originalBodyOverflow.current;
-        }
-    };
-  }, [showUserProfileModal, showInfoModal, showRecipeModal, showCameraModal, showTextEntryModal, showSaveCommonMealModal, showIngredientCaptureModal, showIngredientRecipeResultsModal, showRecipeChoiceModal, showLevelUpModal, showGoalMetModalData, newlyUnlockedLesson, showAIFeedbackModal, showLogWeightModal, showMentalWellbeingModal, showOnboardingCompletion, showBarcodeScannerModal, barcodeScanResult, newlyUnlockedLesson, showSpeedDial, dayToPotentiallySave, showMotivationModal, showIosInstallPrompt, showOnboardingRewardModal, showAICoachModal, showLatestUpdateView]);
-  
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [viewMode, currentLessonId]);
-
-  const totalCaloriesCoveredByBankToday = useMemo(() => {
-    return dailyLog.reduce((sum, meal) => sum + (meal.caloriesCoveredByBank || 0), 0);
-  }, [dailyLog]);
-  
-  const handleUnlockAchievement = useCallback(async (achievementId: string) => {
-    if (!currentUser || unlockedAchievements[achievementId]) {
-      return; 
-    }
-    
-    const unlockedDate = new Date().toISOString();
-    
-    const newUnlocked = { ...unlockedAchievements, [achievementId]: unlockedDate };
-    setUnlockedAchievements(newUnlocked);
-    
-    const achievement = ACHIEVEMENT_DEFINITIONS.find(a => a.id === achievementId);
-    if (achievement) {
-        setToastNotification({ message: `Bragd upplåst: ${achievement.name}`, type: 'success' });
-        setTimeout(() => setToastNotification(null), 4000);
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 5000);
-        playAudio('levelUp');
-        
-        const eventData = {
-            type: 'achievement' as const,
-            timestamp: new Date(unlockedDate).getTime(),
-            title: `har låst upp en bragden "${achievement.name} ${achievement.icon}"`,
-            description: achievement.description,
-            icon: achievement.icon,
-            relatedDocId: `ach_${achievement.id}`
-        };
-        await addTimelineEvent(currentUser.uid, eventData);
-    }
-
-    try {
-      await updateUserDocument(currentUser.uid, { unlockedAchievements: newUnlocked, role: userRole, status: userStatus });
-    } catch (error) {
-      handleFirestoreError(error, 'uppdatera bragder');
-      const rolledBack = { ...unlockedAchievements };
-      delete rolledBack[achievementId];
-      setUnlockedAchievements(rolledBack);
-    }
-  }, [currentUser?.uid, unlockedAchievements, userRole, userStatus, setUnlockedAchievements]);
-
-  useEffect(() => {
-    // Level Up Check
-    const { currentLevel } = getUserLevelInfo(streakData.currentStreak);
-    if (currentLevel.id !== lastNotifiedStreakLevelUp && currentLevel.id !== LEVEL_DEFINITIONS[0].id) {
-        if (currentLevel.id > (highestLevelId || 'level0')) {
-            setShowLevelUpModal(currentLevel);
-            setLastNotifiedStreakLevelUp(currentLevel.id);
-            const newHighestLevelId = currentLevel.id;
-            setHighestLevelId(newHighestLevelId);
-            if (currentUser) {
-                updateUserDocument(currentUser.uid, { highestLevelId: newHighestLevelId, role: userRole, status: userStatus });
-                const eventData = {
-                    type: 'level' as const,
-                    timestamp: Date.now(),
-                    title: `har nått en ny Nivå: ${currentLevel.name} ${currentLevel.icon}`,
-                    description: currentLevel.description,
-                    icon: currentLevel.icon,
-                    relatedDocId: `lvl_${currentLevel.id}`
-                };
-                addTimelineEvent(currentUser.uid, eventData);
-            }
-            setShowConfetti(true);
-            playAudio('levelUp');
-            setTimeout(() => setShowConfetti(false), 5000);
-        }
-    }
-  }, [streakData.currentStreak, lastNotifiedStreakLevelUp, highestLevelId, currentUser, userRole, userStatus, setHighestLevelId]);
-
-  useEffect(() => {
-    if (highestStreak > 0 && isInitialDataLoaded) {
-        ACHIEVEMENT_DEFINITIONS.forEach(ach => {
-            if (ach.type === 'streak' && highestStreak >= ach.requiredValue) {
-                handleUnlockAchievement(ach.id);
-            }
-        });
-    }
-  }, [highestStreak, isInitialDataLoaded, handleUnlockAchievement]);
-
-   const groupedDailyLog = useMemo(() => {
-    if (dailyLog.length === 0) {
-      return [];
-    }
-
-    const commonMealGroups = new Map<string, LoggedMeal[]>();
-    const otherMeals: LoggedMeal[] = [];
-
-    // Separate common meals from others
-    for (const meal of dailyLog) {
-      if (meal.commonMealId && !['manual', 'text_search', 'recipe', 'ingredient_recipe', 'barcode'].includes(meal.commonMealId)) {
-        if (!commonMealGroups.has(meal.commonMealId)) {
-          commonMealGroups.set(meal.commonMealId, []);
-        }
-        commonMealGroups.get(meal.commonMealId)!.push(meal);
-      } else {
-        otherMeals.push(meal);
-      }
-    }
-
-    const processedMeals: LoggedMeal[] = [...otherMeals];
-
-    for (const group of commonMealGroups.values()) {
-      if (group.length > 1) {
-        const sortedGroup = [...group].sort((a, b) => b.timestamp - a.timestamp);
-        const representativeMeal = sortedGroup[0];
-
-        const totalNutritionalInfo = sortedGroup.reduce((acc, meal) => {
-          acc.calories += meal.nutritionalInfo.calories;
-          acc.protein += meal.nutritionalInfo.protein;
-          acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
-          acc.fat += meal.nutritionalInfo.fat;
-          return acc;
-        }, { 
-          calories: 0, protein: 0, carbohydrates: 0, fat: 0, 
-          foodItem: representativeMeal.nutritionalInfo.foodItem 
-        });
-
-        processedMeals.push({
-          ...representativeMeal,
-          nutritionalInfo: totalNutritionalInfo,
-          count: sortedGroup.length,
-          originalIds: sortedGroup.map(m => m.id),
-        });
-      } else {
-        processedMeals.push(...group);
-      }
-    }
-
-    return processedMeals.sort((a, b) => b.timestamp - a.timestamp);
-
-  }, [dailyLog]);
-
-  const journeyAnalysisData = useMemo<AIDataForJourneyAnalysis | null>(() => {
-    if (!isInitialDataLoaded || !userProfile) return null;
-    
-    const timeline = calculateGoalTimeline(userProfile);
-    const thirtyDaysAgo = new Date(currentDate);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const last30DaysSummaries = Object.values(pastDaysSummary).filter(s => {
-        const summaryDate = new Date(s.date);
-        return summaryDate >= thirtyDaysAgo;
-    });
-
-    return {
-      userProfile,
-      goals: goals,
-      allWeightLogs: weightLogs,
-      last30DaysSummaries,
-      mentalWellbeingLogs,
-      goalTimeline: timeline,
-      currentStreak: streakData.currentStreak,
-    };
-  }, [isInitialDataLoaded, userProfile, goals, weightLogs, pastDaysSummary, mentalWellbeingLogs, currentDate, streakData.currentStreak]);
-
-  const handleLogFromLabel = (nutritionalInfo: NutritionalInfo) => {
-    addMealToLog(nutritionalInfo, { commonMealId: 'nutrition_label' });
-    setShowNutritionLabelResultModal(false);
-    setNutritionLabelResult(null);
-    setToastNotification({ message: `"${nutritionalInfo.foodItem}" loggades!`, type: 'success' });
-    setTimeout(() => setToastNotification(null), 3000);
-  };
-  
-  const handleScanFallback = () => {
-    closeModal(setShowBarcodeScannerModal);
-    setIsCapturingForLabel(true);
-    setIsCapturingForIngredients(false);
-    openModal(setShowCameraModal);
   };
 
 
@@ -3234,33 +3204,6 @@ useEffect(() => {
               onToggleInterface={toggleInterfaceView}
             />;
   }
-
-
-  const handleAddOptionSelect = (option: 'camera' | 'upload' | 'text' | 'recipe' | 'barcode') => {
-    setShowSpeedDial(false);
-    playAudio('uiClick');
-    switch (option) {
-      case 'camera':
-        setIsCapturingForIngredients(false); 
-        setIsCapturingForLabel(false);
-        openModal(setShowCameraModal);
-        break;
-      case 'upload':
-        setIsCapturingForIngredients(false); 
-        setIsCapturingForLabel(false);
-        document.getElementById('imageUploadInputMain')?.click(); 
-        break;
-      case 'text':
-        openModal(setShowTextEntryModal);
-        break;
-      case 'recipe':
-        handleOpenRecipeChoiceModal();
-        break;
-      case 'barcode':
-        openModal(setShowBarcodeScannerModal);
-        break;
-    }
-  };
 
   const DropdownMenuItem: React.FC<{
     onClick: () => void;
@@ -3297,8 +3240,6 @@ useEffect(() => {
       { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { playAudio('uiClick'); setViewMode('coursesView');} },
       { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { playAudio('uiClick'); if (viewMode === 'community') { setCommunityViewKey(Date.now()); } setViewMode('community'); }, notificationCount: totalNotificationCount },
     ];
-
-    const isInstallBannerVisible = showInstallBanner || showIosInstallPrompt;
 
     const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
     const lessonsForDetail = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
@@ -3410,132 +3351,43 @@ useEffect(() => {
           : `w-full ${mainContentMaxWidth} mx-auto p-2 sm:p-4 flex-grow flex flex-col`
         }>
          {viewMode === 'main' && (
-            <div className="space-y-3">
-              {checklistState && (
-                <OnboardingChecklist 
-                    state={checklistState}
-                    onNavigate={handleOnboardingNavigate}
-                    onTriggerLog={handleFabClick}
-                    onScrollToWater={handleScrollToWater}
-                />
-              )}
-              <section aria-labelledby="daily-overview-heading" className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light">
-                <h2 id="daily-overview-heading" className="sr-only">Daglig Översikt</h2>
-                <div className="flex items-start justify-between w-full mb-2 gap-4">
-                    <div className="text-center">
-                        <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Streak</h3>
-                        <p className="text-lg font-bold text-secondary">{streakData.currentStreak} dagar</p>
-                        {highestStreak > 0 && highestStreak > streakData.currentStreak && (
-                            <p className="text-xs text-neutral mt-0.5">(Rekord: {highestStreak})</p>
-                        )}
-                    </div>
-                    <div className="text-center">
-                        <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Nivå</h3>
-                        <p className="text-lg font-bold text-primary truncate" title={currentLevel.name}>{currentLevel.name}</p>
-                    </div>
-                    {userProfile?.goalType !== 'gain_muscle' ? (
-                        <div className="text-center">
-                            <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
-                            <p className="text-lg font-bold text-primary">{weeklyBank.bankedCalories.toFixed(0)} kcal</p>
-                        </div>
-                    ) : (
-                        <div className="text-center opacity-50">
-                            <h3 className="text-base font-semibold text-neutral-dark whitespace-nowrap">Sparpott</h3>
-                            <p className="text-lg font-bold text-neutral">Inaktiv</p>
-                        </div>
-                    )}
-                </div>
-
-                 <WeeklyProgressDays 
-                    pastDaysSummary={pastDaysSummary} 
-                    currentAppDate={currentDate} 
-                    viewingDate={viewingDate}
-                    onDateSelect={handleNavigateToMainWithDate}
-                />
-                 <p className="text-xl font-semibold text-neutral-dark text-center mt-3 -mb-1">{formattedViewingDate}</p>
-
-                 <div className="mt-4">
-                  <ProgressDisplay
-                      label="Kalorier"
-                      current={totalNutrients.calories}
-                      goal={goals.calorieGoal}
-                      unit="kcal"
-                      icon={<span className="text-2xl" role="img" aria-label="Kalorier">🔥</span>}
-                      minSafeThreshold={minSafeCalories}
-                      bankedCaloriesAvailable={weeklyBank.bankedCalories}
-                      amountCoveredByBankToday={totalCaloriesCoveredByBankToday}
-                      goalType={userProfile?.goalType ?? 'lose_fat'}
-                    />
-                  <ProgressDisplay
-                    label="Protein"
-                    current={totalNutrients.protein}
-                    goal={goals.proteinGoal}
-                    unit="g"
-                    icon={<span className="text-2xl" role="img" aria-label="Protein">💪</span>}
-                    minSafeThreshold={0} bankedCaloriesAvailable={0} 
-                  />
-                  <ProgressDisplay
-                    label="Kolhydrater"
-                    current={totalNutrients.carbohydrates}
-                    goal={goals.carbohydrateGoal}
-                    unit="g"
-                    icon={<span className="text-2xl" role="img" aria-label="Kolhydrater">🍞</span>}
-                    minSafeThreshold={0} bankedCaloriesAvailable={0} 
-                  />
-                  <ProgressDisplay
-                    label="Fett"
-                    current={totalNutrients.fat}
-                    goal={goals.fatGoal}
-                    unit="g"
-                    icon={<span className="text-2xl" role="img" aria-label="Fett">🥑</span>}
-                    minSafeThreshold={0} bankedCaloriesAvailable={0} 
-                  />
-                </div>
-              </section>
-            
-              <WaterLogger 
-                ref={waterLoggerRef}
-                currentWaterMl={waterLoggedMl} 
-                waterGoalMl={waterGoalMl} 
+            <Dashboard 
+                checklistState={checklistState}
+                onOnboardingNavigate={handleOnboardingNavigate}
+                onTriggerLog={handleFabClick}
+                onScrollToWater={handleScrollToWater}
+                waterLoggerRef={waterLoggerRef}
+                streakData={streakData}
+                highestStreak={highestStreak}
+                currentLevel={currentLevel}
+                userProfile={userProfile}
+                weeklyBank={weeklyBank}
+                pastDaysSummary={pastDaysSummary}
+                currentAppDate={currentDate}
+                viewingDate={viewingDate}
+                onDateSelect={handleNavigateToMainWithDate}
+                formattedViewingDate={formattedViewingDate}
+                dailyLog={dailyLog}
+                goals={goals}
+                waterLoggedMl={waterLoggedMl}
+                waterGoalMl={waterGoalMl}
                 onLogWater={handleLogWater}
                 onResetWater={handleResetWater}
-                disabled={!isEditableLogDate}
-              />
-              <CommonMealsList
+                isEditableLogDate={isEditableLogDate}
                 commonMeals={commonMeals}
                 onLogCommonMeal={logCommonMeal}
                 onDeleteCommonMeal={deleteCommonMeal}
                 onUpdateCommonMeal={handleUpdateCommonMeal}
-                disabled={!isEditableLogDate}
-              />
-
-              <section aria-labelledby="meal-log-heading">
-                <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light">
-                    <h3 id="meal-log-heading" className="text-xl font-semibold text-neutral-dark mb-4">
-                    Loggade måltider
-                    </h3>
-                    {groupedDailyLog.length > 0 ? (
-                    <div className="space-y-4">
-                        {groupedDailyLog.map((meal) => (
-                        <MealItemCard
-                            key={meal.id}
-                            meal={meal}
-                            onDelete={handleDeleteMeal}
-                            onUpdate={handleUpdateMeal}
-                            onSelectForCommonSave={handleOpenSaveCommonMealModal}
-                            isReadOnly={!isEditableLogDate}
-                            isNewlyAdded={false} 
-                        />
-                        ))}
-                    </div>
-                    ) : (
-                    <p className="text-center text-neutral py-6 bg-neutral-light/50 p-6 rounded-lg">
-                        Inga måltider loggade än idag. Använd plus-knappen för att lägga till!
-                    </p>
-                    )}
-                </div>
-              </section>
-            </div>
+                onDeleteMeal={handleDeleteMeal}
+                onUpdateMeal={handleUpdateMeal}
+                onOpenSaveCommonMealModal={handleOpenSaveCommonMealModal}
+                showSpeedDial={showSpeedDial}
+                onToggleSpeedDial={handleFabClick}
+                onAddOptionSelect={handleAddOptionSelect}
+                showSpotlight={showSpotlight}
+                onDismissSpotlight={handleDismissSpotlight}
+                isInstallBannerVisible={showInstallBanner || showIosInstallPrompt}
+            />
          )}
          {viewMode === 'journey' && journeyAnalysisData && (
             <JourneyView 
@@ -3619,76 +3471,6 @@ useEffect(() => {
          )}
         </main>
         
-        {showSpotlight && (
-          <div 
-            className="fixed inset-0 z-40 animate-fade-in"
-            style={{ background: `radial-gradient(circle at calc(100vw - 56px) calc(100vh - 56px), transparent 36px, rgba(0,0,0,0.7) 37px)`}}
-            onClick={handleDismissSpotlight}
-          >
-            <div className="absolute w-64 p-4 bg-white rounded-lg shadow-xl animate-fade-slide-in" style={{ bottom: '104px', right: '32px'}}>
-              <p className="text-neutral-dark font-medium">Här loggar du allt! Prova att fota din första måltid.</p>
-              <div className="absolute -bottom-2 right-4 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-white" />
-            </div>
-          </div>
-        )}
-        
-        {viewMode === 'main' && !showSpeedDial && (
-          <div className={`fixed right-6 z-40 transition-all duration-300 ${isInstallBannerVisible ? 'bottom-28' : 'bottom-6'}`}>
-            <button
-              onClick={handleFabClick}
-              className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white shadow-xl hover:bg-secondary-darker active:scale-95 transform transition-all animate-scale-in"
-              aria-label="Lägg till måltid"
-              aria-haspopup="true"
-              aria-expanded="false"
-              disabled={!isEditableLogDate}
-            >
-              <PlusIcon className="w-8 h-8" />
-            </button>
-          </div>
-        )}
-        
-        {showSpeedDial && (
-            <div
-                className="fixed inset-0 bg-neutral-dark/60 backdrop-blur-sm z-50 flex flex-col justify-end items-end p-6 animate-fade-in"
-                onClick={handleFabClick}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="add-food-heading"
-            >
-                <div className="w-full max-w-sm flex flex-col items-end" onClick={e => e.stopPropagation()}>
-                    <div className="flex flex-col items-end space-y-4 w-full mb-6">
-                        <div className="flex justify-end items-center gap-4 w-full">
-                            <button onClick={() => handleAddOptionSelect('camera')} className="px-4 py-2 bg-white text-neutral-dark font-semibold rounded-lg shadow-lg hover:bg-neutral-light interactive-transition">Fota din mat</button>
-                            <button onClick={() => handleAddOptionSelect('camera')} className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-neutral-dark shadow-lg hover:bg-neutral-light interactive-transition" title="Fota din mat"><CameraIcon className="w-7 h-7" /></button>
-                        </div>
-                        <div className="flex justify-end items-center gap-4 w-full">
-                            <button onClick={() => handleAddOptionSelect('recipe')} className="px-4 py-2 bg-white text-neutral-dark font-semibold rounded-lg shadow-lg hover:bg-neutral-light interactive-transition">Hitta Recept</button>
-                            <button onClick={() => handleAddOptionSelect('recipe')} className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-neutral-dark shadow-lg hover:bg-neutral-light interactive-transition" title="Hitta Recept"><RecipeIcon className="w-7 h-7" /></button>
-                        </div>
-                        <div className="flex justify-end items-center gap-4 w-full">
-                            <button onClick={() => handleAddOptionSelect('upload')} className="px-4 py-2 bg-white text-neutral-dark font-semibold rounded-lg shadow-lg hover:bg-neutral-light interactive-transition">Ladda upp matbild</button>
-                            <button onClick={() => handleAddOptionSelect('upload')} className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-neutral-dark shadow-lg hover:bg-neutral-light interactive-transition" title="Ladda upp matbild"><UploadIcon className="w-7 h-7" /></button>
-                        </div>
-                        <div className="flex justify-end items-center gap-4 w-full">
-                            <button onClick={() => handleAddOptionSelect('barcode')} className="px-4 py-2 bg-white text-neutral-dark font-semibold rounded-lg shadow-lg hover:bg-neutral-light interactive-transition">Skanna Streckkod</button>
-                            <button onClick={() => handleAddOptionSelect('barcode')} className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-neutral-dark shadow-lg hover:bg-neutral-light interactive-transition" title="Skanna Streckkod"><BarcodeIcon className="w-7 h-7" /></button>
-                        </div>
-                        <div className="flex justify-end items-center gap-4 w-full">
-                            <button onClick={() => handleAddOptionSelect('text')} className="px-4 py-2 bg-white text-neutral-dark font-semibold rounded-lg shadow-lg hover:bg-neutral-light interactive-transition">Sök & Logga</button>
-                            <button onClick={() => handleAddOptionSelect('text')} className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-neutral-dark shadow-lg hover:bg-neutral-light interactive-transition" title="Sök & Logga"><SearchIcon className="w-7 h-7" /></button>
-                        </div>
-                    </div>
-                    <button
-                        onClick={handleFabClick}
-                        className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white shadow-xl hover:bg-secondary-darker active:scale-95 transform transition-all"
-                        aria-label="Stäng"
-                    >
-                        <XMarkIcon className="w-8 h-8"/>
-                    </button>
-                </div>
-            </div>
-        )}
-
         <input type="file" id="imageUploadInputMain" className="hidden" accept="image/*" onChange={handleImageUpload} />
         <input type="file" id="ingredientUploadInput" className="hidden" accept="image/*" multiple onChange={handleIngredientImageUpload} />
 
