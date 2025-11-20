@@ -1049,7 +1049,7 @@ useEffect(() => {
                 isInstallBannerVisible={showInstallBanner || showIosInstallPrompt}
                 viewingDate={viewingDate}
                 onDateSelect={handleNavigateToMainWithDate}
-                formattedViewingDate={useMemo(() => viewingDate.toLocaleDateString('sv-SE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), [viewingDate])}
+                formattedViewingDate={formattedViewingDate}
                 ensureYesterdayProcessed={ensureYesterdayProcessed}
                 setToastNotification={setToastNotification}
             />
