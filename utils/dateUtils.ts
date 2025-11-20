@@ -1,37 +1,66 @@
 // utils/dateUtils.ts
 
+/**
+ * Ger ett unikt datum-ID i formatet YYYY-MM-DD baserat på lokal tid.
+ */
 export const getDateUID = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
-export const getWeekInfo = (date: Date): { weekId: string; startDate: string; endDate: string } => {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0); // Normalize to the start of the local day
+/**
+ * Returnerar info om veckan (måndag–söndag) för ett givet datum:
+ * - weekId: t.ex. "2025-W03"
+ * - startDate: måndag i format YYYY-MM-DD
+ * - endDate: söndag i format YYYY-MM-DD
+ */
+export const getWeekInfo = (
+  date: Date
+): { weekId: string; startDate: string; endDate: string } => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0); // Normalize to the start of the local day
 
-    const day = d.getDay(); // 0 for Sunday, 1 for Monday
-    const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    const monday = new Date(d.setDate(diffToMonday));
+  const day = d.getDay(); // 0 = Sunday, 1 = Monday, ...
+  const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  const monday = new Date(d.setDate(diffToMonday));
 
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
 
-    // ISO 8601 week number calculation
-    const target = new Date(monday.valueOf());
-    const dayNr = (monday.getDay() + 6) % 7;
-    target.setDate(target.getDate() - dayNr + 3);
-    const firstThursday = target.valueOf();
-    target.setMonth(0, 1);
-    if (target.getDay() !== 4) {
-        target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-    }
-    const weekNumber = 1 + Math.ceil((firstThursday - target.getTime()) / 604800000); // 604800000 = 7 * 24 * 3600 * 1000
+  // ISO 8601 week number calculation
+  const target = new Date(monday.valueOf());
+  const dayNr = (monday.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
 
-    return {
-        weekId: `${target.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`,
-        startDate: monday.toISOString().split('T')[0],
-        endDate: sunday.toISOString().split('T')[0],
-    };
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+
+  const weekNumber =
+    1 + Math.ceil((firstThursday - target.getTime()) / 604800000); // 7 * 24 * 3600 * 1000
+
+  return {
+    weekId: `${target.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`,
+    startDate: monday.toISOString().split('T')[0],
+    endDate: sunday.toISOString().split('T')[0],
+  };
 };
+
+/**
+ * Svenskt "day key" i formatet YYYY-MM-DD.
+ * Accepterar både Date och sträng (t.ex. "2025-01-15").
+ * Använder lokal tidzon, samma logik som getDateUID.
+ */
+export function dayKeySE(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+
+  if (Number.isNaN(d.getTime())) {
+    return '';
+  }
+
+  return getDateUID(d);
+}
