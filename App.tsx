@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
-import { db } from './firebase';
+
+import React, { useState, useEffect, useMemo, useRef, JSX } from 'react';
 import {
-  doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction,
-  where, updateDoc
+  doc, writeBatch, deleteField, collection,
+  where
 } from "@firebase/firestore";
+import { db } from './firebase';
 
 import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
@@ -11,32 +12,27 @@ import SplashScreen from './components/SplashScreen';
 import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
 
 import {
-  NutritionalInfo, LoggedMeal, AppStatus, PastDaySummary, ViewMode,
-  CommonMeal, SearchedFoodInfo, UserProfileData, 
-  Level, WeeklyCalorieBank, CourseLesson, UserLessonProgress, RecipeSuggestion,
-  AIDataForFeedback, FirestoreUserDocument, IngredientRecipeResponse, WeightLogEntry, MentalWellbeingLog,
-  AIDataForJourneyAnalysis, BarcodeScannedFoodInfo, AIStructuredFeedbackResponse, 
-  CompletedGoal, TimelineEvent, BuddyDetails, OnboardingChecklistState,
-  OnboardingChecklistItemStatus,
+  AppStatus, PastDaySummary, ViewMode,
+  UserProfileData,
+  Level, WeeklyCalorieBank, CourseLesson, UserLessonProgress,
+  AIDataForFeedback, FirestoreUserDocument, WeightLogEntry, MentalWellbeingLog,
+  AIDataForJourneyAnalysis, AIStructuredFeedbackResponse,
+  CompletedGoal, TimelineEvent, OnboardingChecklistState,
   UserRole,
-  GoalType,
   GoalSettings
 } from './types.ts';
 
 import {
-  DEFAULT_GOALS, LOCAL_STORAGE_KEYS, MANUAL_LOG_FOOD_ICON_SVG, COMMON_MEAL_LOG_ICON_SVG, DEFAULT_WATER_GOAL_ML,
-  DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
-  ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, SEARCH_ICON_SVG, RECIPE_ICON_SVG, BARCODE_ICON_SVG, BOOKMARK_ICON_SVG, CALORIE_ADJUSTMENT,
-  MAX_INGREDIENT_IMAGES
+  DEFAULT_GOALS, LOCAL_STORAGE_KEYS, DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
+  ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY,
 } from './constants.ts';
 
 import { getAIFeedback, getDetailedJourneyAnalysis } from './services/geminiService.ts';
 
 import {
-  addMealLog as addMealLogFirestore, setWaterLog, fetchWaterLog, addCommonMeal, deleteCommonMeal as deleteCommonMealFromDB, updateCommonMeal,
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   addMentalWellbeingLog, listenForFriendRequests,
-  getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate
+  savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate, fetchWaterLog
 } from './services/firestoreService.ts';
 
 // Context
@@ -64,47 +60,15 @@ import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
 
-import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
-import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
+import { getDateUID, dayKeySE } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
 import {
   InformationCircleIcon, AICoachIcon, PencilIcon,
-  ChatBubbleOvalLeftEllipsisIcon, BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon
+  ChatBubbleOvalLeftEllipsisIcon, BellIcon, InstallIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon
 } from './components/icons.tsx';
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 import Dashboard from './pages/Dashboard';
-
-/* ===========================
-   Start of Daily Summary Helpers
-   =========================== */
-
-const TZ = "Europe/Stockholm";
-const startOfDaySE = (d: Date) => {
-  const z = new Date(d.toLocaleString("en-US", { timeZone: TZ }));
-  return new Date(z.getFullYear(), z.getMonth(), z.getDate());
-};
-const dayKeySE = (d: Date) =>
-  new Intl.DateTimeFormat("sv-SE", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-    weekday: "long",
-  }).format(d).replace(/\//g, "-");
-
-const yesterdayRangeSE = (now = new Date()) => {
-  const today = startOfDaySE(now);
-  const start = new Date(+today - 86400000);
-  const end = today;
-  return { start, end, yKey: dayKeySE(start) };
-};
-
-/* ===========================
-   End of Daily Summary Helpers
-   =========================== */
 
 const urlBase64ToUint8Array = (base64String: string) => {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -139,33 +103,6 @@ const setLocalStorageItem = <T,>(key: string, value: T): void => {
   }
 };
 
-const wasCalorieGoalMetForSummary = ( 
-  consumedCalories: number,
-  calorieGoalValue: number,
-  goalTypeForDay: GoalType | undefined
-): boolean => {
-  if (calorieGoalValue <= 0) return false; 
-  if (consumedCalories <=0) return false; 
-
-  switch (goalTypeForDay) {
-    case 'lose_fat':
-      return consumedCalories <= calorieGoalValue;
-    case 'maintain': {
-      const tenPercentOfTarget = calorieGoalValue * 0.10;
-      return Math.abs(consumedCalories - calorieGoalValue) <= tenPercentOfTarget;
-    }
-    case 'gain_muscle': {
-      const surplus = CALORIE_ADJUSTMENT.gain_muscle;
-      const tdeeFloor = calorieGoalValue > surplus ? calorieGoalValue - surplus : 0;
-      return consumedCalories >= tdeeFloor;
-    }
-    default: {
-      const tenPercentDefault = calorieGoalValue * 0.10;
-      return Math.abs(consumedCalories - calorieGoalValue) <= tenPercentDefault;
-    }
-  }
-};
-
 const formatChange = (change: number | undefined): string => {
     if (change === undefined || change === null || isNaN(change)) {
         return '-';
@@ -176,11 +113,6 @@ const formatChange = (change: number | undefined): string => {
     const sign = change > 0 ? '+' : '';
     return `${sign}${change.toFixed(1).replace('.', ',')}`;
 };
-
-interface ProcessDayEndLogicOptions {
-  force?: boolean;
-  silent?: boolean;
-}
 
 // AI Feedback Modal Component
 const AIFeedbackModal: React.FC<{
@@ -209,7 +141,6 @@ const AIFeedbackModal: React.FC<{
         className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-2xl animate-scale-in flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Content trimmed for brevity, logic preserved */}
         <div className="flex items-center justify-between mb-5 flex-shrink-0">
           <div className="flex items-center">
             {modalIcon}
@@ -284,7 +215,6 @@ const AIFeedbackModal: React.FC<{
   );
 };
 
-
 const MotivationModal: React.FC<{
     show: boolean;
     onClose: () => void;
@@ -321,57 +251,6 @@ const MotivationModal: React.FC<{
         </div>
     );
 };
-
-
-const UseStreakSaverModal: React.FC<{
-    show: boolean;
-    onClose: () => void;
-    onConfirm: () => void;
-    daySummary: PastDaySummary;
-}> = ({ show, onClose, onConfirm, daySummary }) => {
-    if (!show) return null;
-
-    return (
-        <div
-            className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in"
-            onClick={onClose}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="streak-saver-modal-title"
-        >
-            <div
-                className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-md animate-scale-in text-center"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <LifebuoyIcon className="w-16 h-16 text-secondary mx-auto mb-4" />
-                <h2 id="streak-saver-modal-title" className="text-2xl font-bold text-neutral-dark mb-3">
-                    Rädda din streak?
-                </h2>
-                <p className="text-neutral-dark mb-2">
-                    Du nådde inte ditt mål i går.
-                </p>
-                <p className="text-neutral-dark mb-6">
-                    Vill du använda veckans <strong>Streakräddare</strong> för att reparera din streak?
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                        onClick={onClose}
-                        className="w-full px-5 py-3 text-lg font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm active:scale-95 interactive-transition"
-                    >
-                        Nej, tack
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        className="w-full px-5 py-3 text-lg font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95 interactive-transition"
-                    >
-                        Ja, använd räddare
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 
 export const App = () => {
   // Use Context instead of local hooks
@@ -1738,16 +1617,6 @@ const handleFinishOnboarding = async () => {
     } catch (error) {
         handleFirestoreError(error, 'slutföra onboarding');
     }
-  };
-
-  const handleCloseOnboardingRewardModal = () => {
-      setShowOnboardingRewardModal(false);
-      const currentState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
-      if (currentState) {
-          const newState = { ...currentState, dismissed: true };
-          setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
-      }
-      setChecklistState(null);
   };
 
   const DropdownMenuItem: React.FC<{
