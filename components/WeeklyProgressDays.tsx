@@ -17,6 +17,7 @@ const getDayShortName = (dayIndex: number): string => {
 };
 
 const getLocalISODateString = (date: Date): string => {
+  if (!date || !(date instanceof Date)) return "";
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -29,7 +30,8 @@ const WeeklyProgressDays: React.FC<WeeklyProgressDaysProps> = ({
   viewingDate,
   onDateSelect,
 }) => {
-  const today = new Date(currentAppDate);
+  const safeCurrentAppDate = currentAppDate && currentAppDate instanceof Date ? currentAppDate : new Date();
+  const today = new Date(safeCurrentAppDate);
   today.setHours(0, 0, 0, 0); // Normalize to start of day
 
   const dayOfWeek = today.getDay(); // 0 (Sun) to 6 (Sat)
