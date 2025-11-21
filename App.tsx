@@ -76,6 +76,8 @@ import {
 } from './components/icons.tsx';
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 import Dashboard from './pages/Dashboard';
+import { OnboardingChecklist } from './components/OnboardingChecklist';
+import { CommonMeal } from './types.ts';
 
 /* ===========================
    Start of Daily Summary Helpers
@@ -363,6 +365,16 @@ export const App = () => {
   const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
   const [hasUnseenUpdate, setHasUnseenUpdate] = useState(false);
 
+  // FIX: Move useMemo hook to the top level, unconditionally
+  const formattedViewingDate = useMemo(() => {
+    return viewingDate.toLocaleDateString('sv-SE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }, [viewingDate]);
+
+  const minSafeCalories = useMemo(() => {
+    const goalBasedMin = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
+    return Math.max(goalBasedMin, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+  }, [goals.calorieGoal]);
+
     const loadDataForDate = useCallback(async (userId: string, dateToLoad: Date) => {
         if (!userId) return;
         const dateUID = getDateUID(dateToLoad);
@@ -557,17 +569,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   }, [profileDropdownRef]);
 
 
-  // FIX: Move useMemo hook to the top level, unconditionally
-  const formattedViewingDate = useMemo(() => {
-    return viewingDate.toLocaleDateString('sv-SE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  }, [viewingDate]);
-
-  const minSafeCalories = useMemo(() => {
-    const goalBasedMin = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
-    return Math.max(goalBasedMin, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-  }, [goals.calorieGoal]);
-
-
   const handleSaveProfileAndGoals = async (profileData: UserProfileData, newGoals: GoalSettings, newPhotoDataUrl?: string | null) => {
     if (!currentUser) return;
     setAppStatus(AppStatus.SAVING);
@@ -624,6 +625,12 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
   try {
     const { start, end, yKey } = yesterdayRangeSE(now);
     const userRef = doc(db, "users", uid);
+    
+    // Logic to check day BEFORE yesterday for streak recovery
+    const dayBeforeDate = new Date(start);
+    dayBeforeDate.setDate(dayBeforeDate.getDate() - 1);
+    const dayBeforeKey = dayKeySE(dayBeforeDate);
+
     const userSnap = await getDocFromServer(userRef).catch(() => null);
     if (!userSnap?.exists()) return;
 
@@ -665,13 +672,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         dailyLogForDate = await fetchMealLogsForDate(uid, yKey);
     }
     
-    if (dailyLogForDate.length === 0) {
-      await runTransaction(db, async (tx) => {
-         tx.update(userRef, { currentStreak: 0, lastDateStreakChecked: yKey });
-      });
-      // ... simplified return
-      return;
-    }
+    // If no logs for yesterday, we might still need to run to reset streak to 0 if it wasn't done.
+    // But if it was already checked and 0, we skip.
     
     const localGoals = userData.goals || DEFAULT_GOALS;
     const localProfile = { ...DEFAULT_USER_PROFILE, ...userData } as UserProfileData;
@@ -699,52 +701,43 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     let resultData: any = null;
     await runTransaction(db, async (tx) => {
-        // If habit met (logged meal), increment streak. Otherwise reset.
-        // NOTE: Logic simplified. If manual override provided, it means habit IS met for that day.
-        const currentStreakFromDb = userData.currentStreak || 0;
-        
-        // We need to be careful not to double-increment if we run this multiple times for same day.
-        // But Firestore transaction ensures consistency. 
-        // Streak logic:
-        // If yesterday was processed and streak incremented, and we run again, we shouldn't increment again unless we reset it by mistake?
-        // Actually, simplified approach: Calculate what streak SHOULD be.
-        // If yesterday log exists -> streak = streak_before_yesterday + 1.
-        // This requires knowing streak history which is hard.
-        // Simple approach: Trust currentStreak but cap it?
-        // Better: If we are reprocessing yesterday because of manual log, we assume the user MIGHT have lost streak if it ran automatically at midnight with 0 logs.
-        // So if currentStreak is 0, and we find logs now, we restore it? 
-        // That's complex.
-        // Current implementation: Just increment if habit met. This works for the "I forgot to log" scenario where streak reset to 0 at midnight.
+        const userDocTx = await tx.get(userRef);
+        if (!userDocTx.exists()) return;
+        const userDataTx = userDocTx.data() as FirestoreUserDocument;
+        const currentStreakFromDb = userDataTx.currentStreak || 0;
+        const lastChecked = userDataTx.lastDateStreakChecked;
+
+        // RECOVERY LOGIC: Fetch day before yesterday summary
+        const prevDaySummaryRef = doc(db, "users", uid, "pastDaySummaries", dayBeforeKey);
+        const prevDaySnap = await tx.get(prevDaySummaryRef);
+        let recoveredStreak = 0;
+        if (prevDaySnap.exists()) {
+            const prevSummary = prevDaySnap.data() as PastDaySummary;
+            recoveredStreak = prevSummary.streakForThisDay || 0;
+        }
         
         let nextStreak = currentStreakFromDb;
         
-        // Scenario: Auto-check ran at 00:01, found 0 meals, set streak to 0.
-        // User logs meal at 09:00 for yesterday. 
-        // manualLogOverride has meals. habitMetForStreak is true.
-        // nextStreak should be restored. Ideally: previous_streak + 1.
-        // But we lost "previous_streak".
-        // Workaround: If streak is 0, we check if day BEFORE yesterday was successful? Too many reads.
-        // Compromise: If habitMetForStreak is true, we ensure streak is at least 1.
-        // If user had 100 days streak, lost it, and re-logs yesterday, they get 1 back. (Harsh but safe).
-        // To fix properly we'd need to store "streak_before_reset".
-        
-        // Let's assume for now that the standard flow (logging daily) prevents this, and this override is for fixing "missing data".
-        // If streak is 0 and we found data, set to 1.
         if (habitMetForStreak) {
-             if (nextStreak === 0) nextStreak = 1; 
-             // If streak was NOT 0, it means it wasn't reset yet (maybe we log for yesterday before today's midnight check ran?).
-             // In that case, we don't increment because we don't want double counting?
-             // The logic `ensureYesterdayProcessed` is usually run ONCE per day transition.
-             // If we force run it manually, we shouldn't increment streak again if it was already incremented for YESTERDAY.
-             // We check `lastDateStreakChecked`.
-             if (lastDateStreakChecked !== yKey) {
-                 nextStreak += 1;
+             // If current streak is 0 (likely reset), try to recover using previous day's streak.
+             if (currentStreakFromDb === 0) {
+                 // If yesterday (dayBeforeKey) had a streak, we continue it.
+                 nextStreak = recoveredStreak + 1;
+             } else {
+                 // If current streak is > 0, we check if we already incremented for THIS day (yKey).
+                 if (lastChecked === yKey) {
+                     // Already checked for today, do not double increment.
+                     nextStreak = currentStreakFromDb;
+                 } else {
+                     // Normal increment
+                     nextStreak = currentStreakFromDb + 1;
+                 }
              }
         } else {
             nextStreak = 0;
         }
 
-        const newHighestStreak = Math.max(userData.highestStreak || 0, nextStreak);
+        const newHighestStreak = Math.max(userDataTx.highestStreak || 0, nextStreak);
 
         const summaryForThisDay: PastDaySummary = {
             date: yKey,
@@ -770,7 +763,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             lastDateStreakChecked: yKey,
             highestStreak: newHighestStreak,
         });
-        resultData = { summary: summaryForThisDay, streakData: { currentStreak: nextStreak, lastDateStreakChecked: yKey }, weeklyBank: userData.weeklyBank, highestStreak: newHighestStreak };
+        resultData = { summary: summaryForThisDay, streakData: { currentStreak: nextStreak, lastDateStreakChecked: yKey }, weeklyBank: userDataTx.weeklyBank, highestStreak: newHighestStreak };
     });
     return resultData;
 
