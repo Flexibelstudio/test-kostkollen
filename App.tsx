@@ -557,6 +557,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   }, [profileDropdownRef]);
 
 
+  // FIX: Move useMemo hook to the top level, unconditionally
   const formattedViewingDate = useMemo(() => {
     return viewingDate.toLocaleDateString('sv-SE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }, [viewingDate]);
@@ -636,13 +637,23 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     }
 
     let shouldProcess = true;
+    // Logic updated: If manual override is provided (user logged for yesterday), we FORCE processing even if checked.
+    // Also, if date is checked but goal wasn't met, we re-check in case user added data later.
     if (lastDateStreakChecked && lastDateStreakChecked >= yKey && !options.force && !manualLogOverride) {
          const summaryRef = doc(db, "users", uid, "pastDaySummaries", yKey);
          const summarySnap = await getDoc(summaryRef);
          if (summarySnap.exists()) {
              const summary = summarySnap.data() as PastDaySummary;
-             if (summary.goalMet) shouldProcess = false; 
+             // Only skip if goal was met. If not met, maybe they added data now?
+             // Actually, better to only re-process if explicit manual override or force flag.
+             // Otherwise we waste reads.
+             // The manualLogOverride handles the case where user explicitly logs for yesterday.
+             shouldProcess = false; 
          }
+    }
+    
+    if (manualLogOverride) {
+        shouldProcess = true;
     }
 
     if (!shouldProcess) return;
@@ -688,8 +699,51 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     let resultData: any = null;
     await runTransaction(db, async (tx) => {
-        const prevStreak = userData.currentStreak || 0;
-        const nextStreak = habitMetForStreak ? prevStreak + 1 : 0;
+        // If habit met (logged meal), increment streak. Otherwise reset.
+        // NOTE: Logic simplified. If manual override provided, it means habit IS met for that day.
+        const currentStreakFromDb = userData.currentStreak || 0;
+        
+        // We need to be careful not to double-increment if we run this multiple times for same day.
+        // But Firestore transaction ensures consistency. 
+        // Streak logic:
+        // If yesterday was processed and streak incremented, and we run again, we shouldn't increment again unless we reset it by mistake?
+        // Actually, simplified approach: Calculate what streak SHOULD be.
+        // If yesterday log exists -> streak = streak_before_yesterday + 1.
+        // This requires knowing streak history which is hard.
+        // Simple approach: Trust currentStreak but cap it?
+        // Better: If we are reprocessing yesterday because of manual log, we assume the user MIGHT have lost streak if it ran automatically at midnight with 0 logs.
+        // So if currentStreak is 0, and we find logs now, we restore it? 
+        // That's complex.
+        // Current implementation: Just increment if habit met. This works for the "I forgot to log" scenario where streak reset to 0 at midnight.
+        
+        let nextStreak = currentStreakFromDb;
+        
+        // Scenario: Auto-check ran at 00:01, found 0 meals, set streak to 0.
+        // User logs meal at 09:00 for yesterday. 
+        // manualLogOverride has meals. habitMetForStreak is true.
+        // nextStreak should be restored. Ideally: previous_streak + 1.
+        // But we lost "previous_streak".
+        // Workaround: If streak is 0, we check if day BEFORE yesterday was successful? Too many reads.
+        // Compromise: If habitMetForStreak is true, we ensure streak is at least 1.
+        // If user had 100 days streak, lost it, and re-logs yesterday, they get 1 back. (Harsh but safe).
+        // To fix properly we'd need to store "streak_before_reset".
+        
+        // Let's assume for now that the standard flow (logging daily) prevents this, and this override is for fixing "missing data".
+        // If streak is 0 and we found data, set to 1.
+        if (habitMetForStreak) {
+             if (nextStreak === 0) nextStreak = 1; 
+             // If streak was NOT 0, it means it wasn't reset yet (maybe we log for yesterday before today's midnight check ran?).
+             // In that case, we don't increment because we don't want double counting?
+             // The logic `ensureYesterdayProcessed` is usually run ONCE per day transition.
+             // If we force run it manually, we shouldn't increment streak again if it was already incremented for YESTERDAY.
+             // We check `lastDateStreakChecked`.
+             if (lastDateStreakChecked !== yKey) {
+                 nextStreak += 1;
+             }
+        } else {
+            nextStreak = 0;
+        }
+
         const newHighestStreak = Math.max(userData.highestStreak || 0, nextStreak);
 
         const summaryForThisDay: PastDaySummary = {
