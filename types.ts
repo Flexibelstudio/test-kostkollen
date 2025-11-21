@@ -126,6 +126,7 @@ export interface PastDaySummary {
   streakForThisDay?: number;
   // FIX: Allow 'streakSaver' as a valid value for savedBy
   savedBy?: "sparpott" | "streakSaver";
+  bankedAmount?: number; // Amount saved to bank on this day
 }
 
 export interface PastDaysSummaryCollection {

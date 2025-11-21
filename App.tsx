@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { db } from './firebase';
 import {
@@ -707,12 +708,18 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         const currentStreakFromDb = userDataTx.currentStreak || 0;
         const lastChecked = userDataTx.lastDateStreakChecked;
 
+        const currentDaySummaryRef = doc(db, "users", uid, "pastDaySummaries", yKey);
+        const currentDaySummarySnap = await tx.get(currentDaySummaryRef);
+        const prevSummaryData = currentDaySummarySnap.exists() ? currentDaySummarySnap.data() as PastDaySummary : null;
+
         // RECOVERY LOGIC: Fetch day before yesterday summary
         const prevDaySummaryRef = doc(db, "users", uid, "pastDaySummaries", dayBeforeKey);
         const prevDaySnap = await tx.get(prevDaySummaryRef);
         let recoveredStreak = 0;
         if (prevDaySnap.exists()) {
             const prevSummary = prevDaySnap.data() as PastDaySummary;
+            // Check if the streak was actually alive yesterday.
+            // If prevSummary.streakForThisDay > 0, it means the streak was alive.
             recoveredStreak = prevSummary.streakForThisDay || 0;
         }
         
@@ -722,7 +729,14 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
              // If current streak is 0 (likely reset), try to recover using previous day's streak.
              if (currentStreakFromDb === 0) {
                  // If yesterday (dayBeforeKey) had a streak, we continue it.
-                 nextStreak = recoveredStreak + 1;
+                 if (recoveredStreak > 0) {
+                    nextStreak = recoveredStreak + 1;
+                 } else {
+                    // If day before yesterday had no streak, but we logged for yesterday, streak is 1.
+                    // Wait, "yesterday" is yKey. "day before yesterday" is dayBeforeKey.
+                    // If I logged for yKey, streak is at least 1.
+                    nextStreak = 1;
+                 }
              } else {
                  // If current streak is > 0, we check if we already incremented for THIS day (yKey).
                  if (lastChecked === yKey) {
@@ -739,6 +753,38 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         const newHighestStreak = Math.max(userDataTx.highestStreak || 0, nextStreak);
 
+        // --- BANKING LOGIC ---
+        let newWeeklyBank = { ...userDataTx.weeklyBank };
+        const processedDayWeekInfo = getWeekInfo(new Date(yKey)); // Gets week info for the day being processed
+
+        // If the processed day belongs to a new week compared to the current bank, reset bank first
+        if (processedDayWeekInfo.weekId !== newWeeklyBank.weekId) {
+            newWeeklyBank = {
+                weekId: processedDayWeekInfo.weekId,
+                bankedCalories: 0,
+                startDate: processedDayWeekInfo.startDate,
+                endDate: processedDayWeekInfo.endDate
+            };
+        }
+
+        // Deduct previous bank amount for this day if it exists (to avoid double counting on reprocessing)
+        if (prevSummaryData && prevSummaryData.bankedAmount) {
+             // Only deduct if it belongs to the same week
+             if (processedDayWeekInfo.weekId === newWeeklyBank.weekId) {
+                 newWeeklyBank.bankedCalories = Math.max(0, newWeeklyBank.bankedCalories - prevSummaryData.bankedAmount);
+             }
+        }
+
+        let bankedAmountThisDay = 0;
+        if (goalMetForCalendar && effectiveCaloriesConsumed < localGoals.calorieGoal) {
+            bankedAmountThisDay = Math.floor(localGoals.calorieGoal - effectiveCaloriesConsumed);
+        }
+
+        if (bankedAmountThisDay > 0) {
+            newWeeklyBank.bankedCalories += bankedAmountThisDay;
+        }
+        // ---------------------
+
         const summaryForThisDay: PastDaySummary = {
             date: yKey,
             goalMet: goalMetForCalendar,
@@ -754,6 +800,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             goalType: localProfile.goalType,
             waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
             streakForThisDay: nextStreak,
+            bankedAmount: bankedAmountThisDay, // Save how much was banked
         };
       
         const sumRef = doc(db, "users", uid, "pastDaySummaries", yKey);
@@ -762,8 +809,9 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             currentStreak: nextStreak,
             lastDateStreakChecked: yKey,
             highestStreak: newHighestStreak,
+            weeklyBank: newWeeklyBank, // Save the updated bank
         });
-        resultData = { summary: summaryForThisDay, streakData: { currentStreak: nextStreak, lastDateStreakChecked: yKey }, weeklyBank: userDataTx.weeklyBank, highestStreak: newHighestStreak };
+        resultData = { summary: summaryForThisDay, streakData: { currentStreak: nextStreak, lastDateStreakChecked: yKey }, weeklyBank: newWeeklyBank, highestStreak: newHighestStreak };
     });
     return resultData;
 

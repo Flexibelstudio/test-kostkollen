@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo } from 'react';
 import { 
     LoggedMeal, 
@@ -588,14 +589,20 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     };
 
-    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             setAppStatus('ANALYZING');
-            try {
-                const resizedBase64 = await resizeImageForLog(file, 800);
-                handleImageCapture(resizedBase64);
-            } catch (error) { console.error(error); setAppStatus('IDLE'); }
+            // Use setTimeout to allow render cycle to show spinner before heavy lifting
+            setTimeout(async () => {
+                try {
+                    const resizedBase64 = await resizeImageForLog(file, 800);
+                    handleImageCapture(resizedBase64);
+                } catch (error) {
+                    console.error(error);
+                    setAppStatus('IDLE');
+                }
+            }, 100);
         }
         if (event.target) event.target.value = '';
     };
