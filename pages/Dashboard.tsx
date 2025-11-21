@@ -62,6 +62,7 @@ import BarcodeSearchResultModal from '../components/BarcodeSearchResultModal';
 import ImageAnalysisResultModal from '../components/ImageAnalysisResultModal';
 import SaveCommonMealModal from '../components/SaveCommonMealModal';
 import NutritionLabelResultModal from '../components/NutritionLabelResultModal';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 // Helper function for image resizing (local to Dashboard now)
 const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
@@ -869,6 +870,16 @@ const Dashboard: React.FC<DashboardProps> = ({
         {analysisResultForModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setAnalysisResultForModal(null)}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><ImageAnalysisResultModal analysisResult={analysisResultForModal} imageDataUrl={`data:image/jpeg;base64,${cameraImageForAnalysis}`} onLog={handleLogFromModal} onClose={() => setAnalysisResultForModal(null)} /></div></div>}
         {showSaveCommonMealModal && mealToSaveAsCommon && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowSaveCommonMealModal)}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onSave={(name) => saveCommonMeal(name)} onClose={() => closeModal(setShowSaveCommonMealModal)} /></div></div>}
         {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => { setShowNutritionLabelResultModal(false); setNutritionLabelResult(null); }} analysisResult={nutritionLabelResult} onLog={handleLogFromLabel} />}
+        
+        {(appStatus === 'ANALYZING' || appStatus === 'SEARCHING_RECIPE' || appStatus === 'ANALYZING_INGREDIENTS' || appStatus === 'SEARCHING_BARCODE') && (
+            <LoadingSpinner message={
+                appStatus === 'ANALYZING' ? 'Analyserar bild...' :
+                appStatus === 'SEARCHING_RECIPE' ? 'Letar recept...' :
+                appStatus === 'ANALYZING_INGREDIENTS' ? 'Skapar receptförslag...' :
+                appStatus === 'SEARCHING_BARCODE' ? 'Söker produkt...' :
+                'Bearbetar...'
+            } />
+        )}
         </>
     );
 };
