@@ -9,30 +9,6 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "MISSING_API_KEY" });
 
-const handleGeminiError = (error: unknown, contextMessage: string): never => {
-    console.error(`Gemini Error (${contextMessage}):`, error);
-    const errorMsg = error instanceof Error ? error.message : String(error);
-
-    if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
-        throw new Error("AI-tjänsten har nått sin maxgräns för tillfället. Vänligen försök igen senare.");
-    }
-    
-    if (errorMsg.includes('500') || errorMsg.includes('503') || errorMsg.toLowerCase().includes('internal')) {
-        throw new Error("Ett tillfälligt tekniskt fel uppstod hos AI-tjänsten. Försök igen om en stund.");
-    }
-
-    // Om det är ett JSON-felmeddelande, försök städa upp det
-    if (errorMsg.includes('{"error":')) {
-        throw new Error(`${contextMessage} (Tekniskt fel).`);
-    }
-
-    if (error instanceof Error) {
-        throw new Error(`${contextMessage}: ${error.message}`);
-    }
-    
-    throw new Error(`${contextMessage}: Ett okänt fel inträffade.`);
-};
-
 export const analyzeFoodImage = async (base64ImageData: string): Promise<NutritionalInfo> => {
   const imagePart = {
     inlineData: {
@@ -95,8 +71,11 @@ För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein
     return parsedData;
 
   } catch (error) {
-    handleGeminiError(error, "Kunde inte analysera bilden");
-    return { foodItem: 'Fel', calories: 0, protein: 0, carbohydrates: 0, fat: 0 }; // Unreachable due to throw
+    console.error("Error analyzing food image with Gemini:", error);
+    if (error instanceof Error) {
+        throw new Error(`Kunde inte analysera bilden: ${error.message}`);
+    }
+    throw new Error("Kunde inte analysera bilden på grund av ett okänt fel.");
   }
 };
 
@@ -156,8 +135,11 @@ Exempel för "öl": {"foodItem": "Öl, vanlig", "servingDescription": "1 burk (3
     return parsedData;
 
   } catch (error) {
-    handleGeminiError(error, "Kunde inte hämta näringsinformation");
-    return { foodItem: 'Fel', servingDescription: '', calories: 0, protein: 0, carbohydrates: 0, fat: 0 }; // Unreachable
+    console.error("Error getting nutritional info from text search with Gemini:", error);
+     if (error instanceof Error) {
+        throw new Error(`Kunde inte hämta näringsinformation: ${error.message}`);
+    }
+    throw new Error("Kunde inte hämta näringsinformation på grund av ett okänt fel.");
   }
 };
 
@@ -218,8 +200,14 @@ ${contextPrompt}
     return response.text.trim();
 
   } catch (error) {
-    handleGeminiError(error, "Kunde inte hämta feedback från Coachen");
-    return "";
+    console.error("Error getting feedback from Coach from Gemini:", error);
+    if (error instanceof Error) {
+      if (error.message.includes('500') || error.message.toLowerCase().includes('internal')) {
+        throw new Error("Coachen har stött på ett tekniskt problem och kan inte svara just nu. Vänligen försök igen om en liten stund.");
+      }
+      throw new Error(`Kunde inte hämta feedback från Coachen: ${error.message}`);
+    }
+    throw new Error("Kunde inte hämta feedback från Coachen på grund av ett okänt fel.");
   }
 };
 
@@ -305,8 +293,11 @@ Användarens fråga: "${recipeQuery}"`;
     return parsedData;
 
   } catch (error) {
-    handleGeminiError(error, "Kunde inte hämta receptförslag");
-    return {} as RecipeSuggestion; // Unreachable
+    console.error("Error getting recipe suggestion from Gemini:", error);
+     if (error instanceof Error) {
+        throw new Error(`Kunde inte hämta receptförslag: ${error.message}`);
+    }
+    throw new Error("Kunde inte hämta receptförslag på grund av ett okänt fel.");
   }
 };
 
@@ -390,8 +381,11 @@ JSON-struktur för varje recept i 'recipeSuggestions':
     return parsedData;
 
   } catch (error) {
-    handleGeminiError(error, "Kunde inte generera recept från bilder");
-    return { identifiedIngredients: [], recipeSuggestions: [] };
+    console.error("Error getting recipes from ingredients image with Gemini:", error);
+    if (error instanceof Error) {
+      throw new Error(`Kunde inte generera recept från bilder: ${error.message}`);
+    }
+    throw new Error("Kunde inte generera recept från bilder på grund av ett okänt fel.");
   }
 };
 
@@ -482,22 +476,18 @@ Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VI
     { role: 'user', parts: [{ text: question }] }
   ] as Content[];
 
-  try {
-    const responseStream = await ai.models.generateContentStream({
-        model: GEMINI_MODEL_NAME_TEXT,
-        contents: contents,
-        config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95
-        }
-    });
-    return responseStream;
-  } catch (error) {
-      handleGeminiError(error, "Kunde inte få svar från coachen");
-      throw error; // Rethrow to be handled by UI
-  }
+  const responseStream = await ai.models.generateContentStream({
+    model: GEMINI_MODEL_NAME_TEXT,
+    contents: contents,
+    config: {
+      systemInstruction: systemInstruction,
+      temperature: 0.7,
+      topK: 40,
+      topP: 0.95
+    }
+  });
+
+  return responseStream;
 };
 
 
@@ -838,8 +828,11 @@ ${bodyCompositionDataPrompt}
         return parsedData;
 
     } catch (error) {
-        handleGeminiError(error, "Kunde inte generera analys");
-        return {} as AIStructuredFeedbackResponse;
+        console.error("Error getting detailed journey analysis from Gemini:", error);
+        if (error instanceof Error) {
+            throw new Error(`Kunde inte generera analys: ${error.message}`);
+        }
+        throw new Error("Kunde inte generera analys på grund av ett okänt fel.");
     }
 };
 
@@ -882,8 +875,11 @@ Skapa en sammanfattning med följande tre rubriker:
         });
         return response.text.trim();
     } catch (error) {
-        handleGeminiError(error, "Kunde inte generera AI-sammanfattning");
-        return "";
+        console.error("Error getting AI coach summary from Gemini:", error);
+        if (error instanceof Error) {
+            throw new Error(`Kunde inte generera AI-sammanfattning: ${error.message}`);
+        }
+        throw new Error("Kunde inte generera AI-sammanfattning på grund av ett okänt fel.");
     }
 };
 
@@ -947,7 +943,10 @@ Exempel: {"foodItem": "Ekologisk Mellanmjölk", "calories": 45, "protein": 3.5, 
     return parsedData;
 
   } catch (error) {
-    handleGeminiError(error, "Kunde inte läsa näringsdeklarationen");
-    return { foodItem: 'Fel', calories: 0, protein: 0, carbohydrates: 0, fat: 0 };
+    console.error("Error analyzing nutrition label with Gemini:", error);
+    if (error instanceof Error) {
+        throw new Error(`Kunde inte läsa näringsdeklarationen: ${error.message}`);
+    }
+    throw new Error("Kunde inte läsa näringsdeklarationen på grund av ett okänt fel.");
   }
 };

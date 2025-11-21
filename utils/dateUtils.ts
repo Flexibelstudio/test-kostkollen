@@ -1,14 +1,6 @@
 // utils/dateUtils.ts
 
 export const getDateUID = (date: Date): string => {
-    if (!date || !(date instanceof Date)) {
-        console.warn("getDateUID received invalid date:", date);
-        const safeDate = new Date();
-        const year = safeDate.getFullYear();
-        const month = String(safeDate.getMonth() + 1).padStart(2, '0');
-        const day = String(safeDate.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -16,7 +8,7 @@ export const getDateUID = (date: Date): string => {
 };
 
 export const getWeekInfo = (date: Date): { weekId: string; startDate: string; endDate: string } => {
-    const d = date && date instanceof Date ? new Date(date) : new Date();
+    const d = new Date(date);
     d.setHours(0, 0, 0, 0); // Normalize to the start of the local day
 
     const day = d.getDay(); // 0 for Sunday, 1 for Monday
