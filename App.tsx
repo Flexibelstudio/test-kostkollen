@@ -620,6 +620,38 @@ const handleFinishOnboarding = async () => {
     }
   };
 
+// --- WEEKLY BANK RESET CHECK ---
+const ensureWeeklyBankReset = useCallback(async () => {
+    if (!currentUser || !isInitialDataLoaded) return;
+
+    const currentWeekInfo = getWeekInfo(currentDate);
+
+    // If the bank's week ID doesn't match the current date's week ID
+    if (weeklyBank.weekId !== currentWeekInfo.weekId) {
+        console.log(`Detected new week (${currentWeekInfo.weekId}). Resetting calorie bank.`);
+        
+        const newBank: WeeklyCalorieBank = {
+            weekId: currentWeekInfo.weekId,
+            bankedCalories: 0,
+            startDate: currentWeekInfo.startDate,
+            endDate: currentWeekInfo.endDate
+        };
+
+        // Optimistic update
+        setWeeklyBank(newBank);
+
+        try {
+            await updateUserDocument(currentUser.uid, { weeklyBank: newBank });
+        } catch (error) {
+            console.error("Error resetting weekly bank:", error);
+        }
+    }
+}, [currentUser, isInitialDataLoaded, currentDate, weeklyBank, setWeeklyBank]);
+
+useEffect(() => {
+    ensureWeeklyBankReset();
+}, [ensureWeeklyBankReset]);
+// -------------------------------
 
 const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[]): Promise<{ summary: PastDaySummary | null; streakData: { currentStreak: number; lastDateStreakChecked: string | null }; weeklyBank: WeeklyCalorieBank; highestStreak: number; } | void> => {
   setAppStatus(AppStatus.PROCESSING_DAY_END);
