@@ -1,4 +1,7 @@
-
+<change>
+    <file>pages/Dashboard.tsx</file>
+    <description>Import LEVEL_DEFINITIONS and implement correct level calculation logic</description>
+    <content><![CDATA[
 import React, { useState, useRef, useMemo } from 'react';
 import { 
     LoggedMeal, 
@@ -20,7 +23,8 @@ import {
     BARCODE_ICON_SVG,
     BOOKMARK_ICON_SVG,
     COMMON_MEAL_LOG_ICON_SVG,
-    LOCAL_STORAGE_KEYS
+    LOCAL_STORAGE_KEYS,
+    LEVEL_DEFINITIONS
 } from '../constants';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import WeeklyProgressDays from '../components/WeeklyProgressDays';
@@ -224,10 +228,15 @@ const Dashboard: React.FC<DashboardProps> = ({
     }, [dailyLog]);
 
     const currentLevelInfo = useMemo(() => {
-         // Simplified level logic for display
-         // In a real app, import logic from App.tsx or Utils
-         return { name: 'Nivå' }; 
-    }, []);
+        let currentLevel = LEVEL_DEFINITIONS[0];
+        for (let i = LEVEL_DEFINITIONS.length - 1; i >= 0; i--) {
+            if (streakData.currentStreak >= LEVEL_DEFINITIONS[i].requiredStreak) {
+                currentLevel = LEVEL_DEFINITIONS[i];
+                break;
+            }
+        }
+        return currentLevel;
+    }, [streakData.currentStreak]);
 
 
     const groupedDailyLog = useMemo(() => {
@@ -892,3 +901,5 @@ const Dashboard: React.FC<DashboardProps> = ({
 };
 
 export default Dashboard;
+]]></content>
+</change>
