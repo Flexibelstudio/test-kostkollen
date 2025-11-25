@@ -1,7 +1,3 @@
-<change>
-    <file>pages/Dashboard.tsx</file>
-    <description>Import LEVEL_DEFINITIONS and implement correct level calculation logic</description>
-    <content><![CDATA[
 import React, { useState, useRef, useMemo } from 'react';
 import { 
     LoggedMeal, 
@@ -10,8 +6,7 @@ import {
     BarcodeScannedFoodInfo,
     IngredientRecipeResponse,
     RecipeSuggestion,
-    OnboardingChecklistState,
-    CommonMeal
+    OnboardingChecklistState
 } from '../types';
 import { 
     DEFAULT_WATER_GOAL_ML,
@@ -227,6 +222,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         return dailyLog.reduce((sum, meal) => sum + (meal.caloriesCoveredByBank || 0), 0);
     }, [dailyLog]);
 
+    // NY LOGIK: Räkna ut nuvarande nivå baserat på streak
     const currentLevelInfo = useMemo(() => {
         let currentLevel = LEVEL_DEFINITIONS[0];
         for (let i = LEVEL_DEFINITIONS.length - 1; i >= 0; i--) {
@@ -901,5 +897,3 @@ const Dashboard: React.FC<DashboardProps> = ({
 };
 
 export default Dashboard;
-]]></content>
-</change>
