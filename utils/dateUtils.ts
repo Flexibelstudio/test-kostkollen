@@ -1,4 +1,12 @@
 // utils/dateUtils.ts
+
+export const getDateUID = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 export const getWeekInfo = (date: Date): { weekId: string; startDate: string; endDate: string } => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0); // Normalize to the start of the local day

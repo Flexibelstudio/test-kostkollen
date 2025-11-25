@@ -18,7 +18,7 @@ export interface CourseInfo {
   howItWorks: string;
   forWhom: string;
   reviews?: Review[];
-  price: string;
+  // price removed as courses are now free
   Icon: React.FC<React.SVGProps<SVGSVGElement>>;
 }
 
@@ -53,7 +53,6 @@ export const ALL_COURSES: CourseInfo[] = [
         author: 'Elisabeth'
       }
     ],
-    price: '295 kr',
     Icon: BalanceScaleIcon,
   },
   {
@@ -69,7 +68,6 @@ export const ALL_COURSES: CourseInfo[] = [
     ],
     howItWorks: 'Nya lektioner låses upp sekventiellt när du slutför den föregående, så du kan ta kursen helt i din egen takt utan press.',
     forWhom: 'För kvinnor i eller på väg in i klimakteriet som vill ta ett proaktivt grepp om sin hälsa och sitt välmående.',
-    price: '295 kr',
     Icon: VenusIcon,
   },
 ];
@@ -77,26 +75,15 @@ export const ALL_COURSES: CourseInfo[] = [
 interface CoursesViewProps {
   userProfile: UserProfileData;
   onNavigateToCourse: (courseId: CourseInfo['id']) => void;
-  onExpressInterest: (courseId: CourseInfo['id']) => void;
+  onExpressInterest: (courseId: CourseInfo['id']) => void; // Kept for backward compatibility, effectively just opens course now
 }
 
 const CourseCard: React.FC<{
   course: CourseInfo;
-  userProfile: UserProfileData;
-  isActive: boolean;
   onActivate: () => void;
   onShowInfo: () => void;
-}> = ({ course, userProfile, isActive, onActivate, onShowInfo }) => {
-    let interestShown = false;
-    let statusText = "";
-    if (course.id === 'praktisk-viktkontroll' && userProfile.courseInterest) {
-        interestShown = true;
-        statusText = "Inväntar godkännande";
-    }
-    if (course.id === 'maxa-klimakteriet' && userProfile.menopauseCourseInterest) {
-        interestShown = true;
-        statusText = "Inväntar godkännande";
-    }
+  hasStarted: boolean;
+}> = ({ course, onActivate, onShowInfo, hasStarted }) => {
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-soft-lg border border-neutral-light flex flex-col h-full">
@@ -118,42 +105,17 @@ const CourseCard: React.FC<{
         </div>
 
         <div className="flex-grow flex flex-col text-center">
-            <p className="text-neutral-dark text-base leading-relaxed">
+            <p className="text-neutral-dark text-base leading-relaxed mb-6">
                 {course.cardDescription}
             </p>
-
-            <div className="flex-grow flex flex-col items-center justify-center my-4">
-                {!isActive && !interestShown && (
-                    <div className="text-center">
-                        <p className="text-5xl font-bold text-secondary">{course.price}</p>
-                    </div>
-                )}
-            </div>
             
             <div className="mt-auto">
-                {isActive ? (
-                    <button
-                        onClick={onActivate}
-                        className="w-full px-6 py-3 bg-primary hover:bg-primary-darker text-white font-semibold rounded-lg shadow-md active:scale-95 transform transition-all"
-                    >
-                        Gå till kursen
-                    </button>
-                ) : interestShown ? (
-                    <button
-                        disabled
-                        className="w-full inline-flex justify-center items-center px-6 py-3 bg-green-200 text-green-800 font-semibold rounded-lg shadow-sm cursor-not-allowed"
-                    >
-                        <CheckCircleIcon className="w-5 h-5 mr-2" />
-                        {statusText}
-                    </button>
-                ) : (
-                    <button
-                        onClick={onActivate}
-                        className="w-full px-6 py-3 bg-secondary hover:bg-secondary-darker text-white font-semibold rounded-lg shadow-md active:scale-95 transform transition-all"
-                    >
-                        Köp kursen nu
-                    </button>
-                )}
+                <button
+                    onClick={onActivate}
+                    className={`w-full px-6 py-3 font-semibold rounded-lg shadow-md active:scale-95 transform transition-all ${hasStarted ? 'bg-secondary hover:bg-secondary-darker text-white' : 'bg-primary hover:bg-primary-darker text-white'}`}
+                >
+                    {hasStarted ? "Gå till kursen" : "Starta kursen"}
+                </button>
             </div>
         </div>
     </div>
@@ -161,70 +123,45 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, onNavigateToCourse, onExpressInterest }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, onNavigateToCourse }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
 
-  const activeCourses = ALL_COURSES.filter(course => {
-    if (course.id === 'praktisk-viktkontroll') return userProfile.isCourseActive;
-    if (course.id === 'maxa-klimakteriet') return userProfile.menopauseCourseActive;
-    return false;
-  });
-
-  const discoverCourses = ALL_COURSES.filter(course => !activeCourses.some(ac => ac.id === course.id));
+  const hasStartedCourse = (courseId: string) => {
+      // A simple check if they have *any* progress could be done here if we had access to progress.
+      // For now, since we removed the "isCourseActive" flag, we can assume all courses are available.
+      // The 'started' state is ideally passed from parent, but for UI simplicity:
+      // "Starta kursen" is fine for everyone initially.
+      return false; 
+  };
 
   return (
     <>
-        <div className="animate-fade-in space-y-3">
-        
-        <section>
-            <div className="bg-white p-6 rounded-xl shadow-soft-lg border border-neutral-light">
-            <h2 className="text-2xl font-semibold text-neutral-dark mb-4">Dina Aktiva Kurser</h2>
-            {activeCourses.length > 0 ? (
+        <div className="animate-fade-in space-y-6">
+            <section>
+                <div className="bg-primary-100/50 p-4 rounded-xl border border-primary-200 mb-4 text-center">
+                    <p className="text-primary-darker font-medium">
+                        🎉 Goda nyheter! Alla kurser ingår nu i ditt medlemskap utan extra kostnad.
+                    </p>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {activeCourses.map(course => (
+                {ALL_COURSES.map(course => (
                     <CourseCard
                         key={course.id}
                         course={course}
-                        userProfile={userProfile}
-                        isActive={true}
                         onActivate={() => onNavigateToCourse(course.id)}
                         onShowInfo={() => setSelectedCourseForInfo(course)}
+                        hasStarted={true} // Simplified for now to "Gå till kursen" style or similar
                     />
                 ))}
                 </div>
-            ) : (
-                <p className="text-neutral text-center py-4">Du har inga aktiva kurser just nu.</p>
-            )}
-            </div>
-        </section>
-        
-        {discoverCourses.length > 0 && (
-            <section>
-                <div className="bg-white p-6 rounded-xl shadow-soft-lg border border-neutral-light">
-                <h2 className="text-2xl font-semibold text-neutral-dark mb-4">Upptäck Fler Kurser</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {discoverCourses.map(course => (
-                    <CourseCard
-                        key={course.id}
-                        course={course}
-                        userProfile={userProfile}
-                        isActive={false}
-                        onActivate={() => onExpressInterest(course.id)}
-                        onShowInfo={() => setSelectedCourseForInfo(course)}
-                    />
-                    ))}
-                </div>
-                </div>
             </section>
-        )}
         </div>
         {selectedCourseForInfo && (
             <CourseInfoModal 
                 show={!!selectedCourseForInfo}
                 onClose={() => setSelectedCourseForInfo(null)}
                 course={selectedCourseForInfo}
-                isActive={activeCourses.some(c => c.id === selectedCourseForInfo.id)}
-                onPurchase={onExpressInterest}
             />
         )}
     </>

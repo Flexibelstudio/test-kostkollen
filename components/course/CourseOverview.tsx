@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { CourseLesson, UserCourseProgress } from '../../types';
 import { CourseIcon, CheckCircleIcon, ArrowRightIcon, LockClosedIcon, InformationCircleIcon } from '../icons';
@@ -173,8 +171,7 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
           </div>
         )}
       </div>
-      {/* FIX: Pass missing 'isActive' and 'onPurchase' props. Since this view is for an active course, 'isActive' is true and 'onPurchase' can be a no-op. */}
-      {course && <CourseInfoModal show={showCourseInfoModal} onClose={() => setShowCourseInfoModal(false)} course={course} isActive={true} onPurchase={() => {}} />}
+      {course && <CourseInfoModal show={showCourseInfoModal} onClose={() => setShowCourseInfoModal(false)} course={course} />}
     </>
   );
 };

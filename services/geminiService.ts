@@ -568,7 +568,6 @@ const getUserLevelInfo = (streak: number): { currentLevel: Level } => {
 
 export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis): Promise<AIStructuredFeedbackResponse> => {
     const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = data;
-    const isCourseActive = userProfile.isCourseActive || false;
 
     // --- PLATEAU DETECTION ---
     let plateauPromptPart = "";
@@ -720,9 +719,8 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
         }
     }
 
-    const kursFeedbackPrompt = isCourseActive
-      ? `Användaren HAR tillgång till kursen 'Praktisk Viktkontroll'. Koppla dina insikter till relevanta koncept från kursen. Om användaren t.ex. har en platå, kan du referera till Lektion 7 ('Bryt en platå'). Om de är inkonsekventa, nämn Lektion 4 ('Hantera utmaningar').`
-      : `Användaren har INTE tillgång till kursen. Föreslå den som ett bra nästa steg om du identifierar ett tydligt problem (t.ex. en platå). Formulera det så här: 'För att få extra verktyg för att hantera [problemet], kan kursen 'Praktisk Viktkontroll' vara till stor hjälp.'`;
+    // Updated Course Prompt Logic: Assume access to all courses.
+    const kursFeedbackPrompt = `Användaren har tillgång till kurserna 'Praktisk Viktkontroll' och 'Maxa Klimakteriet'. Koppla dina insikter till relevanta koncept från 'Praktisk Viktkontroll'. Om användaren t.ex. har en platå, kan du referera till Lektion 7 ('Bryt en platå'). Om de är inkonsekventa, nämn Lektion 4 ('Hantera utmaningar').`;
 
     const prompt = `
 Du är den personliga coachen i Kostloggen – inte en extern coach. Skriv återkopplingen som att det är du som vägleder användaren. Undvik formuleringar som "prata med din coach", "ta upp det med någon" eller liknande – du ÄR den hjälpen.
@@ -787,7 +785,6 @@ ${bodyCompositionDataPrompt}
 - Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna (senaste 30d)
 - Streak: ${currentStreak} dagar
 - Nivå: ${nivå}
-- Kurs aktiv: ${isCourseActive ? 'ja' : 'nej'}
 - Aktivitetsnivå: ${aktivitetsnivå}
 `;
 

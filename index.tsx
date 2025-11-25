@@ -2,6 +2,7 @@ import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App'; // App.tsx now exports 'App' as a named component.
+import { UserProvider } from './context/UserContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -9,7 +10,11 @@ if (!rootElement) {
 }
 
 const Root: React.FC = () => {
-  return <App />;
+  return (
+    <UserProvider>
+      <App />
+    </UserProvider>
+  );
 };
 
 const root = ReactDOM.createRoot(rootElement);
@@ -25,29 +30,22 @@ if ((import.meta as any).env.PROD && 'serviceWorker' in navigator) {
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
-        console.log('[SW] registered', reg);
-
-        // Om det redan finns en ny SW som väntar: ta över direkt
-        if (reg.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-
-        // När en NY SW-version hittas under körning
+        // När en NY SW-version hittas
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener('statechange', () => {
+          newWorker?.addEventListener('statechange', () => {
+            // Om ny SW är installerad och vi redan har en controller → uppdatering
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // Ny SW är redo → be den hoppa in direkt
+              // Be nya SW:n ta över direkt
               newWorker.postMessage({ type: 'SKIP_WAITING' });
             }
           });
         });
       })
-      .catch((err) => console.error('[SW] registration failed:', err));
+      .catch((err) => console.error('Service Worker registration failed:', err));
   });
 
-  // När kontrollen byts till nya SW → ladda om EN gång
+  // När kontrollen byts till nya SW → ladda om en gång
   let reloaded = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!reloaded) {

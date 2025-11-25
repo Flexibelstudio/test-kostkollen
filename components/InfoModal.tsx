@@ -84,8 +84,8 @@ const InfoModal: React.FC<InfoModalProps> = ({ onClose, userName }) => {
            Få personlig feedback, ställ frågor och få uppmuntran från din AI Coach. Din coach kan både ge dig en djupare analys av dina framsteg (som du hittar under "Min Resa") och svara på dina frågor i en interaktiv chatt. Fråga om din viktkurva, be om tips för att bryta en platå, eller få en snabb summering av din vecka. Coachen finns där för att stötta dig!
         </FeatureItem>
 
-        <FeatureItem icon={<span className="text-2xl w-6 text-center">🎓</span>} title="Kurs: Praktisk Viktkontroll">
-          Som ett tillval kan du få tillgång till vår djupgående kurs 'Praktisk Viktkontroll'. Kursen är ett kraftfullt verktyg för att bygga hållbara vanor och få en djupare förståelse för din hälsoresa. Kursen är en separat tjänst och måste aktiveras av din coach. När den är aktiv, låser du upp nya lektioner genom att bygga din dagliga streak.
+        <FeatureItem icon={<span className="text-2xl w-6 text-center">🎓</span>} title="Kurser">
+          Ingår i ditt medlemskap! Få tillgång till våra djupgående kurser 'Praktisk Viktkontroll' och 'Maxa Klimakteriet'. Kurserna är kraftfulla verktyg för att bygga hållbara vanor och få en djupare förståelse för din hälsoresa. Starta kursen direkt i appen och lås upp nya lektioner genom att bygga din dagliga streak eller genomföra delmoment.
         </FeatureItem>
 
          <FeatureItem icon={<span className="text-2xl w-6 text-center">📖</span>} title="Upptäck Recept">

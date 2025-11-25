@@ -126,6 +126,7 @@ export interface PastDaySummary {
   streakForThisDay?: number;
   // FIX: Allow 'streakSaver' as a valid value for savedBy
   savedBy?: "sparpott" | "streakSaver";
+  bankedAmount?: number; // Amount saved to bank on this day
 }
 
 export interface PastDaysSummaryCollection {
@@ -204,10 +205,6 @@ export interface UserProfileData {
   desiredFatMassChangeKg?: number;
   desiredMuscleMassChangeKg?: number;
   goalCompletionDate?: string;
-  isCourseActive?: boolean;
-  courseInterest?: boolean;
-  menopauseCourseActive?: boolean;
-  menopauseCourseInterest?: boolean;
   isSearchable?: boolean;
   goalStartWeight?: number;
   goalStartMuscleMassKg?: number;
@@ -451,10 +448,6 @@ export interface CoachViewMember {
   role: UserRole;
   status: "pending" | "approved";
   photoURL?: string;
-  isCourseActive?: boolean;
-  courseInterest?: boolean;
-  menopauseCourseActive?: boolean;
-  menopauseCourseInterest?: boolean;
   memberSince: string;
   lastLogDate?: string;
   currentStreak: number;

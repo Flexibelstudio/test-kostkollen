@@ -117,44 +117,6 @@ exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
     await Promise.all(notificationPromises);
 });
 
-exports.onCourseInterest = functions.firestore
-  .document("users/{userId}")
-  .onUpdate(async (change) => {
-    const before = change.before.data();
-    const after = change.after.data();
-
-    // Check if courseInterest changed from false/undefined to true
-    if (after.courseInterest === true && before.courseInterest !== true) {
-        const name = after.displayName || "En medlem";
-        logger.log(`Course interest shown by: ${name} (ID: ${change.after.id})`);
-
-        const payload = {
-          notification: {
-            title: "Intresse för kurs! 🎓",
-            body: `${name} har visat intresse för kursen 'Praktisk Viktkontroll'.`,
-            icon: "/icons/icon-192x192.png",
-            badge: "/icons/badge-96x96.png",
-            data: {
-              url: "/" // Coach dashboard
-            }
-          }
-        };
-
-        const coachIds = await getCoachAndAdminIds();
-        if (coachIds.length === 0) {
-            logger.warn("No coaches or admins found to notify about course interest.");
-            return;
-        }
-
-        const notificationPromises = coachIds.map((id) =>
-            sendNotificationToUser(id, payload, "newEvents") // Reusing 'newEvents' setting for coach
-        );
-
-        await Promise.all(notificationPromises);
-    }
-  });
-
-
 // 1. Peppkompisförfrågan skapad (notis)
 exports.onFriendRequestCreated = functions.firestore
   .document("peppkompisRequests/{requestId}")
