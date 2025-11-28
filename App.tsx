@@ -65,6 +65,7 @@ import OnboardingRewardModal from './components/OnboardingRewardModal.tsx';
 import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
+import MorningReportModal from './components/MorningReportModal.tsx';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -310,6 +311,7 @@ export const App = () => {
   const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; streak: number} | null>(null);
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
+  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number } | null>(null);
 
 
   const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -659,7 +661,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     const { start, end, yKey } = yesterdayRangeSE(now);
     const userRef = doc(db, "users", uid);
     
-    // Logic to check day BEFORE yesterday for streak recovery
     const dayBeforeDate = new Date(start);
     dayBeforeDate.setDate(dayBeforeDate.getDate() - 1);
     const dayBeforeKey = dayKeySE(dayBeforeDate);
@@ -677,17 +678,10 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     }
 
     let shouldProcess = true;
-    // Logic updated: If manual override is provided (user logged for yesterday), we FORCE processing even if checked.
-    // Also, if date is checked but goal wasn't met, we re-check in case user added data later.
     if (lastDateStreakChecked && lastDateStreakChecked >= yKey && !options.force && !manualLogOverride) {
          const summaryRef = doc(db, "users", uid, "pastDaySummaries", yKey);
          const summarySnap = await getDoc(summaryRef);
          if (summarySnap.exists()) {
-             const summary = summarySnap.data() as PastDaySummary;
-             // Only skip if goal was met. If not met, maybe they added data now?
-             // Actually, better to only re-process if explicit manual override or force flag.
-             // Otherwise we waste reads.
-             // The manualLogOverride handles the case where user explicitly logs for yesterday.
              shouldProcess = false; 
          }
     }
@@ -704,9 +698,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     } else {
         dailyLogForDate = await fetchMealLogsForDate(uid, yKey);
     }
-    
-    // If no logs for yesterday, we might still need to run to reset streak to 0 if it wasn't done.
-    // But if it was already checked and 0, we skip.
     
     const localGoals = userData.goals || DEFAULT_GOALS;
     const localProfile = { ...DEFAULT_USER_PROFILE, ...userData } as UserProfileData;
@@ -744,38 +735,27 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         const currentDaySummarySnap = await tx.get(currentDaySummaryRef);
         const prevSummaryData = currentDaySummarySnap.exists() ? currentDaySummarySnap.data() as PastDaySummary : null;
 
-        // RECOVERY LOGIC: Fetch day before yesterday summary
         const prevDaySummaryRef = doc(db, "users", uid, "pastDaySummaries", dayBeforeKey);
         const prevDaySnap = await tx.get(prevDaySummaryRef);
         let recoveredStreak = 0;
         if (prevDaySnap.exists()) {
             const prevSummary = prevDaySnap.data() as PastDaySummary;
-            // Check if the streak was actually alive yesterday.
-            // If prevSummary.streakForThisDay > 0, it means the streak was alive.
             recoveredStreak = prevSummary.streakForThisDay || 0;
         }
         
         let nextStreak = currentStreakFromDb;
         
         if (habitMetForStreak) {
-             // If current streak is 0 (likely reset), try to recover using previous day's streak.
              if (currentStreakFromDb === 0) {
-                 // If yesterday (dayBeforeKey) had a streak, we continue it.
                  if (recoveredStreak > 0) {
                     nextStreak = recoveredStreak + 1;
                  } else {
-                    // If day before yesterday had no streak, but we logged for yesterday, streak is 1.
-                    // Wait, "yesterday" is yKey. "day before yesterday" is dayBeforeKey.
-                    // If I logged for yKey, streak is at least 1.
                     nextStreak = 1;
                  }
              } else {
-                 // If current streak is > 0, we check if we already incremented for THIS day (yKey).
                  if (lastChecked === yKey) {
-                     // Already checked for today, do not double increment.
                      nextStreak = currentStreakFromDb;
                  } else {
-                     // Normal increment
                      nextStreak = currentStreakFromDb + 1;
                  }
              }
@@ -785,11 +765,9 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         const newHighestStreak = Math.max(userDataTx.highestStreak || 0, nextStreak);
 
-        // --- BANKING LOGIC ---
         let newWeeklyBank = { ...userDataTx.weeklyBank };
-        const processedDayWeekInfo = getWeekInfo(new Date(yKey)); // Gets week info for the day being processed
+        const processedDayWeekInfo = getWeekInfo(new Date(yKey)); 
 
-        // If the processed day belongs to a new week compared to the current bank, reset bank first
         if (processedDayWeekInfo.weekId !== newWeeklyBank.weekId) {
             newWeeklyBank = {
                 weekId: processedDayWeekInfo.weekId,
@@ -799,9 +777,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             };
         }
 
-        // Deduct previous bank amount for this day if it exists (to avoid double counting on reprocessing)
         if (prevSummaryData && prevSummaryData.bankedAmount) {
-             // Only deduct if it belongs to the same week
              if (processedDayWeekInfo.weekId === newWeeklyBank.weekId) {
                  newWeeklyBank.bankedCalories = Math.max(0, newWeeklyBank.bankedCalories - prevSummaryData.bankedAmount);
              }
@@ -815,14 +791,13 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         if (bankedAmountThisDay > 0) {
             newWeeklyBank.bankedCalories += bankedAmountThisDay;
         }
-        // ---------------------
 
         const summaryForThisDay: PastDaySummary = {
             date: yKey,
             goalMet: goalMetForCalendar,
             consumedCalories: totalNutrientsForDay.calories,
             calorieGoal: localGoals.calorieGoal,
-            proteinGoalMet: false, // Simplified
+            proteinGoalMet: false, 
             consumedProtein: 0,
             proteinGoal: localGoals.proteinGoal,
             consumedCarbohydrates: 0,
@@ -832,7 +807,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             goalType: localProfile.goalType,
             waterGoalMet: waterLogForDate >= DEFAULT_WATER_GOAL_ML,
             streakForThisDay: nextStreak,
-            bankedAmount: bankedAmountThisDay, // Save how much was banked
+            bankedAmount: bankedAmountThisDay,
         };
       
         const sumRef = doc(db, "users", uid, "pastDaySummaries", yKey);
@@ -841,7 +816,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             currentStreak: nextStreak,
             lastDateStreakChecked: yKey,
             highestStreak: newHighestStreak,
-            weeklyBank: newWeeklyBank, // Save the updated bank
+            weeklyBank: newWeeklyBank,
         });
         resultData = { summary: summaryForThisDay, streakData: { currentStreak: nextStreak, lastDateStreakChecked: yKey }, weeklyBank: newWeeklyBank, highestStreak: newHighestStreak };
     });
@@ -856,7 +831,14 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     useEffect(() => {
         if (!currentUser?.uid || !isInitialDataLoaded) return;
-        const onWake = () => ensureYesterdayProcessed(currentUser.uid).catch(console.error);
+        const onWake = async () => {
+            const result = await ensureYesterdayProcessed(currentUser.uid).catch(console.error);
+            // DETTA ÄR FIXEN: Om funktionen returnerar en summering (vilket betyder att den kördes "på riktigt" nu),
+            // visa Morgonrapporten.
+            if (result && result.summary) {
+                setMorningReportData({ summary: result.summary, currentStreak: result.streakData.currentStreak });
+            }
+        };
         const onVis = () => { if (!document.hidden) onWake(); };
         window.addEventListener("focus", onWake);
         window.addEventListener("pageshow", onWake); 
@@ -1268,6 +1250,7 @@ useEffect(() => {
         {showOnboardingRewardModal && <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} />}
         {dayToPotentiallySave && <UseStreakSaverModal show={!!dayToPotentiallySave} onClose={() => setDayToPotentiallySave(null)} onConfirm={handleUseStreakSaver} daySummary={dayToPotentiallySave} />}
         {showMotivationModal && <MotivationModal show={!!showMotivationModal} onClose={() => setShowMotivationModal(null)} daySummary={showMotivationModal} />}
+        {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => setMorningReportData(null)} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} />}
         {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
         {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} /></div></div>}

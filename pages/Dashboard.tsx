@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo } from 'react';
 import { 
     LoggedMeal, 
@@ -6,7 +7,8 @@ import {
     BarcodeScannedFoodInfo,
     IngredientRecipeResponse,
     RecipeSuggestion,
-    OnboardingChecklistState
+    OnboardingChecklistState,
+    CommonMeal
 } from '../types';
 import { 
     DEFAULT_WATER_GOAL_ML,
