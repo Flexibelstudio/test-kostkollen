@@ -2,9 +2,9 @@
 // Säker PWA-SW: auto-update, rensar gamla caches, cachear bara säkra assets,
 // nätet-först för HTML, bypass på externtrafik (Firebase m.fl.).
 
-const VERSION = '2025-11-25-1';                // <-- bumpa vid nästa release
-const STATIC_CACHE_NAME  = 'kostloggen-static-v22'; // <-- bumpa vid nästa release
-const DYNAMIC_CACHE_NAME = 'kostloggen-dyn-v17';    // <-- bumpa vid nästa release
+const VERSION = '2025-11-29-1';                // <-- bumpa vid nästa release
+const STATIC_CACHE_NAME  = 'kostloggen-static-v23'; // <-- bumpa vid nästa release
+const DYNAMIC_CACHE_NAME = 'kostloggen-dyn-v18';    // <-- bumpa vid nästa release
 const MAX_DYNAMIC_ENTRIES = 80;
 
 // Minimalt precache för offline-fallback (cacha inte massor här)
