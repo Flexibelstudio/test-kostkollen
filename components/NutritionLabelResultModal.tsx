@@ -1,19 +1,23 @@
+
 import React, { useState, useEffect } from 'react';
-import { NutritionalInfo } from '../types.ts';
+import { NutritionalInfo, MealType } from '../types.ts';
 import { CheckIcon, XMarkIcon } from './icons.tsx';
 import { FileText } from 'lucide-react';
 import { playAudio } from '../services/audioService.ts';
+import MealTypeSelector from './MealTypeSelector';
 
 interface NutritionLabelResultModalProps {
   show: boolean;
   onClose: () => void;
   analysisResult: NutritionalInfo; // This is per 100g
-  onLog: (finalNutrients: NutritionalInfo) => void;
+  onLog: (finalNutrients: NutritionalInfo, mealType: MealType) => void;
+  defaultMealType?: MealType;
 }
 
-const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ show, onClose, analysisResult, onLog }) => {
+const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ show, onClose, analysisResult, onLog, defaultMealType = 'breakfast' }) => {
   const [amountGrams, setAmountGrams] = useState('100');
   const [finalNutrients, setFinalNutrients] = useState<NutritionalInfo>(analysisResult);
+  const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
 
   useEffect(() => {
     if (analysisResult) {
@@ -21,6 +25,10 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
         setAmountGrams('100');
     }
   }, [analysisResult]);
+
+  useEffect(() => {
+      setSelectedMealType(defaultMealType);
+  }, [defaultMealType]);
 
   useEffect(() => {
     const grams = parseFloat(amountGrams.replace(',', '.')) || 0;
@@ -40,7 +48,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
     onLog({
         ...finalNutrients,
         foodItem: `${finalNutrients.foodItem || 'Skannad produkt'} (${amountGrams}g)`
-    });
+    }, selectedMealType);
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,6 +85,12 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                         <span>🍞 Kolhydrater: {analysisResult.carbohydrates.toFixed(1)} g</span>
                         <span>🥑 Fett: {analysisResult.fat.toFixed(1)} g</span>
                     </div>
+                </div>
+
+                {/* Meal Type Selector */}
+                <div>
+                    <label className={labelClass + " mb-1"}>Måltidstyp</label>
+                    <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
                 </div>
 
                 <div>

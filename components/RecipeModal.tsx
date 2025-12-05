@@ -1,21 +1,22 @@
 
-
 import React, { useState, useEffect, FC, useMemo } from 'react';
-import { RecipeSuggestion, NutritionalInfo } from '../types';
+import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
 import { SearchIcon, XMarkIcon, CheckIcon as LogIcon, RecipeIcon as TitleIcon, InformationCircleIcon, ShareIcon, ChevronDownIcon } from './icons';
 import { playAudio } from '../services/audioService';
+import MealTypeSelector from './MealTypeSelector';
 
 interface RecipeModalProps {
   show: boolean;
   onClose: () => void;
   onSearch: (query: string) => Promise<void>;
-  onLogRecipe: (nutritionalInfo: NutritionalInfo) => void;
+  onLogRecipe: (nutritionalInfo: NutritionalInfo, mealType: MealType) => void;
   recipe: RecipeSuggestion | null;
   isLoading: boolean;
   error: string | null;
   isLoggingDisabled?: boolean;
   recentSearches: string[];
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+  defaultMealType?: MealType;
 }
 
 const parseServings = (servingsStr: string | undefined): number => {
@@ -64,11 +65,13 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   isLoggingDisabled = false,
   recentSearches,
   setToastNotification,
+  defaultMealType = 'dinner'
 }) => {
   const [query, setQuery] = useState('');
   const [portionsToLog, setPortionsToLog] = useState<string>("1");
   const [canShare, setCanShare] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['recipe-and-instructions']));
+  const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
 
 
   useEffect(() => {
@@ -76,6 +79,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       setCanShare(true);
     }
   }, []);
+
+  useEffect(() => {
+      setSelectedMealType(defaultMealType);
+  }, [defaultMealType, show]);
 
   useEffect(() => {
     if (recipe && !recipe.error) {
@@ -139,7 +146,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         carbohydrates: Math.round((totalNutritionalInfo.carbohydrates / recipeBaseServings) * numPortionsToLog),
         fat: Math.round((totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog),
       };
-      onLogRecipe(loggedNutritionalInfo);
+      onLogRecipe(loggedNutritionalInfo, selectedMealType);
     }
   };
 
@@ -334,63 +341,71 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         </div>
 
         {recipe && !recipe.error && (
-          <div className="mt-6 flex flex-row gap-2 justify-between items-center flex-shrink-0 pt-4 border-t border-neutral-light/70">
-            {/* Share button */}
-            <button
-              type="button"
-              onClick={handleShareRecipe}
-              disabled={isLoading || !canShare}
-              className="h-11 w-11 flex items-center justify-center bg-primary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
-              title={!canShare ? "Dela stöds inte i din webbläsare" : "Dela receptet"}
-            >
-              <ShareIcon className="w-6 h-6" />
-            </button>
-            
-            {/* Stepper and Log button group */}
-            <div className="flex items-center gap-2">
-              <button 
-                type="button" 
-                onClick={() => handleAdjustPortions('decrease')} 
-                className="h-11 w-11 flex items-center justify-center bg-neutral-light text-neutral-dark text-2xl rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
-                aria-label="Minska antal portioner"
-                disabled={isLoggingDisabled || isLoading}
-              >
-                -
-              </button>
-              <input
-                type="text"
-                value={portionsToLog}
-                onChange={(e) => {
-                    const val = e.target.value.replace(',', '.');
-                    if (val === "" || /^\d*\.?\d*$/.test(val)) {
-                        setPortionsToLog(val);
-                    }
-                }}
-                inputMode="decimal"
-                className="h-11 w-11 text-center text-lg font-bold bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="1"
-                disabled={isLoggingDisabled || isLoading}
-                aria-label="Antal portioner"
-              />
-              <button 
-                type="button" 
-                onClick={() => handleAdjustPortions('increase')} 
-                className="h-11 w-11 flex items-center justify-center bg-neutral-light text-neutral-dark text-2xl rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
-                aria-label="Öka antal portioner"
-                disabled={isLoggingDisabled || isLoading}
-              >
-                +
-              </button>
-          
-              <button
+          <div className="mt-6 flex flex-col gap-4 flex-shrink-0 pt-4 border-t border-neutral-light/70">
+            {/* Meal Type Selection */}
+            <div>
+                <label className="block text-sm font-medium text-neutral-dark mb-1">Måltidstyp</label>
+                <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
+            </div>
+
+            <div className="flex flex-row gap-2 justify-between items-center">
+                {/* Share button */}
+                <button
                 type="button"
-                onClick={handleLog}
-                disabled={isLoggingDisabled || isLoading || !portionsToLog.trim() || parseFloat(portionsToLog.replace(',', '.')) <=0}
-                className="h-11 w-11 flex items-center justify-center bg-secondary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
-                title={isLoggingDisabled ? "Loggning är endast tillgänglig för idag" : parseFloat(portionsToLog.replace(',', '.')) <=0 ? "Ange ett giltigt antal portioner" : "Logga specificerat antal portioner"}
-              >
-                <LogIcon className="w-6 h-6" />
-              </button>
+                onClick={handleShareRecipe}
+                disabled={isLoading || !canShare}
+                className="h-11 w-11 flex items-center justify-center bg-primary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
+                title={!canShare ? "Dela stöds inte i din webbläsare" : "Dela receptet"}
+                >
+                <ShareIcon className="w-6 h-6" />
+                </button>
+                
+                {/* Stepper and Log button group */}
+                <div className="flex items-center gap-2">
+                <button 
+                    type="button" 
+                    onClick={() => handleAdjustPortions('decrease')} 
+                    className="h-11 w-11 flex items-center justify-center bg-neutral-light text-neutral-dark text-2xl rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
+                    aria-label="Minska antal portioner"
+                    disabled={isLoggingDisabled || isLoading}
+                >
+                    -
+                </button>
+                <input
+                    type="text"
+                    value={portionsToLog}
+                    onChange={(e) => {
+                        const val = e.target.value.replace(',', '.');
+                        if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                            setPortionsToLog(val);
+                        }
+                    }}
+                    inputMode="decimal"
+                    className="h-11 w-11 text-center text-lg font-bold bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="1"
+                    disabled={isLoggingDisabled || isLoading}
+                    aria-label="Antal portioner"
+                />
+                <button 
+                    type="button" 
+                    onClick={() => handleAdjustPortions('increase')} 
+                    className="h-11 w-11 flex items-center justify-center bg-neutral-light text-neutral-dark text-2xl rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
+                    aria-label="Öka antal portioner"
+                    disabled={isLoggingDisabled || isLoading}
+                >
+                    +
+                </button>
+            
+                <button
+                    type="button"
+                    onClick={handleLog}
+                    disabled={isLoggingDisabled || isLoading || !portionsToLog.trim() || parseFloat(portionsToLog.replace(',', '.')) <=0}
+                    className="h-11 w-11 flex items-center justify-center bg-secondary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
+                    title={isLoggingDisabled ? "Loggning är endast tillgänglig för idag" : parseFloat(portionsToLog.replace(',', '.')) <=0 ? "Ange ett giltigt antal portioner" : "Logga specificerat antal portioner"}
+                >
+                    <LogIcon className="w-6 h-6" />
+                </button>
+                </div>
             </div>
           </div>
         )}

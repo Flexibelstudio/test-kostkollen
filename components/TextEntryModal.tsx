@@ -1,18 +1,19 @@
 
-
 import React, { useState, useEffect } from 'react';
-import { SearchedFoodInfo } from '../types.ts';
+import { SearchedFoodInfo, MealType } from '../types.ts';
 import { getNutritionalInfoForTextSearch } from '../services/geminiService.ts';
 import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, SearchIcon, PencilIcon } from './icons.tsx';
 import { playAudio } from '../services/audioService.ts';
+import MealTypeSelector from './MealTypeSelector';
 
 interface TextEntryModalProps {
   show: boolean;
   onClose: () => void;
-  onLog: (foodInfo: SearchedFoodInfo, options: { saveAsCommon: boolean }) => void;
+  onLog: (foodInfo: SearchedFoodInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void;
+  defaultMealType?: MealType;
 }
 
-const TextEntryModal: React.FC<TextEntryModalProps> = ({ show, onClose, onLog }) => {
+const TextEntryModal: React.FC<TextEntryModalProps> = ({ show, onClose, onLog, defaultMealType = 'breakfast' }) => {
     const [query, setQuery] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string|null>(null);
@@ -29,6 +30,13 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({ show, onClose, onLog })
   
     const [baseValues, setBaseValues] = useState<SearchedFoodInfo | null>(null);
     const [saveAsCommon, setSaveAsCommon] = useState<boolean>(false); 
+    const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
+
+    useEffect(() => {
+        if (show) {
+            setSelectedMealType(defaultMealType);
+        }
+    }, [show, defaultMealType]);
 
     useEffect(() => {
         if (searchResult) {
@@ -89,7 +97,7 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({ show, onClose, onLog })
           carbohydrates: Math.round(parseFloat(editedCarbohydrates) || 0),
           fat: Math.round(parseFloat(editedFat) || 0),
         };
-        onLog(dataToLog, { saveAsCommon }); 
+        onLog(dataToLog, { saveAsCommon, mealType: selectedMealType }); 
         handleClose();
     };
 
@@ -177,6 +185,13 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({ show, onClose, onLog })
             {searchResult && !isLoading && (
                 <div className="mt-6 space-y-4 animate-fade-in border-t border-neutral-light/70 pt-6">
                     <div className="space-y-4">
+                        
+                        {/* Meal Type Selector */}
+                        <div>
+                            <label className={labelClass + " mb-1"}>Måltidstyp</label>
+                            <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
+                        </div>
+
                         <div>
                             <label htmlFor="foodItemTextModal" className={labelClass}>Livsmedel</label>
                              <div className="relative">

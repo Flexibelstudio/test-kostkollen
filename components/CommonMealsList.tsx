@@ -1,29 +1,38 @@
+
 import React, { useState, useEffect } from 'react';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
-import {
-  PlusCircleIcon,
-  TrashIcon,
-  FireIcon,
-  XMarkIcon,
-  CheckIcon,
-  PencilIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  ProteinIcon,
-  LeafIcon,
-} from './icons.tsx';
+import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon } from './icons.tsx';
+import { MoreHorizontal } from 'lucide-react';
 import { playAudio } from '../services/audioService.ts';
 
 interface CommonMealsListProps {
   commonMeals: CommonMeal[];
   onLogCommonMeal: (commonMeal: CommonMeal) => void;
   onDeleteCommonMeal: (commonMealId: string) => void;
-  onUpdateCommonMeal: (
-    commonMealId: string,
-    updatedData: { name: string; nutritionalInfo: NutritionalInfo }
-  ) => void;
+  onUpdateCommonMeal: (commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) => void;
   disabled?: boolean;
 }
+
+// Helper to guess an emoji based on the meal name
+const getMealIcon = (name: string): string => {
+  const n = name.toLowerCase();
+  if (n.includes('gröt') || n.includes('havre') || n.includes('oat')) return '🥣';
+  if (n.includes('ägg') || n.includes('omelett') || n.includes('kokt')) return '🥚';
+  if (n.includes('bröd') || n.includes('macka') || n.includes('toast') || n.includes('smörgås')) return '🥪';
+  if (n.includes('smoothie') || n.includes('shake') || n.includes('dryck')) return '🥤';
+  if (n.includes('kyckling') || n.includes('fågel')) return '🍗';
+  if (n.includes('kött') || n.includes('biff') || n.includes('burgare')) return '🍔';
+  if (n.includes('fisk') || n.includes('lax') || n.includes('torsk')) return '🐟';
+  if (n.includes('sallad') || n.includes('grönsak')) return '🥗';
+  if (n.includes('pasta') || n.includes('spaghetti')) return '🍝';
+  if (n.includes('ris') || n.includes('bowl')) return '🍚';
+  if (n.includes('frukt') || n.includes('banan') || n.includes('äpple')) return '🍎';
+  if (n.includes('kaffe')) return '☕';
+  if (n.includes('yoghurt') || n.includes('kvarg')) return '🥛';
+  if (n.includes('pizza')) return '🍕';
+  if (n.includes('taco')) return '🌮';
+  return '🍽️'; // Default fallback
+};
 
 const CommonMealCard: React.FC<{
   meal: CommonMeal;
@@ -33,18 +42,13 @@ const CommonMealCard: React.FC<{
   disabled: boolean;
 }> = ({ meal, onLog, onDelete, onUpdate, disabled }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
+  // Edit state
   const [editedName, setEditedName] = useState(meal.name);
-  const [editedCalories, setEditedCalories] = useState(
-    meal.nutritionalInfo.calories.toString()
-  );
-  const [editedProtein, setEditedProtein] = useState(
-    meal.nutritionalInfo.protein.toString()
-  );
-  const [editedCarbs, setEditedCarbs] = useState(
-    meal.nutritionalInfo.carbohydrates.toString()
-  );
+  const [editedCalories, setEditedCalories] = useState(meal.nutritionalInfo.calories.toString());
+  const [editedProtein, setEditedProtein] = useState(meal.nutritionalInfo.protein.toString());
+  const [editedCarbs, setEditedCarbs] = useState(meal.nutritionalInfo.carbohydrates.toString());
   const [editedFat, setEditedFat] = useState(meal.nutritionalInfo.fat.toString());
 
   useEffect(() => {
@@ -70,302 +74,121 @@ const CommonMealCard: React.FC<{
     };
     onUpdate(meal.id, updatedData);
     setIsEditing(false);
+    setShowMenu(false);
   };
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-  };
-
-  const createNumericHandler =
-    (setter: React.Dispatch<React.SetStateAction<string>>) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+  const createNumericHandler = (setter: React.Dispatch<React.SetStateAction<string>>) => {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
       const { value } = e.target;
-      if (value === '') {
-        setter('0');
-        return;
-      }
-      if (/^\d+$/.test(value)) {
-        setter(String(parseInt(value, 10)));
-      }
+      if (value === '') { setter('0'); return; }
+      if (/^\d+$/.test(value)) { setter(String(parseInt(value, 10))); }
     };
+  };
 
-  const inputClass =
-    'mt-1 block w-full px-3 py-2 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base';
+  const inputClass = "block w-full px-2 py-1.5 bg-neutral-light/50 border border-neutral-light rounded-md text-sm focus:ring-primary focus:border-primary";
 
   if (isEditing) {
     return (
-      <div className="bg-white shadow-soft-xl rounded-lg p-5 border border-primary-lighter relative space-y-4 animate-fade-in">
+      <div className="bg-white shadow-soft-xl rounded-2xl p-4 border-2 border-primary-lighter relative space-y-3 animate-fade-in col-span-2 sm:col-span-1">
         <div>
-          <label
-            htmlFor={`foodItem-${meal.id}`}
-            className="block text-sm font-medium text-neutral-dark"
-          >
-            Måltid
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              id={`foodItem-${meal.id}`}
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              className={`${inputClass} pr-8`}
-              aria-label="Måltidsnamn"
-            />
-            <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+          <label className="block text-xs font-semibold text-neutral-dark mb-1">Namn</label>
+          <input
+            type="text"
+            value={editedName}
+            onChange={(e) => setEditedName(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs font-medium text-neutral">Kcal</label>
+            <input type="number" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral">Protein</label>
+            <input type="number" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral">Kolh</label>
+            <input type="number" value={editedCarbs} onChange={createNumericHandler(setEditedCarbs)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral">Fett</label>
+            <input type="number" value={editedFat} onChange={createNumericHandler(setEditedFat)} className={inputClass} />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-x-5 gap-y-3">
-          <div>
-            <label
-              htmlFor={`calories-${meal.id}`}
-              className="block text-sm font-medium text-neutral-dark"
-            >
-              Kalorier (kcal)
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                id={`calories-${meal.id}`}
-                value={editedCalories}
-                onChange={createNumericHandler(setEditedCalories)}
-                min="0"
-                step="1"
-                className={`${inputClass} pr-8`}
-                aria-label="Kalorier"
-              />
-              <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
-            </div>
-          </div>
-          <div>
-            <label
-              htmlFor={`protein-${meal.id}`}
-              className="block text-sm font-medium text-neutral-dark"
-            >
-              Protein (g)
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                id={`protein-${meal.id}`}
-                value={editedProtein}
-                onChange={createNumericHandler(setEditedProtein)}
-                min="0"
-                step="1"
-                className={`${inputClass} pr-8`}
-                aria-label="Protein"
-              />
-              <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
-            </div>
-          </div>
-          <div>
-            <label
-              htmlFor={`carbs-${meal.id}`}
-              className="block text-sm font-medium text-neutral-dark"
-            >
-              Kolhydrater (g)
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                id={`carbs-${meal.id}`}
-                value={editedCarbs}
-                onChange={createNumericHandler(setEditedCarbs)}
-                min="0"
-                step="1"
-                className={`${inputClass} pr-8`}
-                aria-label="Kolhydrater"
-              />
-              <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
-            </div>
-          </div>
-          <div>
-            <label
-              htmlFor={`fat-${meal.id}`}
-              className="block text-sm font-medium text-neutral-dark"
-            >
-              Fett (g)
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                id={`fat-${meal.id}`}
-                value={editedFat}
-                onChange={createNumericHandler(setEditedFat)}
-                min="0"
-                step="1"
-                className={`${inputClass} pr-8`}
-                aria-label="Fett"
-              />
-              <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-        <div className="flex justify-end space-x-3 mt-4">
-          <button
-            onClick={handleCancelEdit}
-            className="p-2.5 text-neutral hover:text-red-600 rounded-full hover:bg-red-100 active:scale-90 transform interactive-transition"
-            aria-label="Avbryt ändringar"
-          >
-            <XMarkIcon className="w-6 h-6" />
-          </button>
-          <button
-            onClick={handleSave}
-            className="p-2.5 text-neutral hover:text-green-600 rounded-full hover:bg-green-100 active:scale-90 transform interactive-transition"
-            aria-label="Spara ändringar"
-          >
-            <CheckIcon className="w-6 h-6" />
-          </button>
+        <div className="flex justify-end space-x-2 mt-2">
+          <button onClick={() => setIsEditing(false)} className="p-2 text-neutral hover:bg-neutral-light rounded-full"><XMarkIcon className="w-5 h-5" /></button>
+          <button onClick={handleSave} className="p-2 text-white bg-primary hover:bg-primary-darker rounded-full shadow-sm"><CheckIcon className="w-5 h-5" /></button>
         </div>
       </div>
     );
   }
 
+  const icon = getMealIcon(meal.name);
+
   return (
-    <div
-      className={`bg-white shadow-soft-lg rounded-lg p-4 border border-neutral-light relative animate-fade-slide-in group interactive-transition hover:shadow-soft-xl ${
-        disabled ? 'opacity-70' : 'hover:scale-[1.02]'
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center flex-grow min-w-0">
-          <div>
-            <h4 className="text-base sm:text-lg font-semibold text-neutral-dark truncate">
-              {meal.name}
-            </h4>
-            <p className="text-sm text-neutral flex items-center">
-              <span
-                className="w-4 h-4 mr-1 flex items-center justify-center"
-                role="img"
-                aria-label="Kalorier"
-              >
-                🔥
-              </span>
-              {meal.nutritionalInfo.calories.toFixed(0)} kcal
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-1 sm:space-x-1.5 flex-shrink-0 ml-2">
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1.5 text-neutral-dark hover:text-primary-darker rounded-full hover:bg-primary-100 active:scale-90 interactive-transition"
-            aria-expanded={isExpanded}
-            aria-controls={`common-meal-details-${meal.id}`}
-            title={isExpanded ? 'Dölj detaljer' : 'Visa detaljer'}
-          >
-            {isExpanded ? (
-              <ChevronUpIcon className="w-5 h-5" />
-            ) : (
-              <ChevronDownIcon className="w-5 h-5" />
-            )}
-          </button>
-          <button
-            onClick={() => onLog(meal)}
-            className={`p-2 rounded-full text-white ${
-              disabled
-                ? 'bg-neutral cursor-not-allowed'
-                : 'bg-primary hover:bg-primary-darker active:scale-90 interactive-transition'
-            }`}
-            aria-label={`Logga ${meal.name}`}
-            title={`Logga ${meal.name}`}
-            disabled={disabled}
-          >
-            <PlusCircleIcon className="w-6 h-6" />
-          </button>
-        </div>
-      </div>
-      {isExpanded && (
-        <div
-          id={`common-meal-details-${meal.id}`}
-          className="mt-3 pt-3 border-t border-neutral-light/60 animate-fade-in"
+    <div className={`relative group bg-white rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
+      {/* Menu Trigger */}
+      <div className="absolute top-2 right-2 z-20">
+        <button 
+          onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+          className="p-1.5 text-neutral-400 hover:text-neutral-dark rounded-full hover:bg-neutral-light transition-colors"
         >
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:text-base text-neutral">
-            <div className="flex items-center">
-              <span
-                className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 flex items-center justify-center"
-                role="img"
-                aria-label="Kalorier"
-              >
-                🔥
-              </span>
-              <span>
-                Kalorier: {Math.round(meal.nutritionalInfo.calories).toFixed(0)} kcal
-              </span>
-            </div>
-            <div className="flex items-center">
-              <span
-                className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 flex items-center justify-center"
-                role="img"
-                aria-label="Protein"
-              >
-                💪
-              </span>
-              <span>
-                Protein: {Math.round(meal.nutritionalInfo.protein).toFixed(0)} g
-              </span>
-            </div>
-            <div className="flex items-center">
-              <span
-                className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 flex items-center justify-center"
-                role="img"
-                aria-label="Kolhydrater"
-              >
-                🍞
-              </span>
-              <span>
-                Kolhydrater: {Math.round(meal.nutritionalInfo.carbohydrates).toFixed(0)} g
-              </span>
-            </div>
-            <div className="flex items-center">
-              <span
-                className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 flex items-center justify-center"
-                role="img"
-                aria-label="Fett"
-              >
-                🥑
-              </span>
-              <span>Fett: {Math.round(meal.nutritionalInfo.fat).toFixed(0)} g</span>
-            </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-neutral-light/50 flex justify-end space-x-3">
-            <button
-              onClick={() => setIsEditing(true)}
-              className="flex items-center px-3 py-1.5 text-xs sm:text-sm font-medium text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-md shadow-sm active:scale-95 interactive-transition"
-              aria-label="Redigera vanligt val"
-              title="Redigera vanligt val"
+          <MoreHorizontal className="w-5 h-5" />
+        </button>
+        
+        {showMenu && (
+          <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowMenu(false); }}
+              className="w-full text-left px-3 py-2 text-sm text-neutral-dark hover:bg-neutral-light flex items-center gap-2"
             >
-              <PencilIcon className="w-4 h-4 mr-1.5" /> Redigera
+              <PencilIcon className="w-3.5 h-3.5" /> Redigera
             </button>
-            <button
-              onClick={() => onDelete(meal.id)}
-              className="flex items-center px-3 py-1.5 text-xs sm:text-sm font-medium text-red-600 bg-red-100 hover:bg-red-200 rounded-md shadow-sm active:scale-95 interactive-transition"
-              aria-label="Ta bort vanligt val"
-              title="Ta bort vanligt val"
+            <button 
+              onClick={(e) => { e.stopPropagation(); onDelete(meal.id); setShowMenu(false); }}
+              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-neutral-light"
             >
-              <TrashIcon className="w-4 h-4 mr-1.5" /> Ta bort
+              <TrashIcon className="w-3.5 h-3.5" /> Ta bort
             </button>
           </div>
+        )}
+      </div>
+
+      {/* Main Clickable Area */}
+      <button
+        onClick={() => !disabled && !showMenu && onLog(meal)}
+        disabled={disabled}
+        className="w-full h-full p-4 flex flex-col items-center justify-center text-center cursor-pointer outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-2xl active:scale-95 transition-transform"
+      >
+        <div className="text-3xl mb-2 filter drop-shadow-sm">
+          {icon}
         </div>
+        <h4 className="font-bold text-neutral-dark text-sm leading-tight mb-1 line-clamp-2 w-full">
+          {meal.name}
+        </h4>
+        <p className="text-xs font-medium text-neutral-500 bg-neutral-light/50 px-2 py-0.5 rounded-full">
+          {meal.nutritionalInfo.calories.toFixed(0)} kcal
+        </p>
+      </button>
+      
+      {/* Overlay click to close menu */}
+      {showMenu && (
+        <div className="fixed inset-0 z-10 cursor-default" onClick={() => setShowMenu(false)}></div>
       )}
     </div>
   );
 };
 
-export const CommonMealsList: React.FC<CommonMealsListProps> = ({
-  commonMeals,
-  onLogCommonMeal,
-  onDeleteCommonMeal,
-  onUpdateCommonMeal,
-  disabled = false,
-}) => {
-  const [mealIdToConfirmDelete, setMealIdToConfirmDelete] = useState<string | null>(
-    null
-  );
+export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, disabled = false }) => {
+  const [mealIdToConfirmDelete, setMealIdToConfirmDelete] = useState<string | null>(null);
 
   const handleDeleteRequest = (mealId: string) => {
     playAudio('uiClick');
     setMealIdToConfirmDelete(mealId);
   };
-
+  
   const handleConfirmDelete = () => {
     if (mealIdToConfirmDelete) {
       playAudio('uiClick');
@@ -373,44 +196,41 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({
       setMealIdToConfirmDelete(null);
     }
   };
-
+  
   const handleLogClick = (meal: CommonMeal) => {
     if (disabled) return;
     playAudio('uiClick');
     onLogCommonMeal(meal);
   };
 
-  const mealToConfirm =
-    mealIdToConfirmDelete && commonMeals
-      ? commonMeals.find((cm) => cm.id === mealIdToConfirmDelete) || null
-      : null;
+  const mealToConfirm = mealIdToConfirmDelete ? commonMeals.find(cm => cm.id === mealIdToConfirmDelete) : null;
 
   return (
     <>
-      <div className="p-4 sm:p-5 bg-white shadow-soft-lg rounded-xl border border-neutral-light">
-        <div className="flex items-center pb-3 border-b border-neutral-light/70 mb-3">
-          <span className="text-3xl mr-2.5" role="img" aria-hidden="true">
-            📌
-          </span>
-          <h3 className="text-2xl font-semibold text-neutral-dark">Mina vanliga val</h3>
+      <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">📌</span>
+            <h3 className="text-lg font-bold text-neutral-dark">Mina vanliga val</h3>
+          </div>
         </div>
 
         {disabled && commonMeals.length > 0 && (
-          <p className="text-xs text-orange-500 text-center -mt-2 mb-2">
+          <p className="text-xs text-orange-500 text-center mb-4 bg-orange-50 p-2 rounded-lg border border-orange-100">
             Loggning av vanliga val är inaktiverad för detta datum.
           </p>
         )}
-
+        
         {commonMeals.length === 0 ? (
-          <p className="text-base text-neutral text-center py-4">
-            Spara en måltid från din logg (med{' '}
-            <span role="img" aria-hidden="true">
-              📌
-            </span>
-            -ikonen) för att snabbt kunna logga den härifrån.
-          </p>
+           <div className="text-center py-8 bg-neutral-light/30 rounded-2xl border border-dashed border-neutral-light">
+             <div className="text-4xl mb-2 opacity-50">🍽️</div>
+             <p className="text-sm text-neutral font-medium">Inga sparade val än.</p>
+             <p className="text-xs text-neutral-400 mt-1 px-4">
+              Spara en måltid med <span className="inline-block bg-gray-100 rounded px-1 text-black">📌</span>-knappen för att se den här.
+            </p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             {commonMeals.map((meal) => (
               <CommonMealCard
                 key={meal.timestamp}
@@ -425,50 +245,40 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({
         )}
       </div>
 
-      {mealIdToConfirmDelete && (
-        <div
-          className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[105] p-4 animate-fade-in"
-          onClick={() => setMealIdToConfirmDelete(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={
-            mealToConfirm ? `confirm-delete-common-title-${mealToConfirm.id}` : undefined
-          }
+      {mealToConfirm && (
+        <div 
+            className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[105] p-4 animate-fade-in"
+            onClick={() => setMealIdToConfirmDelete(null)} 
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`confirm-delete-common-title-${mealToConfirm.id}`}
         >
-          <div
-            className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3
-              id={
-                mealToConfirm
-                  ? `confirm-delete-common-title-${mealToConfirm.id}`
-                  : undefined
-              }
-              className="text-lg font-semibold text-neutral-dark mb-4"
+            <div 
+                className="bg-white p-6 rounded-2xl shadow-soft-xl w-full max-w-sm animate-scale-in text-center"
+                onClick={(e) => e.stopPropagation()} 
             >
-              Bekräfta borttagning
-            </h3>
-            <p className="text-neutral mb-6">
-              Är du säker på att du vill ta bort det vanliga valet "
-              {mealToConfirm?.name ?? 'detta val'}
-              "? Detta kan inte ångras.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setMealIdToConfirmDelete(null)}
-                className="px-4 py-2 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md active:scale-95 interactive-transition"
-              >
-                Avbryt
-              </button>
-              <button
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md active:scale-95 interactive-transition"
-              >
-                Ja, ta bort
-              </button>
+                <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <TrashIcon className="w-8 h-8" />
+                </div>
+                <h3 id={`confirm-delete-common-title-${mealToConfirm.id}`} className="text-xl font-bold text-neutral-dark mb-2">Ta bort val?</h3>
+                <p className="text-neutral mb-6 text-sm">
+                    Är du säker på att du vill ta bort <strong>"{mealToConfirm.name}"</strong>? Du kan inte ångra detta.
+                </p>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setMealIdToConfirmDelete(null)}
+                        className="flex-1 px-4 py-3 text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-xl font-semibold active:scale-95 transition-all"
+                    >
+                        Avbryt
+                    </button>
+                    <button
+                        onClick={handleConfirmDelete}
+                        className="flex-1 px-4 py-3 text-white bg-red-500 hover:bg-red-600 rounded-xl font-semibold shadow-lg shadow-red-200 active:scale-95 transition-all"
+                    >
+                        Ta bort
+                    </button>
+                </div>
             </div>
-          </div>
         </div>
       )}
     </>

@@ -1,18 +1,22 @@
+
 import React, { useState, useEffect } from 'react';
-import { NutritionalInfo, BarcodeScannedFoodInfo } from '../types.ts';
+import { NutritionalInfo, BarcodeScannedFoodInfo, MealType } from '../types.ts';
 import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, BarcodeIcon, PencilIcon } from './icons.tsx';
 import { playAudio } from '../services/audioService.ts';
+import MealTypeSelector from './MealTypeSelector';
 
 interface BarcodeSearchResultModalProps {
   scanResult: BarcodeScannedFoodInfo;
-  onLog: (nutritionalInfo: NutritionalInfo) => void;
+  onLog: (nutritionalInfo: NutritionalInfo, mealType: MealType) => void;
   onClose: () => void;
+  defaultMealType?: MealType;
 }
 
-const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ scanResult, onLog, onClose }) => {
+const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ scanResult, onLog, onClose, defaultMealType = 'breakfast' }) => {
   const [amount, setAmount] = useState('100'); // Default to 100g
   const [unit, setUnit] = useState<'g' | 'servings'>('g');
   const [calculatedNutrients, setCalculatedNutrients] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+  const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
 
   useEffect(() => {
     if (scanResult) {
@@ -35,6 +39,10 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sca
   }, [amount, unit, scanResult]);
 
   useEffect(() => {
+      setSelectedMealType(defaultMealType);
+  }, [defaultMealType]);
+
+  useEffect(() => {
       if (scanResult && scanResult.servingSizeG) {
           setUnit('servings');
           setAmount('1');
@@ -49,7 +57,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sca
     onLog({
       ...calculatedNutrients,
       foodItem: `${scanResult.name} (${scanResult.brand})`
-    });
+    }, selectedMealType);
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,6 +91,12 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sca
         <div>
           <h3 className="text-xl font-bold text-neutral-dark">{scanResult.name}</h3>
           <p className="text-base text-neutral">{scanResult.brand}</p>
+        </div>
+
+        {/* Meal Type Selector */}
+        <div>
+            <label className={labelClass + " mb-1"}>Måltidstyp</label>
+            <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">

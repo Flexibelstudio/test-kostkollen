@@ -1,20 +1,22 @@
 
-
 import React, { useState, useEffect } from 'react';
-import { NutritionalInfo } from '../types.ts';
+import { NutritionalInfo, MealType } from '../types.ts';
 import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, CameraIcon, PencilIcon } from './icons.tsx'; 
 import { playAudio } from '../services/audioService.ts';
+import MealTypeSelector from './MealTypeSelector';
 
 interface ImageAnalysisResultModalProps {
   analysisResult: NutritionalInfo;
   imageDataUrl: string;
-  onLog: (editedInfo: NutritionalInfo, options: { saveAsCommon: boolean }) => void; 
+  onLog: (editedInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void; 
   onClose: () => void;
+  defaultMealType?: MealType;
 }
 
-const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ analysisResult, imageDataUrl, onLog, onClose }) => {
+const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ analysisResult, imageDataUrl, onLog, onClose, defaultMealType = 'breakfast' }) => {
   const [editedInfo, setEditedInfo] = useState<NutritionalInfo>(analysisResult);
   const [saveAsCommon, setSaveAsCommon] = useState<boolean>(false); 
+  const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
 
   useEffect(() => {
     setEditedInfo({
@@ -26,6 +28,10 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ ana
     });
     setSaveAsCommon(false); 
   }, [analysisResult]);
+
+  useEffect(() => {
+      setSelectedMealType(defaultMealType);
+  }, [defaultMealType]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -57,7 +63,7 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ ana
         carbohydrates: editedInfo.carbohydrates || 0,
         fat: editedInfo.fat || 0,
     };
-    onLog(validatedInfo, { saveAsCommon }); 
+    onLog(validatedInfo, { saveAsCommon, mealType: selectedMealType }); 
   };
 
   if (!analysisResult || !imageDataUrl) return null;
@@ -90,6 +96,12 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ ana
             />
         </div>
         
+        {/* Meal Type Selector */}
+        <div>
+            <label className={labelClass + " mb-1"}>Måltidstyp</label>
+            <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
+        </div>
+
         <div>
           <label htmlFor="foodItemModal" className={labelClass}>Identifierat livsmedel</label>
            <div className="relative">

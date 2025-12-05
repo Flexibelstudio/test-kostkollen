@@ -1,12 +1,12 @@
 import React from 'react';
-import { WaterDropIcon, RotateCcwIcon, PlusCircleIcon } from './icons';
+import { PlusIcon } from './icons';
 
 interface WaterLoggerProps {
   currentWaterMl: number;
   waterGoalMl: number;
   onLogWater: (amountMl: number, event: React.MouseEvent<HTMLButtonElement>) => void;
   onResetWater: () => void;
-  disabled?: boolean; // New prop
+  disabled?: boolean;
 }
 
 const WaterLogger = React.forwardRef<HTMLDivElement, WaterLoggerProps>(({
@@ -14,74 +14,57 @@ const WaterLogger = React.forwardRef<HTMLDivElement, WaterLoggerProps>(({
   waterGoalMl,
   onLogWater,
   onResetWater,
-  disabled = false, // Default to false
+  disabled = false,
 }, ref) => {
   const fillPercentage = waterGoalMl > 0 ? Math.min((currentWaterMl / waterGoalMl) * 100, 100) : 0;
+  const standardGlassMl = 250;
 
-  const logAmounts = [250, 500]; // Standard amounts to log in ml
-
-  const buttonBaseClass = "flex items-center justify-center px-3.5 py-2 text-sm font-medium rounded-lg shadow-sm transform active:scale-95 interactive-transition";
+  const handleAddGlass = (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      if (!disabled) {
+          onLogWater(standardGlassMl, e);
+      }
+  };
 
   return (
-    <div ref={ref} className={`p-4 sm:p-5 bg-white shadow-soft-lg rounded-xl border border-neutral-light interactive-transition ${disabled ? 'opacity-60' : 'hover:shadow-soft-xl'}`}>
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="text-2xl font-semibold text-neutral-dark flex items-center">
-          <span className="mr-2" role="img" aria-label="Vatten">💧</span>
-          Vattenintag
-        </h3>
-        {currentWaterMl > 0 && (
-          <button
-            onClick={onResetWater}
-            className={`p-1.5 text-neutral hover:text-red-500 rounded-md hover:bg-red-100 transform active:scale-90 interactive-transition ${disabled ? 'cursor-not-allowed' : ''}`}
-            aria-label="Nollställ vattenintag"
-            disabled={disabled}
-          >
-            <RotateCcwIcon className="w-5 h-5" />
-          </button>
-        )}
-      </div>
-      {disabled && <p className="text-xs text-orange-500 text-center -mt-2 mb-2">Vattenloggning är inaktiverad för detta datum.</p>}
-      <div className="mb-4">
-        <div className="text-center mb-1 text-base text-neutral-dark font-medium">
-          {currentWaterMl === 0 && waterGoalMl > 0 ? (
-            "Logga ditt första glas!"
-          ) : (
-            `${currentWaterMl.toFixed(0)} ml / ${waterGoalMl.toFixed(0)} ml`
-          )}
-        </div>
-        <div className="w-full bg-neutral-light rounded-full h-6 shadow-inner overflow-hidden">
-          <div
-            className="bg-blue-500 h-full rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${fillPercentage}%` }}
-            role="progressbar"
-            aria-valuenow={currentWaterMl}
-            aria-valuemin={0}
-            aria-valuemax={waterGoalMl}
-            aria-label={`Vattenintag ${fillPercentage.toFixed(0)}%`}
-          >
-          </div>
-        </div>
-      </div>
+    <div ref={ref} className={`relative overflow-hidden bg-white rounded-2xl shadow-soft-lg border border-neutral-light h-full min-h-[160px] flex flex-col justify-between group select-none ${disabled ? 'opacity-70' : ''}`}>
+        
+        {/* Background Fill Level */}
+        <div 
+            className="absolute bottom-0 left-0 right-0 bg-blue-100/60 transition-all duration-700 ease-in-out z-0" 
+            style={{ height: `${fillPercentage}%` }} 
+        />
 
-      <div className="flex flex-wrap gap-2.5 justify-center">
-        {logAmounts.map((amount) => (
-          <button
-            key={amount}
-            onClick={(e) => onLogWater(amount, e)}
-            className={`${buttonBaseClass} bg-blue-500 hover:bg-blue-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            aria-label={`Logga ${amount} ml vatten`}
-            disabled={disabled}
-          >
-            <PlusCircleIcon className="w-5 h-5 mr-1.5" />
-            {amount} ml
-          </button>
-        ))}
-      </div>
-       {currentWaterMl >= waterGoalMl && waterGoalMl > 0 && (
-        <p className="text-sm text-primary-darker mt-3 text-center font-medium animate-fade-in">
-          🎉 Bra jobbat! Du har nått ditt vattenmål!
-        </p>
-      )}
+        <div className="relative z-10 flex justify-between items-start p-5 pb-0">
+            <div>
+                <h3 className="text-xl font-bold text-neutral-dark">Vatten</h3>
+                <p className="text-xs text-neutral-500 font-medium">Tryck + för ett glas</p>
+            </div>
+            <button 
+                onClick={handleAddGlass}
+                disabled={disabled}
+                className="w-10 h-10 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-md flex items-center justify-center active:scale-90 transition-transform z-20"
+                aria-label="Logga 250ml vatten"
+            >
+                <PlusIcon className="w-6 h-6" />
+            </button>
+        </div>
+
+        <div className="relative z-10 mt-auto p-5 pt-4">
+            <p className="text-4xl font-extrabold text-neutral-dark">{(currentWaterMl / 1000).toFixed(1)} <span className="text-2xl font-bold text-neutral-500">L</span></p>
+            <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-neutral-500 font-semibold uppercase tracking-wide">Mål: {(waterGoalMl / 1000).toFixed(1)} L</p>
+                {currentWaterMl > 0 && (
+                    <button 
+                        onClick={onResetWater} 
+                        disabled={disabled}
+                        className="text-xs text-red-400 hover:text-red-600 hover:underline z-20"
+                    >
+                        Ångra
+                    </button>
+                )}
+            </div>
+        </div>
     </div>
   );
 });

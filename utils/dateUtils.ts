@@ -1,4 +1,5 @@
 // utils/dateUtils.ts
+import { MealType } from '../types';
 
 export const getDateUID = (date: Date): string => {
     const year = date.getFullYear();
