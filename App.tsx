@@ -1078,7 +1078,7 @@ useEffect(() => {
 
   return (
     <>
-      <div className="min-h-screen bg-neutral-light flex flex-col items-center pb-28">
+      <div className="min-h-screen bg-neutral-light flex flex-col items-center pb-4">
        <header className="w-full bg-white text-neutral-dark p-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>

@@ -428,7 +428,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     // --- RENDER ---
 
     return (
-        <div className="flex flex-col gap-6 pb-24 relative">
+        <div className="flex flex-col gap-4 pb-0 relative">
             {/* Top Date & Progress Card */}
             <div className="bg-white rounded-3xl shadow-soft-xl p-6 border border-neutral-light relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-2 bg-primary/20"></div>
@@ -475,23 +475,23 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Layout Columns */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 
                 {/* Left Column */}
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-4">
                     {/* Macros */}
                     <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-white p-3 rounded-2xl shadow-sm border border-neutral-light text-center">
+                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center">
                             <div className="w-8 h-1 rounded-full bg-primary mx-auto mb-2"></div>
                             <p className="text-xs font-semibold text-primary">Protein</p>
                             <p className="text-lg font-bold text-neutral-dark">{Math.round(totalNutrients.protein)}<span className="text-xs text-neutral font-normal">/{goals.proteinGoal}g</span></p>
                         </div>
-                        <div className="bg-white p-3 rounded-2xl shadow-sm border border-neutral-light text-center">
+                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center">
                             <div className="w-8 h-1 rounded-full bg-yellow-400 mx-auto mb-2"></div>
                             <p className="text-xs font-semibold text-yellow-600">Kolhydrater</p>
                             <p className="text-lg font-bold text-neutral-dark">{Math.round(totalNutrients.carbohydrates)}<span className="text-xs text-neutral font-normal">/{goals.carbohydrateGoal}g</span></p>
                         </div>
-                        <div className="bg-white p-3 rounded-2xl shadow-sm border border-neutral-light text-center">
+                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center">
                             <div className="w-8 h-1 rounded-full bg-orange-400 mx-auto mb-2"></div>
                             <p className="text-xs font-semibold text-orange-600">Fett</p>
                             <p className="text-lg font-bold text-neutral-dark">{Math.round(totalNutrients.fat)}<span className="text-xs text-neutral font-normal">/{goals.fatGoal}g</span></p>
@@ -536,7 +536,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <div className="absolute top-0 right-0 w-16 h-16 bg-blue-50 rounded-bl-full -mr-2 -mt-2 z-0"></div>
                                 <div className="relative z-10 flex justify-between items-start">
                                     <h4 className="font-bold text-neutral-dark">Sparpott</h4>
-                                    <div className="bg-blue-100 p-1.5 rounded-full"><span className="text-xl">🏦</span></div>
                                 </div>
                                 <div className="relative z-10">
                                     <span className="text-3xl font-extrabold text-teal-600">{weeklyBank.bankedCalories}</span>
@@ -549,7 +548,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
 
                 {/* Right Column */}
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-4">
                     {/* Common Meals List - moved to top of right column */}
                     <CommonMealsList
                         commonMeals={commonMeals}
@@ -561,10 +560,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                     {/* Meal Sections */}
                     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center justify-between mb-3">
                             <h3 className="text-xl font-bold text-neutral-dark">Måltider</h3>
                         </div>
-                        <div className="space-y-4">
+                        <div className="space-y-2">
                             <MealSectionCard 
                                 title="Frukost" 
                                 icon="☕" 
@@ -612,7 +611,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             {/* Floating Action Button (FAB) - Keep existing logic */}
             {isViewingToday && (
-                <div className="fixed bottom-24 right-6 z-40 flex flex-col items-end gap-3 pointer-events-none">
+                <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                             <button onClick={handleTakePhoto} className="flex items-center gap-3 group">
@@ -657,8 +656,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             
             {showSpotlight && (
                 <div className="fixed inset-0 bg-black/50 z-[100] pointer-events-none">
-                    <div className="absolute bottom-24 right-6 w-16 h-16 rounded-full ring-4 ring-white animate-pulse pointer-events-auto cursor-pointer" onClick={onDismissSpotlight}></div>
-                    <div className="absolute bottom-44 right-6 bg-white p-4 rounded-xl shadow-lg w-64 pointer-events-auto">
+                    <div className="absolute bottom-6 right-6 w-16 h-16 rounded-full ring-4 ring-white animate-pulse pointer-events-auto cursor-pointer" onClick={onDismissSpotlight}></div>
+                    <div className="absolute bottom-28 right-6 bg-white p-4 rounded-xl shadow-lg w-64 pointer-events-auto">
                         <h4 className="font-bold text-neutral-dark mb-1">Här är magin! ✨</h4>
                         <p className="text-sm text-neutral">Använd plus-knappen för att logga allt: kameran, sök, recept och streckkod.</p>
                         <button onClick={onDismissSpotlight} className="mt-3 text-sm font-semibold text-primary hover:underline w-full text-right">Fattar!</button>
