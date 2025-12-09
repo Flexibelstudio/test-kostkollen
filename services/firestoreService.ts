@@ -83,6 +83,22 @@ const formatChange = (change: number | undefined): string => {
   return `${sign}${change.toFixed(1).replace('.', ',')}`;
 };
 
+// Helper to remove undefined fields from objects before saving to Firestore
+const cleanFirestoreData = (data: any) => {
+  if (typeof data !== 'object' || data === null) return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(item => cleanFirestoreData(item));
+  }
+
+  return Object.entries(data).reduce((acc, [key, value]) => {
+    if (value !== undefined) {
+      acc[key] = cleanFirestoreData(value);
+    }
+    return acc;
+  }, {} as any);
+};
+
 export const getDocSafe = async (docRef: DocumentReference) => {
   try {
     return await getDoc(docRef);
@@ -318,7 +334,7 @@ export async function addMealLog(userId: string, mealId: string, mealData: Omit<
   const userDocRef = doc(db, 'users', userId);
   
   const batch = writeBatch(db);
-  batch.set(mealLogRef, mealData);
+  batch.set(mealLogRef, cleanFirestoreData(mealData));
   batch.update(userDocRef, { lastLogDate: mealData.dateString }); // endast lastLogDate
   await batch.commit();
 }
@@ -330,7 +346,7 @@ export async function deleteMealLog(userId: string, mealLogId: string) {
 
 export async function updateMealLog(userId: string, mealLogId: string, updatedInfo: Partial<NutritionalInfo>) {
   const mealLogRef = doc(db, 'users', userId, 'mealLogs', mealLogId);
-  await updateDoc(mealLogRef, { nutritionalInfo: updatedInfo });
+  await updateDoc(mealLogRef, { nutritionalInfo: cleanFirestoreData(updatedInfo) });
 }
 
 export async function fetchMealLogsForDate(userId: string, dateUID: string): Promise<LoggedMeal[]> {
@@ -381,7 +397,7 @@ export async function addTimelineEvent(
         console.log(`Timeline event with ID "${uniqueEventId}" already exists. Skipping creation.`);
         return;
       }
-      transaction.set(timelineDocRef, fullEvent);
+      transaction.set(timelineDocRef, cleanFirestoreData(fullEvent));
     });
   } catch (error) {
     console.error("Transaction to create timeline event failed: ", error);
@@ -406,7 +422,7 @@ export async function fetchWaterLog(userId: string, dateUID: string): Promise<nu
 
 export async function addCommonMeal(userId: string, commonMealData: Omit<CommonMeal, 'id'>) {
   const commonMealsRef = collection(db, 'users', userId, 'commonMeals');
-  const docRef = await addDoc(commonMealsRef, commonMealData);
+  const docRef = await addDoc(commonMealsRef, cleanFirestoreData(commonMealData));
   return docRef.id;
 }
 
@@ -417,7 +433,7 @@ export async function deleteCommonMeal(userId: string, commonMealId: string) {
 
 export async function updateCommonMeal(userId: string, commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) {
   const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);
-  await updateDoc(commonMealRef, updatedData);
+  await updateDoc(commonMealRef, cleanFirestoreData(updatedData));
 }
 
 /* ===== Profile & goals ===== */
@@ -448,20 +464,14 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
     ...(maybeSummaryStart ? { summaryStartDate: maybeSummaryStart } : {}),
   };
 
-  function noUndefined(obj: any) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([k, v]) => [k, v === undefined ? null : v])
-    );
-  }
-
-  await updateDoc(userDocRef, noUndefined(dataToUpdate as any));
+  await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
 }
 
 /* ===== Weight ===== */
 
 export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEntry, 'id'>) {
   const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
-  const docRef = await addDoc(weightLogsRef, weightLog);
+  const docRef = await addDoc(weightLogsRef, cleanFirestoreData(weightLog));
   return docRef.id;
 }
 
@@ -469,7 +479,7 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
 
 export async function addMentalWellbeingLog(userId: string, logData: Omit<MentalWellbeingLog, 'id'>): Promise<string> {
   const wellbeingLogsRef = collection(db, 'users', userId, 'mentalWellbeingLogs');
-  const docRef = await addDoc(wellbeingLogsRef, logData);
+  const docRef = await addDoc(wellbeingLogsRef, cleanFirestoreData(logData));
   return docRef.id;
 }
 
@@ -484,12 +494,12 @@ export async function fetchMentalWellbeingLogs(userId: string): Promise<MentalWe
 
 export async function setPastDaySummary(userId: string, dateUID: string, summary: PastDaySummary) {
   const summaryRef = doc(db, 'users', userId, 'pastDaySummaries', dateUID);
-  await setDoc(summaryRef, summary, { merge: true });
+  await setDoc(summaryRef, cleanFirestoreData(summary), { merge: true });
 }
 
 export async function updateUserDocument(userId: string, data: { [key: string]: any }) {
   const userDocRef = doc(db, 'users', userId);
-  await updateDoc(userDocRef, data);
+  await updateDoc(userDocRef, cleanFirestoreData(data));
 }
 
 export async function savePushSubscription(userId: string, subscription: object) {
@@ -509,7 +519,7 @@ export async function savePushSubscription(userId: string, subscription: object)
 
 export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved') {
   const courseProgressRef = doc(db, 'users', userId, 'courseProgress', lessonId);
-  await setDoc(courseProgressRef, progress, { merge: true });
+  await setDoc(courseProgressRef, cleanFirestoreData(progress), { merge: true });
   
   const progressCollectionRef = collection(db, 'users', userId, 'courseProgress');
   const snapshot = await getDocsSafe(progressCollectionRef);
@@ -858,7 +868,7 @@ export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string)
     status: 'pending',
     createdAt: Date.now(),
   };
-  await addDoc(requestsRef, newRequest);
+  await addDoc(requestsRef, cleanFirestoreData(newRequest));
 }
 
 export async function updateFriendRequestStatus(request: PeppkompisRequest, status: 'accepted' | 'declined'): Promise<void> {
@@ -916,7 +926,7 @@ export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: s
 
 export async function addCommentToTimelineEvent(eventId: string, commentData: Omit<TimelineComment, 'id'>): Promise<string> {
   const commentsRef = collection(db, 'communityTimeline', eventId, 'comments');
-  const docRef = await addDoc(commentsRef, commentData);
+  const docRef = await addDoc(commentsRef, cleanFirestoreData(commentData));
   return docRef.id;
 }
 
