@@ -702,7 +702,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <span className="text-sm text-neutral-500 font-medium ml-1">/{goals.carbohydrateGoal}g</span>
                                 </p>
                             </div>
-                            <div className="w-full bg-neutral-light/50 rounded-full h-2 mt-4 overflow-hidden">
+                            <div className="mx-4 bg-neutral-light/50 rounded-full h-2 mt-4 overflow-hidden">
                                 <div className="bg-yellow-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
