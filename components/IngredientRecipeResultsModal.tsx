@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
 import { XMarkIcon, SparklesIcon, FireIcon, ProteinIcon, LeafIcon, CheckIcon as LogIcon, InformationCircleIcon } from './icons';
@@ -9,10 +10,11 @@ interface IngredientRecipeResultsModalProps {
   onClose: () => void;
   identifiedIngredients: string[];
   recipeSuggestions: RecipeSuggestion[];
-  onLogRecipe: (nutritionalInfo: NutritionalInfo, mealType: MealType) => void;
+  onLogRecipe: (nutritionalInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void;
   isLoading: boolean;
   error: string | null;
   isLoggingDisabled?: boolean;
+  defaultMealType?: MealType;
 }
 
 const parseServings = (servingsStr: string | undefined): number => {
@@ -34,6 +36,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
   isLoading,
   error,
   isLoggingDisabled = false,
+  defaultMealType = 'dinner',
 }) => {
   const [portionsToLog, setPortionsToLog] = useState<{ [recipeTitle: string]: string }>({});
   const [selectedMealTypes, setSelectedMealTypes] = useState<{ [recipeTitle: string]: MealType }>({});
@@ -45,12 +48,12 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
       const initialTypes: { [key: string]: MealType } = {};
       recipeSuggestions.forEach(recipe => {
         initialPortions[recipe.title] = "1";
-        initialTypes[recipe.title] = "dinner"; // Default
+        initialTypes[recipe.title] = defaultMealType; 
       });
       setPortionsToLog(initialPortions);
       setSelectedMealTypes(initialTypes);
     }
-  }, [recipeSuggestions]);
+  }, [recipeSuggestions, defaultMealType]);
 
 
   if (!show) return null;
@@ -83,7 +86,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
       carbohydrates: Math.round((recipe.totalNutritionalInfo.carbohydrates / recipeBaseServings) * numPortionsToLog),
       fat: Math.round((recipe.totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog),
     };
-    onLogRecipe(loggedNutritionalInfo, selectedMealTypes[recipe.title] || 'dinner');
+    onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealTypes[recipe.title] || defaultMealType });
   };
   
   // FIX: Changed 'icon' type from JSX.Element to React.ReactNode to resolve namespace error.
@@ -193,7 +196,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                             <div>
                                 <label className="block text-sm font-medium text-neutral-dark mb-1">Måltidstyp</label>
                                 <MealTypeSelector 
-                                    selectedType={selectedMealTypes[recipe.title] || 'dinner'} 
+                                    selectedType={selectedMealTypes[recipe.title] || defaultMealType} 
                                     onSelect={(type) => handleMealTypeChange(recipe.title, type)} 
                                 />
                             </div>

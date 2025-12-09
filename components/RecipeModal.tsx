@@ -9,7 +9,7 @@ interface RecipeModalProps {
   show: boolean;
   onClose: () => void;
   onSearch: (query: string) => Promise<void>;
-  onLogRecipe: (nutritionalInfo: NutritionalInfo, mealType: MealType) => void;
+  onLogRecipe: (nutritionalInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void;
   recipe: RecipeSuggestion | null;
   isLoading: boolean;
   error: string | null;
@@ -146,7 +146,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         carbohydrates: Math.round((totalNutritionalInfo.carbohydrates / recipeBaseServings) * numPortionsToLog),
         fat: Math.round((totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog),
       };
-      onLogRecipe(loggedNutritionalInfo, selectedMealType);
+      onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealType });
     }
   };
 

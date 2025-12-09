@@ -9,7 +9,8 @@ import {
     RecipeSuggestion,
     OnboardingChecklistState,
     CommonMeal,
-    MealType
+    MealType,
+    PastDaySummary
 } from '../types';
 import { 
     DEFAULT_WATER_GOAL_ML,
@@ -22,6 +23,7 @@ import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
 import { CommonMealsList } from '../components/CommonMealsList';
 import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, FireIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, RotateCcwIcon, LifebuoyIcon, TrophyIcon } from '../components/icons';
+import { PiggyBank, Flame } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
 import { getDateUID } from '../utils/dateUtils';
@@ -33,6 +35,7 @@ import {
     updateCommonMeal,
     deleteMealLog,
     updateMealLog,
+    setPastDaySummary as setPastDaySummaryFirestore,
 } from '../services/firestoreService';
 import { 
     analyzeFoodImage, 
@@ -131,6 +134,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const {
         currentUser,
         goals,
+        userProfile,
         dailyLog,
         setDailyLog,
         waterLoggedMl,
@@ -138,10 +142,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         commonMeals,
         setCommonMeals,
         pastDaysSummary,
+        setPastDaysSummary,
         streakData,
         weeklyBank,
         setWeeklyBank,
-        streakSaver
+        streakSaver,
+        currentDate
     } = useUserContext();
 
     const [isSaving, setIsSaving] = useState(false);
@@ -182,6 +188,20 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Derived values
     const isViewingToday = useMemo(() => {
         return getDateUID(viewingDate) === getDateUID(new Date());
+    }, [viewingDate]);
+
+    const isEditableView = useMemo(() => {
+        const today = new Date();
+        const viewingUID = getDateUID(viewingDate);
+        const todayUID = getDateUID(today);
+        
+        if (viewingUID === todayUID) return true;
+
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayUID = getDateUID(yesterday);
+
+        return viewingUID === yesterdayUID;
     }, [viewingDate]);
 
     const totalNutrients = useMemo(() => dailyLog.reduce(
@@ -238,26 +258,116 @@ const Dashboard: React.FC<DashboardProps> = ({
         snack: groupedMeals.filter(m => !m.mealType || m.mealType === 'snack'), // Fallback for old data
     }), [groupedMeals]);
 
+    // Recalculate summary helper
+    const recalculateAndSaveSummary = async (currentLogs: LoggedMeal[], currentWater: number) => {
+        if (!currentUser) return;
+
+        const viewingUID = getDateUID(viewingDate);
+        const currentUID = getDateUID(currentDate);
+
+        // We only persist summaries for days BEFORE "tomorrow" (i.e. today and past).
+        // Standard logic handles "yesterday processing", but manual edits to past days need this.
+        // We allow editing Today and Yesterday in this view.
+        if (viewingUID < currentUID) {
+            const totals = currentLogs.reduce((acc, meal) => ({
+                calories: acc.calories + meal.nutritionalInfo.calories,
+                protein: acc.protein + meal.nutritionalInfo.protein,
+                carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
+                fat: acc.fat + meal.nutritionalInfo.fat,
+            }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+
+            const minSafe = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+            let goalMet = false;
+            
+            // Simplified goal check
+            if (totals.calories >= minSafe) {
+                 if (userProfile.goalType === 'lose_fat') goalMet = totals.calories <= goals.calorieGoal;
+                 else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300); // approx floor
+                 else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
+            }
+
+            // Calculate Streak for this specific day based on the DAY BEFORE
+            // This ensures if we fill in a gap day, the streak logic holds
+            const dayBefore = new Date(viewingDate);
+            dayBefore.setDate(dayBefore.getDate() - 1);
+            const dayBeforeUID = getDateUID(dayBefore);
+            const prevDaySummary = pastDaysSummary[dayBeforeUID];
+            const prevStreak = prevDaySummary?.streakForThisDay || 0;
+
+            let newStreak = 0;
+            if (totals.calories > 0) {
+                // If we have logged meals, streak continues from prev day
+                newStreak = prevStreak + 1;
+            } else {
+                // No meals = broken streak
+                newStreak = 0;
+            }
+
+            const existingSummary = pastDaysSummary[viewingUID];
+
+            const newSummary: PastDaySummary = {
+                date: viewingUID,
+                goalMet: goalMet,
+                consumedCalories: totals.calories,
+                calorieGoal: goals.calorieGoal,
+                proteinGoalMet: totals.protein >= goals.proteinGoal,
+                consumedProtein: totals.protein,
+                proteinGoal: goals.proteinGoal,
+                consumedCarbohydrates: totals.carbohydrates,
+                carbohydrateGoal: goals.carbohydrateGoal,
+                consumedFat: totals.fat,
+                fatGoal: goals.fatGoal,
+                goalType: userProfile.goalType,
+                waterGoalMet: currentWater >= DEFAULT_WATER_GOAL_ML,
+                streakForThisDay: newStreak, // Updated streak
+                savedBy: existingSummary?.savedBy,
+                bankedAmount: existingSummary?.bankedAmount, // Keep bank calc simple
+            };
+
+            // Update Context immediateley for UI to reflect changes (green/orange/streak)
+            setPastDaysSummary(prev => ({ ...prev, [viewingUID]: newSummary }));
+            
+            try {
+                await setPastDaySummaryFirestore(currentUser.uid, viewingUID, newSummary);
+            } catch(e) {
+                console.error("Failed to update past day summary", e);
+            }
+        }
+    };
+
     // Handlers
     const handleAddMealToLog = async (
-        mealData: LoggedMeal | Omit<LoggedMeal, 'id'>, 
+        data: LoggedMeal | Omit<LoggedMeal, 'id'> | NutritionalInfo | SearchedFoodInfo, 
         options?: { saveAsCommon?: boolean; mealType?: MealType }
     ) => {
         if (!currentUser) return;
         setIsSaving(true);
         setAppStatus('saving');
         
-        try {
-            const mealType = options?.mealType || defaultMealTypeForModal; // Fallback to state if not passed
-            
-            const newMeal: LoggedMeal = {
-                ...mealData,
-                id: 'temp-id-' + Date.now(), // Temp ID
+        const timestamp = Date.now();
+        const mealType = options?.mealType || defaultMealTypeForModal; // Fallback to state if not passed
+        
+        let newMeal: LoggedMeal;
+
+        if ('nutritionalInfo' in data) {
+             newMeal = {
+                ...(data as Omit<LoggedMeal, 'id'>),
+                id: 'temp-id-' + timestamp, // Temp ID
                 dateString: getDateUID(viewingDate),
-                timestamp: Date.now(),
+                timestamp: timestamp,
                 mealType: mealType
             };
+        } else {
+             newMeal = {
+                id: 'temp-id-' + timestamp, // Temp ID
+                dateString: getDateUID(viewingDate),
+                timestamp: timestamp,
+                mealType: mealType,
+                nutritionalInfo: data as NutritionalInfo
+            };
+        }
 
+        try {
             // Calculate bank usage
             const caloriesBefore = totalNutrients.calories;
             const caloriesAfter = caloriesBefore + newMeal.nutritionalInfo.calories;
@@ -275,7 +385,11 @@ const Dashboard: React.FC<DashboardProps> = ({
             newMeal.caloriesCoveredByBank = coveredByBank;
 
             // Optimistic update
-            setDailyLog(prev => [newMeal, ...prev]);
+            const updatedLogs = [newMeal, ...dailyLog];
+            setDailyLog(updatedLogs);
+            
+            // Recalculate summary if it's a past day
+            recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
             
             if (options?.saveAsCommon) {
                 await addCommonMeal(currentUser.uid, {
@@ -289,16 +403,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             }
 
             // Save to Firestore
-            await addMealLogFirestore(currentUser.uid, newMeal.id, newMeal); // In reality, Firestore generates ID or we use a ref. 
-            // For simplicity in this refactor, assuming the service handles ID generation properly or we use a proper UUID gen.
-            // Re-fetch to ensure sync (or rely on real-time listener if implemented)
+            await addMealLogFirestore(currentUser.uid, newMeal.id, newMeal); 
             
-            // Check checklist
-            if (checklistState && !checklistState.items.mealLogged) {
-               // Trigger callback in parent? Handled by prop function passed down?
-               // Assuming logic is in App.tsx or we trigger a refresh.
-            }
-
             setToastNotification({ message: 'Måltid loggad!', type: 'success' });
             playAudio('logSuccess');
 
@@ -306,7 +412,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             console.error("Error adding meal:", error);
             setToastNotification({ message: 'Kunde inte spara måltiden.', type: 'error' });
             // Revert optimistic update
-            setDailyLog(prev => prev.filter(m => m.timestamp !== mealData.timestamp));
+            setDailyLog(prev => prev.filter(m => m.timestamp !== newMeal.timestamp));
         } finally {
             setIsSaving(false);
             setAppStatus('idle');
@@ -319,7 +425,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (!mealToDelete) return;
 
         // Optimistic delete
-        setDailyLog(prev => prev.filter(m => m.id !== mealId));
+        const updatedLogs = dailyLog.filter(m => m.id !== mealId);
+        setDailyLog(updatedLogs);
+        
+        // Recalculate summary if it's a past day
+        recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
 
         try {
             await deleteMealLog(currentUser.uid, mealId);
@@ -333,7 +443,12 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) => {
         if (!currentUser) return;
-        setDailyLog(prev => prev.map(m => m.id === mealId ? { ...m, nutritionalInfo: updatedInfo } : m));
+        const updatedLogs = dailyLog.map(m => m.id === mealId ? { ...m, nutritionalInfo: updatedInfo } : m);
+        setDailyLog(updatedLogs);
+        
+        // Recalculate summary if it's a past day
+        recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
+
         try {
             await updateMealLog(currentUser.uid, mealId, updatedInfo);
             setToastNotification({ message: 'Måltid uppdaterad.', type: 'success' });
@@ -347,6 +462,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (!currentUser) return;
         const newAmount = waterLoggedMl + amount;
         setWaterLoggedMl(newAmount);
+        
+        // Recalculate summary if it's a past day (water goal affects summary)
+        recalculateAndSaveSummary(dailyLog, newAmount);
+
         playAudio('waterSplash');
         try {
             await setWaterLog(currentUser.uid, getDateUID(viewingDate), newAmount);
@@ -359,6 +478,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     const handleResetWater = async () => {
         if (!currentUser) return;
         setWaterLoggedMl(0);
+        
+        // Recalculate summary if it's a past day
+        recalculateAndSaveSummary(dailyLog, 0);
+
         try {
             await setWaterLog(currentUser.uid, getDateUID(viewingDate), 0);
         } catch (error) {
@@ -372,12 +495,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const confirmCommonMealLog = (type: MealType) => {
         if (showCommonMealsPopup) {
-            handleAddMealToLog({
-                nutritionalInfo: showCommonMealsPopup.nutritionalInfo,
-                dateString: getDateUID(viewingDate),
-                timestamp: Date.now(),
-                mealType: type
-            });
+            handleAddMealToLog(
+                showCommonMealsPopup.nutritionalInfo, 
+                { mealType: type }
+            );
             setShowCommonMealsPopup(null);
         }
     }
@@ -449,11 +570,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                     {/* Circular Progress */}
                     <CircularProgress
-                        value={caloriesRemaining}
+                        value={totalNutrients.calories}
                         max={goals.calorieGoal}
                         size={220}
                         strokeWidth={18}
-                        color={caloriesRemaining < minSafeCalories ? "text-red-500" : "text-primary"}
+                        color={totalNutrients.calories > goals.calorieGoal ? "text-red-500" : "text-primary"}
                         trackColor="text-neutral-light"
                         centerContent={
                             <div className="text-center">
@@ -481,20 +602,35 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="flex flex-col gap-4">
                     {/* Macros */}
                     <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center">
-                            <div className="w-8 h-1 rounded-full bg-primary mx-auto mb-2"></div>
-                            <p className="text-xs font-semibold text-primary">Protein</p>
-                            <p className="text-lg font-bold text-neutral-dark">{Math.round(totalNutrients.protein)}<span className="text-xs text-neutral font-normal">/{goals.proteinGoal}g</span></p>
+                        {/* Protein */}
+                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
+                            <div>
+                                <p className="text-xs font-semibold text-primary mb-1">Protein</p>
+                                <p className="text-lg font-bold text-neutral-dark leading-none">{Math.round(totalNutrients.protein)}<span className="text-xs text-neutral font-normal">/{goals.proteinGoal}g</span></p>
+                            </div>
+                            <div className="w-full bg-neutral-light/50 rounded-full h-1.5 mt-2 overflow-hidden">
+                                <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
+                            </div>
                         </div>
-                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center">
-                            <div className="w-8 h-1 rounded-full bg-yellow-400 mx-auto mb-2"></div>
-                            <p className="text-xs font-semibold text-yellow-600">Kolhydrater</p>
-                            <p className="text-lg font-bold text-neutral-dark">{Math.round(totalNutrients.carbohydrates)}<span className="text-xs text-neutral font-normal">/{goals.carbohydrateGoal}g</span></p>
+                        {/* Carbs */}
+                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
+                            <div>
+                                <p className="text-xs font-semibold text-yellow-600 mb-1">Kolhydrater</p>
+                                <p className="text-lg font-bold text-neutral-dark leading-none">{Math.round(totalNutrients.carbohydrates)}<span className="text-xs text-neutral font-normal">/{goals.carbohydrateGoal}g</span></p>
+                            </div>
+                            <div className="w-full bg-neutral-light/50 rounded-full h-1.5 mt-2 overflow-hidden">
+                                <div className="bg-yellow-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
+                            </div>
                         </div>
-                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center">
-                            <div className="w-8 h-1 rounded-full bg-orange-400 mx-auto mb-2"></div>
-                            <p className="text-xs font-semibold text-orange-600">Fett</p>
-                            <p className="text-lg font-bold text-neutral-dark">{Math.round(totalNutrients.fat)}<span className="text-xs text-neutral font-normal">/{goals.fatGoal}g</span></p>
+                        {/* Fat */}
+                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
+                            <div>
+                                <p className="text-xs font-semibold text-orange-600 mb-1">Fett</p>
+                                <p className="text-lg font-bold text-neutral-dark leading-none">{Math.round(totalNutrients.fat)}<span className="text-xs text-neutral font-normal">/{goals.fatGoal}g</span></p>
+                            </div>
+                            <div className="w-full bg-neutral-light/50 rounded-full h-1.5 mt-2 overflow-hidden">
+                                <div className="bg-orange-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
+                            </div>
                         </div>
                     </div>
 
@@ -515,32 +651,37 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 waterGoalMl={DEFAULT_WATER_GOAL_ML}
                                 onLogWater={(amount) => handleLogWater(amount)}
                                 onResetWater={handleResetWater}
-                                disabled={!isViewingToday}
+                                disabled={!isEditableView}
                             />
                         </div>
                         <div className="flex flex-col gap-4">
                             {/* Streak Card */}
-                            <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col justify-between flex-1">
-                                <div className="flex justify-between items-start">
-                                    <h4 className="font-bold text-neutral-dark">Streak</h4>
-                                    <FireIcon className={`w-6 h-6 ${streakData.currentStreak > 0 ? 'text-secondary' : 'text-neutral-light'}`} />
+                            <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                                <div className="absolute top-0 right-0 w-16 h-16 bg-orange-50 rounded-bl-full -mr-2 -mt-2 z-0 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
+                                    <Flame className="w-7 h-7" />
                                 </div>
-                                <div>
-                                    <span className="text-3xl font-extrabold text-neutral-dark">{streakData.currentStreak}</span>
-                                    <span className="text-sm font-medium text-neutral ml-1">dagar</span>
-                                    <p className="text-xs text-neutral mt-1">Bra jobbat!</p>
+                                <div className="relative z-10 flex-1">
+                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Streak</p>
+                                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
+                                        {streakData.currentStreak} 
+                                        <span className="text-sm font-medium text-neutral ml-1">dagar</span>
+                                    </p>
                                 </div>
                             </div>
+
                             {/* Bank Card */}
-                            <div ref={bankRef} className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col justify-between flex-1 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-16 h-16 bg-blue-50 rounded-bl-full -mr-2 -mt-2 z-0"></div>
-                                <div className="relative z-10 flex justify-between items-start">
-                                    <h4 className="font-bold text-neutral-dark">Sparpott</h4>
+                            <div ref={bankRef} className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                                <div className="absolute top-0 right-0 w-16 h-16 bg-green-50 rounded-bl-full -mr-2 -mt-2 z-0 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10">
+                                    <PiggyBank className="w-7 h-7" />
                                 </div>
-                                <div className="relative z-10">
-                                    <span className="text-3xl font-extrabold text-teal-600">{weeklyBank.bankedCalories}</span>
-                                    <span className="text-sm font-medium text-neutral ml-1">kcal</span>
-                                    <p className="text-xs text-neutral mt-1">Kalorier sparade denna vecka</p>
+                                <div className="relative z-10 flex-1">
+                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Sparpott</p>
+                                    <p className="text-2xl font-extrabold text-teal-600 leading-none">
+                                        {weeklyBank.bankedCalories} 
+                                        <span className="text-sm font-medium text-neutral ml-1">kcal</span>
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -555,7 +696,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         onLogCommonMeal={handleCommonMealLog}
                         onDeleteCommonMeal={handleDeleteCommonMeal}
                         onUpdateCommonMeal={handleUpdateCommonMeal}
-                        disabled={!isViewingToday}
+                        disabled={!isEditableView}
                     />
 
                     {/* Meal Sections */}
@@ -572,7 +713,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onUpdateMeal={handleUpdateMeal}
                                 onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
                                 onAddClick={() => handleAddClick('breakfast')}
-                                isEditable={isViewingToday}
+                                isEditable={isEditableView}
                             />
                             <MealSectionCard 
                                 title="Lunch" 
@@ -582,7 +723,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onUpdateMeal={handleUpdateMeal}
                                 onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
                                 onAddClick={() => handleAddClick('lunch')}
-                                isEditable={isViewingToday}
+                                isEditable={isEditableView}
                             />
                             <MealSectionCard 
                                 title="Middag" 
@@ -592,7 +733,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onUpdateMeal={handleUpdateMeal}
                                 onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
                                 onAddClick={() => handleAddClick('dinner')}
-                                isEditable={isViewingToday}
+                                isEditable={isEditableView}
                             />
                             <MealSectionCard 
                                 title="Mellanmål" 
@@ -602,32 +743,32 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onUpdateMeal={handleUpdateMeal}
                                 onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
                                 onAddClick={() => handleAddClick('snack')}
-                                isEditable={isViewingToday}
+                                isEditable={isEditableView}
                             />
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Floating Action Button (FAB) - Keep existing logic */}
-            {isViewingToday && (
+            {/* Floating Action Button (FAB) */}
+            {isEditableView && (
                 <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
-                            <button onClick={handleTakePhoto} className="flex items-center gap-3 group">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Fota mat</span>
+                            <button onClick={handleTakePhoto} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fota mat</span>
                                 <div className="w-12 h-12 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-secondary-darker transition-colors"><CameraIcon className="w-6 h-6" /></div>
                             </button>
-                            <button onClick={handleScanBarcode} className="flex items-center gap-3 group">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Skanna kod</span>
+                            <button onClick={handleScanBarcode} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Skanna kod</span>
                                 <div className="w-12 h-12 bg-accent text-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent-darker transition-colors"><BarcodeIcon className="w-6 h-6" /></div>
                             </button>
-                            <button onClick={handleSearchText} className="flex items-center gap-3 group">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Sök & logga</span>
+                            <button onClick={handleSearchText} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Sök & logga</span>
                                 <div className="w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-colors"><SearchIcon className="w-6 h-6" /></div>
                             </button>
-                            <button onClick={handleFindRecipe} className="flex items-center gap-3 group">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Hitta recept</span>
+                            <button onClick={handleFindRecipe} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Hitta recept</span>
                                 <div className="w-12 h-12 bg-purple-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-purple-600 transition-colors"><RecipeIcon className="w-6 h-6" /></div>
                             </button>
                         </div>
@@ -692,8 +833,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             {showIngredientCaptureModal && <IngredientCaptureModal show={showIngredientCaptureModal} onClose={() => setShowIngredientCaptureModal(false)} images={ingredientImages} onRemoveImage={(i) => setIngredientImages(prev => prev.filter((_, idx) => idx !== i))} onUploadImages={async (files) => { for(let i=0; i<files.length; i++) { const base64 = await resizeImageForLog(files[i], 800); setIngredientImages(prev => [...prev, base64]); } }} openCameraModal={() => { setShowIngredientCaptureModal(false); setShowCameraModal(true); /* Logic needs loop back to capture modal */ }} onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} />}
             {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} />}
             {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setShowCameraModal(true); /* Needs logic to redirect to NutritionLabel flow */ }} />}
-            {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
-            {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
+            {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
+            {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp: Date.now() }); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
             {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => setShowNutritionLabelResultModal(false)} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
             

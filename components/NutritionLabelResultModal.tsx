@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { NutritionalInfo, MealType } from '../types.ts';
 import { CheckIcon, XMarkIcon } from './icons.tsx';
@@ -9,14 +8,14 @@ import MealTypeSelector from './MealTypeSelector';
 interface NutritionLabelResultModalProps {
   show: boolean;
   onClose: () => void;
-  analysisResult: NutritionalInfo; // This is per 100g
-  onLog: (finalNutrients: NutritionalInfo, mealType: MealType) => void;
+  analysisResult: NutritionalInfo | null; // This is per 100g
+  onLog: (finalNutrients: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void;
   defaultMealType?: MealType;
 }
 
 const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ show, onClose, analysisResult, onLog, defaultMealType = 'breakfast' }) => {
   const [amountGrams, setAmountGrams] = useState('100');
-  const [finalNutrients, setFinalNutrients] = useState<NutritionalInfo>(analysisResult);
+  const [finalNutrients, setFinalNutrients] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
   const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
 
   useEffect(() => {
@@ -27,20 +26,24 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
   }, [analysisResult]);
 
   useEffect(() => {
-      setSelectedMealType(defaultMealType);
-  }, [defaultMealType]);
+      if(show) {
+        setSelectedMealType(defaultMealType);
+      }
+  }, [defaultMealType, show]);
 
   useEffect(() => {
-    const grams = parseFloat(amountGrams.replace(',', '.')) || 0;
-    const multiplier = grams / 100.0;
-    
-    setFinalNutrients({
-      foodItem: analysisResult.foodItem,
-      calories: Math.round((analysisResult.calories || 0) * multiplier),
-      protein: Math.round((analysisResult.protein || 0) * multiplier),
-      carbohydrates: Math.round((analysisResult.carbohydrates || 0) * multiplier),
-      fat: Math.round((analysisResult.fat || 0) * multiplier),
-    });
+    if (analysisResult) {
+        const grams = parseFloat(amountGrams.replace(',', '.')) || 0;
+        const multiplier = grams / 100.0;
+        
+        setFinalNutrients({
+        foodItem: analysisResult.foodItem,
+        calories: Math.round((analysisResult.calories || 0) * multiplier),
+        protein: Math.round((analysisResult.protein || 0) * multiplier),
+        carbohydrates: Math.round((analysisResult.carbohydrates || 0) * multiplier),
+        fat: Math.round((analysisResult.fat || 0) * multiplier),
+        });
+    }
   }, [amountGrams, analysisResult]);
   
   const handleLog = () => {
@@ -48,7 +51,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
     onLog({
         ...finalNutrients,
         foodItem: `${finalNutrients.foodItem || 'Skannad produkt'} (${amountGrams}g)`
-    }, selectedMealType);
+    }, { saveAsCommon: false, mealType: selectedMealType });
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,7 +61,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
     }
   };
 
-  if (!show) return null;
+  if (!show || !analysisResult) return null;
 
   const labelClass = "block text-sm font-medium text-neutral-dark";
 

@@ -284,3 +284,5 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
     </>
   );
 };
+
+export default CommonMealsList;

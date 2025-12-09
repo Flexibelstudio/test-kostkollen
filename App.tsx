@@ -992,7 +992,9 @@ useEffect(() => {
   };
 
   const handleOpenLogWeightModal = () => {
-    setViewMode('main'); // Switch to main to show modal? Or show on top.
+    // When called from Journey view (which uses the inline function), viewMode stays as journey.
+    // When called from LessonDetail (which uses handleOpenLogWeightModal helper), it switches to main.
+    // For direct access, we just open the modal.
     openModal(setShowLogWeightModal);
   };
   
@@ -1013,9 +1015,26 @@ useEffect(() => {
       setDayToPotentiallySave(null);
   };
 
-  const handleSaveWeightLog = async (data: any) => {
-     // Call service
-     setShowLogWeightModal(false);
+  const handleSaveWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
+    if (!currentUser) return;
+    setAppStatus(AppStatus.SAVING); // Show loading spinner or similar
+    try {
+        const newId = await saveWeightLog(currentUser.uid, data);
+        
+        // Update context state to reflect change immediately
+        const newEntry: WeightLogEntry = { ...data, id: newId };
+        setWeightLogs(prev => [...prev, newEntry].sort((a, b) => a.loggedAt - b.loggedAt));
+        
+        setToastNotification({ message: "Vikt sparad!", type: 'success' });
+        playAudio('logSuccess');
+        setShowLogWeightModal(false);
+    } catch (error) {
+        console.error("Error saving weight:", error);
+        setToastNotification({ message: "Kunde inte spara vikt.", type: 'error' });
+        // Throw error so the modal knows it failed (if it handles it), otherwise just notify
+    } finally {
+        setAppStatus(AppStatus.IDLE);
+    }
   };
 
   const handleSaveWellbeingAndProceed = async (data: MentalWellbeingData) => {
@@ -1170,7 +1189,7 @@ useEffect(() => {
                 userProfile={userProfile}
                 goals={goals}
                 onSaveProfileAndGoals={handleSaveProfileAndGoals}
-                onOpenLogWeightModal={() => openModal(setShowLogWeightModal)}
+                onOpenLogWeightModal={handleOpenLogWeightModal} // Use consistent handler
                 playAudio={playAudio}
                 viewingDate={viewingDate}
                 setViewingDate={setViewingDate}
@@ -1221,7 +1240,7 @@ useEffect(() => {
                 userProfile={userProfile}
                 weightLogs={weightLogs}
                 pastDaysSummary={Object.values(pastDaysSummary)}
-                onOpenLogWeightModal={handleOpenLogWeightModal}
+                onOpenLogWeightModal={handleOpenLogWeightModal} // Can use the same helper
             />
          )}
          {viewMode === 'community' && (
@@ -1263,8 +1282,8 @@ useEffect(() => {
         {journeyAnalysisFeedback && <AICoachModal show={showAICoachModal} onClose={() => { setShowAICoachModal(false); setCoachInitialContext(null); }} analysisContext={{ userProfile, goals, allWeightLogs: weightLogs, last30DaysSummaries: Object.values(pastDaysSummary), mentalWellbeingLogs, goalTimeline: calculateGoalTimeline(userProfile), currentStreak: streakData.currentStreak }} initialContext={coachInitialContext} />}
 
       </div>
-      {(appStatus === AppStatus.ANALYZING || appStatus === AppStatus.ANALYZING_INGREDIENTS) && (
-        <LoadingSpinner message={appStatus === AppStatus.ANALYZING ? "Analyserar bild..." : "Hittar recept från dina bilder..."} />
+      {(appStatus === AppStatus.ANALYZING || appStatus === AppStatus.ANALYZING_INGREDIENTS || appStatus === AppStatus.SAVING) && (
+        <LoadingSpinner message={appStatus === AppStatus.ANALYZING ? "Analyserar bild..." : appStatus === AppStatus.ANALYZING_INGREDIENTS ? "Hittar recept från dina bilder..." : "Sparar..."} />
       )}
       {splashEffect && <WaterSplashEffect key={splashEffect.id} x={splashEffect.x} y={splashEffect.y} count={splashEffect.count} onComplete={() => setSplashEffect(null)} />}
       {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
