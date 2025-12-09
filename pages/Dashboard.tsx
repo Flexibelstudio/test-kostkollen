@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo } from 'react';
 import { 
     LoggedMeal, 
@@ -616,7 +615,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex flex-col gap-4 pb-0 relative">
             {/* Top Date & Progress Card */}
             <div className="bg-white rounded-3xl shadow-soft-xl p-6 border border-neutral-light relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-2 bg-primary/20"></div>
                 <div className="flex flex-col items-center">
                     {/* Date Nav */}
                     <div className="flex items-center justify-center gap-4 mb-4 w-full">
@@ -642,15 +640,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                         trackColor="text-neutral-light"
                         centerContent={
                             <div className="text-center">
-                                <span className={`text-5xl font-extrabold block ${progressColor}`}>
-                                    {isNetOverBudget 
-                                        ? `+${netCaloriesOver.toFixed(0)}` 
+                                <span className="text-5xl font-extrabold block text-neutral-dark">
+                                    {isNetOverBudget
+                                        ? netCaloriesOver.toFixed(0)
                                         : (isFullyCoveredByBank ? '0' : caloriesRemaining.toFixed(0))
                                     }
                                 </span>
-                                <span className={`text-sm font-medium uppercase tracking-wider ${isNetOverBudget ? progressColor : 'text-neutral'}`}>
-                                    {isNetOverBudget ? 'kcal' : (isFullyCoveredByBank ? 'ÖVER' : 'Kvar')}
-                                    {isNetOverBudget && <span className="block">ÖVER</span>}
+                                <span className="text-sm font-medium uppercase tracking-wider text-neutral-dark">
+                                    {isNetOverBudget ? 'ÖVER' : 'KVAR'}
                                 </span>
                             </div>
                         }
@@ -680,32 +677,41 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* Macros */}
                     <div className="grid grid-cols-3 gap-3">
                         {/* Protein */}
-                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
+                        <div className="bg-white p-5 rounded-3xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
                             <div>
-                                <p className="text-xs font-semibold text-primary mb-1">Protein</p>
-                                <p className="text-lg font-bold text-neutral-dark leading-none">{Math.round(totalNutrients.protein)}<span className="text-xs text-neutral font-normal">/{goals.proteinGoal}g</span></p>
+                                <p className="text-sm font-bold text-primary uppercase tracking-wide mb-2">Protein</p>
+                                <p className="text-3xl font-extrabold text-neutral-dark leading-none">
+                                    {Math.round(totalNutrients.protein)}
+                                    <span className="text-sm text-neutral-500 font-medium ml-1">/{goals.proteinGoal}g</span>
+                                </p>
                             </div>
-                            <div className="w-full bg-neutral-light/50 rounded-full h-1.5 mt-2 overflow-hidden">
+                            <div className="w-full bg-neutral-light/50 rounded-full h-2 mt-4 overflow-hidden">
                                 <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                         {/* Carbs */}
-                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
+                        <div className="bg-white p-5 rounded-3xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
                             <div>
-                                <p className="text-xs font-semibold text-yellow-600 mb-1">Kolhydrater</p>
-                                <p className="text-lg font-bold text-neutral-dark leading-none">{Math.round(totalNutrients.carbohydrates)}<span className="text-xs text-neutral font-normal">/{goals.carbohydrateGoal}g</span></p>
+                                <p className="text-sm font-bold text-yellow-600 uppercase tracking-wide mb-2">Kolhydrater</p>
+                                <p className="text-3xl font-extrabold text-neutral-dark leading-none">
+                                    {Math.round(totalNutrients.carbohydrates)}
+                                    <span className="text-sm text-neutral-500 font-medium ml-1">/{goals.carbohydrateGoal}g</span>
+                                </p>
                             </div>
-                            <div className="w-full bg-neutral-light/50 rounded-full h-1.5 mt-2 overflow-hidden">
+                            <div className="w-full bg-neutral-light/50 rounded-full h-2 mt-4 overflow-hidden">
                                 <div className="bg-yellow-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                         {/* Fat */}
-                        <div className="bg-white p-3 rounded-2xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
+                        <div className="bg-white p-5 rounded-3xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
                             <div>
-                                <p className="text-xs font-semibold text-orange-600 mb-1">Fett</p>
-                                <p className="text-lg font-bold text-neutral-dark leading-none">{Math.round(totalNutrients.fat)}<span className="text-xs text-neutral font-normal">/{goals.fatGoal}g</span></p>
+                                <p className="text-sm font-bold text-orange-600 uppercase tracking-wide mb-2">Fett</p>
+                                <p className="text-3xl font-extrabold text-neutral-dark leading-none">
+                                    {Math.round(totalNutrients.fat)}
+                                    <span className="text-sm text-neutral-500 font-medium ml-1">/{goals.fatGoal}g</span>
+                                </p>
                             </div>
-                            <div className="w-full bg-neutral-light/50 rounded-full h-1.5 mt-2 overflow-hidden">
+                            <div className="w-full bg-neutral-light/50 rounded-full h-2 mt-4 overflow-hidden">
                                 <div className="bg-orange-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
@@ -737,7 +743,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="flex flex-col gap-4">
                             {/* Streak Card */}
                             <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
-                                <div className="absolute top-0 right-0 w-16 h-16 bg-orange-50 rounded-bl-full -mr-2 -mt-2 z-0 opacity-50 group-hover:opacity-100 transition-opacity"></div>
                                 <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
                                     <Flame className="w-7 h-7" />
                                 </div>
@@ -752,13 +757,12 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                             {/* Bank Card */}
                             <div ref={bankRef} className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
-                                <div className="absolute top-0 right-0 w-16 h-16 bg-green-50 rounded-bl-full -mr-2 -mt-2 z-0 opacity-50 group-hover:opacity-100 transition-opacity"></div>
                                 <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10">
                                     <PiggyBank className="w-7 h-7" />
                                 </div>
                                 <div className="relative z-10 flex-1">
                                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Sparpott</p>
-                                    <p className="text-2xl font-extrabold text-teal-600 leading-none">
+                                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
                                         {weeklyBank.bankedCalories} 
                                         <span className="text-sm font-medium text-neutral ml-1">kcal</span>
                                     </p>

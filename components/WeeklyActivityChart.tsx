@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { PastDaysSummaryCollection } from '../types';
 import { Dumbbell } from 'lucide-react';
-import { ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { ArrowLeftIcon, ArrowRightIcon } from './icons';
 import { getISOWeekNumber } from '../utils/dateUtils';
 import { MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD } from '../constants';
 
@@ -22,6 +22,7 @@ interface WeeklyActivityChartProps {
   onPrevWeek: () => void;
   onNextWeek: () => void;
   onToday: () => void;
+  goalType?: string;
 }
 
 const getLocalISODateString = (date: Date): string => {
@@ -73,14 +74,14 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
 
   return (
     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-2">
+      <div className="flex justify-center items-center mb-6 relative">
+        <div className="flex items-center gap-4">
             <button 
                 onClick={onPrevWeek} 
                 className="p-1.5 rounded-full hover:bg-neutral-light transition-colors text-neutral-dark active:scale-95"
                 aria-label="Föregående vecka"
             >
-                <ChevronLeftIcon className="w-5 h-5" />
+                <ArrowLeftIcon className="w-5 h-5" />
             </button>
             <h3 className="text-lg font-semibold text-neutral-dark select-none min-w-[80px] text-center">
                 Vecka {weekNumber}
@@ -91,14 +92,14 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 className={`p-1.5 rounded-full transition-colors text-neutral-dark active:scale-95 ${isCurrentWeek ? 'opacity-30 cursor-default' : 'hover:bg-neutral-light'}`}
                 aria-label="Nästa vecka"
             >
-                <ChevronRightIcon className="w-5 h-5" />
+                <ArrowRightIcon className="w-5 h-5" />
             </button>
         </div>
         
         {!isCurrentWeek && (
             <button 
                 onClick={onToday}
-                className="text-xs font-semibold text-primary hover:underline px-2 py-1"
+                className="absolute right-0 text-xs font-semibold text-primary hover:underline px-2 py-1"
             >
                 Till idag
             </button>

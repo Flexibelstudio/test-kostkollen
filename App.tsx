@@ -368,9 +368,12 @@ export const App = () => {
   const [showLatestUpdateView, setShowLatestUpdateView] = useState(false);
   const [hasUnseenUpdate, setHasUnseenUpdate] = useState(false);
 
-  // FIX: Move useMemo hook to the top level, unconditionally
   const formattedViewingDate = useMemo(() => {
-    return viewingDate.toLocaleDateString('sv-SE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const opts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
+    let s = viewingDate.toLocaleDateString('sv-SE', opts);
+    // Ta bort punkter som kan finnas i kortformat (t.ex. "tis.") och gör första bokstaven stor
+    s = s.replace(/\./g, '');
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }, [viewingDate]);
 
   const minSafeCalories = useMemo(() => {
