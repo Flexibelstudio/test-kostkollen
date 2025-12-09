@@ -18,7 +18,7 @@ interface WeeklyActivityChartProps {
   currentAppDate: Date;
   viewingDate: Date;
   onDateSelect: (date: Date) => void;
-  currentViewStats?: DailyStats; // Live stats for today
+  currentViewStats?: DailyStats; // Live stats for currently viewed day
   onPrevWeek: () => void;
   onNextWeek: () => void;
   onToday: () => void;
@@ -61,7 +61,6 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
 
   const today = new Date(currentAppDate);
   today.setHours(0, 0, 0, 0);
-  const todayISO = getLocalISODateString(today);
   const viewingDateISO = getLocalISODateString(viewingDate);
   
   const currentWeekMonday = new Date(today);
@@ -110,13 +109,9 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
           {weekDays.map(day => {
             const dayISO = getLocalISODateString(day);
             const isFutureDay = day > today;
-            const isToday = dayISO === todayISO;
             const isViewing = dayISO === viewingDateISO;
             
             // --- DATA RETRIEVAL ---
-            // Critical fix: Only use currentViewStats for TODAY. 
-            // For all past days, strictly use pastDaysSummary to prevent jumping/re-animating when clicking.
-            
             let calories = 0;
             let calorieGoal = 2000;
             let proteinGoalMet = false;
@@ -125,37 +120,38 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
 
             const summary = pastDaysSummary[dayISO];
 
-            if (isToday && currentViewStats) {
-                // Live data for today
+            // FIX: If this is the day currently being viewed/edited, use the live stats passed from Dashboard.
+            // Otherwise, fallback to the stored summary.
+            if (isViewing && currentViewStats) {
+                // Live data for the selected day
                 calories = currentViewStats.calories;
                 calorieGoal = currentViewStats.calorieGoal;
                 proteinGoalMet = currentViewStats.proteinGoalMet;
                 waterGoalMet = currentViewStats.waterGoalMet;
                 
-                // Calculate "Green" status strictly for today
                 const minSafe = Math.max(calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-                // Simple logic: Green if between minSafe and goal. 
-                // Note: User can have other goalTypes, but this is a good visual approximation for "On Track" today.
                 if (calories >= minSafe && calories <= calorieGoal) {
                     goalMet = true;
                 }
             } else if (summary) {
-                // Historical data
+                // Historical data for other days
                 calories = summary.consumedCalories;
                 calorieGoal = summary.calorieGoal;
                 proteinGoalMet = summary.proteinGoalMet;
                 waterGoalMet = summary.waterGoalMet || false;
-                goalMet = summary.goalMet; // Trust the database calculation
+                goalMet = summary.goalMet;
             }
             
             const dayLabel = day.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '').charAt(0).toUpperCase();
             const hasLog = calories > 0;
+            const isOverConsumed = calories > calorieGoal;
             
             // --- COLOR LOGIC ---
             let barColor = 'bg-neutral-100'; // Default Empty/Gray
             
             if (hasLog) {
-                if (goalMet) {
+                // Strikt logik: Om intaget är högre än målet -> Orange, annars om målet nåddes -> Grön
+                if (goalMet && !isOverConsumed) {
                     barColor = 'bg-primary'; // Green
                 } else {
                     barColor = 'bg-secondary'; // Orange (Under or Over)
@@ -172,8 +168,6 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             const surplus = Math.max(0, calories - calorieGoal);
             const isOverGoal = calories > calorieGoal;
 
-            // Water indicator: Blue letter if goal met
-            // Use live viewing status only for text color to indicate selection, not data source
             const dayLabelColor = waterGoalMet ? 'text-blue-500 font-bold' : (isViewing ? 'text-neutral-dark font-bold' : 'text-neutral');
 
             return (
@@ -208,15 +202,11 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                         </div>
                     </div>
                     
-                    {/* Day Label (Water Indicator) */}
+                    {/* Day Label */}
                     <div className="absolute bottom-0 text-center w-full">
                         <span className={`block text-xs sm:text-sm ${dayLabelColor} transition-colors`}>
                             {dayLabel}
                         </span>
-                        {/* Today dot indicator if not viewing water met (to keep track of today) */}
-                        {isToday && !waterGoalMet && (
-                             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-neutral-dark rounded-full"></div>
-                        )}
                     </div>
                 </button>
             );

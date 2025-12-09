@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
@@ -34,13 +35,12 @@ interface JourneyViewProps {
   achievementInteractions: { [id: string]: { reactions: Reactions } };
   journeyAnalysisFeedback: AIStructuredFeedbackResponse | null;
   onNavigateToMainWithDate: (date: Date) => void;
-  // FIX: Add streakSaver to the props interface.
   streakSaver: StreakSaver | null;
   analysisContext: AIDataForJourneyAnalysis;
   setShowAICoachModal: (show: boolean) => void;
   onDiscussSavedAnalysis: (analysisDate?: string) => void;
 }
-type Tab = 'overview' | 'goals' | 'achievements';
+type Tab = 'goals' | 'achievements';
 
 
 const getLocalISODateString = (date: Date): string => {
@@ -52,29 +52,6 @@ const getLocalISODateString = (date: Date): string => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
-
-const getStartOfWeek = (date: Date): Date => {
-  const d = new Date(date);
-  const day = d.getDay(); 
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
-  return new Date(d.setDate(diff));
-};
-
-const addDays = (date: Date, days: number): Date => {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-};
-
-const getISOWeekNumber = (date: Date): number => {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return weekNumber;
-};
-
-const shortDayNamesSwedish = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
 
 const TabButton: React.FC<{label: string, isActive: boolean, onClick: () => void, notificationCount?: number}> = ({ label, isActive, onClick, notificationCount }) => (
     <button
@@ -133,25 +110,16 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
-    if(initialTab === 'calendar') return 'overview';
     if(initialTab === 'profile') return 'goals';
     if(initialTab === 'achievements') return 'achievements';
-    return 'overview';
+    return 'goals'; // Default to goals if calendar/overview was requested but removed
   });
 
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
-  const [isLoadingTimeline, setIsLoadingTimeline] = useState(true);
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
   const [isGamificationCardExpanded, setIsGamificationCardExpanded] = useState(false);
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
-  const juneFirst = useMemo(() => new Date(currentYear, 5, 1), [currentYear]); // June 1st of current year
-
-  const validPastDaysArray = useMemo(() => {
-    return Object.values(pastDaysData)
-      .filter(summary => new Date(summary.date) >= juneFirst)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [pastDaysData, juneFirst]);
+  const juneFirst = useMemo(() => new Date(currentYear, 5, 1), [currentYear]); 
 
   const filteredWeightLogs = useMemo(() => {
     return weightLogs.filter(log => new Date(log.loggedAt) >= juneFirst);
@@ -159,85 +127,8 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   
   const timeline = useMemo(() => calculateGoalTimeline(userProfile), [userProfile]);
   
-    const weeksMap = useMemo(() => {
-        const map = new Map<string, (PastDaySummary | null)[]>();
-        if (validPastDaysArray.length === 0) return map;
-
-        const summariesByDate = new Map<string, PastDaySummary>(validPastDaysArray.map(s => [s.date, s]));
-        const firstDateInLog = new Date(validPastDaysArray[validPastDaysArray.length - 1].date + 'T12:00:00Z');
-        const lastDateInLog = new Date(validPastDaysArray[0].date + 'T12:00:00Z');
-
-        let currentWeekStart = getStartOfWeek(lastDateInLog);
-
-        // Ensure we always show the current week, even if it has no logs yet.
-        const currentAppWeekStart = getStartOfWeek(new Date(currentDate));
-        if(currentWeekStart < currentAppWeekStart) {
-            currentWeekStart = currentAppWeekStart;
-        }
-
-        const earliestWeekStart = getStartOfWeek(firstDateInLog);
-
-        while (currentWeekStart >= earliestWeekStart) {
-            const weekDays: (PastDaySummary | null)[] = [];
-            for (let i = 0; i < 7; i++) {
-                const day = addDays(currentWeekStart, i);
-                if (day > currentDate) {
-                    weekDays.push(null); // Future days are null
-                } else {
-                    weekDays.push(summariesByDate.get(getLocalISODateString(day)) || null); // Return null for unlogged past days
-                }
-            }
-            map.set(getLocalISODateString(currentWeekStart), weekDays);
-            currentWeekStart = addDays(currentWeekStart, -7);
-        }
-        return map;
-    }, [validPastDaysArray, currentDate]);
-
-    const monthlyGroupedSummaries = useMemo(() => {
-        const grouped = new Map<number, Map<number, { weekStartISO: string; weekData: (PastDaySummary | null)[] }[]>>();
-        weeksMap.forEach((weekData, weekStartISO) => {
-            const weekStartDate = new Date(weekStartISO + 'T12:00:00Z');
-            const year = weekStartDate.getFullYear();
-            const month = weekStartDate.getMonth(); // 0-11
-    
-            if (!grouped.has(year)) {
-                grouped.set(year, new Map());
-            }
-            const yearMap = grouped.get(year)!;
-            if (!yearMap.has(month)) {
-                yearMap.set(month, []);
-            }
-            yearMap.get(month)!.push({ weekStartISO, weekData });
-        });
-        return grouped;
-    }, [weeksMap]);
-
-    const currentMonth = currentDate.getMonth();
-    const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-
-    const toggleSection = (key: string) => {
-        playAudio('uiClick');
-        setExpandedSections(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(key)) {
-                newSet.delete(key);
-            } else {
-                newSet.add(key);
-            }
-            return newSet;
-        });
-    };
-
-  const todayISO = useMemo(() => getLocalISODateString(currentDate), [currentDate]);
-
-  const handleDateSelect = (date: Date) => {
-    playAudio('uiClick');
-    onNavigateToMainWithDate(date);
-  };
-  
   const latestWeightLog = filteredWeightLogs.length > 0 ? filteredWeightLogs[filteredWeightLogs.length - 1] : null;
   const previousWeightLog = filteredWeightLogs.length > 1 ? filteredWeightLogs[filteredWeightLogs.length - 2] : null;
-  const firstWeightLog = filteredWeightLogs.length > 0 ? filteredWeightLogs[0] : null;
 
   const latestWeight = latestWeightLog?.weightKg ?? userProfile.currentWeightKg;
   const latestMuscle = latestWeightLog?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg;
@@ -461,205 +352,12 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             <div className="bg-white p-2 sm:p-4 rounded-xl shadow-soft-lg border border-neutral-light">
               <nav className="border-b border-neutral-light -mx-2 sm:-mx-4 px-2 sm:px-4 mb-4">
                   <div role="tablist" className="flex items-center justify-around">
-                      <TabButton label="Översikt" isActive={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
                       <TabButton label="Mål" isActive={activeTab === 'goals'} onClick={() => setActiveTab('goals')} />
                       <TabButton label="Bragder" isActive={activeTab === 'achievements'} onClick={() => setActiveTab('achievements')} />
                   </div>
               </nav>
 
               <div className="mt-4">
-                {activeTab === 'overview' && (() => {
-                    const monthNames = ["Januari", "Februari", "Mars", "April", "Maj", "Juni", "Juli", "Augusti", "September", "Oktober", "November", "December"];
-                    const sortedYears = Array.from(monthlyGroupedSummaries.keys()).sort((a, b) => b - a);
-
-                    return (
-                        <div className="space-y-6">
-                            {sortedYears.map(year => {
-                                const isCurrentYear = year === currentYear;
-                                const yearKey = `${year}`;
-                                const isYearExpanded = expandedSections.has(yearKey);
-                                const monthsMap = monthlyGroupedSummaries.get(year)!;
-                                const sortedMonths = Array.from(monthsMap.keys()).sort((a, b) => b - a);
-
-                                const yearContent = (
-                                    <div className={`space-y-4 ${!isCurrentYear ? 'pl-4 border-l-2 border-neutral-light/70 ml-2' : ''}`}>
-                                        {sortedMonths.map(month => {
-                                            const monthKey = `${year}-${month}`;
-                                            const isMonthExpanded = expandedSections.has(monthKey);
-                                            const weeksData = monthsMap.get(month)!;
-                                            const isCurrentMonthInView = year === currentYear && month === currentMonth;
-
-                                            return (
-                                                <div key={monthKey}>
-                                                    {!isCurrentMonthInView && (
-                                                        <button onClick={() => toggleSection(monthKey)} className="w-full flex justify-between items-center text-left p-2 rounded-md hover:bg-neutral-light/70" aria-expanded={isMonthExpanded}>
-                                                            <h4 className="text-xl font-semibold text-neutral-dark">{monthNames[month]}</h4>
-                                                            <ChevronDownIcon className={`w-6 h-6 text-neutral-dark transition-transform ${isMonthExpanded ? 'rotate-180' : ''}`} />
-                                                        </button>
-                                                    )}
-                                                    {(isMonthExpanded || isCurrentMonthInView) && (
-                                                        <div className={`mt-2 space-y-4 animate-fade-in ${isCurrentMonthInView ? '' : 'pl-2'}`}>
-                                                            {weeksData.map((week, weekIndex) => {
-                                                                const weekStartDate = new Date(week.weekStartISO + 'T12:00:00Z');
-                                                                const weekNumber = getISOWeekNumber(weekStartDate);
-                                                                return (
-                                                                    <div key={`${monthKey}-w${weekIndex}`}>
-                                                                        <h5 className="text-base font-semibold text-neutral-dark mb-2">Vecka {weekNumber}</h5>
-                                                                        <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                                                                            {week.weekData.map((summary, index) => {
-                                                                                const dayDate = addDays(weekStartDate, index);
-                                                                                const dayISO = getLocalISODateString(dayDate);
-                                                                                const isFutureDay = dayDate > currentDate;
-                                                                                const isToday = dayISO === todayISO;
-                                                                                const isClickable = !isFutureDay;
-                                                                                const isViewingThisDay = dayISO === getLocalISODateString(viewingDate);
-                                                                                const waterGoalWasMet = summary?.waterGoalMet === true;
-                                                                                
-                                                                                let bgColor = 'bg-gray-200';
-                                                                                let iconColorClass = 'text-gray-700';
-
-                                                                                if (isFutureDay) {
-                                                                                    bgColor = 'bg-gray-100';
-                                                                                    iconColorClass = 'text-gray-400';
-                                                                                } else if (isToday) {
-                                                                                    bgColor = 'bg-secondary/30';
-                                                                                    iconColorClass = 'text-secondary-darker';
-                                                                                } else { // Past day
-                                                                                    if (summary) {
-                                                                                        if (summary.goalMet) {
-                                                                                            bgColor = 'bg-primary/70';
-                                                                                            iconColorClass = 'text-white';
-                                                                                        } else {
-                                                                                            bgColor = 'bg-secondary/70';
-                                                                                            iconColorClass = 'text-white';
-                                                                                        }
-                                                                                    } else { // Past day, no summary
-                                                                                        bgColor = 'bg-neutral-light';
-                                                                                        iconColorClass = 'text-neutral-dark';
-                                                                                    }
-                                                                                }
-
-                                                                                return (
-                                                                                    <div key={dayISO} className="relative">
-                                                                                        <button onClick={() => isClickable && handleDateSelect(dayDate)} disabled={!isClickable} className={`flex flex-col items-center justify-around p-1 rounded-md text-xs sm:text-sm font-medium transition-all aspect-square w-full focus:outline-none ${bgColor} ${isFutureDay ? 'opacity-60' : ''} ${isClickable ? 'cursor-pointer hover:scale-105 active:scale-95 hover:shadow-lg hover:ring-2 hover:ring-secondary' : 'cursor-default'} ${isViewingThisDay ? 'ring-2 ring-offset-1 ring-secondary' : ''}`}>
-                                                                                            <span className={`text-xs font-bold ${iconColorClass}`}>{shortDayNamesSwedish[index]}</span>
-                                                                                            <div className="flex justify-center items-center w-full px-0.5 space-x-0.5" style={{ height: '16px' }}>
-                                                                                                {summary && (
-                                                                                                    <>
-                                                                                                        <div className="w-4 h-4 flex items-center justify-center">
-                                                                                                            {summary.proteinGoalMet && <span role="img" aria-label="Proteinmål uppnått" title="Proteinmål uppnått" className="text-sm">💪</span>}
-                                                                                                        </div>
-                                                                                                        <div className="w-4 h-4 flex items-center justify-center">
-                                                                                                        </div>
-                                                                                                    </>
-                                                                                                )}
-                                                                                            </div>
-                                                                                            <span className={`text-lg font-bold ${iconColorClass}`}>{dayDate.getDate()}</span>
-                                                                                        </button>
-                                                                                        {waterGoalWasMet && <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-3/5 h-[3px] bg-blue-400 rounded-full" title="Vattenmål uppnått"></div>}
-                                                                                    </div>
-                                                                                );
-                                                                            })}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                );
-
-                                if (isCurrentYear) {
-                                    return <div key={yearKey}>{yearContent}</div>;
-                                } else {
-                                    return (
-                                        <div key={yearKey}>
-                                            <button onClick={() => toggleSection(yearKey)} className="w-full flex justify-between items-center text-left p-2 rounded-md hover:bg-neutral-light/70" aria-expanded={isYearExpanded}>
-                                                <h3 className="text-2xl font-bold text-neutral-dark">{year}</h3>
-                                                <ChevronDownIcon className={`w-6 h-6 text-neutral-dark transition-transform ${isYearExpanded ? 'rotate-180' : ''}`} />
-                                            </button>
-                                            {isYearExpanded && <div className="mt-2 animate-fade-in">{yearContent}</div>}
-                                        </div>
-                                    );
-                                }
-                            })}
-
-                            <GamificationCard
-                                goals={goals}
-                                minSafeCalories={minSafeCalories}
-                                highestStreak={highestStreak}
-                                highestLevelId={highestLevelId}
-                                isExpanded={isGamificationCardExpanded}
-                                onToggle={() => {
-                                    playAudio('uiClick');
-                                    setIsGamificationCardExpanded(prev => !prev);
-                                }}
-                            />
-                            
-                            <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
-                                {journeyAnalysisFeedback ? (
-                                    <>
-                                        <button
-                                            onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
-                                            className="w-full flex justify-between items-center text-left mb-2 group"
-                                            aria-expanded={isAnalysisExpanded}
-                                            aria-controls="journey-analysis-panel"
-                                        >
-                                            <div className="flex items-center">
-                                                <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
-                                                <div>
-                                                    <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">AI-analysen från din coach</h3>
-                                                    <p className="text-xs text-neutral">
-                                                        {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
-                                        </button>
-                                        {isAnalysisExpanded && (
-                                            <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
-                                                {journeyAnalysisFeedback.sections.map((section, index) => (
-                                                    <div key={index} className="pt-3 border-t border-neutral-light/50">
-                                                        <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
-                                                            <span className="text-xl mr-2">{section.emoji}</span>
-                                                            {section.title}
-                                                        </h4>
-                                                        <div className="text-neutral-dark space-y-1 text-sm pl-8">
-                                                            {section.content.split('\n').map((line, lineIdx) => (
-                                                                <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                 <div className="mt-4 pt-4 border-t border-neutral-light/50">
-                                                    <button
-                                                        onClick={() => onDiscussSavedAnalysis(journeyAnalysisFeedback.analysisDate)}
-                                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95"
-                                                    >
-                                                        <AICoachIcon className="w-6 h-6 flex-shrink-0"/>
-                                                        <span className="text-center">Diskutera analysen med din coach</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </>
-                                ) : (
-                                    <div className="text-center p-4">
-                                        <SparklesIcon className="w-10 h-10 text-secondary mx-auto mb-3" />
-                                        <h3 className="text-xl font-semibold text-neutral-dark">Personlig Analys från Coachen</h3>
-                                        <p className="text-neutral mt-2 text-sm">
-                                            Din analys kommer att visas här när du har loggat några dagar och gjort minst två invägningar.
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                        </div>
-                    );
-                })()}
                 
                 {activeTab === 'goals' && (
                   <div className="space-y-6">
@@ -703,6 +401,76 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                             </div>
                         </section>
                     )}
+
+                    <GamificationCard
+                        goals={goals}
+                        minSafeCalories={minSafeCalories}
+                        highestStreak={highestStreak}
+                        highestLevelId={highestLevelId}
+                        isExpanded={isGamificationCardExpanded}
+                        onToggle={() => {
+                            playAudio('uiClick');
+                            setIsGamificationCardExpanded(prev => !prev);
+                        }}
+                    />
+                    
+                    <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
+                        {journeyAnalysisFeedback ? (
+                            <>
+                                <button
+                                    onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
+                                    className="w-full flex justify-between items-center text-left mb-2 group"
+                                    aria-expanded={isAnalysisExpanded}
+                                    aria-controls="journey-analysis-panel"
+                                >
+                                    <div className="flex items-center">
+                                        <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
+                                        <div>
+                                            <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">AI-analysen från din coach</h3>
+                                            <p className="text-xs text-neutral">
+                                                {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
+                                </button>
+                                {isAnalysisExpanded && (
+                                    <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
+                                        {journeyAnalysisFeedback.sections.map((section, index) => (
+                                            <div key={index} className="pt-3 border-t border-neutral-light/50">
+                                                <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
+                                                    <span className="text-xl mr-2">{section.emoji}</span>
+                                                    {section.title}
+                                                </h4>
+                                                <div className="text-neutral-dark space-y-1 text-sm pl-8">
+                                                    {section.content.split('\n').map((line, lineIdx) => (
+                                                        <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                            <div className="mt-4 pt-4 border-t border-neutral-light/50">
+                                            <button
+                                                onClick={() => onDiscussSavedAnalysis(journeyAnalysisFeedback.analysisDate)}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95"
+                                            >
+                                                <AICoachIcon className="w-6 h-6 flex-shrink-0"/>
+                                                <span className="text-center">Diskutera analysen med din coach</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="text-center p-4">
+                                <SparklesIcon className="w-10 h-10 text-secondary mx-auto mb-3" />
+                                <h3 className="text-xl font-semibold text-neutral-dark">Personlig Analys från Coachen</h3>
+                                <p className="text-neutral mt-2 text-sm">
+                                    Din analys kommer att visas här när du har loggat några dagar och gjort minst två invägningar.
+                                </p>
+                            </div>
+                        )}
+                    </div>
                   </div>
                 )}
                 

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo } from 'react';
 import { 
     LoggedMeal, 
@@ -245,7 +246,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     const isNetOverBudget = netCaloriesOver > 0;
 
     let progressColor = "text-primary";
-    if (isNetOverBudget) {
+    
+    // Logic for progress color: Orange until minSafe is met, then Green, then handling overage
+    if (totalNutrients.calories < minSafeCalories) {
+        progressColor = "text-secondary"; // Orange until we reach the safe zone
+    } else if (isNetOverBudget) {
         progressColor = "text-secondary"; // Orange if net overage
     } else if (isFullyCoveredByBank) {
         progressColor = "text-blue-500"; // Blue if covered by bank
@@ -312,74 +317,73 @@ const Dashboard: React.FC<DashboardProps> = ({
         const viewingUID = getDateUID(viewingDate);
         const currentUID = getDateUID(currentDate);
 
-        // We only persist summaries for days BEFORE "tomorrow" (i.e. today and past).
-        // Standard logic handles "yesterday processing", but manual edits to past days need this.
-        // We allow editing Today and Yesterday in this view.
+        // Always calculate summary for UI consistency, regardless of date
+        const totals = currentLogs.reduce((acc, meal) => ({
+            calories: acc.calories + meal.nutritionalInfo.calories,
+            protein: acc.protein + meal.nutritionalInfo.protein,
+            carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
+            fat: acc.fat + meal.nutritionalInfo.fat,
+        }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+
+        const minSafe = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+        let goalMet = false;
+        
+        // Simplified goal check
+        if (totals.calories >= minSafe) {
+                if (userProfile.goalType === 'lose_fat') goalMet = totals.calories <= goals.calorieGoal;
+                else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300); // approx floor
+                else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
+        }
+
+        // Calculate Streak for this specific day based on the DAY BEFORE
+        // This ensures if we fill in a gap day, the streak logic holds
+        const dayBefore = new Date(viewingDate);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        const dayBeforeUID = getDateUID(dayBefore);
+        const prevDaySummary = pastDaysSummary[dayBeforeUID];
+        const prevStreak = prevDaySummary?.streakForThisDay || 0;
+
+        let newStreak = 0;
+        if (totals.calories > 0) {
+            // If we have logged meals, streak continues from prev day
+            newStreak = prevStreak + 1;
+        } else {
+            // No meals = broken streak
+            newStreak = 0;
+        }
+
+        const existingSummary = pastDaysSummary[viewingUID];
+
+        const newSummary: PastDaySummary = {
+            date: viewingUID,
+            goalMet: goalMet,
+            consumedCalories: totals.calories,
+            calorieGoal: goals.calorieGoal,
+            proteinGoalMet: totals.protein >= goals.proteinGoal,
+            consumedProtein: totals.protein,
+            proteinGoal: goals.proteinGoal,
+            consumedCarbohydrates: totals.carbohydrates,
+            carbohydrateGoal: goals.carbohydrateGoal,
+            consumedFat: totals.fat,
+            fatGoal: goals.fatGoal,
+            goalType: userProfile.goalType,
+            waterGoalMet: currentWater >= DEFAULT_WATER_GOAL_ML,
+            streakForThisDay: newStreak, // Updated streak
+            savedBy: existingSummary?.savedBy,
+            bankedAmount: existingSummary?.bankedAmount, // Keep bank calc simple
+        };
+
+        // ALWAYS update local state immediately so UI reflects changes (green/orange/streak)
+        setPastDaysSummary(prev => ({ ...prev, [viewingUID]: newSummary }));
+        
+        // ONLY save to Firestore if the day is in the past (yesterday or earlier)
+        // We avoid saving "Today" to Firestore here to prevent write conflicts with scheduled jobs or excessive writes.
         if (viewingUID < currentUID) {
-            const totals = currentLogs.reduce((acc, meal) => ({
-                calories: acc.calories + meal.nutritionalInfo.calories,
-                protein: acc.protein + meal.nutritionalInfo.protein,
-                carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
-                fat: acc.fat + meal.nutritionalInfo.fat,
-            }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
-
-            const minSafe = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-            let goalMet = false;
-            
-            // Simplified goal check
-            if (totals.calories >= minSafe) {
-                 if (userProfile.goalType === 'lose_fat') goalMet = totals.calories <= goals.calorieGoal;
-                 else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300); // approx floor
-                 else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
-            }
-
-            // Calculate Streak for this specific day based on the DAY BEFORE
-            // This ensures if we fill in a gap day, the streak logic holds
-            const dayBefore = new Date(viewingDate);
-            dayBefore.setDate(dayBefore.getDate() - 1);
-            const dayBeforeUID = getDateUID(dayBefore);
-            const prevDaySummary = pastDaysSummary[dayBeforeUID];
-            const prevStreak = prevDaySummary?.streakForThisDay || 0;
-
-            let newStreak = 0;
-            if (totals.calories > 0) {
-                // If we have logged meals, streak continues from prev day
-                newStreak = prevStreak + 1;
-            } else {
-                // No meals = broken streak
-                newStreak = 0;
-            }
-
-            const existingSummary = pastDaysSummary[viewingUID];
-
-            const newSummary: PastDaySummary = {
-                date: viewingUID,
-                goalMet: goalMet,
-                consumedCalories: totals.calories,
-                calorieGoal: goals.calorieGoal,
-                proteinGoalMet: totals.protein >= goals.proteinGoal,
-                consumedProtein: totals.protein,
-                proteinGoal: goals.proteinGoal,
-                consumedCarbohydrates: totals.carbohydrates,
-                carbohydrateGoal: goals.carbohydrateGoal,
-                consumedFat: totals.fat,
-                fatGoal: goals.fatGoal,
-                goalType: userProfile.goalType,
-                waterGoalMet: currentWater >= DEFAULT_WATER_GOAL_ML,
-                streakForThisDay: newStreak, // Updated streak
-                savedBy: existingSummary?.savedBy,
-                bankedAmount: existingSummary?.bankedAmount, // Keep bank calc simple
-            };
-
-            // Update Context immediateley for UI to reflect changes (green/orange/streak)
-            setPastDaysSummary(prev => ({ ...prev, [viewingUID]: newSummary }));
-            
-            // FIX: If we are editing YESTERDAY, and we recovered a streak, update the User's Main Streak
-            const today = new Date();
-            const yesterday = new Date(today);
+            const yesterday = new Date(currentDate);
             yesterday.setDate(yesterday.getDate() - 1);
             const isYesterday = viewingUID === getDateUID(yesterday);
 
+            // If we are editing YESTERDAY, and we recovered a streak, update the User's Main Streak in Firestore
             if (isYesterday) {
                 setStreakData(prev => ({ ...prev, currentStreak: newStreak }));
                 try {
@@ -620,7 +624,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <div className="flex items-center justify-center gap-4 mb-4 w-full">
                         <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
                         <div className="text-center">
-                            <h2 className="text-xl font-bold text-neutral-dark capitalize">{formattedViewingDate}</h2>
+                            <h2 className="text-xl font-bold text-neutral-dark">{formattedViewingDate}</h2>
                             {!isViewingToday && (
                                 <button onClick={() => onDateSelect(new Date())} className="text-xs font-semibold text-primary hover:underline mt-1">
                                     Gå till idag
@@ -690,7 +694,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         {/* Carbs */}
-                        <div className="bg-white p-5 rounded-3xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
+                        <div className="bg-white py-5 px-1 rounded-3xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
                             <div>
                                 <p className="text-sm font-bold text-yellow-600 uppercase tracking-wide mb-2">Kolhydrater</p>
                                 <p className="text-3xl font-extrabold text-neutral-dark leading-none">
@@ -727,6 +731,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                         onNextWeek={handleNextWeek}
                         onToday={handleJumpToToday}
                         goalType={userProfile.goalType} // Pass goalType here
+                        currentViewStats={{ // Pass live stats for current day
+                            calories: totalNutrients.calories,
+                            calorieGoal: goals.calorieGoal,
+                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
+                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
+                        }}
                     />
 
                     {/* Water & Streak/Bank */}
