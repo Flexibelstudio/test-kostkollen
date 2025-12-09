@@ -36,6 +36,7 @@ import {
     deleteMealLog,
     updateMealLog,
     setPastDaySummary as setPastDaySummaryFirestore,
+    updateUserDocument,
 } from '../services/firestoreService';
 import { 
     analyzeFoodImage, 
@@ -144,6 +145,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         pastDaysSummary,
         setPastDaysSummary,
         streakData,
+        setStreakData,
         weeklyBank,
         setWeeklyBank,
         streakSaver,
@@ -326,6 +328,21 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             // Update Context immediateley for UI to reflect changes (green/orange/streak)
             setPastDaysSummary(prev => ({ ...prev, [viewingUID]: newSummary }));
+            
+            // FIX: If we are editing YESTERDAY, and we recovered a streak, update the User's Main Streak
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const isYesterday = viewingUID === getDateUID(yesterday);
+
+            if (isYesterday) {
+                setStreakData(prev => ({ ...prev, currentStreak: newStreak }));
+                try {
+                    await updateUserDocument(currentUser.uid, { currentStreak: newStreak });
+                } catch(e) {
+                    console.error("Failed to update user currentStreak", e);
+                }
+            }
             
             try {
                 await setPastDaySummaryFirestore(currentUser.uid, viewingUID, newSummary);
