@@ -206,6 +206,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         return viewingUID === yesterdayUID;
     }, [viewingDate]);
 
+    // Check if viewing date is a Monday (0=Sun, 1=Mon)
+    const isViewingMonday = useMemo(() => {
+        return viewingDate.getDay() === 1;
+    }, [viewingDate]);
+
     const totalNutrients = useMemo(() => dailyLog.reduce(
         (acc, meal) => {
             acc.calories += meal.nutritionalInfo.calories;
@@ -217,14 +222,35 @@ const Dashboard: React.FC<DashboardProps> = ({
         { calories: 0, protein: 0, carbohydrates: 0, fat: 0 }
     ), [dailyLog]);
 
+    const totalCoveredByBank = useMemo(() => {
+        // On Mondays, the bank resets. You cannot use bank from previous week.
+        if (isViewingMonday) return 0;
+
+        return dailyLog.reduce(
+            (sum, meal) => sum + (meal.caloriesCoveredByBank || 0), 0
+        );
+    }, [dailyLog, isViewingMonday]);
+
     const minSafeCalories = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
     const caloriesRemaining = Math.max(0, goals.calorieGoal - totalNutrients.calories);
-    const dailyStats = {
-        calories: totalNutrients.calories,
-        calorieGoal: goals.calorieGoal,
-        proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
-        waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
-    };
+    
+    const rawCaloriesOver = Math.max(0, totalNutrients.calories - goals.calorieGoal);
+    // Net overage is total overage minus what the bank covered.
+    const netCaloriesOver = Math.max(0, rawCaloriesOver - totalCoveredByBank);
+    
+    // Logic for circular progress
+    const isOverBudget = rawCaloriesOver > 0;
+    // If we are over budget, but bank covers it all (netOver is 0), then it's fully covered.
+    // Note: On Mondays, totalCoveredByBank is forced to 0, so this will be false if over budget.
+    const isFullyCoveredByBank = isOverBudget && netCaloriesOver === 0;
+    const isNetOverBudget = netCaloriesOver > 0;
+
+    let progressColor = "text-primary";
+    if (isNetOverBudget) {
+        progressColor = "text-secondary"; // Orange if net overage
+    } else if (isFullyCoveredByBank) {
+        progressColor = "text-blue-500"; // Blue if covered by bank
+    }
 
     const groupedMeals = useMemo(() => {
         const grouped: LoggedMeal[] = [];
@@ -259,6 +285,26 @@ const Dashboard: React.FC<DashboardProps> = ({
         dinner: groupedMeals.filter(m => m.mealType === 'dinner'),
         snack: groupedMeals.filter(m => !m.mealType || m.mealType === 'snack'), // Fallback for old data
     }), [groupedMeals]);
+
+    // Navigation Handlers
+    const handlePrevWeek = () => {
+        playAudio('uiClick');
+        const newDate = new Date(viewingDate);
+        newDate.setDate(newDate.getDate() - 7);
+        onDateSelect(newDate);
+    };
+
+    const handleNextWeek = () => {
+        playAudio('uiClick');
+        const newDate = new Date(viewingDate);
+        newDate.setDate(newDate.getDate() + 7);
+        onDateSelect(newDate);
+    };
+
+    const handleJumpToToday = () => {
+        playAudio('uiClick');
+        onDateSelect(new Date());
+    };
 
     // Recalculate summary helper
     const recalculateAndSaveSummary = async (currentLogs: LoggedMeal[], currentWater: number) => {
@@ -390,7 +436,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             const caloriesAfter = caloriesBefore + newMeal.nutritionalInfo.calories;
             
             let coveredByBank = 0;
-            if (caloriesAfter > goals.calorieGoal) {
+            // Only consider using bank if it's NOT Monday
+            if (caloriesAfter > goals.calorieGoal && !isViewingMonday) {
                 const overage = caloriesAfter - goals.calorieGoal;
                 const availableBank = weeklyBank.bankedCalories;
                 if (availableBank > 0) {
@@ -591,12 +638,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                         max={goals.calorieGoal}
                         size={220}
                         strokeWidth={18}
-                        color={totalNutrients.calories > goals.calorieGoal ? "text-red-500" : "text-primary"}
+                        color={progressColor}
                         trackColor="text-neutral-light"
                         centerContent={
                             <div className="text-center">
-                                <span className="text-5xl font-extrabold text-neutral-dark block">{caloriesRemaining.toFixed(0)}</span>
-                                <span className="text-sm font-medium text-neutral uppercase tracking-wider">Kvar</span>
+                                <span className={`text-5xl font-extrabold block ${progressColor}`}>
+                                    {isNetOverBudget 
+                                        ? `+${netCaloriesOver.toFixed(0)}` 
+                                        : (isFullyCoveredByBank ? '0' : caloriesRemaining.toFixed(0))
+                                    }
+                                </span>
+                                <span className={`text-sm font-medium uppercase tracking-wider ${isNetOverBudget ? progressColor : 'text-neutral'}`}>
+                                    {isNetOverBudget ? 'kcal' : (isFullyCoveredByBank ? 'ÖVER' : 'Kvar')}
+                                    {isNetOverBudget && <span className="block">ÖVER</span>}
+                                </span>
                             </div>
                         }
                     />
@@ -605,8 +660,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <p className="text-base font-medium text-neutral-dark">
                             {goals.calorieGoal} kcal Mål
                         </p>
-                        <p className="text-sm text-neutral mt-1">
-                            {caloriesRemaining < minSafeCalories ? "Du närmar dig din undre gräns!" : "Du är på rätt spår!"}
+                        <p className={`text-sm mt-1 ${isNetOverBudget ? 'text-secondary font-semibold' : (isFullyCoveredByBank ? 'text-blue-500 font-semibold' : 'text-neutral')}`}>
+                            {isNetOverBudget
+                                ? "Du har passerat ditt mål." 
+                                : (isFullyCoveredByBank 
+                                    ? "Din sparpott täcker överskottet!" 
+                                    : (caloriesRemaining < minSafeCalories ? "Du närmar dig din undre gräns!" : "Du är på rätt spår!"))
+                            }
                         </p>
                     </div>
                 </div>
@@ -657,7 +717,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                         currentAppDate={new Date()}
                         viewingDate={viewingDate}
                         onDateSelect={onDateSelect}
-                        currentViewStats={dailyStats}
+                        onPrevWeek={handlePrevWeek}
+                        onNextWeek={handleNextWeek}
+                        onToday={handleJumpToToday}
+                        goalType={userProfile.goalType} // Pass goalType here
                     />
 
                     {/* Water & Streak/Bank */}

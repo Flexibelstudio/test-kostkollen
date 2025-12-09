@@ -36,3 +36,11 @@ export const getWeekInfo = (date: Date): { weekId: string; startDate: string; en
         endDate: sunday.toISOString().split('T')[0],
     };
 };
+
+export const getISOWeekNumber = (date: Date): number => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return weekNumber;
+};

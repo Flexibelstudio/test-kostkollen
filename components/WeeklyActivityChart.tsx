@@ -1,7 +1,10 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { PastDaysSummaryCollection } from '../types';
 import { Dumbbell } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { getISOWeekNumber } from '../utils/dateUtils';
+import { MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD } from '../constants';
 
 interface DailyStats {
     calories: number;
@@ -15,7 +18,10 @@ interface WeeklyActivityChartProps {
   currentAppDate: Date;
   viewingDate: Date;
   onDateSelect: (date: Date) => void;
-  currentViewStats?: DailyStats; // Live stats for the actively viewed day
+  currentViewStats?: DailyStats; // Live stats for today
+  onPrevWeek: () => void;
+  onNextWeek: () => void;
+  onToday: () => void;
 }
 
 const getLocalISODateString = (date: Date): string => {
@@ -31,15 +37,19 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   viewingDate,
   onDateSelect,
   currentViewStats,
+  onPrevWeek,
+  onNextWeek,
+  onToday,
 }) => {
-  const today = new Date(currentAppDate);
-  today.setHours(0, 0, 0, 0);
+  // Use viewingDate to determine which week to show
+  const referenceDate = new Date(viewingDate);
+  referenceDate.setHours(0, 0, 0, 0);
 
-  // Calculate current week (Monday to Sunday)
-  const dayOfWeek = today.getDay(); // 0 (Sun) to 6 (Sat)
+  // Calculate the Monday of the *viewed* week
+  const dayOfWeek = referenceDate.getDay(); // 0 (Sun) to 6 (Sat)
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + mondayOffset);
+  const monday = new Date(referenceDate);
+  monday.setDate(referenceDate.getDate() + mondayOffset);
 
   const weekDays: Date[] = [];
   for (let i = 0; i < 7; i++) {
@@ -48,13 +58,51 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
     weekDays.push(day);
   }
 
+  const today = new Date(currentAppDate);
+  today.setHours(0, 0, 0, 0);
   const todayISO = getLocalISODateString(today);
   const viewingDateISO = getLocalISODateString(viewingDate);
+  
+  const currentWeekMonday = new Date(today);
+  const currentDayOfWeek = currentWeekMonday.getDay();
+  const currentMondayOffset = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek;
+  currentWeekMonday.setDate(currentWeekMonday.getDate() + currentMondayOffset);
+  
+  const isCurrentWeek = monday.getTime() === currentWeekMonday.getTime();
+  const weekNumber = getISOWeekNumber(monday);
 
   return (
     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
       <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-semibold text-neutral-dark">Veckoaktivitet</h3>
+        <div className="flex items-center gap-2">
+            <button 
+                onClick={onPrevWeek} 
+                className="p-1.5 rounded-full hover:bg-neutral-light transition-colors text-neutral-dark active:scale-95"
+                aria-label="Föregående vecka"
+            >
+                <ChevronLeftIcon className="w-5 h-5" />
+            </button>
+            <h3 className="text-lg font-semibold text-neutral-dark select-none min-w-[80px] text-center">
+                Vecka {weekNumber}
+            </h3>
+            <button 
+                onClick={onNextWeek} 
+                disabled={isCurrentWeek}
+                className={`p-1.5 rounded-full transition-colors text-neutral-dark active:scale-95 ${isCurrentWeek ? 'opacity-30 cursor-default' : 'hover:bg-neutral-light'}`}
+                aria-label="Nästa vecka"
+            >
+                <ChevronRightIcon className="w-5 h-5" />
+            </button>
+        </div>
+        
+        {!isCurrentWeek && (
+            <button 
+                onClick={onToday}
+                className="text-xs font-semibold text-primary hover:underline px-2 py-1"
+            >
+                Till idag
+            </button>
+        )}
       </div>
       
       <div className="flex justify-between items-end h-28 gap-2 sm:gap-4 relative z-10 px-1">
@@ -64,47 +112,67 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             const isToday = dayISO === todayISO;
             const isViewing = dayISO === viewingDateISO;
             
-            // Determine data source: Use live stats if viewing, otherwise historical summary
+            // --- DATA RETRIEVAL ---
+            // Critical fix: Only use currentViewStats for TODAY. 
+            // For all past days, strictly use pastDaysSummary to prevent jumping/re-animating when clicking.
+            
             let calories = 0;
             let calorieGoal = 2000;
             let proteinGoalMet = false;
             let waterGoalMet = false;
+            let goalMet = false;
 
-            if (isViewing && currentViewStats) {
+            const summary = pastDaysSummary[dayISO];
+
+            if (isToday && currentViewStats) {
+                // Live data for today
                 calories = currentViewStats.calories;
                 calorieGoal = currentViewStats.calorieGoal;
                 proteinGoalMet = currentViewStats.proteinGoalMet;
                 waterGoalMet = currentViewStats.waterGoalMet;
-            } else {
-                const summary = pastDaysSummary[dayISO];
-                if (summary) {
-                    calories = summary.consumedCalories;
-                    calorieGoal = summary.calorieGoal;
-                    proteinGoalMet = summary.proteinGoalMet;
-                    waterGoalMet = summary.waterGoalMet || false;
+                
+                // Calculate "Green" status strictly for today
+                const minSafe = Math.max(calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+                // Simple logic: Green if between minSafe and goal. 
+                // Note: User can have other goalTypes, but this is a good visual approximation for "On Track" today.
+                if (calories >= minSafe && calories <= calorieGoal) {
+                    goalMet = true;
                 }
+            } else if (summary) {
+                // Historical data
+                calories = summary.consumedCalories;
+                calorieGoal = summary.calorieGoal;
+                proteinGoalMet = summary.proteinGoalMet;
+                waterGoalMet = summary.waterGoalMet || false;
+                goalMet = summary.goalMet; // Trust the database calculation
             }
             
             const dayLabel = day.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '').charAt(0).toUpperCase();
-            
-            // Logic for visual
-            const isOverGoal = calories > calorieGoal;
             const hasLog = calories > 0;
-            const surplus = Math.max(0, calories - calorieGoal);
             
+            // --- COLOR LOGIC ---
+            let barColor = 'bg-neutral-100'; // Default Empty/Gray
+            
+            if (hasLog) {
+                if (goalMet) {
+                    barColor = 'bg-primary'; // Green
+                } else {
+                    barColor = 'bg-secondary'; // Orange (Under or Over)
+                }
+            }
+
             // Height calculation: Cap visual at 100%
             let heightPercentage = 0;
             if (calorieGoal > 0) {
                 heightPercentage = Math.min((calories / calorieGoal) * 100, 100);
             }
 
-            // Colors
-            let barColor = 'bg-neutral-100'; // Default gray/empty
-            if (hasLog) {
-                barColor = isOverGoal ? 'bg-secondary' : 'bg-primary';
-            }
+            // Surplus text if over goal
+            const surplus = Math.max(0, calories - calorieGoal);
+            const isOverGoal = calories > calorieGoal;
 
             // Water indicator: Blue letter if goal met
+            // Use live viewing status only for text color to indicate selection, not data source
             const dayLabelColor = waterGoalMet ? 'text-blue-500 font-bold' : (isViewing ? 'text-neutral-dark font-bold' : 'text-neutral');
 
             return (
@@ -126,7 +194,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                         <div className={`w-full max-w-[24px] sm:max-w-[32px] h-full bg-neutral-light/40 rounded-full relative overflow-hidden flex flex-col-reverse justify-start ${isViewing ? 'ring-2 ring-offset-2 ring-primary/30' : ''}`}>
                             {/* Filled Bar */}
                             <div 
-                                className={`w-full ${barColor} rounded-full transition-all duration-700 ease-out relative`} 
+                                className={`w-full ${barColor} rounded-full transition-all duration-500 ease-out relative`} 
                                 style={{ height: `${heightPercentage}%` }}
                             >
                                 {/* Protein Icon inside bar (only if logged and protein met) */}
