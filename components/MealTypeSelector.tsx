@@ -2,7 +2,7 @@ import React from 'react';
 import { MealType } from '../types';
 
 interface MealTypeSelectorProps {
-  selectedType: MealType;
+  selectedType: MealType | null;
   onSelect: (type: MealType) => void;
   className?: string;
 }

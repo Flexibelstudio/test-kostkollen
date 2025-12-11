@@ -100,7 +100,7 @@ const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
                 <h3 className="text-lg font-bold text-neutral-dark select-none">
                     Historik v.{weekNumber}
                 </h3>
-                <p className="text-xs text-neutral capitalize">
+                <p className="text-xs text-neutral">
                     {weekStart.toLocaleDateString('sv-SE', { month: 'long', year: 'numeric' })}
                 </p>
             </div>

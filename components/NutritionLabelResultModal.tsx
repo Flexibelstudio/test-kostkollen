@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { NutritionalInfo, MealType } from '../types.ts';
 import { CheckIcon, XMarkIcon } from './icons.tsx';
@@ -10,13 +11,13 @@ interface NutritionLabelResultModalProps {
   onClose: () => void;
   analysisResult: NutritionalInfo | null; // This is per 100g
   onLog: (finalNutrients: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void;
-  defaultMealType?: MealType;
+  defaultMealType?: MealType | null;
 }
 
-const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ show, onClose, analysisResult, onLog, defaultMealType = 'breakfast' }) => {
+const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ show, onClose, analysisResult, onLog, defaultMealType = null }) => {
   const [amountGrams, setAmountGrams] = useState('100');
   const [finalNutrients, setFinalNutrients] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
-  const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
+  const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
 
   useEffect(() => {
     if (analysisResult) {
@@ -47,6 +48,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
   }, [amountGrams, analysisResult]);
   
   const handleLog = () => {
+    if (!selectedMealType) return;
     playAudio('uiClick');
     onLog({
         ...finalNutrients,
@@ -94,6 +96,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                 <div>
                     <label className={labelClass + " mb-1"}>Måltidstyp</label>
                     <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
+                    {!selectedMealType && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
                 </div>
 
                 <div>
@@ -128,7 +131,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                     <XMarkIcon className="w-5 h-5 inline mr-1.5" />
                     Avbryt
                 </button>
-                <button type="button" onClick={handleLog} className="w-full sm:w-auto px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95">
+                <button type="button" onClick={handleLog} disabled={!selectedMealType} className="w-full sm:w-auto px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
                     <CheckIcon className="w-5 h-5 inline mr-1.5" />
                     Logga
                 </button>

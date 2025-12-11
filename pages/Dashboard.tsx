@@ -21,7 +21,6 @@ import {
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
-import { CommonMealsList } from '../components/CommonMealsList';
 import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, FireIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, RotateCcwIcon, LifebuoyIcon, TrophyIcon } from '../components/icons';
 import { PiggyBank, Flame } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
@@ -63,6 +62,7 @@ import MealTypeSelector from '../components/MealTypeSelector';
 import MealSectionCard from '../components/MealSectionCard';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import CoinFallEffect from '../components/CoinFallEffect';
+import CommonMealsList from '../components/CommonMealsList';
 
 // Helper function for image resizing
 const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
@@ -180,7 +180,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [searchedRecipe, setSearchedRecipe] = useState<RecipeSuggestion | null>(null);
     const [mealToSaveAsCommon, setMealToSaveAsCommon] = useState<LoggedMeal | null>(null);
     const [nutritionLabelResult, setNutritionLabelResult] = useState<NutritionalInfo | null>(null);
-    const [defaultMealTypeForModal, setDefaultMealTypeForModal] = useState<MealType>('breakfast');
+    const [defaultMealTypeForModal, setDefaultMealTypeForModal] = useState<MealType | null>(null);
 
     // UI States
     const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
@@ -410,11 +410,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         options?: { saveAsCommon?: boolean; mealType?: MealType }
     ) => {
         if (!currentUser) return;
-        setIsSaving(true);
-        setAppStatus('saving');
         
         const timestamp = Date.now();
-        const mealType = options?.mealType || defaultMealTypeForModal; // Fallback to state if not passed
+        const mealType = options?.mealType || defaultMealTypeForModal || 'breakfast'; // Fallback
+        
+        setIsSaving(true);
+        setAppStatus('saving');
         
         let newMeal: LoggedMeal;
 
@@ -600,9 +601,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Modal openers with "context awareness"
     // If a specific type is passed, we use it. 
     // If NOT passed, we check `activeMealSection`.
-    // If still null, default to 'breakfast'.
+    // If still null, default to null (force user to choose).
     const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType | null = null) => {
-        const typeToUse = type || activeMealSection || 'breakfast';
+        const typeToUse = type || activeMealSection || null;
         setDefaultMealTypeForModal(typeToUse);
         
         // IMPORTANT: Close the section list view when we start a logging action
@@ -626,7 +627,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     // --- RENDER ---
 
     return (
-        <div className="flex flex-col gap-4 pb-0 relative">
+        <div className="flex flex-col gap-3 pb-0 relative">
             {/* Top Date & Progress Card */}
             <div className="bg-white rounded-3xl shadow-soft-xl p-6 border border-neutral-light relative overflow-hidden">
                 <div className="flex flex-col items-center">
@@ -669,14 +670,26 @@ const Dashboard: React.FC<DashboardProps> = ({
                     
                     <div className="mt-4 text-center">
                         <p className="text-base font-medium text-neutral-dark">
-                            {goals.calorieGoal} kcal Mål
+                            {goals.calorieGoal} kcal
                         </p>
-                        <p className={`text-sm mt-1 ${isNetOverBudget ? 'text-secondary font-semibold' : (isFullyCoveredByBank ? 'text-blue-500 font-semibold' : 'text-neutral')}`}>
-                            {isNetOverBudget
-                                ? "Du har passerat ditt mål." 
+                        <p className={`text-sm mt-1 ${
+                            isNetOverBudget 
+                                ? 'text-secondary font-semibold' 
                                 : (isFullyCoveredByBank 
-                                    ? "Din sparpott täcker överskottet!" 
-                                    : (caloriesRemaining < minSafeCalories ? "Du närmar dig din undre gräns!" : "Du är på rätt spår!"))
+                                    ? 'text-blue-500 font-semibold' 
+                                    : (totalNutrients.calories >= minSafeCalories 
+                                        ? 'text-primary font-semibold' 
+                                        : 'text-neutral')
+                                )
+                        }`}>
+                            {isNetOverBudget
+                                ? "Du har passerat dagens mål." 
+                                : (isFullyCoveredByBank 
+                                    ? "Din sparpott täcker överskottet." 
+                                    : (totalNutrients.calories >= minSafeCalories 
+                                        ? "Snyggt! Du ligger bra till." 
+                                        : "Du är på väg mot din miniminivå.")
+                                )
                             }
                         </p>
                     </div>
@@ -684,10 +697,10 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Layout Columns */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 
                 {/* Left Column */}
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                     {/* Macros */}
                     <div className="grid grid-cols-3 gap-3">
                         {/* Protein */}
@@ -731,26 +744,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                     </div>
 
-                    {/* Weekly Activity */}
-                    <WeeklyActivityChart 
-                        pastDaysSummary={pastDaysSummary}
-                        currentAppDate={new Date()}
-                        viewingDate={viewingDate}
-                        onDateSelect={onDateSelect}
-                        onPrevWeek={handlePrevWeek}
-                        onNextWeek={handleNextWeek}
-                        onToday={handleJumpToToday}
-                        goalType={userProfile.goalType} // Pass goalType here
-                        currentViewStats={{ // Pass live stats for current day
-                            calories: totalNutrients.calories,
-                            calorieGoal: goals.calorieGoal,
-                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
-                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
-                        }}
-                    />
-
                     {/* Water & Streak/Bank */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                         <div ref={waterLoggerRef} className="h-full">
                             <WaterLogger
                                 currentWaterMl={waterLoggedMl}
@@ -760,7 +755,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 disabled={!isEditableView}
                             />
                         </div>
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-3">
                             {/* Streak Card */}
                             <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
                                 <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
@@ -790,12 +785,30 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                     </div>
+
+                    {/* Weekly Activity */}
+                    <WeeklyActivityChart 
+                        pastDaysSummary={pastDaysSummary}
+                        currentAppDate={new Date()}
+                        viewingDate={viewingDate}
+                        onDateSelect={onDateSelect}
+                        onPrevWeek={handlePrevWeek}
+                        onNextWeek={handleNextWeek}
+                        onToday={handleJumpToToday}
+                        goalType={userProfile.goalType} // Pass goalType here
+                        currentViewStats={{ // Pass live stats for current day
+                            calories: totalNutrients.calories,
+                            calorieGoal: goals.calorieGoal,
+                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
+                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
+                        }}
+                    />
                 </div>
 
                 {/* Right Column */}
-                <div className="flex flex-col gap-4">
-                    {/* Common Meals List - moved to top of right column */}
-                    <CommonMealsList
+                <div className="flex flex-col gap-3">
+                    
+                    <CommonMealsList 
                         commonMeals={commonMeals}
                         onLogCommonMeal={handleCommonMealLog}
                         onDeleteCommonMeal={handleDeleteCommonMeal}
@@ -932,7 +945,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 flex items-center justify-center z-[90] p-4 animate-fade-in" onClick={() => setShowCommonMealsPopup(null)}>
                     <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm animate-scale-in" onClick={e => e.stopPropagation()}>
                         <h3 className="text-lg font-bold text-neutral-dark mb-4">Välj måltid för "{showCommonMealsPopup.name}"</h3>
-                        <MealTypeSelector selectedType={'breakfast'} onSelect={(type) => confirmCommonMealLog(type)} className="w-full" />
+                        <MealTypeSelector selectedType={null} onSelect={(type) => confirmCommonMealLog(type)} className="w-full" />
                         <button onClick={() => setShowCommonMealsPopup(null)} className="mt-4 w-full py-2 text-neutral text-sm hover:underline">Avbryt</button>
                     </div>
                 </div>
@@ -943,8 +956,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => setShowRecipeChoiceModal(false)} onChooseSearch={() => { setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
             {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => setShowRecipeModal(false)} onSearch={async (q) => { setAppStatus('searching'); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} />}
             {showIngredientCaptureModal && <IngredientCaptureModal show={showIngredientCaptureModal} onClose={() => setShowIngredientCaptureModal(false)} images={ingredientImages} onRemoveImage={(i) => setIngredientImages(prev => prev.filter((_, idx) => idx !== i))} onUploadImages={async (files) => { for(let i=0; i<files.length; i++) { const base64 = await resizeImageForLog(files[i], 800); setIngredientImages(prev => [...prev, base64]); } }} openCameraModal={() => { setShowIngredientCaptureModal(false); setShowCameraModal(true); /* Logic needs loop back to capture modal */ }} onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} />}
-            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} />}
-            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setShowCameraModal(true); /* Needs logic to redirect to NutritionLabel flow */ }} />}
+            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} />}
+            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setShowCameraModal(true); /* Logic needs redirect to NutritionLabel flow */ }} />}
             {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp: Date.now() }); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}

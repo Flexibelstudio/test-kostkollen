@@ -16,7 +16,7 @@ interface RecipeModalProps {
   isLoggingDisabled?: boolean;
   recentSearches: string[];
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
-  defaultMealType?: MealType;
+  defaultMealType?: MealType | null;
 }
 
 const parseServings = (servingsStr: string | undefined): number => {
@@ -65,13 +65,13 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   isLoggingDisabled = false,
   recentSearches,
   setToastNotification,
-  defaultMealType = 'dinner'
+  defaultMealType = null
 }) => {
   const [query, setQuery] = useState('');
   const [portionsToLog, setPortionsToLog] = useState<string>("1");
   const [canShare, setCanShare] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['recipe-and-instructions']));
-  const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
+  const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
 
 
   useEffect(() => {
@@ -128,6 +128,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
   const handleLog = () => {
     if (recipe && !recipe.error) {
+      if (!selectedMealType) return; // Should be disabled, but safety check
+
       const recipeBaseServings = parseServings(recipe.servings);
       const numPortionsToLog = parseFloat(portionsToLog.replace(',', '.')) || 1;
 
@@ -346,6 +348,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
             <div>
                 <label className="block text-sm font-medium text-neutral-dark mb-1">Måltidstyp</label>
                 <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
+                {!selectedMealType && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
             </div>
 
             <div className="flex flex-row gap-2 justify-between items-center">
@@ -399,7 +402,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                 <button
                     type="button"
                     onClick={handleLog}
-                    disabled={isLoggingDisabled || isLoading || !portionsToLog.trim() || parseFloat(portionsToLog.replace(',', '.')) <=0}
+                    disabled={isLoggingDisabled || isLoading || !portionsToLog.trim() || parseFloat(portionsToLog.replace(',', '.') || "1") <=0 || !selectedMealType}
                     className="h-11 w-11 flex items-center justify-center bg-secondary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
                     title={isLoggingDisabled ? "Loggning är endast tillgänglig för idag" : parseFloat(portionsToLog.replace(',', '.')) <=0 ? "Ange ett giltigt antal portioner" : "Logga specificerat antal portioner"}
                 >

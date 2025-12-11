@@ -10,14 +10,14 @@ interface BarcodeSearchResultModalProps {
   scanResult: BarcodeScannedFoodInfo | null;
   onLog: (nutritionalInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void;
   onClose: () => void;
-  defaultMealType?: MealType;
+  defaultMealType?: MealType | null;
 }
 
-const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ show, scanResult, onLog, onClose, defaultMealType = 'breakfast' }) => {
+const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ show, scanResult, onLog, onClose, defaultMealType = null }) => {
   const [amount, setAmount] = useState('100'); // Default to 100g
   const [unit, setUnit] = useState<'g' | 'servings'>('g');
   const [calculatedNutrients, setCalculatedNutrients] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
-  const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
+  const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
 
   useEffect(() => {
     if (scanResult) {
@@ -54,7 +54,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
   }, [scanResult]);
 
   const handleLog = () => {
-    if (!scanResult) return;
+    if (!scanResult || !selectedMealType) return;
     playAudio('uiClick');
     onLog({
       ...calculatedNutrients,
@@ -102,6 +102,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
           <div>
               <label className={labelClass + " mb-1"}>Måltidstyp</label>
               <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
+              {!selectedMealType && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -144,7 +145,8 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
           <button
             type="button"
             onClick={handleLog}
-            className="w-full sm:w-auto px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95"
+            disabled={!selectedMealType}
+            className="w-full sm:w-auto px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckIcon className="w-5 h-5 inline mr-1.5" />
             Logga

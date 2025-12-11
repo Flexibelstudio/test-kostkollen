@@ -14,7 +14,7 @@ interface IngredientRecipeResultsModalProps {
   isLoading: boolean;
   error: string | null;
   isLoggingDisabled?: boolean;
-  defaultMealType?: MealType;
+  defaultMealType?: MealType | null;
 }
 
 const parseServings = (servingsStr: string | undefined): number => {
@@ -36,16 +36,16 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
   isLoading,
   error,
   isLoggingDisabled = false,
-  defaultMealType = 'dinner',
+  defaultMealType = null,
 }) => {
   const [portionsToLog, setPortionsToLog] = useState<{ [recipeTitle: string]: string }>({});
-  const [selectedMealTypes, setSelectedMealTypes] = useState<{ [recipeTitle: string]: MealType }>({});
+  const [selectedMealTypes, setSelectedMealTypes] = useState<{ [recipeTitle: string]: MealType | null }>({});
 
   useEffect(() => {
     // Initialize portion state when new recipes are loaded
     if (recipeSuggestions) {
       const initialPortions: { [key: string]: string } = {};
-      const initialTypes: { [key: string]: MealType } = {};
+      const initialTypes: { [key: string]: MealType | null } = {};
       recipeSuggestions.forEach(recipe => {
         initialPortions[recipe.title] = "1";
         initialTypes[recipe.title] = defaultMealType; 
@@ -70,6 +70,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
   };
 
   const handleLog = (recipe: RecipeSuggestion) => {
+    if (!selectedMealTypes[recipe.title]) return; // Should be disabled, safe guard
     playAudio('uiClick');
     const recipeBaseServings = parseServings(recipe.servings);
     const numPortionsToLog = parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") || 1;
@@ -86,7 +87,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
       carbohydrates: Math.round((recipe.totalNutritionalInfo.carbohydrates / recipeBaseServings) * numPortionsToLog),
       fat: Math.round((recipe.totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog),
     };
-    onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealTypes[recipe.title] || defaultMealType });
+    onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealTypes[recipe.title] as MealType });
   };
   
   // FIX: Changed 'icon' type from JSX.Element to React.ReactNode to resolve namespace error.
@@ -199,6 +200,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                                     selectedType={selectedMealTypes[recipe.title] || defaultMealType} 
                                     onSelect={(type) => handleMealTypeChange(recipe.title, type)} 
                                 />
+                                {!selectedMealTypes[recipe.title] && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
                             </div>
                             <div>
                                 <label htmlFor={`portions-${recipe.title}`} className="block text-sm font-medium text-neutral-dark mb-0.5">Antal portioner att logga:</label>
@@ -217,7 +219,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
 
                         <button
                           onClick={() => handleLog(recipe)}
-                          disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0}
+                          disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0 || !selectedMealTypes[recipe.title]}
                           className="w-full mt-2 px-4 py-2 text-sm font-medium text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
                         >
                           <LogIcon className="w-4 h-4 mr-2" /> Logga Recept

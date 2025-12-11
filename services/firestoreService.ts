@@ -730,17 +730,11 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
 }
 
 export async function fetchCommunityTimeline(currentUserId: string): Promise<TimelineEvent[]> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const startOfYesterdayTimestamp = yesterday.getTime();
-
+  // Removed strict date filtering to ensure feed populates even if activity is older than 24h
   const timelineRef = collection(db, 'communityTimeline');
   const q = query(
     timelineRef,
     where('visibleTo', 'array-contains', currentUserId),
-    where('timestamp', '>=', startOfYesterdayTimestamp),
     orderBy('timestamp', 'desc'),
     limit(50)
   );

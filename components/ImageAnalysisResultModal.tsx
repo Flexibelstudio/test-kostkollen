@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { NutritionalInfo, MealType } from '../types.ts';
 import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, CameraIcon, PencilIcon } from './icons.tsx'; 
@@ -10,13 +11,13 @@ interface ImageAnalysisResultModalProps {
   imageDataUrl: string | null;
   onLog: (editedInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void; 
   onClose: () => void;
-  defaultMealType?: MealType;
+  defaultMealType?: MealType | null;
 }
 
-const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ show, analysisResult, imageDataUrl, onLog, onClose, defaultMealType = 'breakfast' }) => {
+const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ show, analysisResult, imageDataUrl, onLog, onClose, defaultMealType = null }) => {
   const [editedInfo, setEditedInfo] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
   const [saveAsCommon, setSaveAsCommon] = useState<boolean>(false); 
-  const [selectedMealType, setSelectedMealType] = useState<MealType>(defaultMealType);
+  const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
 
   useEffect(() => {
     if (analysisResult) {
@@ -59,6 +60,7 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
   };
 
   const handleSubmit = () => {
+    if (!selectedMealType) return;
     playAudio('uiClick');
     const validatedInfo: NutritionalInfo = {
         ...editedInfo,
@@ -105,6 +107,7 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
           <div>
               <label className={labelClass + " mb-1"}>Måltidstyp</label>
               <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
+              {!selectedMealType && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
           </div>
 
           <div>
@@ -174,7 +177,8 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
           <button
             type="button"
             onClick={handleSubmit}
-            className="w-full sm:w-auto px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform"
+            disabled={!selectedMealType}
+            className="w-full sm:w-auto px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckIcon className="w-5 h-5 inline mr-1.5" />
             Logga

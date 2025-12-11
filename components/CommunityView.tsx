@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, FC, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { Peppkompis, TimelineEvent, Achievement, Gender, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions } from '../types';
@@ -11,6 +12,7 @@ import {
     togglePeppOnTimelineEvent,
     addCommentToTimelineEvent,
     toggleLikeOnComment,
+    fetchBuddies,
     cancelFriendRequest
 } from '../services/firestoreService';
 import { 
@@ -32,7 +34,7 @@ const formatChange = (change: number | undefined, isFirstEntry: boolean, invertC
     }
 
     if (Math.abs(change) < 0.05) {
-        return { text: '±0,0 kg', colorClass: 'text-accent' };
+        return { text: '±0,0 kg', colorClass: 'text-neutral-dark' };
     }
 
     const sign = change > 0 ? '+' : '';
@@ -402,7 +404,7 @@ const FriendManagementView: FC<{
         switch (activeTab) {
             case 'buddies':
                 return (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         <div className="relative">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                             <input 
@@ -418,7 +420,7 @@ const FriendManagementView: FC<{
                                 {buddySearchQuery ? 'Inga kompisar matchade din sökning.' : 'Du har inga kompisar än.'}
                             </p>
                         ) : (
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                                 {filteredBuddyDetails.map(buddy => (
                                     <BuddyCard
                                         key={buddy.uid}
@@ -434,7 +436,7 @@ const FriendManagementView: FC<{
                 );
             case 'search':
                 return (
-                    <div className="animate-fade-in space-y-4">
+                    <div className="animate-fade-in space-y-3">
                         <button
                             onClick={() => setShowInviteOptionsModal(true)}
                             className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
@@ -447,7 +449,7 @@ const FriendManagementView: FC<{
                                 type="search" 
                                 value={searchQuery} 
                                 onChange={e => setSearchQuery(e.target.value)} 
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white shadow-sm"
                                 placeholder="Sök bland användare..."
                                 autoFocus
                             />
@@ -476,7 +478,7 @@ const FriendManagementView: FC<{
                 );
             case 'requests':
                 return (
-                    <div className="space-y-4 bg-white p-4 rounded-lg border border-neutral-light">
+                    <div className="space-y-3 bg-white p-4 rounded-lg border border-neutral-light">
                         <h4 className="font-semibold">Inkommande ({requests.length})</h4>
                         {requests.length > 0 ? requests.map(req => (
                             <div key={req.id} className="flex items-center justify-between bg-neutral-light p-2 rounded-lg">
@@ -500,7 +502,7 @@ const FriendManagementView: FC<{
     };
 
     return (
-        <div className="p-4 flex flex-col h-full">
+        <div className="p-2 sm:p-4 flex flex-col h-full">
             <div className="flex-shrink-0">
                 <nav className="flex -mb-px border-b border-neutral-light">
                     <button onClick={() => setActiveTab('buddies')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'buddies' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina kompisar</button>
@@ -511,7 +513,7 @@ const FriendManagementView: FC<{
                     </button>
                 </nav>
             </div>
-            <div className="flex-grow overflow-y-auto custom-scrollbar mt-4">
+            <div className="flex-grow overflow-y-auto custom-scrollbar mt-3">
                 {renderTabContent()}
             </div>
             {buddyToRemove && (
@@ -893,7 +895,7 @@ export const CommunityView: React.FC<{
             
             <main className="flex-grow overflow-y-auto bg-neutral-light/50">
                 {activeTab === 'flode' && (
-                    <div className="p-2 sm:p-4 space-y-4">
+                    <div className="p-2 sm:p-4 space-y-3">
                         {isLoading ? (
                             <div className="flex justify-center items-center h-full py-16"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div></div>
                         ) : timelineEvents.length > 0 ? (

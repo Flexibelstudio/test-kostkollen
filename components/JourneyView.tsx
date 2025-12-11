@@ -1,18 +1,13 @@
 
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import type { User } from '@firebase/auth';
-import { PastDaysSummaryCollection, PastDaySummary, WeightLogEntry, UserProfileData, GoalType, GoalSettings, ActivityLevel, Achievement, TimelineEvent, AIStructuredFeedbackResponse, CompletedGoal, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
-import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PencilIcon, ChartLineIcon, SparklesIcon, UserCircleIcon, InformationCircleIcon, CheckIcon, BookOpenIcon, TrophyIcon, BarcodeIcon, UserGroupIcon, ChevronDownIcon, ChevronUpIcon, ShareIcon, HeartIcon, XMarkIcon, LifebuoyIcon, AICoachIcon } from './icons';
-import { User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
-import WeightChart from './WeightChart.tsx'; 
-import { calculateGoalTimeline, TimelineMilestone } from '../utils/timelineUtils.ts';
+import React, { useMemo, useState } from 'react';
+import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, AIStructuredFeedbackResponse, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
+import { PencilIcon, TrophyIcon, AICoachIcon, ChevronDownIcon, ChevronUpIcon, SparklesIcon } from './icons';
+import { Dumbbell, PieChart } from 'lucide-react';
+import { calculateGoalTimeline } from '../utils/timelineUtils.ts';
 import GamificationCard from './GamificationCard.tsx';
 import GoalTimeline from './JourneyGoalTimeline.tsx';
 import ProfileAndGoalEditor from './JourneyProfileEditor.tsx';
 import AchievementsView from './AchievementsView.tsx';
-import { fetchTimelineForCurrentUser } from '../services/firestoreService.ts';
-import { auth } from '../firebase';
-import { playAudio } from '../services/audioService';
 
 interface JourneyViewProps {
   pastDaysData: PastDaysSummaryCollection;
@@ -42,69 +37,12 @@ interface JourneyViewProps {
 }
 type Tab = 'goals' | 'achievements';
 
-
-const getLocalISODateString = (date: Date): string => {
-  if (!(date instanceof Date) || isNaN(date.getTime())) {
-    return "ERROR_INVALID_DATE";
-  }
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const TabButton: React.FC<{label: string, isActive: boolean, onClick: () => void, notificationCount?: number}> = ({ label, isActive, onClick, notificationCount }) => (
-    <button
-      onClick={onClick}
-      role="tab"
-      aria-selected={isActive}
-      className={`relative flex-1 py-4 text-center font-semibold border-b-4 transition-colors duration-200
-        ${isActive 
-          ? 'border-primary text-primary' 
-          : 'border-transparent text-neutral hover:border-primary-lighter'
-        }`}
-    >
-      {label}
-      {notificationCount && notificationCount > 0 && (
-         <span className="absolute top-2 right-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold ring-2 ring-white">
-            {notificationCount > 9 ? '9+' : notificationCount}
-        </span>
-      )}
-    </button>
-);
-
-const CompactStatCard: React.FC<{
-    label: string;
-    value: string;
-    change?: { text: string; colorClass: string };
-    icon: React.ReactElement<{ className?: string }>;
-    iconBgColor: string;
-    iconColor: string;
-}> = ({ label, value, change, icon, iconBgColor, iconColor }) => (
-    <div className="bg-white p-3 sm:p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 flex flex-col flex-1 justify-center text-center">
-        <div className="flex items-center justify-center text-xs sm:text-sm text-neutral gap-2">
-            <div className={`flex-shrink-0 p-1.5 rounded-full ${iconBgColor} ${iconColor}`}>
-                {React.cloneElement(icon, { className: "w-4 h-4" })}
-            </div>
-            <span className="font-semibold">{label}</span>
-        </div>
-        <p className="text-xl sm:text-2xl font-bold text-neutral-dark mt-1 whitespace-nowrap">{value}</p>
-        {change && (
-            <p className={`text-xs sm:text-sm font-semibold ${change.colorClass}`}>{change.text}</p>
-        )}
-    </div>
-);
-
-
 export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const { 
-      pastDaysData, weightLogs, userProfile, goals, onSaveProfileAndGoals, 
+      weightLogs, userProfile, goals, onSaveProfileAndGoals, 
       onOpenLogWeightModal, playAudio, 
-      viewingDate, setViewingDate, currentDate,
       initialTab, highestStreak, highestLevelId, minSafeCalories,
       setToastNotification, achievements, unlockedAchievements, achievementInteractions, journeyAnalysisFeedback,
-      onNavigateToMainWithDate,
-      analysisContext,
       setShowAICoachModal,
       onDiscussSavedAnalysis,
   } = props;
@@ -112,7 +50,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     if(initialTab === 'profile') return 'goals';
     if(initialTab === 'achievements') return 'achievements';
-    return 'goals'; // Default to goals if calendar/overview was requested but removed
+    return 'goals'; 
   });
 
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
@@ -208,10 +146,9 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const muscleChangeDetails = formatChangeWithColor(muscleChangeNum, userProfile.goalType, 'muscle', userProfile.measurementMethod, undefined, undefined);
   const fatChangeDetails = formatChangeWithColor(fatChangeNum, userProfile.goalType, 'fat', userProfile.measurementMethod, undefined, undefined);
 
-  const { goalProgress, goalProgressText, startValue, targetValue } = useMemo(() => {
+  const { goalProgress, goalDisplayString } = useMemo(() => {
     let startValueKg, currentValueKg, goalChangeKg, goalUnit;
 
-    // Determine which metric is the goal
     const isScaleGoal = userProfile.measurementMethod === 'scale' && userProfile.desiredWeightChangeKg;
     const isFatLossGoal = userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
     const isMuscleGainGoal = userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
@@ -232,270 +169,257 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         goalChangeKg = userProfile.desiredWeightChangeKg;
         goalUnit = 'kg vikt';
     } else {
-        // No active goal or data to calculate progress
-        return { goalProgress: 0, goalProgressText: 'Inget aktivt mål', startValue: undefined, targetValue: undefined };
+        return { goalProgress: 0, goalDisplayString: 'Inget aktivt mål' };
     }
     
-    if (startValueKg == null || currentValueKg == null || userProfile.mainGoalCompleted) {
-        return { goalProgress: 0, goalProgressText: 'Väntar på mätning', startValue: startValueKg, targetValue: startValueKg != null && goalChangeKg != null ? startValueKg + goalChangeKg : undefined };
+    // Display String Logic
+    const datePart = userProfile.goalCompletionDate ? ` till ${new Date(userProfile.goalCompletionDate+'T00:00:00').toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : '';
+    let displayString = "";
+    
+    if (userProfile.mainGoalCompleted) {
+        displayString = "Du har nått ditt mål!";
+    } else if (userProfile.measurementMethod === 'scale' && userProfile.desiredWeightChangeKg) {
+        displayString = `Nå en viktförändring på ${userProfile.desiredWeightChangeKg > 0 ? '+' : ''}${userProfile.desiredWeightChangeKg.toFixed(1).replace('.',',')} kg${datePart}`;
+    } else {
+        const changes = [];
+        if (userProfile.desiredFatMassChangeKg) changes.push(`${userProfile.desiredFatMassChangeKg > 0 ? '+' : ''}${userProfile.desiredFatMassChangeKg.toFixed(1).replace('.',',')} kg fett`);
+        if (userProfile.desiredMuscleMassChangeKg) changes.push(`${userProfile.desiredMuscleMassChangeKg > 0 ? '+' : ''}${userProfile.desiredMuscleMassChangeKg.toFixed(1).replace('.',',')} kg muskler`);
+        if (changes.length > 0) displayString = `Nå en förändring på ${changes.join(' och ')}${datePart}`;
+        else displayString = 'Bibehålla nuvarande form';
     }
 
-    const targetValueKg = startValueKg + goalChangeKg;
-    
-    // Use absolute values to avoid confusion with signs
-    const totalChangeNeeded = Math.abs(goalChangeKg);
-    
+    if (startValueKg == null || currentValueKg == null || userProfile.mainGoalCompleted) {
+        return { goalProgress: 0, goalDisplayString: displayString };
+    }
+
+    const totalChangeNeeded = Math.abs(goalChangeKg || 0);
     let changeAchieved;
-    if (goalChangeKg > 0) { // Gain goal
+    if ((goalChangeKg || 0) > 0) { // Gain goal
         changeAchieved = currentValueKg - startValueKg;
     } else { // Loss goal
         changeAchieved = startValueKg - currentValueKg;
     }
     
-    // Don't show negative progress
     changeAchieved = Math.max(0, changeAchieved);
 
-    if (totalChangeNeeded < 0.01) { // Effectively zero
-        return { goalProgress: 100, goalProgressText: 'Mål uppnått', startValue: startValueKg, targetValue: targetValueKg };
+    if (totalChangeNeeded < 0.01) {
+        return { goalProgress: 100, goalDisplayString: displayString };
     }
 
     const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
-    const progressClamped = Math.max(0, Math.min(progressRaw, 100));
-    
-    const unit = goalUnit.split(' ')[1] || 'kg';
-
     return {
-        goalProgress: progressClamped,
-        goalProgressText: `${currentValueKg.toFixed(1).replace('.',',')} / ${targetValueKg.toFixed(1).replace('.',',')} ${unit}`,
-        startValue: startValueKg,
-        targetValue: targetValueKg
+        goalProgress: Math.max(0, Math.min(progressRaw, 100)),
+        goalDisplayString: displayString
     };
   }, [latestWeightLog, userProfile]);
 
-  const goalDisplayString = useMemo(() => {
-    const { measurementMethod, desiredWeightChangeKg, desiredFatMassChangeKg, desiredMuscleMassChangeKg, goalType, goalCompletionDate } = userProfile;
-    const datePart = goalCompletionDate ? ` till ${new Date(goalCompletionDate+'T00:00:00').toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : '';
-    
-    if (userProfile.mainGoalCompleted) {
-        return "Du har nått ditt mål!";
-    }
-
-    if (measurementMethod === 'scale' && desiredWeightChangeKg) {
-        return `Nå en viktförändring på ${desiredWeightChangeKg > 0 ? '+' : ''}${desiredWeightChangeKg.toFixed(1).replace('.',',')} kg${datePart}`;
-    }
-    const changes = [];
-    if (desiredFatMassChangeKg) {
-        changes.push(`${desiredFatMassChangeKg > 0 ? '+' : ''}${desiredFatMassChangeKg.toFixed(1).replace('.',',')} kg fett`);
-    }
-    if (desiredMuscleMassChangeKg) {
-        changes.push(`${desiredMuscleMassChangeKg > 0 ? '+' : ''}${desiredMuscleMassChangeKg.toFixed(1).replace('.',',')} kg muskler`);
-    }
-    if (changes.length > 0) {
-        return `Nå en förändring på ${changes.join(' och ')}${datePart}`;
-    }
-    
-    const goalTypeDisplayMap: Record<GoalType, string> = {
-        lose_fat: 'Minska fettmassa / vikt',
-        maintain: 'Behålla nuvarande vikt/sammansättning',
-        gain_muscle: 'Öka muskelmassa / vikt',
-    };
-    return goalTypeDisplayMap[goalType];
-  }, [userProfile]);
-
   return (
     <>
-      <div className="animate-fade-in relative pb-20">
+      <div className="animate-fade-in relative pb-0 flex flex-col gap-3">
             
-        <div className="space-y-6">
-            <section aria-labelledby="journey-summary-heading">
-                <h2 id="journey-summary-heading" className="sr-only">Sammanfattning av resan</h2>
-                <div className="flex flex-row gap-3">
-                    <CompactStatCard 
-                        label="Vikt" 
-                        value={latestWeight ? `${latestWeight.toFixed(1).replace('.',',')} kg` : 'N/A'} 
-                        change={weightChangeDetails}
-                        icon={<UserIcon />} 
-                        iconBgColor="bg-green-100" 
-                        iconColor="text-green-600"
-                    />
-                    {latestMuscle != null && (
-                        <CompactStatCard 
-                            label="Muskler" 
-                            value={latestMuscle ? `${latestMuscle.toFixed(1).replace('.',',')} kg` : 'N/A'} 
-                            change={muscleChangeDetails}
-                            icon={<Dumbbell />}
-                            iconBgColor="bg-orange-100" 
-                            iconColor="text-orange-500"
-                        />
-                    )}
-                    {latestFat != null && (
-                        <CompactStatCard 
-                            label="Fett" 
-                            value={latestFat ? `${latestFat.toFixed(1).replace('.',',')} kg` : 'N/A'} 
-                            change={fatChangeDetails}
-                            icon={<PieChart />}
-                            iconBgColor="bg-yellow-100"
-                            iconColor="text-yellow-500"
-                        />
-                    )}
-                </div>
-                 <div className="mt-4 flex flex-col sm:flex-row gap-3">
-                    <button
-                        onClick={onOpenLogWeightModal}
-                        className="flex-1 px-5 py-3 bg-primary hover:bg-primary-darker text-white font-semibold rounded-lg shadow-soft-lg active:scale-95 interactive-transition flex items-center justify-center"
-                    >
-                        Logga ny mätning
-                    </button>
-                </div>
-            </section>
-
-            <div className="bg-white p-2 sm:p-4 rounded-xl shadow-soft-lg border border-neutral-light">
-              <nav className="border-b border-neutral-light -mx-2 sm:-mx-4 px-2 sm:px-4 mb-4">
-                  <div role="tablist" className="flex items-center justify-around">
-                      <TabButton label="Mål" isActive={activeTab === 'goals'} onClick={() => setActiveTab('goals')} />
-                      <TabButton label="Bragder" isActive={activeTab === 'achievements'} onClick={() => setActiveTab('achievements')} />
-                  </div>
-              </nav>
-
-              <div className="mt-4">
+        {/* HERO CARD - BODY COMPOSITION */}
+        <div className="bg-white rounded-3xl shadow-soft-xl p-5 border border-neutral-light relative overflow-hidden">
+            <div className="flex flex-col items-center">
+                <h2 className="text-lg font-bold text-neutral-dark mb-4 uppercase tracking-wide opacity-80">Kroppssammansättning</h2>
                 
-                {activeTab === 'goals' && (
-                  <div className="space-y-6">
-                    <section aria-labelledby="current-goal-heading">
-                        <h3 id="current-goal-heading" className="text-xl font-semibold text-neutral-dark mb-3">Ditt Aktuella Mål</h3>
-                        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70">
-                            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                                <p className="text-lg text-neutral-dark font-medium text-center sm:text-left">{goalDisplayString}</p>
+                {/* Main Metric - Weight */}
+                <div className="text-center mb-6">
+                    <span className="text-5xl font-extrabold block text-neutral-dark">
+                        {latestWeight ? `${latestWeight.toFixed(1).replace('.',',')}` : 'N/A'}
+                        <span className="text-2xl ml-1 text-neutral">kg</span>
+                    </span>
+                    <span className={`text-base font-semibold ${weightChangeDetails.colorClass} bg-neutral-light/50 px-3 py-1 rounded-full mt-2 inline-block`}>
+                        {weightChangeDetails.text}
+                    </span>
+                </div>
+
+                {/* Secondary Metrics */}
+                <div className="flex gap-4 w-full justify-center">
+                    {latestMuscle != null && (
+                        <div className="flex-1 bg-orange-50 rounded-2xl p-3 flex flex-col items-center border border-orange-100">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <Dumbbell className="w-4 h-4 text-orange-500" />
+                                <span className="text-xs font-bold text-orange-700 uppercase">Muskler</span>
                             </div>
+                            <span className="text-xl font-bold text-neutral-dark">
+                                {latestMuscle.toFixed(1).replace('.',',')}
+                            </span>
+                            <span className={`text-xs font-semibold ${muscleChangeDetails.colorClass}`}>
+                                {muscleChangeDetails.text}
+                            </span>
+                        </div>
+                    )}
+                    
+                    {latestFat != null && (
+                        <div className="flex-1 bg-yellow-50 rounded-2xl p-3 flex flex-col items-center border border-yellow-100">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <PieChart className="w-4 h-4 text-yellow-600" />
+                                <span className="text-xs font-bold text-yellow-700 uppercase">Fett</span>
+                            </div>
+                            <span className="text-xl font-bold text-neutral-dark">
+                                {latestFat.toFixed(1).replace('.',',')}
+                            </span>
+                            <span className={`text-xs font-semibold ${fatChangeDetails.colorClass}`}>
+                                {fatChangeDetails.text}
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                <button
+                    onClick={onOpenLogWeightModal}
+                    className="mt-6 w-full py-3.5 bg-primary hover:bg-primary-darker text-white font-bold rounded-2xl shadow-md active:scale-95 interactive-transition flex items-center justify-center gap-2"
+                >
+                    <PencilIcon className="w-5 h-5" />
+                    Logga mätning
+                </button>
+            </div>
+        </div>
+
+        {/* Tabs & Content */}
+        <div className="bg-white p-2 rounded-2xl shadow-soft-lg border border-neutral-light">
+            <div className="flex p-1 bg-neutral-light/50 rounded-xl">
+                <button
+                    onClick={() => setActiveTab('goals')}
+                    className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'goals' ? 'bg-white text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark'}`}
+                >
+                    Mål & Framsteg
+                </button>
+                <button
+                    onClick={() => setActiveTab('achievements')}
+                    className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'achievements' ? 'bg-white text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark'}`}
+                >
+                    Bragder
+                </button>
+            </div>
+
+            <div className="mt-4 p-2">
+                {activeTab === 'goals' && (
+                    <div className="space-y-3 animate-fade-in">
+                        {/* Current Goal Card */}
+                        <div className="bg-neutral-light/30 p-4 rounded-2xl border border-neutral-light">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="font-bold text-neutral-dark flex items-center gap-2">
+                                    <TrophyIcon className="w-5 h-5 text-accent" />
+                                    Ditt Mål
+                                </h3>
+                                {!userProfile.mainGoalCompleted && (
+                                    <span className="text-xs font-bold text-primary bg-white px-2 py-1 rounded-md shadow-sm">
+                                        {goalProgress.toFixed(0)}% klart
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-sm font-medium text-neutral-dark mb-3">
+                                {goalDisplayString}
+                            </p>
                             {!userProfile.mainGoalCompleted && (
-                                <div className="mt-3">
-                                    <div className="w-full bg-neutral-light rounded-full h-2.5 shadow-inner">
-                                        <div className="bg-primary h-2.5 rounded-full" style={{ width: `${goalProgress}%` }}></div>
-                                    </div>
-                                     <p className="text-right text-sm font-semibold text-primary-darker mt-1">{goalProgress.toFixed(0)}%</p>
+                                <div className="w-full bg-white rounded-full h-3 shadow-inner overflow-hidden">
+                                    <div className="bg-primary h-full rounded-full" style={{ width: `${goalProgress}%` }}></div>
                                 </div>
                             )}
                         </div>
-                    </section>
-                    <GoalTimeline milestones={timeline.milestones} paceFeedback={timeline.paceFeedback} weightLogs={filteredWeightLogs} goalType={userProfile.goalType} currentAppDate={currentDate}/>
-                    <ProfileAndGoalEditor initialProfile={userProfile} initialGoals={goals} onSave={onSaveProfileAndGoals} />
-                    
-                    {userProfile.completedGoals && userProfile.completedGoals.length > 0 && (
-                        <section aria-labelledby="completed-goals-heading">
-                            <h3 id="completed-goals-heading" className="text-xl font-semibold text-neutral-dark mb-3">Uppnådda Huvudmål</h3>
-                            <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3">
-                                {[...userProfile.completedGoals]
-                                    .sort((a, b) => new Date(b.achievedOn).getTime() - new Date(a.achievedOn).getTime())
-                                    .map((goal) => (
-                                        <div key={goal.id} className="p-3 bg-primary-100/60 rounded-lg border border-primary-200">
-                                            <p className="font-semibold text-primary-darker flex items-center">
-                                                <TrophyIcon className="w-5 h-5 mr-2 text-accent" />
-                                                {goal.description}
-                                            </p>
-                                            <p className="text-sm text-neutral-dark pl-7">
-                                                Uppnådd den {new Date(goal.achievedOn).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric' })}
-                                            </p>
-                                        </div>
-                                    ))
-                                }
-                            </div>
-                        </section>
-                    )}
 
-                    <GamificationCard
-                        goals={goals}
-                        minSafeCalories={minSafeCalories}
-                        highestStreak={highestStreak}
-                        highestLevelId={highestLevelId}
-                        isExpanded={isGamificationCardExpanded}
-                        onToggle={() => {
-                            playAudio('uiClick');
-                            setIsGamificationCardExpanded(prev => !prev);
-                        }}
-                    />
-                    
-                    <div className="bg-white p-4 sm:p-5 rounded-xl shadow-soft-lg border border-neutral-light mt-4">
-                        {journeyAnalysisFeedback ? (
-                            <>
-                                <button
-                                    onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
-                                    className="w-full flex justify-between items-center text-left mb-2 group"
-                                    aria-expanded={isAnalysisExpanded}
-                                    aria-controls="journey-analysis-panel"
-                                >
-                                    <div className="flex items-center">
-                                        <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
-                                        <div>
-                                            <h3 className="text-xl font-semibold text-neutral-dark group-hover:text-secondary transition-colors">AI-analysen från din coach</h3>
-                                            <p className="text-xs text-neutral">
-                                                {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric'})}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {isAnalysisExpanded ? <ChevronUpIcon className="w-6 h-6 text-neutral" /> : <ChevronDownIcon className="w-6 h-6 text-neutral" />}
-                                </button>
-                                {isAnalysisExpanded && (
-                                    <div id="journey-analysis-panel" className="mt-4 space-y-4 animate-fade-in">
-                                        {journeyAnalysisFeedback.sections.map((section, index) => (
-                                            <div key={index} className="pt-3 border-t border-neutral-light/50">
-                                                <h4 className="text-lg font-bold text-neutral-dark mb-1 flex items-center">
-                                                    <span className="text-xl mr-2">{section.emoji}</span>
-                                                    {section.title}
-                                                </h4>
-                                                <div className="text-neutral-dark space-y-1 text-sm pl-8">
-                                                    {section.content.split('\n').map((line, lineIdx) => (
-                                                        <p key={lineIdx}>{line.replace(/•/g, '• ')}</p>
-                                                    ))}
-                                                </div>
+                        <GoalTimeline 
+                            milestones={timeline.milestones} 
+                            paceFeedback={timeline.paceFeedback} 
+                            weightLogs={filteredWeightLogs} 
+                            goalType={userProfile.goalType} 
+                            currentAppDate={new Date()}
+                        />
+                        
+                        <ProfileAndGoalEditor initialProfile={userProfile} initialGoals={goals} onSave={onSaveProfileAndGoals} />
+                        
+                        <GamificationCard
+                            goals={goals}
+                            minSafeCalories={minSafeCalories}
+                            highestStreak={highestStreak}
+                            highestLevelId={highestLevelId}
+                            isExpanded={isGamificationCardExpanded}
+                            onToggle={() => {
+                                playAudio('uiClick');
+                                setIsGamificationCardExpanded(prev => !prev);
+                            }}
+                        />
+
+                        {/* AI Analysis Card */}
+                        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-2xl border border-indigo-100 shadow-sm">
+                            {journeyAnalysisFeedback ? (
+                                <>
+                                    <button
+                                        onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
+                                        className="w-full flex justify-between items-center text-left group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-white rounded-full shadow-sm">
+                                                <SparklesIcon className="w-6 h-6 text-indigo-500" />
                                             </div>
-                                        ))}
-                                            <div className="mt-4 pt-4 border-t border-neutral-light/50">
+                                            <div>
+                                                <h3 className="font-bold text-indigo-900">Analys från Coachen</h3>
+                                                <p className="text-xs text-indigo-700/70">
+                                                    {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {isAnalysisExpanded ? <ChevronUpIcon className="w-5 h-5 text-indigo-400" /> : <ChevronDownIcon className="w-5 h-5 text-indigo-400" />}
+                                    </button>
+                                    
+                                    {isAnalysisExpanded && (
+                                        <div className="mt-4 space-y-4 animate-fade-in border-t border-indigo-100/50 pt-4">
+                                            {journeyAnalysisFeedback.sections.map((section, index) => (
+                                                <div key={index}>
+                                                    <h4 className="text-sm font-bold text-indigo-900 mb-1 flex items-center gap-2">
+                                                        <span>{section.emoji}</span>
+                                                        {section.title}
+                                                    </h4>
+                                                    <p className="text-sm text-indigo-800/80 leading-relaxed pl-6">
+                                                        {section.content.replace(/\n/g, ' ')}
+                                                    </p>
+                                                </div>
+                                            ))}
                                             <button
                                                 onClick={() => onDiscussSavedAnalysis(journeyAnalysisFeedback.analysisDate)}
-                                                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-base sm:text-lg font-medium text-secondary-darker bg-secondary-100 hover:bg-secondary-200 rounded-md shadow-sm interactive-transition active:scale-95"
+                                                className="w-full mt-2 py-3 bg-white text-indigo-600 font-bold text-sm rounded-xl shadow-sm border border-indigo-100 hover:bg-indigo-50 interactive-transition flex items-center justify-center gap-2"
                                             >
-                                                <AICoachIcon className="w-6 h-6 flex-shrink-0"/>
-                                                <span className="text-center">Diskutera analysen med din coach</span>
+                                                <AICoachIcon className="w-5 h-5" />
+                                                Diskutera analysen
                                             </button>
                                         </div>
-                                    </div>
-                                )}
-                            </>
-                        ) : (
-                            <div className="text-center p-4">
-                                <SparklesIcon className="w-10 h-10 text-secondary mx-auto mb-3" />
-                                <h3 className="text-xl font-semibold text-neutral-dark">Personlig Analys från Coachen</h3>
-                                <p className="text-neutral mt-2 text-sm">
-                                    Din analys kommer att visas här när du har loggat några dagar och gjort minst två invägningar.
-                                </p>
-                            </div>
-                        )}
+                                    )}
+                                </>
+                            ) : (
+                                <div className="text-center py-4">
+                                    <SparklesIcon className="w-8 h-8 text-indigo-300 mx-auto mb-2" />
+                                    <p className="text-indigo-900 font-medium">Din analys kommer snart!</p>
+                                    <p className="text-xs text-indigo-700/70 mt-1">Logga några dagar till så dyker den upp här.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                  </div>
                 )}
                 
                 {activeTab === 'achievements' && (
-                  <AchievementsView 
-                    userProfile={userProfile}
-                    achievements={achievements}
-                    unlockedAchievements={unlockedAchievements}
-                    achievementInteractions={achievementInteractions}
-                    setToastNotification={setToastNotification}
-                  />
+                    <div className="animate-fade-in">
+                        <AchievementsView 
+                            userProfile={userProfile}
+                            achievements={achievements}
+                            unlockedAchievements={unlockedAchievements}
+                            achievementInteractions={achievementInteractions}
+                            setToastNotification={setToastNotification}
+                        />
+                    </div>
                 )}
-
-              </div>
             </div>
         </div>
       </div>
       
+      {/* FAB for Coach */}
       <div className="fixed right-6 bottom-6 z-40">
           <button
             onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); }}
-            className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-xl hover:bg-blue-600 active:scale-95 transform transition-all animate-pulse-blue"
+            className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-xl hover:bg-blue-600 active:scale-95 transform transition-all animate-pulse-blue"
             aria-label="Fråga Flexibot AI-Coach"
           >
-            <AICoachIcon className="w-10 h-10" />
+            <AICoachIcon className="w-8 h-8" />
           </button>
       </div>
 
