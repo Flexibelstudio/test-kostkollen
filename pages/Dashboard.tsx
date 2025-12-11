@@ -182,8 +182,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [nutritionLabelResult, setNutritionLabelResult] = useState<NutritionalInfo | null>(null);
     const [defaultMealTypeForModal, setDefaultMealTypeForModal] = useState<MealType>('breakfast');
 
+    // UI States
     const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
     const [showBonusCoin, setShowBonusCoin] = useState(false);
+    const [activeMealSection, setActiveMealSection] = useState<MealType | null>(null); // Lifted state for open section
+
     const bankRef = useRef<HTMLDivElement>(null);
     const waterLoggerRef = useRef<HTMLDivElement>(null);
 
@@ -594,24 +597,31 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     };
 
-    // Modal openers
-    const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType) => {
-        setDefaultMealTypeForModal(type);
+    // Modal openers with "context awareness"
+    // If a specific type is passed, we use it. 
+    // If NOT passed, we check `activeMealSection`.
+    // If still null, default to 'breakfast'.
+    const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType | null = null) => {
+        const typeToUse = type || activeMealSection || 'breakfast';
+        setDefaultMealTypeForModal(typeToUse);
+        
+        // IMPORTANT: Close the section list view when we start a logging action
+        setActiveMealSection(null);
+        
         setter(true);
         setIsSpeedDialOpen(false);
     }
 
-    const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal, 'breakfast'); // Default to breakfast if FAB used without context
-    const handleSearchText = () => openModalWithType(setShowTextEntryModal, 'breakfast');
-    const handleTakePhoto = () => openModalWithType(setShowCameraModal, 'breakfast');
-    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal, 'dinner');
+    const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal);
+    const handleSearchText = () => openModalWithType(setShowTextEntryModal);
+    const handleTakePhoto = () => openModalWithType(setShowCameraModal);
+    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal, 'dinner'); // Recipe usually for dinner
 
-    // Context-aware openers (from Section Cards)
-    const handleAddClick = (type: MealType) => {
-        setDefaultMealTypeForModal(type);
-        // Default action for section 'Add' button: Open Text Search as it's most versatile
-        setShowTextEntryModal(true);
-    };
+    // Context-aware openers (from Section Cards 'Add' button - removed in child but kept for logic structure if needed later)
+    // Actually, the section card add button is removed per request, but the Section Card itself is clickable to OPEN.
+    // The requirement: "Remove + on meal cards, remove Add button in modal".
+    // AND "Can fab button be visible when modal is open?" -> YES.
+    // AND "Question 1 close" -> When FAB is clicked, modal closes.
 
     // --- RENDER ---
 
@@ -806,8 +816,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
                                 onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
-                                onAddClick={() => handleAddClick('breakfast')}
                                 isEditable={isEditableView}
+                                isOpen={activeMealSection === 'breakfast'}
+                                onOpen={() => setActiveMealSection('breakfast')}
+                                onClose={() => setActiveMealSection(null)}
                             />
                             <MealSectionCard 
                                 title="Lunch" 
@@ -816,8 +828,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
                                 onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
-                                onAddClick={() => handleAddClick('lunch')}
                                 isEditable={isEditableView}
+                                isOpen={activeMealSection === 'lunch'}
+                                onOpen={() => setActiveMealSection('lunch')}
+                                onClose={() => setActiveMealSection(null)}
                             />
                             <MealSectionCard 
                                 title="Middag" 
@@ -826,8 +840,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
                                 onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
-                                onAddClick={() => handleAddClick('dinner')}
                                 isEditable={isEditableView}
+                                isOpen={activeMealSection === 'dinner'}
+                                onOpen={() => setActiveMealSection('dinner')}
+                                onClose={() => setActiveMealSection(null)}
                             />
                             <MealSectionCard 
                                 title="Mellanmål" 
@@ -836,8 +852,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
                                 onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
-                                onAddClick={() => handleAddClick('snack')}
                                 isEditable={isEditableView}
+                                isOpen={activeMealSection === 'snack'}
+                                onOpen={() => setActiveMealSection('snack')}
+                                onClose={() => setActiveMealSection(null)}
                             />
                         </div>
                     </div>
@@ -846,7 +864,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             {/* Floating Action Button (FAB) */}
             {isEditableView && (
-                <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3 pointer-events-none">
+                <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                             <button onClick={handleTakePhoto} className="flex items-center gap-3">
