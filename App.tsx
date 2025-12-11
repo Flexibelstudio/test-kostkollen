@@ -823,6 +823,12 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         });
         resultData = { summary: summaryForThisDay, streakData: { currentStreak: nextStreak, lastDateStreakChecked: yKey }, weeklyBank: newWeeklyBank, highestStreak: newHighestStreak };
     });
+    
+    // Direct state update to ensure UI reflects the summary immediately without waiting for fetch/reload
+    if (resultData && resultData.summary) {
+        setPastDaysSummary(prev => ({ ...prev, [yKey]: resultData.summary }));
+    }
+
     return resultData;
 
 } catch (err) {
@@ -830,7 +836,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 } finally {
   setAppStatus(AppStatus.IDLE);
 }
-}, [currentUser?.uid, userRole, userStatus]);
+}, [currentUser?.uid, userRole, userStatus, setPastDaysSummary]);
 
     useEffect(() => {
         if (!currentUser?.uid || !isInitialDataLoaded) return;
