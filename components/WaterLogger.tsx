@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { PlusIcon } from './icons';
 
@@ -31,7 +32,7 @@ const WaterLogger = React.forwardRef<HTMLDivElement, WaterLoggerProps>(({
         
         {/* Background Fill Level */}
         <div 
-            className="absolute bottom-0 left-0 right-0 bg-blue-100/60 transition-all duration-700 ease-in-out z-0" 
+            className="absolute bottom-0 left-0 right-0 bg-blue-300/60 transition-all duration-700 ease-in-out z-0" 
             style={{ height: `${fillPercentage}%` }} 
         />
 
@@ -60,7 +61,7 @@ const WaterLogger = React.forwardRef<HTMLDivElement, WaterLoggerProps>(({
                         disabled={disabled}
                         className="text-xs text-red-400 hover:text-red-600 hover:underline z-20"
                     >
-                        Ångra
+                        Töm
                     </button>
                 )}
             </div>
