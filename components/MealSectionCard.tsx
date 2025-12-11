@@ -156,7 +156,10 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
             <div className="w-12 h-12 rounded-full bg-neutral-light/50 flex items-center justify-center text-2xl shadow-inner flex-shrink-0">
                 {icon}
             </div>
-            <h3 className="text-lg font-bold text-neutral-dark">{title}</h3>
+            <div>
+                <h3 className="text-lg font-bold text-neutral-dark leading-tight">{title}</h3>
+                <p className="text-xs text-neutral font-medium">{meals.length} {meals.length === 1 ? 'val' : 'val'}</p>
+            </div>
         </div>
 
         {/* Right Side: Calories & Add Button */}
