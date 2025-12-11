@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { UserProfileData } from '../types';
-import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon } from './icons';
+import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon, ArrowRightIcon } from './icons';
 import CourseInfoModal from './course/CourseInfoModal';
 
 export interface Review {
@@ -18,7 +19,6 @@ export interface CourseInfo {
   howItWorks: string;
   forWhom: string;
   reviews?: Review[];
-  // price removed as courses are now free
   Icon: React.FC<React.SVGProps<SVGSVGElement>>;
 }
 
@@ -26,7 +26,7 @@ export const ALL_COURSES: CourseInfo[] = [
   {
     id: 'praktisk-viktkontroll',
     title: 'Praktisk Viktkontroll',
-    cardDescription: 'Ta din hälsoresa till nästa nivå med vår exklusiva kurs "Praktisk Viktkontroll". Få tillgång till 12 lektioner fyllda med kunskap och verktyg för att bygga hållbara vanor. Nya lektioner låses upp genom att du bygger din dagliga streak, vilket gör lärandet till en motiverande del av din resa.',
+    cardDescription: 'Ta din hälsoresa till nästa nivå. Få tillgång till 12 lektioner fyllda med kunskap och verktyg för att bygga hållbara vanor. Nya lektioner låses upp genom att du bygger din dagliga streak.',
     longDescription: 'Ta din hälsoresa till nästa nivå med vår exklusiva kurs. \'Praktisk Viktkontroll\' är designad för dig som vill ha verklig och hållbar förändring, inte bara en tillfällig lösning. Här får du kunskapen och verktygen för att bygga vanor som håller livet ut.',
     whatYouGet: [
         'En komplett resa som guidar dig vecka för vecka.',
@@ -58,7 +58,7 @@ export const ALL_COURSES: CourseInfo[] = [
   {
     id: 'maxa-klimakteriet',
     title: 'Maxa Klimakteriet',
-    cardDescription: 'Förstå och hantera de fysiska och mentala förändringarna under klimakteriet. Lär dig om kost, träning och livsstilsstrategier för att må så bra som möjligt under denna nya fas i livet. Nya lektioner låses upp när du slutför den föregående.',
+    cardDescription: 'Förstå och hantera förändringarna under klimakteriet. Lär dig om kost, träning och livsstilsstrategier för att må så bra som möjligt. Nya lektioner låses upp när du slutför den föregående.',
     longDescription: 'Den här kursen är för dig som vill förstå och hantera de fysiska och mentala förändringarna under klimakteriet. Vi går igenom kost, träning och livsstilsstrategier för att du ska må så bra som möjligt under denna nya fas i livet.',
     whatYouGet: [
         'Fokus på hormonell balans.',
@@ -75,7 +75,6 @@ export const ALL_COURSES: CourseInfo[] = [
 interface CoursesViewProps {
   userProfile: UserProfileData;
   onNavigateToCourse: (courseId: CourseInfo['id']) => void;
-  onExpressInterest: (courseId: CourseInfo['id']) => void; // Kept for backward compatibility, effectively just opens course now
 }
 
 const CourseCard: React.FC<{
@@ -86,37 +85,45 @@ const CourseCard: React.FC<{
 }> = ({ course, onActivate, onShowInfo, hasStarted }) => {
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-soft-lg border border-neutral-light flex flex-col h-full">
-        <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center flex-grow">
-                <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                    <course.Icon className="w-7 h-7 text-primary" />
+    <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group hover:scale-[1.01] transition-all duration-300">
+        <div className="flex flex-col items-center text-center flex-grow mb-6">
+            <div className="relative mb-4">
+                <div className="w-20 h-20 bg-neutral-light/50 rounded-full flex items-center justify-center text-primary shadow-inner">
+                    <course.Icon className="w-10 h-10" />
                 </div>
-                <h3 className="text-xl font-bold text-neutral-dark text-left">{course.title}</h3>
+                {hasStarted && (
+                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow-sm">
+                        <CheckCircleIcon className="w-6 h-6 text-primary" />
+                    </div>
+                )}
             </div>
+            
+            <h3 className="text-2xl font-extrabold text-neutral-dark mb-2">{course.title}</h3>
+            
+            <p className="text-neutral text-base leading-relaxed mb-4">
+                {course.cardDescription}
+            </p>
+
             <button
                 onClick={onShowInfo}
-                className="p-1 text-neutral hover:text-primary rounded-full hover:bg-primary-100/70 flex-shrink-0"
-                aria-label={`Mer information om ${course.title}`}
-                title={`Mer information om ${course.title}`}
+                className="text-sm font-semibold text-primary hover:text-primary-darker hover:underline flex items-center gap-1 mt-auto interactive-transition"
             >
-                <InformationCircleIcon className="w-6 h-6"/>
+                <InformationCircleIcon className="w-4 h-4"/> Läs mer om kursen
             </button>
         </div>
 
-        <div className="flex-grow flex flex-col text-center">
-            <p className="text-neutral-dark text-base leading-relaxed mb-6">
-                {course.cardDescription}
-            </p>
-            
-            <div className="mt-auto">
-                <button
-                    onClick={onActivate}
-                    className={`w-full px-6 py-3 font-semibold rounded-lg shadow-md active:scale-95 transform transition-all ${hasStarted ? 'bg-secondary hover:bg-secondary-darker text-white' : 'bg-primary hover:bg-primary-darker text-white'}`}
-                >
-                    {hasStarted ? "Gå till kursen" : "Starta kursen"}
-                </button>
-            </div>
+        <div className="mt-auto pt-4 border-t border-neutral-light/50">
+            <button
+                onClick={onActivate}
+                className={`w-full py-4 flex items-center justify-center gap-2 font-bold rounded-2xl shadow-md active:scale-95 transform transition-all ${
+                    hasStarted 
+                    ? 'bg-secondary hover:bg-secondary-darker text-white' 
+                    : 'bg-primary hover:bg-primary-darker text-white'
+                }`}
+            >
+                {hasStarted ? "Fortsätt kursen" : "Starta kursen"}
+                <ArrowRightIcon className="w-5 h-5" />
+            </button>
         </div>
     </div>
   );
@@ -126,32 +133,30 @@ const CourseCard: React.FC<{
 export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, onNavigateToCourse }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
 
-  const hasStartedCourse = (courseId: string) => {
-      // A simple check if they have *any* progress could be done here if we had access to progress.
-      // For now, since we removed the "isCourseActive" flag, we can assume all courses are available.
-      // The 'started' state is ideally passed from parent, but for UI simplicity:
-      // "Starta kursen" is fine for everyone initially.
-      return false; 
-  };
-
   return (
     <>
-        <div className="animate-fade-in space-y-6">
+        <div className="animate-fade-in space-y-6 pb-20">
             <section>
-                <div className="bg-primary-100/50 p-4 rounded-xl border border-primary-200 mb-4 text-center">
-                    <p className="text-primary-darker font-medium">
-                        🎉 Goda nyheter! Alla kurser ingår nu i ditt medlemskap utan extra kostnad.
-                    </p>
+                <div className="bg-primary-100/60 p-5 rounded-3xl border border-primary-200 mb-6 flex items-start gap-4 shadow-sm">
+                    <div className="p-2 bg-white rounded-full shadow-sm flex-shrink-0">
+                        <SparklesIcon className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold text-primary-darker mb-1">Dina Kurser</h2>
+                        <p className="text-neutral-dark font-medium leading-snug">
+                            Goda nyheter! Alla kurser ingår nu i ditt medlemskap utan extra kostnad. Välj en kurs nedan för att börja.
+                        </p>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 {ALL_COURSES.map(course => (
                     <CourseCard
                         key={course.id}
                         course={course}
                         onActivate={() => onNavigateToCourse(course.id)}
                         onShowInfo={() => setSelectedCourseForInfo(course)}
-                        hasStarted={true} // Simplified for now to "Gå till kursen" style or similar
+                        hasStarted={true} 
                     />
                 ))}
                 </div>

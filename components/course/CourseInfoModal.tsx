@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { InformationCircleIcon, XMarkIcon, ArrowLeftIcon, ArrowRightIcon, UserCircleIcon } from '../icons';
 import { CourseInfo } from '../CoursesView';
@@ -38,86 +39,95 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course
       aria-labelledby="course-info-modal-title"
     >
       <div
-        className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl border border-neutral-light max-h-[90vh] overflow-y-auto custom-scrollbar w-full max-w-2xl animate-scale-in"
+        className="bg-white p-6 sm:p-8 rounded-3xl shadow-soft-xl border border-neutral-light max-h-[90vh] overflow-y-auto custom-scrollbar w-full max-w-2xl animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <course.Icon className="w-8 h-8 text-primary mr-3" />
-            <h2 id="course-info-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
+            <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mr-4 shadow-sm">
+                 <course.Icon className="w-6 h-6 text-primary" />
+            </div>
+            <h2 id="course-info-modal-title" className="text-2xl sm:text-3xl font-extrabold text-neutral-dark">
               Om {course.title}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-neutral hover:text-red-500 rounded-md hover:bg-red-100 active:scale-90 transform transition-transform"
+            className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90 transform transition-transform"
             aria-label="Stäng informationsrutan"
           >
             <XMarkIcon className="w-7 h-7" />
           </button>
         </div>
 
-        <div className="space-y-6 text-base text-neutral-dark">
-          <p className="italic">{course.longDescription}</p>
+        <div className="space-y-6 text-base text-neutral-dark leading-relaxed">
+          <p className="italic text-lg text-neutral-dark/80">{course.longDescription}</p>
 
-          <div className="p-4 bg-primary-100/50 rounded-lg border border-primary-200/70">
-            <h3 className="font-semibold text-lg text-primary-darker mb-2">Vad du får:</h3>
-            <ul className="list-disc list-inside space-y-1">
-                {course.whatYouGet.map((point, index) => <li key={index}>{point}</li>)}
+          <div className="p-6 bg-primary-100/50 rounded-2xl border border-primary-200/70">
+            <h3 className="font-bold text-lg text-primary-darker mb-3">Vad du får:</h3>
+            <ul className="space-y-2">
+                {course.whatYouGet.map((point, index) => (
+                    <li key={index} className="flex items-start">
+                        <span className="mr-2 text-primary font-bold">✓</span>
+                        {point}
+                    </li>
+                ))}
             </ul>
           </div>
           
           {hasReviews && (
-            <div className="p-4 bg-secondary-100/50 rounded-lg border border-secondary-200/70">
-                <h3 className="font-semibold text-lg text-secondary-darker mb-3 text-center">Vad våra medlemmar säger:</h3>
+            <div className="p-6 bg-secondary-100/50 rounded-2xl border border-secondary-200/70">
+                <h3 className="font-bold text-lg text-secondary-darker mb-4 text-center">Vad våra medlemmar säger:</h3>
                 <div className="relative overflow-hidden min-h-[220px] flex items-center">
                     <div className="flex transition-transform duration-300 ease-in-out w-full" style={{ transform: `translateX(-${currentReviewIndex * 100}%)` }}>
                         {course.reviews!.map((review, index) => (
                             <div key={index} className="w-full flex-shrink-0 px-4 space-y-4 text-left">
-                                <h4 className="text-xl font-semibold text-neutral-dark flex items-center gap-2">
+                                <h4 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
                                     <span className="text-yellow-400 text-2xl">⭐</span>
                                     <span>"{review.quote}"</span>
                                 </h4>
-                                <p className="text-base text-neutral-dark italic">
+                                <p className="text-base text-neutral-dark italic leading-relaxed">
                                     {review.fullText}
                                 </p>
-                                <div className="flex items-center">
-                                    <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center mr-2">
-                                        <UserCircleIcon className="w-5 h-5 text-primary"/>
+                                <div className="flex items-center mt-2">
+                                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center mr-3 shadow-sm">
+                                        <UserCircleIcon className="w-6 h-6 text-primary"/>
                                     </div>
-                                    <p className="font-semibold text-neutral-dark">- {review.author}</p>
+                                    <p className="font-bold text-neutral-dark">{review.author}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
                 </div>
-                 <div className="flex items-center justify-center mt-4">
-                    <button onClick={prevReview} className="p-2 rounded-full hover:bg-secondary-200/50" aria-label="Föregående recension"><ArrowLeftIcon className="w-5 h-5"/></button>
+                 <div className="flex items-center justify-center mt-6">
+                    <button onClick={prevReview} className="p-2 rounded-full hover:bg-secondary-200/50 active:scale-95 transition-all" aria-label="Föregående recension"><ArrowLeftIcon className="w-6 h-6 text-secondary-darker"/></button>
                     <div className="flex gap-2 mx-4">
                         {course.reviews!.map((_, index) => (
                             <button key={index} onClick={() => setCurrentReviewIndex(index)} className={`w-2.5 h-2.5 rounded-full transition-colors ${currentReviewIndex === index ? 'bg-secondary' : 'bg-secondary-200/60'}`}></button>
                         ))}
                     </div>
-                    <button onClick={nextReview} className="p-2 rounded-full hover:bg-secondary-200/50" aria-label="Nästa recension"><ArrowRightIcon className="w-5 h-5"/></button>
+                    <button onClick={nextReview} className="p-2 rounded-full hover:bg-secondary-200/50 active:scale-95 transition-all" aria-label="Nästa recension"><ArrowRightIcon className="w-6 h-6 text-secondary-darker"/></button>
                 </div>
             </div>
           )}
 
-          <div className="p-4 bg-neutral-light/60 rounded-lg">
-            <h3 className="font-semibold text-lg text-neutral-dark mb-2">Hur det fungerar:</h3>
-            <p>{course.howItWorks}</p>
-          </div>
-          
-          <div className="p-4 bg-neutral-light/60 rounded-lg">
-            <h3 className="font-semibold text-lg text-neutral-dark mb-2">För vem passar kursen?</h3>
-            <p>{course.forWhom}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-5 bg-neutral-light/60 rounded-2xl">
+                <h3 className="font-bold text-lg text-neutral-dark mb-2">Hur det fungerar:</h3>
+                <p className="text-neutral">{course.howItWorks}</p>
+              </div>
+              
+              <div className="p-5 bg-neutral-light/60 rounded-2xl">
+                <h3 className="font-bold text-lg text-neutral-dark mb-2">För vem passar kursen?</h3>
+                <p className="text-neutral">{course.forWhom}</p>
+              </div>
           </div>
         </div>
 
         <div className="mt-8 pt-6 border-t border-neutral-light/70 flex flex-col sm:flex-row justify-end gap-3">
             <button
               onClick={onClose}
-              className="w-full sm:w-auto px-6 py-2.5 bg-primary text-white text-base font-medium rounded-lg shadow-md hover:bg-primary-darker active:scale-95 transform"
+              className="w-full sm:w-auto px-8 py-3 bg-primary text-white text-lg font-bold rounded-2xl shadow-md hover:bg-primary-darker active:scale-95 transform transition-all"
             >
               Stäng
             </button>
