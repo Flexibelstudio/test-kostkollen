@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { CoachViewMember, UserRole } from '../types';
-import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon as CloseIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon } from './icons';
+import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon } from './icons';
 import { User, PieChart, TrendingDown } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { 
@@ -29,7 +29,7 @@ const StatCard: React.FC<{
 }> = ({ icon, title, value, subtitle, colorClass, textClass }) => (
   <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex items-start space-x-4 transition-transform hover:scale-[1.02] duration-300 cursor-default">
     <div className={`p-3.5 rounded-xl ${colorClass} flex items-center justify-center shadow-sm`}>
-      {React.cloneElement(icon as React.ReactElement, { className: `w-6 h-6 ${textClass}` })}
+      {React.cloneElement(icon as React.ReactElement<any>, { className: `w-6 h-6 ${textClass}` })}
     </div>
     <div>
       <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide mb-0.5">{title}</p>
@@ -632,7 +632,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         <h3 className="text-2xl font-bold text-neutral-dark">Om Dashboarden</h3>
                     </div>
                     <button onClick={() => setShowInfoModal(false)} className="p-2 text-neutral-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
-                        <CloseIcon className="w-6 h-6" /> 
+                        <XMarkIcon className="w-6 h-6" /> 
                     </button>
                 </div>
                 
