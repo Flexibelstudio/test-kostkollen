@@ -17,10 +17,9 @@ import {
 } from '../services/firestoreService';
 import { 
     HeartIcon, 
-    TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ChevronDownIcon, ArrowRightIcon,
+    TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
     ShareIcon, PencilIcon,
 } from './icons';
-import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 
@@ -52,33 +51,10 @@ const formatChange = (change: number | undefined, isFirstEntry: boolean, invertC
 
 // --- SUB-COMPONENTS ---
 
-const StatCard: FC<{
-    icon: React.ReactNode;
-    label: string;
-    value: string;
-    change: { text: string; colorClass: string };
-    bgColor: string;
-}> = ({ icon, label, value, change, bgColor }) => (
-    <div className="bg-white p-3 rounded-lg shadow-md border border-neutral-light/50 flex-1 min-w-[100px]">
-        <div className="flex items-center gap-2 mb-1">
-            <div className={`p-1.5 rounded-full ${bgColor}`}>
-                {icon}
-            </div>
-            <span className="text-xs font-semibold text-neutral">{label}</span>
-        </div>
-        <p className="text-2xl font-bold text-neutral-dark">{value}</p>
-        <p className={`text-sm font-semibold ${change.colorClass}`}>{change.text}</p>
-    </div>
-);
-
 const BuddyCard: FC<{ 
     buddy: BuddyDetails; 
-    achievements: Achievement[]; 
     onRemove: () => void; 
-    currentUser: User;
-}> = ({ buddy, achievements, onRemove, currentUser }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [poppedAchievement, setPoppedAchievement] = useState<string | null>(null);
+}> = ({ buddy, onRemove }) => {
     
     const progressPercentage = useMemo(() => {
         if (buddy.mainGoalCompleted) return 100;
@@ -141,91 +117,44 @@ const BuddyCard: FC<{
             return `Mål: ${changes.join(' & ')}`;
         }
         
-        return goalSummary || 'Inget specifikt mål';
+        return `Mål: ${goalSummary}` || 'Inget specifikt mål';
     }, [buddy]);
 
     return (
-        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3">
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
+        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 relative transition-all hover:shadow-soft-xl">
+            <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3 w-full pr-8">
                     <Avatar photoURL={buddy.photoURL} gender={buddy.gender} size={48} />
-                    <div>
-                        <h3 className="text-2xl font-bold text-primary-darker">{buddy.name}</h3>
-                        <p className="text-xs text-neutral-dark flex items-center gap-2">
-                            <span>{goalDescription}</span>
-                            <span>🔥 {buddy.currentStreak} dagar</span>
-                        </p>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-lg font-bold text-primary-darker truncate">{buddy.name}</h3>
+                        <div className="text-sm text-neutral-dark flex flex-wrap items-center gap-x-3 gap-y-0">
+                            <span className="truncate max-w-full">{goalDescription}</span>
+                            <span className="flex items-center text-orange-500 font-semibold whitespace-nowrap">
+                                <span className="mr-1">🔥</span> {buddy.currentStreak} dagar
+                            </span>
+                        </div>
                     </div>
                 </div>
-                <button onClick={onRemove} className="p-2 text-neutral hover:text-red-600 rounded-full hover:bg-red-100/50" title={`Ta bort ${buddy.name}`}>
+                <button 
+                    onClick={onRemove} 
+                    className="absolute top-4 right-4 text-neutral-400 hover:text-red-500 p-1 transition-colors rounded-full hover:bg-red-50"
+                    title={`Ta bort ${buddy.name}`}
+                >
                     <TrashIcon className="w-5 h-5"/>
                 </button>
             </div>
-            <div>
-                <div className="w-full bg-neutral-light rounded-full h-2.5 shadow-inner">
-                    <div className="bg-primary h-2.5 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
+            
+            <div className="flex items-center gap-3">
+                <div className="flex-grow bg-neutral-light rounded-full h-2.5 overflow-hidden shadow-inner">
+                    <div 
+                        className="bg-primary h-full rounded-full transition-all duration-500" 
+                        style={{ width: `${progressPercentage}%` }}
+                    />
                 </div>
-                <p className="text-right text-sm font-semibold text-primary-darker mt-1">{progressPercentage.toFixed(0)}%</p>
+                <span className="text-sm font-bold text-primary-darker min-w-[3ch] text-right">
+                    {progressPercentage.toFixed(0)}%
+                </span>
             </div>
-            <div className="flex flex-wrap gap-2">
-                <StatCard 
-                    icon={<UserIcon size={16} className="text-green-700" />}
-                    label="Vikt"
-                    value={buddy.currentWeight ? `${buddy.currentWeight.toFixed(1).replace('.',',')}kg` : '-'}
-                    change={formatChange(buddy.totalWeightChange, buddy.totalWeightChange === undefined, true)}
-                    bgColor="bg-green-100"
-                />
-                 <StatCard 
-                    icon={<Dumbbell size={16} className="text-orange-700" />}
-                    label="Muskler"
-                    value={buddy.currentMuscleMass ? `${buddy.currentMuscleMass.toFixed(1).replace('.',',')}kg` : '-'}
-                    change={formatChange(buddy.muscleMassChange, buddy.muscleMassChange === undefined, false)}
-                    bgColor="bg-orange-100"
-                />
-                 <StatCard 
-                    icon={<PieChart size={16} className="text-yellow-700" />}
-                    label="Fett"
-                    value={buddy.currentFatMass ? `${buddy.currentFatMass.toFixed(1).replace('.',',')}kg` : '-'}
-                    change={formatChange(buddy.fatMassChange, buddy.fatMassChange === undefined, true)}
-                    bgColor="bg-yellow-100"
-                />
-            </div>
-            <div className="text-center">
-                <button onClick={() => setIsExpanded(!isExpanded)} className="p-1 text-neutral hover:text-primary">
-                    <ChevronDownIcon className={`w-6 h-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                </button>
-            </div>
-            {isExpanded && (
-                <div className="grid grid-cols-5 gap-2 animate-fade-in">
-                    {achievements.map(ach => {
-                        const isUnlocked = !!buddy.unlockedAchievements[ach.id];
-                        const pepps = buddy.achievementInteractions?.[ach.id]?.reactions?.['❤️'] || {};
-                        const peppCount = Object.keys(pepps).length;
-                        const currentUserPepped = !!pepps[currentUser.uid];
-
-                        return (
-                             <div 
-                                key={ach.id} 
-                                className={`relative group p-2 rounded-lg flex flex-col items-center justify-center text-center aspect-square transition-all ${isUnlocked ? 'bg-amber-100/50' : 'bg-neutral-light filter grayscale cursor-not-allowed'}`}
-                                title={ach.name}
-                            >
-                                <div className="text-3xl">{ach.icon}</div>
-                                {isUnlocked && peppCount > 0 && (
-                                    <div className="absolute bottom-1 right-1 flex items-center gap-1 bg-white/80 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-xs shadow">
-                                        <HeartIcon className={`w-3 h-3 ${currentUserPepped ? 'text-red-500' : 'text-gray-500'}`} />
-                                        <span className={`font-bold text-xs ${currentUserPepped ? 'text-red-600' : 'text-gray-600'}`}>{peppCount}</span>
-                                    </div>
-                                )}
-                                {poppedAchievement === ach.id && (
-                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                        <HeartIcon className="w-12 h-12 text-red-500 animate-heart-pop" />
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
         </div>
     );
 };
@@ -236,7 +165,6 @@ const FriendManagementView: FC<{
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     onDataChanged: () => void;
     buddyDetails: BuddyDetails[];
-    achievements: Achievement[];
     initialTab?: 'buddies' | 'search' | 'requests';
 }> = ({
     currentUser,
@@ -244,7 +172,6 @@ const FriendManagementView: FC<{
     setToastNotification,
     onDataChanged,
     buddyDetails,
-    achievements,
     initialTab = 'buddies'
 }) => {
     const [buddySearchQuery, setBuddySearchQuery] = useState('');
@@ -404,7 +331,7 @@ const FriendManagementView: FC<{
         switch (activeTab) {
             case 'buddies':
                 return (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                         <div className="relative">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                             <input 
@@ -420,14 +347,12 @@ const FriendManagementView: FC<{
                                 {buddySearchQuery ? 'Inga kompisar matchade din sökning.' : 'Du har inga kompisar än.'}
                             </p>
                         ) : (
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                 {filteredBuddyDetails.map(buddy => (
                                     <BuddyCard
                                         key={buddy.uid}
                                         buddy={buddy}
-                                        achievements={achievements}
                                         onRemove={() => handleRemoveBuddyRequest(buddy)}
-                                        currentUser={currentUser}
                                     />
                                 ))}
                             </div>
@@ -436,7 +361,7 @@ const FriendManagementView: FC<{
                 );
             case 'search':
                 return (
-                    <div className="animate-fade-in space-y-3">
+                    <div className="animate-fade-in space-y-4">
                         <button
                             onClick={() => setShowInviteOptionsModal(true)}
                             className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
@@ -449,7 +374,7 @@ const FriendManagementView: FC<{
                                 type="search" 
                                 value={searchQuery} 
                                 onChange={e => setSearchQuery(e.target.value)} 
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white shadow-sm"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white"
                                 placeholder="Sök bland användare..."
                                 autoFocus
                             />
@@ -478,7 +403,7 @@ const FriendManagementView: FC<{
                 );
             case 'requests':
                 return (
-                    <div className="space-y-3 bg-white p-4 rounded-lg border border-neutral-light">
+                    <div className="space-y-4 bg-white p-4 rounded-lg border border-neutral-light">
                         <h4 className="font-semibold">Inkommande ({requests.length})</h4>
                         {requests.length > 0 ? requests.map(req => (
                             <div key={req.id} className="flex items-center justify-between bg-neutral-light p-2 rounded-lg">
@@ -502,7 +427,7 @@ const FriendManagementView: FC<{
     };
 
     return (
-        <div className="p-2 sm:p-4 flex flex-col h-full">
+        <div className="p-4 flex flex-col h-full">
             <div className="flex-shrink-0">
                 <nav className="flex -mb-px border-b border-neutral-light">
                     <button onClick={() => setActiveTab('buddies')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'buddies' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina kompisar</button>
@@ -513,7 +438,7 @@ const FriendManagementView: FC<{
                     </button>
                 </nav>
             </div>
-            <div className="flex-grow overflow-y-auto custom-scrollbar mt-3">
+            <div className="flex-grow overflow-y-auto custom-scrollbar mt-4">
                 {renderTabContent()}
             </div>
             {buddyToRemove && (
@@ -895,7 +820,7 @@ export const CommunityView: React.FC<{
             
             <main className="flex-grow overflow-y-auto bg-neutral-light/50">
                 {activeTab === 'flode' && (
-                    <div className="p-2 sm:p-4 space-y-3">
+                    <div className="p-2 sm:p-4 space-y-4">
                         {isLoading ? (
                             <div className="flex justify-center items-center h-full py-16"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div></div>
                         ) : timelineEvents.length > 0 ? (
@@ -926,7 +851,6 @@ export const CommunityView: React.FC<{
                         setToastNotification={setToastNotification}
                         onDataChanged={onDataChanged}
                         buddyDetails={buddyDetails}
-                        achievements={achievements}
                         initialTab={initialSubTab}
                     />
                 )}

@@ -875,6 +875,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
 
+            {/* Backdrop for Speed Dial */}
+            {isEditableView && isSpeedDialOpen && (
+                <div 
+                    className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[100] animate-fade-in"
+                    onClick={() => setIsSpeedDialOpen(false)}
+                />
+            )}
+
             {/* Floating Action Button (FAB) */}
             {isEditableView && (
                 <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
