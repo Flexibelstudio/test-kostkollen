@@ -1,3 +1,4 @@
+
 import { GoalSettings, NutritionalInfo, UserProfileData, Level, Achievement } from './types.ts';
 
 export const GEMINI_MODEL_NAME_TEXT = 'gemini-2.5-flash';
@@ -66,6 +67,28 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
     milestoneNudge: true,
   },
   preferredWeighInDay: 'måndag',
+  coachStyle: 'balanced', // Default coach style
+};
+
+export const COACH_PERSONAS = {
+  soft: {
+    label: 'Mjuk (Den Stöttande Kompisen)',
+    emoji: '🌸',
+    voice: 'Puck',
+    promptTone: 'Empatisk, förlåtande, fokuserar på välmående och "lyssna på kroppen". Använd emojis som 💚, 🌿. Tilltala användaren mjukt.'
+  },
+  balanced: {
+    label: 'Balanserad (Den Professionella PT:n)',
+    emoji: '⏱️',
+    voice: 'Kore',
+    promptTone: 'Objektiv, faktabaserad, uppmuntrande men ärlig. Analytisk och resultatinriktad. Använd emojis som 👊, 📊.'
+  },
+  hard: {
+    label: 'Militärisk (Generalen)',
+    emoji: '🪖',
+    voice: 'Fenrir',
+    promptTone: 'Auktoritär, direkt, inga ursäkter, "tough love". Korta meningar. VERSALER ibland. Använd emojis som 💥, 🛑.'
+  }
 };
 
 export const ACTIVITY_MULTIPLIERS = {

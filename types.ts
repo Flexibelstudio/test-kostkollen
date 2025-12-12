@@ -1,3 +1,4 @@
+
 // FIX: Corrected import path for Firestore's Timestamp type
 // FIX: Changed import from 'firebase/firestore' to '@firebase/firestore' to resolve missing member error.
 import { Timestamp } from "@firebase/firestore";
@@ -178,6 +179,8 @@ export type DayOfWeek =
   | "lördag"
   | "söndag";
 
+export type CoachStyle = 'soft' | 'balanced' | 'hard';
+
 export interface NotificationSettings {
   // Social notifications
   friendRequests: boolean;
@@ -220,6 +223,7 @@ export interface UserProfileData {
   // New fields for course access management
   isCourseActive?: boolean;
   courseInterest?: boolean;
+  coachStyle: CoachStyle; // New field for coaching style
 }
 
 // Firestore user document structure

@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek } from '../types.ts';
-import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM } from '../constants.ts';
+import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle } from '../types.ts';
+import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
 import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide } from 'lucide-react';
@@ -220,6 +221,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         courseInterest: false,
         isSearchable: true, // Default to searchable for new users
         notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
+        coachStyle: initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
       } as UserProfileData;
     }
     // For editing, use the complete existing profile
@@ -513,6 +515,31 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
             </section>
             
+            <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Coachningsstil</h4>
+                <p className="text-sm text-neutral mb-4">Välj hur du vill att din AI-coach ska kommunicera med dig.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
+                        const persona = COACH_PERSONAS[style];
+                        return (
+                            <button
+                                type="button"
+                                key={style}
+                                onClick={() => setProfile(prev => ({ ...prev, coachStyle: style }))}
+                                className={`text-left p-4 rounded-lg border-2 transition-all duration-200 flex flex-col items-center text-center ${
+                                    profile.coachStyle === style
+                                        ? 'bg-primary-100/70 border-primary shadow-md'
+                                        : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300'
+                                }`}
+                            >
+                                <span className="text-4xl mb-2">{persona.emoji}</span>
+                                <span className={`font-semibold text-sm ${profile.coachStyle === style ? 'text-primary-darker' : 'text-neutral-dark'}`}>{persona.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </section>
+
             {isOnboarding && (
                 <>
                     <section aria-labelledby="activity-level-heading" className="mt-5 pt-5 border-t border-neutral-light/50">

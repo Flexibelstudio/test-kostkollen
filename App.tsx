@@ -660,8 +660,7 @@ useEffect(() => {
 // -------------------------------
 
 const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[]): Promise<{ summary: PastDaySummary | null; streakData: { currentStreak: number; lastDateStreakChecked: string | null }; weeklyBank: WeeklyCalorieBank; highestStreak: number; } | void> => {
-  setIsSummarizingYesterday(true); // Start spinner
-  setAppStatus(AppStatus.PROCESSING_DAY_END);
+  // Inte sätta laddningsstatus direkt här för att undvika onödig UI-flimmer om vi returnerar tidigt.
   try {
     const { start, end, yKey } = yesterdayRangeSE(now);
     const userRef = doc(db, "users", uid);
@@ -684,6 +683,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     let shouldProcess = true;
     if (lastDateStreakChecked && lastDateStreakChecked >= yKey && !options.force && !manualLogOverride) {
+         // Vi har redan kollat denna dag (eller en senare).
+         // Dubbelkolla om själva summeringsdokumentet finns (om det var en lyckad dag).
          const summaryRef = doc(db, "users", uid, "pastDaySummaries", yKey);
          const summarySnap = await getDoc(summaryRef);
          if (summarySnap.exists()) {
@@ -696,6 +697,10 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     }
 
     if (!shouldProcess) return;
+
+    // Om vi kommer hit, så ska vi processa. NU visar vi laddningsstatus.
+    setIsSummarizingYesterday(true);
+    setAppStatus(AppStatus.PROCESSING_DAY_END);
 
     let dailyLogForDate: LoggedMeal[];
     if (manualLogOverride) {
@@ -829,6 +834,18 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     // Direct state update to ensure UI reflects the summary immediately without waiting for fetch/reload
     if (resultData && resultData.summary) {
         setPastDaysSummary(prev => ({ ...prev, [yKey]: resultData.summary }));
+
+        // Posta streak till flödet om den är aktiv och > 0
+        if (resultData.streakData.currentStreak > 0) {
+            addTimelineEvent(uid, {
+                type: 'streak',
+                timestamp: Date.now(),
+                title: `har en streak på ${resultData.streakData.currentStreak} dagar!`,
+                description: 'Konsekvens ger resultat! 🔥',
+                icon: '🔥',
+                relatedDocId: yKey // Säkerställer att vi bara skapar ett event per dag (t.ex. '2023-11-25')
+            }).catch(err => console.error("Kunde inte posta streak till tidslinjen:", err));
+        }
     }
 
     return resultData;
@@ -844,6 +861,12 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     useEffect(() => {
         if (!currentUser?.uid || !isInitialDataLoaded) return;
         const onWake = async () => {
+            const { yKey } = yesterdayRangeSE(new Date());
+            // Om vår lokala state säger att vi redan checkat denna dag, hoppa över.
+            if (streakData.lastDateStreakChecked === yKey) {
+                return;
+            }
+
             const result = await ensureYesterdayProcessed(currentUser.uid).catch(console.error);
             // DETTA ÄR FIXEN: Om funktionen returnerar en summering (vilket betyder att den kördes "på riktigt" nu),
             // visa Morgonrapporten.
@@ -861,7 +884,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             window.removeEventListener("pageshow", onWake);
             document.removeEventListener("visibilitychange", onVis);
         };
-    }, [currentUser?.uid, isInitialDataLoaded, ensureYesterdayProcessed]);
+    }, [currentUser?.uid, isInitialDataLoaded, ensureYesterdayProcessed, streakData.lastDateStreakChecked]);
 
   
   useEffect(() => {
@@ -1283,7 +1306,7 @@ useEffect(() => {
         {showOnboardingRewardModal && <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} />}
         {dayToPotentiallySave && <UseStreakSaverModal show={!!dayToPotentiallySave} onClose={() => setDayToPotentiallySave(null)} onConfirm={handleUseStreakSaver} daySummary={dayToPotentiallySave} />}
         {showMotivationModal && <MotivationModal show={!!showMotivationModal} onClose={() => setShowMotivationModal(null)} daySummary={showMotivationModal} />}
-        {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => setMorningReportData(null)} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} />}
+        {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => setMorningReportData(null)} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} />}
         {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
         {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} /></div></div>}

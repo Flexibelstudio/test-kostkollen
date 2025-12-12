@@ -1,6 +1,7 @@
-import { GoogleGenAI, GenerateContentResponse, Content } from "@google/genai";
-import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel } from '../types.ts';
-import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS } from '../constants.ts';
+
+import { GoogleGenAI, GenerateContentResponse, Content, Modality } from "@google/genai";
+import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle } from '../types.ts';
+import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
 
 // Ensure API_KEY is available.
 if (!process.env.API_KEY) {
@@ -8,6 +9,80 @@ if (!process.env.API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "MISSING_API_KEY" });
+
+export interface AIDataForMorningBriefing {
+  userProfile: UserProfileData;
+  summary: PastDaySummary;
+  currentStreak: number;
+}
+
+export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
+  const { userProfile, summary, currentStreak } = data;
+  const style = userProfile.coachStyle || 'balanced';
+  const persona = COACH_PERSONAS[style];
+  const name = userProfile.name || 'du';
+
+  const prompt = `Du är en hälsocoach med följande persona:
+Namn: ${persona.label}
+Tonläge: ${persona.promptTone}
+
+Din uppgift är att ge en kort "morgonbriefing" baserat på gårdagens resultat.
+Användaren heter ${name}.
+Gårdagens resultat:
+- Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'}
+- Kalorier: ${summary.consumedCalories.toFixed(0)} / ${summary.calorieGoal.toFixed(0)} kcal
+- Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
+- Nuvarande streak: ${currentStreak} dagar
+
+Instruktioner:
+1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
+2. Om målet uppfylldes, beröm enligt din persona.
+3. Om målet missades, ge feedback enligt din persona (trösta, peppa eller kräv skärpning).
+4. Nämn streaken om den är bruten eller ökad.
+5. Avsluta med en uppmaning för idag.
+6. Svara på SVENSKA.`;
+
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL_NAME_TEXT,
+      contents: prompt,
+      config: {
+        temperature: 0.7,
+      },
+    });
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error generating morning briefing text:", error);
+    return "God morgon! Hoppas du får en bra dag. Vi kör på!";
+  }
+};
+
+export const getMorningBriefingAudio = async (text: string, style: CoachStyle): Promise<string | null> => {
+  const persona = COACH_PERSONAS[style];
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: persona.voice },
+            },
+        },
+      },
+    });
+
+    // The response contains base64 encoded audio in candidates[0].content.parts[0].inlineData.data
+    const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    return audioData || null;
+
+  } catch (error) {
+    console.error("Error generating morning briefing audio:", error);
+    return null;
+  }
+};
 
 export const analyzeFoodImage = async (base64ImageData: string): Promise<NutritionalInfo> => {
   const imagePart = {
@@ -184,7 +259,62 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
 
 ${contextPrompt}
 
-**VIKTIGT:** Ditt svar ska vara en enda sammanhängande text, men uppdelad i flera korta stycken för att göra det luftigt och lättläst. Använd en dubbel nyrad (som \\n\\n) mellan varje stycke. Kombinera de olika delarna till ett flytande och naturligt meddelande. Undvik att lista punkterna, integrera dem i ett meddelande. Använd emojis för att förstärka den positiva och coachande känslan.`;
+**VIKTIGA REGLER FÖR TEXT-SVAR:**
+1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
+2.  Använd en vänlig och motiverande ton. Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
+3.  **Avsluta ALLTID ditt text-svar** med exakt denna fras: "Säg till om du vill ha ett utförligare svar."
+
+**REGLER FÖR GRAF-SVAR:**
+1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.
+2.  **VÄLJ RÄTT DATAKÄLLA (VIKTIGAST!):**
+    *   Om frågan handlar om **vikt, muskler, fettmassa**, använd EXKLUSIVT data från **Viktloggar**.
+    *   Om frågan handlar om **protein, kalorier, kolhydrater, fettintag**, använd EXKLUSIVT data från **Dagliga Summeringar**.
+    *   Blanda ALDRIG dessa datakällor. Om du är osäker, välj den som bäst matchar nyckelorden i frågan.
+3.  **JSON-Struktur:** Följ exakt denna struktur:
+    {
+      "chartType": "line",
+      "title": "En beskrivande titel för grafen på svenska",
+      "labels": ["en array av sträng-etiketter för x-axeln, t.ex. datum"],
+      "datasets": [
+        {
+          "label": "Etikett för dataserien (t.ex. 'Vikt (kg)')",
+          "data": [en array av siffror eller null, korresponderande mot etiketterna]
+        }
+      ]
+    }
+4.  **Visa All Data:** Inkludera ALLA tillgängliga datapunkter från den valda datakällan. Summera, aggregera eller förenkla INTE datan. Om ingen tidsram anges, använd all tillgänglig data.
+5.  **Formatering:**
+    *   Använd ALLTID \`datasets\`-arrayen, även om det bara är en dataserie.
+    *   Använd \`null\` för saknade datapunkter.
+    *   Formatera datum i \`labels\` som 'dd/mm'.
+
+**Exempel 1 (Vikt):** Fråga: "visa min vikt" -> Använd **Viktloggar**.
+**JSON-svar:**
+{
+  "chartType": "line",
+  "title": "Viktutveckling",
+  "labels": ["23/07", "30/07", "06/08"],
+  "datasets": [ { "label": "Vikt (kg)", "data": [75.8, 75.2, 74.9] } ]
+}
+
+**Exempel 2 (Protein):** Fråga: "Hur ser mitt proteinintag ut?" -> Använd **Dagliga Summeringar**.
+**JSON-svar:**
+{
+  "chartType": "line",
+  "title": "Proteinintag",
+  "labels": ["01/08", "02/08", "03/08", "04/08", "05/08"],
+  "datasets": [ { "label": "Protein (g)", "data": [150, 145, 160, 130, 155] } ]
+}
+
+Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VIKTIGA REGLER FÖR TEXT-SVAR".
+
+**TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
+- **Profil & Mål:** ${JSON.stringify(userProfile)}
+- **Streak:** ${data.currentStreak} dagar
+- **Viktloggar (ENDAST för vikt, muskler, fett):** ${JSON.stringify(data.allWeightLogs)}
+- **Dagliga Summeringar (ENDAST för protein, kalorier, etc.):** ${JSON.stringify(data.last30DaysSummaries)}
+- **Välbefinnandeloggar:** ${JSON.stringify(data.mentalWellbeingLogs)}
+`;
   
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
@@ -844,7 +974,7 @@ export const getAICoachSummaryForMember = async (data: AIDataForCoachSummary): P
     const weightLogText = last5WeightLogs.map(w => `- ${new Date(w.loggedAt).toLocaleDateString('sv-SE')}: ${w.weightKg.toFixed(1)} kg`).join('\n');
 
     const prompt = `
-Du är en AI-assistent för en hälsocoach. Ge en kort, koncis och insiktsfull sammanfattning (max 120 ord) om medlemmen baserat på följande data. Formatera ditt svar med Markdown. Använd fetstil för rubriker och punktlistor under varje rubrik.
+Du är en AI-assistent för en hälsocoach. Ge en kort, koncis och insiktsfull sammanfattning (max 120 ord) om medlemmens baserat på följande data. Formatera ditt svar med Markdown. Använd fetstil för rubriker och punktlistor under varje rubrik.
 
 **Medlemsdata:**
 - Namn: ${memberName}
