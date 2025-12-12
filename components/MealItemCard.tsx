@@ -251,7 +251,7 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
             aria-describedby={`confirm-delete-desc-${meal.id}`}
         >
           <div
-            className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in"
+            className="bg-white p-6 rounded-3xl shadow-soft-xl w-full max-w-sm animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 id={`confirm-delete-title-${meal.id}`} className="text-lg font-semibold text-neutral-dark mb-4">Bekräfta borttagning</h3>
@@ -263,13 +263,13 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowConfirmDeleteModal(false)}
-                className="px-4 py-2 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md active:scale-95 interactive-transition"
+                className="px-5 py-2.5 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-xl active:scale-95 interactive-transition font-medium"
               >
                 Avbryt
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md active:scale-95 interactive-transition"
+                className="px-5 py-2.5 text-white bg-red-600 hover:bg-red-700 rounded-xl active:scale-95 interactive-transition font-medium"
               >
                 Ja, ta bort
               </button>

@@ -1196,6 +1196,19 @@ useEffect(() => {
                                         setShowProfileDropdown(false);
                                     }}
                                 />
+                                
+                                {(userRole === 'coach' || userRole === 'admin') && (
+                                    <>
+                                        <div className="my-1 border-t border-neutral-light/70"></div>
+                                        <DropdownMenuItem
+                                            icon={<SwitchHorizontalIcon />}
+                                            label="Coach Dashboard"
+                                            onClick={toggleInterfaceView}
+                                            className="text-indigo-600 hover:bg-indigo-50 font-medium"
+                                        />
+                                    </>
+                                )}
+
                                 <div className="my-1 border-t border-neutral-light/70"></div>
                                 <DropdownMenuItem
                                     icon={<ArrowRightOnRectangleIcon />}
