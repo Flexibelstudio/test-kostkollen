@@ -162,9 +162,11 @@ const CommonMealCard: React.FC<{
         disabled={disabled}
         className="w-full h-full p-4 flex flex-col items-center justify-center text-center cursor-pointer outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-2xl active:scale-95 transition-transform"
       >
-        <div className="text-3xl mb-2 filter drop-shadow-sm">
+        {/* Updated Icon Container with Squircle */}
+        <div className="w-12 h-12 bg-neutral-100 rounded-xl flex items-center justify-center text-2xl mb-2 text-neutral-600">
           {icon}
         </div>
+        
         <h4 className="font-bold text-neutral-dark text-sm leading-tight mb-1 line-clamp-2 w-full">
           {meal.name}
         </h4>

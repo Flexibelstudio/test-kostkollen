@@ -3,8 +3,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle } from '../types.ts';
 import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
-import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon } from './icons.tsx';
-import { UserRound, UserRoundCog, User as UserIconLucide } from 'lucide-react';
+import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon } from './icons.tsx';
+import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
 
 
 export const Avatar: React.FC<{
@@ -107,12 +107,12 @@ const ToggleSwitch: React.FC<{
   checked: boolean;
   onChange: () => void;
 }> = ({ id, label, description, checked, onChange }) => (
-    <div className="flex items-center justify-between p-4 bg-neutral-light/60 rounded-lg">
-        <div>
-            <label htmlFor={id} className="block text-base font-medium text-neutral-dark cursor-pointer">{label}</label>
-            {description && <p className="text-sm text-neutral">{description}</p>}
+    <div className="flex items-center justify-between p-3.5 bg-neutral-light/40 rounded-xl hover:bg-neutral-light/60 transition-colors">
+        <div className="pr-4">
+            <label htmlFor={id} className="block text-base font-semibold text-neutral-dark cursor-pointer">{label}</label>
+            {description && <p className="text-xs text-neutral mt-0.5">{description}</p>}
         </div>
-        <label htmlFor={id} className="relative inline-flex items-center cursor-pointer">
+        <label htmlFor={id} className="relative inline-flex items-center cursor-pointer flex-shrink-0">
             <input 
                 type="checkbox" 
                 id={id}
@@ -681,8 +681,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             )}
 
             {!isOnboarding && (
-                 <>
-                    <section aria-labelledby="community-settings-heading">
+                 <div className="space-y-4 mt-6">
+                    <h3 className="text-xl font-bold text-neutral-dark px-1">Inställningar</h3>
+
+                    {/* Community Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shadow-sm">
+                                <UserGroupIcon className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-lg font-bold text-neutral-dark">Community</h4>
+                        </div>
                         <ToggleSwitch
                             id="isSearchable"
                             label="Sökbar som kompis"
@@ -690,10 +699,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             checked={profile.isSearchable ?? false}
                             onChange={() => setProfile(prev => ({...prev, isSearchable: !prev.isSearchable}))}
                          />
-                    </section>
+                    </div>
 
-                    <section aria-labelledby="sound-settings-heading">
-                        <h3 id="sound-settings-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Ljud & Feedback</h3>
+                    {/* Sound Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shadow-sm">
+                                <Volume2 className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-lg font-bold text-neutral-dark">Ljud & Feedback</h4>
+                        </div>
                          <ToggleSwitch
                             id="appSound"
                             label="App-ljud"
@@ -701,93 +716,122 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             checked={!isSoundMuted}
                             onChange={handleToggleSound}
                          />
-                    </section>
+                    </div>
                     
-                    <section aria-labelledby="notification-settings-heading">
-                        <h3 id="notification-settings-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Notisinställningar</h3>
-                         <div className="space-y-3">
-                            <h4 className="font-semibold text-neutral-dark">Påminnelser</h4>
-                             <ToggleSwitch 
-                                id="waterReminder"
-                                label="Vattenpåminnelse"
-                                description="Vid lunch om inget vatten loggats"
-                                checked={profile.notificationSettings?.waterReminder ?? true}
-                                onChange={() => handleNotificationSettingChange('waterReminder')}
-                            />
-                             <ToggleSwitch 
-                                id="foodReminder"
-                                label="Matloggningspåminnelse"
-                                description="Kl 18:00 om ingen mat loggats"
-                                checked={profile.notificationSettings?.foodReminder ?? true}
-                                onChange={() => handleNotificationSettingChange('foodReminder')}
-                            />
-                             <ToggleSwitch 
-                                id="weighInReminder"
-                                label="Vägningspåminnelse"
-                                checked={profile.notificationSettings?.weighInReminder ?? true}
-                                onChange={() => handleNotificationSettingChange('weighInReminder')}
-                            />
-                             <div className="pl-4">
-                                <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark">Föredragen dag för vägning</label>
-                                <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
-                                    {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
-                                        <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
-                                    ))}
-                                </select>
-                             </div>
-                             <ToggleSwitch 
-                                id="inactivityReminder"
-                                label="Inaktivitetspåminnelse"
-                                description="Om du inte loggat på 3 dagar"
-                                checked={profile.notificationSettings?.inactivityReminder ?? true}
-                                onChange={() => handleNotificationSettingChange('inactivityReminder')}
-                            />
-                             <ToggleSwitch 
-                                id="milestoneNudge"
-                                label="Milstolpe-pepp"
-                                description="När du närmar dig en ny nivå/streak"
-                                checked={profile.notificationSettings?.milestoneNudge ?? true}
-                                onChange={() => handleNotificationSettingChange('milestoneNudge')}
-                            />
-                             <h4 className="font-semibold text-neutral-dark pt-2">Sociala notiser</h4>
-                            <ToggleSwitch 
-                                id="friendRequests"
-                                label="Peppkompis-förfrågningar"
-                                checked={profile.notificationSettings?.friendRequests ?? true}
-                                onChange={() => handleNotificationSettingChange('friendRequests')}
-                            />
-                            <ToggleSwitch 
-                                id="newEvents"
-                                label="Händelser i flödet"
-                                description="Från dina kompisar"
-                                checked={profile.notificationSettings?.newEvents ?? true}
-                                onChange={() => handleNotificationSettingChange('newEvents')}
-                            />
-                             <ToggleSwitch 
-                                id="comments"
-                                label="Kommentarer"
-                                description="På dina inlägg"
-                                checked={profile.notificationSettings?.comments ?? true}
-                                onChange={() => handleNotificationSettingChange('comments')}
-                            />
+                    {/* Notifications Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 shadow-sm">
+                                <BellIcon className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-lg font-bold text-neutral-dark">Notiser</h4>
                         </div>
-                    </section>
+                        
+                         <div className="space-y-4">
+                            <div>
+                                <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-2 px-1">Påminnelser</h5>
+                                <div className="space-y-3">
+                                    <ToggleSwitch 
+                                        id="waterReminder"
+                                        label="Vattenpåminnelse"
+                                        description="Vid lunch om inget vatten loggats"
+                                        checked={profile.notificationSettings?.waterReminder ?? true}
+                                        onChange={() => handleNotificationSettingChange('waterReminder')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="foodReminder"
+                                        label="Matloggningspåminnelse"
+                                        description="Kl 18:00 om ingen mat loggats"
+                                        checked={profile.notificationSettings?.foodReminder ?? true}
+                                        onChange={() => handleNotificationSettingChange('foodReminder')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="weighInReminder"
+                                        label="Vägningspåminnelse"
+                                        checked={profile.notificationSettings?.weighInReminder ?? true}
+                                        onChange={() => handleNotificationSettingChange('weighInReminder')}
+                                    />
+                                    <div className="pl-4 pr-1 py-2">
+                                        <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark mb-1">Föredragen dag för vägning</label>
+                                        <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
+                                            {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
+                                                <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <ToggleSwitch 
+                                        id="inactivityReminder"
+                                        label="Inaktivitetspåminnelse"
+                                        description="Om du inte loggat på 3 dagar"
+                                        checked={profile.notificationSettings?.inactivityReminder ?? true}
+                                        onChange={() => handleNotificationSettingChange('inactivityReminder')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="milestoneNudge"
+                                        label="Milstolpe-pepp"
+                                        description="När du närmar dig en ny nivå/streak"
+                                        checked={profile.notificationSettings?.milestoneNudge ?? true}
+                                        onChange={() => handleNotificationSettingChange('milestoneNudge')}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-2 px-1 border-t border-neutral-light/50 pt-4">Socialt</h5>
+                                <div className="space-y-3">
+                                    <ToggleSwitch 
+                                        id="friendRequests"
+                                        label="Peppkompis-förfrågningar"
+                                        checked={profile.notificationSettings?.friendRequests ?? true}
+                                        onChange={() => handleNotificationSettingChange('friendRequests')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="newEvents"
+                                        label="Händelser i flödet"
+                                        description="Från dina kompisar"
+                                        checked={profile.notificationSettings?.newEvents ?? true}
+                                        onChange={() => handleNotificationSettingChange('newEvents')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="comments"
+                                        label="Kommentarer"
+                                        description="På dina inlägg"
+                                        checked={profile.notificationSettings?.comments ?? true}
+                                        onChange={() => handleNotificationSettingChange('comments')}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
-                     <section aria-labelledby="push-notification-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                        <h3 id="push-notification-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Pushnotiser för denna enhet</h3>
-                         <div className="p-4 bg-neutral-light/60 rounded-lg">
+                     {/* Push Notification Card */}
+                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 shadow-sm">
+                                <Smartphone className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-lg font-bold text-neutral-dark">Enhet & Pushnotiser</h4>
+                        </div>
+                        
+                         <div className="p-4 bg-neutral-light/40 rounded-xl">
                             {permissionStatus === 'granted' && (
-                                <p className="text-primary-darker font-medium flex items-center"><CheckCircleIcon className="w-5 h-5 mr-2" /> Pushnotiser är aktiva på denna enhet.</p>
+                                <div className="flex items-center text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
+                                    <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0" />
+                                    <span className="font-medium">Pushnotiser är aktiva på denna enhet.</span>
+                                </div>
                             )}
                             {permissionStatus === 'denied' && (
-                                <p className="text-red-600 font-medium">Du har blockerat notiser. För att aktivera dem, gå till din webbläsares inställningar för denna sida.</p>
+                                <div className="flex items-start text-red-700 bg-red-50 p-3 rounded-lg border border-red-200">
+                                    <XMarkIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+                                    <span className="font-medium">Du har blockerat notiser. För att aktivera dem, gå till din webbläsares inställningar för denna sida.</span>
+                                </div>
                             )}
                             {permissionStatus === 'default' && (
                                 <button
                                     type="button"
                                     onClick={handleActivatePush}
                                     disabled={isSubscribing}
-                                    className="w-full px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95 transform interactive-transition flex items-center justify-center disabled:opacity-60"
+                                    className="w-full px-5 py-3 text-base font-bold text-white bg-primary hover:bg-primary-darker rounded-xl shadow-md active:scale-95 transform interactive-transition flex items-center justify-center disabled:opacity-60"
                                 >
                                     {isSubscribing ? (
                                         <><div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div> Bearbetar...</>
@@ -797,8 +841,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 </button>
                             )}
                         </div>
-                    </section>
-                 </>
+                    </div>
+                 </div>
             )}
             
             <div className="mt-8 pt-6 border-t border-neutral-light/70 flex flex-col sm:flex-row justify-end items-center gap-4">

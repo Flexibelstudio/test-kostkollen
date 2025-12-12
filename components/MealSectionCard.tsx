@@ -40,15 +40,25 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
   const isEmpty = meals.length === 0;
 
   const handleCardClick = () => {
-    if (!isEmpty) {
-        onOpen();
-    }
+    onOpen();
   };
 
   const handleCloseModal = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     onClose();
   };
+
+  // Determine color theme based on title
+  const getTheme = () => {
+    const t = title.toLowerCase();
+    if (t.includes('frukost')) return { bg: 'bg-orange-100', text: 'text-orange-600' };
+    if (t.includes('lunch')) return { bg: 'bg-green-100', text: 'text-green-600' };
+    if (t.includes('middag')) return { bg: 'bg-indigo-100', text: 'text-indigo-600' };
+    if (t.includes('mellis') || t.includes('mellanmål')) return { bg: 'bg-purple-100', text: 'text-purple-600' };
+    return { bg: 'bg-primary-50', text: 'text-primary-darker' }; // Default
+  };
+
+  const theme = getTheme();
 
   // --- Modal Content ---
   const renderModal = () => (
@@ -63,7 +73,9 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
             {/* Modal Header */}
             <div className="p-5 border-b border-neutral-light/70 flex justify-between items-center bg-white sticky top-0 z-10">
                 <div className="flex items-center gap-3">
-                    <span className="text-3xl" role="img" aria-label={title}>{icon}</span>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm ${theme.bg}`}>
+                        {icon}
+                    </div>
                     <div>
                         <h3 className="text-2xl font-bold text-neutral-dark">{title}</h3>
                         <p className="text-sm text-neutral font-medium">{Math.round(totals.calories)} kcal totalt</p>
@@ -107,19 +119,24 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
 
                 {/* Meals List */}
                 <div className="px-4 pb-4 space-y-3">
-                    {meals.map(meal => (
-                        <MealItemCard
-                            key={meal.id}
-                            meal={meal}
-                            onDelete={onDeleteMeal}
-                            onUpdate={onUpdateMeal}
-                            onSelectForCommonSave={onSaveCommon}
-                            isReadOnly={!isEditable}
-                        />
-                    ))}
+                    {isEmpty ? (
+                        <div className="text-center py-8 text-neutral opacity-60">
+                            <p>Inga måltider loggade än.</p>
+                        </div>
+                    ) : (
+                        meals.map(meal => (
+                            <MealItemCard
+                                key={meal.id}
+                                meal={meal}
+                                onDelete={onDeleteMeal}
+                                onUpdate={onUpdateMeal}
+                                onSelectForCommonSave={onSaveCommon}
+                                isReadOnly={!isEditable}
+                            />
+                        ))
+                    )}
                 </div>
             </div>
-            {/* Footer removed as requested */}
         </div>
     </div>
   );
@@ -129,30 +146,39 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
     <>
       <div 
         onClick={handleCardClick}
-        className={`bg-white rounded-2xl shadow-soft-lg border border-neutral-light p-4 flex items-center justify-between transition-all duration-200 
+        className={`
+            bg-white rounded-2xl p-4 border border-neutral-light shadow-sm 
+            transition-all duration-300 ease-out flex flex-col justify-between h-32
             ${isEmpty 
-                ? 'opacity-80 cursor-default' 
-                : 'cursor-pointer group hover:shadow-soft-xl hover:scale-[1.01] active:scale-[0.99]'
-            }`}
+                ? 'opacity-100 hover:border-primary/40 cursor-pointer group' 
+                : 'hover:shadow-md hover:scale-[1.02] cursor-pointer hover:border-primary/20 group'
+            }
+        `}
       >
-        {/* Left Side: Icon & Title */}
-        <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-neutral-light/50 flex items-center justify-center text-2xl shadow-inner flex-shrink-0">
+        <div className="flex justify-between items-start">
+            {/* Updated Icon Container with Squircle */}
+            <div className={`
+                w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-sm transition-colors duration-300
+                ${theme.bg} ${theme.text}
+            `}>
                 {icon}
             </div>
-            <div>
-                <h3 className="text-lg font-bold text-neutral-dark leading-tight">{title}</h3>
-                <p className="text-xs text-neutral font-medium">
-                    {isEmpty ? 'Inget loggat' : `${meals.length} ${meals.length === 1 ? 'val' : 'val'}`}
-                </p>
+            
+            <div className="text-right">
+                 <span className={`block text-xl font-extrabold leading-none transition-colors ${totals.calories > 0 ? 'text-neutral-dark' : 'text-neutral-200 group-hover:text-neutral-300'}`}>
+                    {Math.round(totals.calories)}
+                 </span>
+                 <span className={`text-[10px] font-bold uppercase tracking-wide transition-colors ${totals.calories > 0 ? 'text-neutral-400' : 'text-neutral-200 group-hover:text-neutral-300'}`}>kcal</span>
             </div>
         </div>
 
-        {/* Right Side: Calories (No Add Button) */}
-        <div className="flex items-center gap-3">
-            <span className={`text-base font-bold ${totals.calories > 0 ? 'text-neutral-dark' : 'text-neutral/50'}`}>
-                {Math.round(totals.calories)} kcal
-            </span>
+        <div className="flex justify-between items-end mt-2">
+            <div>
+                <h3 className="text-base font-bold text-neutral-dark leading-tight mb-0.5">{title}</h3>
+                <p className={`text-xs font-medium transition-colors ${isEmpty ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                    {isEmpty ? 'Inget loggat' : `${meals.length} ${meals.length === 1 ? 'val' : 'val'}`}
+                </p>
+            </div>
         </div>
       </div>
 

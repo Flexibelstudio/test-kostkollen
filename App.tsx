@@ -66,6 +66,7 @@ import AICoachModal from './components/AICoachModal.tsx';
 import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
 import MorningReportModal from './components/MorningReportModal.tsx';
+import GamificationModal from './components/GamificationModal.tsx';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -74,7 +75,7 @@ import { initAudio, playAudio } from './services/audioService.ts';
 import {
   InformationCircleIcon, AICoachIcon,
   PencilIcon,
-  ChatBubbleOvalLeftEllipsisIcon, BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon
+  ChatBubbleOvalLeftEllipsisIcon, BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon
 } from './components/icons.tsx';
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 import Dashboard from './pages/Dashboard';
@@ -302,6 +303,7 @@ export const App = () => {
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState<boolean>(false);
   const [isProfileModalOnboarding, setIsProfileModalOnboarding] = useState(false);
+  const [showGamificationModal, setShowGamificationModal] = useState(false); // NEW
 
   const [journeyInitialTab, setJourneyInitialTab] = useState<'calendar' | 'profile' | 'achievements'>('calendar');
 
@@ -1178,6 +1180,15 @@ useEffect(() => {
                                     }}
                                 />
                                 <DropdownMenuItem
+                                    icon={<TrophyIcon />}
+                                    label="Streak & Rekord"
+                                    onClick={() => {
+                                        playAudio('uiClick');
+                                        setShowGamificationModal(true);
+                                        setShowProfileDropdown(false);
+                                    }}
+                                />
+                                <DropdownMenuItem
                                     icon={<InformationCircleIcon />}
                                     label="Information"
                                     onClick={() => {
@@ -1216,7 +1227,9 @@ useEffect(() => {
                 ensureYesterdayProcessed={ensureYesterdayProcessed}
                 setToastNotification={setToastNotification}
                 onOpenAICoach={() => { setShowAICoachModal(true); setCoachInitialContext(null); }}
-                isSummarizingYesterday={isSummarizingYesterday} // Pass prop
+                isSummarizingYesterday={isSummarizingYesterday}
+                isAICoachOpen={showAICoachModal}
+                isProfileOpen={showUserProfileModal}
             />
          )}
          {viewMode === 'journey' && (
@@ -1232,19 +1245,19 @@ useEffect(() => {
                 setViewingDate={setViewingDate}
                 currentDate={currentDate}
                 initialTab={journeyInitialTab}
-                highestStreak={highestStreak}
+                highestStreak={streakData.currentStreak} // Pass current streak if needed or keep highest
                 highestLevelId={highestLevelId}
                 minSafeCalories={minSafeCalories}
                 setToastNotification={setToastNotification}
                 achievements={ACHIEVEMENT_DEFINITIONS}
                 unlockedAchievements={unlockedAchievements}
                 achievementInteractions={achievementInteractions}
-                journeyAnalysisFeedback={journeyAnalysisFeedback}
                 onNavigateToMainWithDate={handleNavigateToMainWithDate}
                 streakSaver={streakSaver}
                 analysisContext={null as any} // Pass null or handle properly if needed
                 setShowAICoachModal={setShowAICoachModal}
-                onDiscussSavedAnalysis={handleDiscussSavedAnalysis}
+                isAICoachOpen={showAICoachModal}
+                isProfileOpen={showUserProfileModal}
             />
          )}
          {viewMode === 'coursesView' && (
@@ -1317,6 +1330,15 @@ useEffect(() => {
         {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} /></div>}
         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
         {journeyAnalysisFeedback && <AICoachModal show={showAICoachModal} onClose={() => { setShowAICoachModal(false); setCoachInitialContext(null); }} analysisContext={{ userProfile, goals, allWeightLogs: weightLogs, last30DaysSummaries: Object.values(pastDaysSummary), mentalWellbeingLogs, goalTimeline: calculateGoalTimeline(userProfile), currentStreak: streakData.currentStreak }} initialContext={coachInitialContext} />}
+        {showGamificationModal && (
+            <GamificationModal
+                show={showGamificationModal}
+                onClose={() => closeModal(setShowGamificationModal)}
+                currentStreak={streakData.currentStreak}
+                highestStreak={highestStreak}
+                highestLevelId={highestLevelId}
+            />
+        )}
 
       </div>
       {(appStatus === AppStatus.ANALYZING || appStatus === AppStatus.ANALYZING_INGREDIENTS || appStatus === AppStatus.SAVING) && (

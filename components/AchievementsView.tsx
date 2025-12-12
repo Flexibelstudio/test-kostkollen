@@ -54,7 +54,7 @@ const AchievementsView: React.FC<AchievementsViewProps> = ({
                     }`}
               >
                 {/* Icon Box */}
-                <div className={`h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0 mr-4 shadow-sm
+                <div className={`h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 mr-4 shadow-sm
                     ${isUnlocked 
                         ? 'bg-amber-100' 
                         : 'bg-neutral-light' 

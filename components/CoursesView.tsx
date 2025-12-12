@@ -88,7 +88,8 @@ const CourseCard: React.FC<{
     <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group hover:scale-[1.01] transition-all duration-300">
         <div className="flex flex-col items-center text-center flex-grow mb-6">
             <div className="relative mb-4">
-                <div className="w-20 h-20 bg-neutral-light/50 rounded-full flex items-center justify-center text-primary shadow-inner">
+                {/* Updated Icon Container to Squircle (rounded-2xl) */}
+                <div className="w-20 h-20 bg-neutral-light/50 rounded-2xl flex items-center justify-center text-primary shadow-inner">
                     <course.Icon className="w-10 h-10" />
                 </div>
                 {hasStarted && (

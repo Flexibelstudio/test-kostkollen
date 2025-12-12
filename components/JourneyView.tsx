@@ -1,10 +1,9 @@
 
 import React, { useMemo, useState } from 'react';
-import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, AIStructuredFeedbackResponse, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
-import { PencilIcon, TrophyIcon, AICoachIcon, ChevronDownIcon, ChevronUpIcon, SparklesIcon, PlusIcon, ScaleIcon } from './icons';
-import { Dumbbell, PieChart } from 'lucide-react';
+import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
+import { PencilIcon, TrophyIcon, SparklesIcon, PlusIcon, ScaleIcon, ExclamationTriangleIcon } from './icons';
+import { Dumbbell, PieChart, Target } from 'lucide-react';
 import { calculateGoalTimeline } from '../utils/timelineUtils.ts';
-import GamificationCard from './GamificationCard.tsx';
 import GoalTimeline from './JourneyGoalTimeline.tsx';
 import ProfileAndGoalEditor from './JourneyProfileEditor.tsx';
 import AchievementsView from './AchievementsView.tsx';
@@ -28,12 +27,12 @@ interface JourneyViewProps {
   achievements: Achievement[];
   unlockedAchievements: { [id: string]: string };
   achievementInteractions: { [id: string]: { reactions: Reactions } };
-  journeyAnalysisFeedback: AIStructuredFeedbackResponse | null;
   onNavigateToMainWithDate: (date: Date) => void;
   streakSaver: StreakSaver | null;
   analysisContext: AIDataForJourneyAnalysis;
   setShowAICoachModal: (show: boolean) => void;
-  onDiscussSavedAnalysis: (analysisDate?: string) => void;
+  isAICoachOpen: boolean;
+  isProfileOpen: boolean;
 }
 type Tab = 'goals' | 'achievements';
 
@@ -41,10 +40,9 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const { 
       weightLogs, userProfile, goals, onSaveProfileAndGoals, 
       onOpenLogWeightModal, playAudio, 
-      initialTab, highestStreak, highestLevelId, minSafeCalories,
-      setToastNotification, achievements, unlockedAchievements, achievementInteractions, journeyAnalysisFeedback,
-      setShowAICoachModal,
-      onDiscussSavedAnalysis,
+      initialTab, minSafeCalories,
+      setToastNotification, achievements, unlockedAchievements, achievementInteractions,
+      setShowAICoachModal, isAICoachOpen, isProfileOpen
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -53,9 +51,12 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     return 'goals'; 
   });
 
-  const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
-  const [isGamificationCardExpanded, setIsGamificationCardExpanded] = useState(false);
   const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
+  
+  // State lifted from ProfileAndGoalEditor to control it via FAB
+  const [isProfileEditing, setIsProfileEditing] = useState(false);
+  const [isFullGoalEdit, setIsFullGoalEdit] = useState(false);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const juneFirst = useMemo(() => new Date(currentYear, 5, 1), [currentYear]); 
@@ -214,6 +215,21 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     };
   }, [latestWeightLog, userProfile]);
 
+  const handleStartNewGoal = () => {
+      setShowResetConfirmModal(false);
+      // Trigger Edit Mode with full goal editing enabled
+      setIsProfileEditing(true);
+      setIsFullGoalEdit(true);
+      // Scroll to editor if needed (not strictly necessary with this layout)
+  };
+
+  const handleEditToggle = (isEditing: boolean) => {
+      setIsProfileEditing(isEditing);
+      if (!isEditing) {
+          setIsFullGoalEdit(false);
+      }
+  };
+
   return (
     <>
       <div className="animate-fade-in relative pb-0 flex flex-col gap-3">
@@ -234,14 +250,14 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                     </span>
                 </div>
 
-                {/* Secondary Metrics */}
+                {/* Secondary Metrics - UPDATED DESIGN */}
                 <div className="flex gap-4 w-full justify-center">
                     {latestMuscle != null && (
-                        <div className="flex-1 bg-orange-50 rounded-2xl p-3 flex flex-col items-center border border-orange-100">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <Dumbbell className="w-4 h-4 text-orange-500" />
-                                <span className="text-xs font-bold text-orange-700 uppercase">Muskler</span>
+                        <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 mb-2">
+                                <Dumbbell className="w-5 h-5" />
                             </div>
+                            <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Muskler</span>
                             <span className="text-xl font-bold text-neutral-dark">
                                 {latestMuscle.toFixed(1).replace('.',',')}
                             </span>
@@ -252,11 +268,11 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                     )}
                     
                     {latestFat != null && (
-                        <div className="flex-1 bg-yellow-50 rounded-2xl p-3 flex flex-col items-center border border-yellow-100">
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <PieChart className="w-4 h-4 text-yellow-600" />
-                                <span className="text-xs font-bold text-yellow-700 uppercase">Fett</span>
+                        <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600 mb-2">
+                                <PieChart className="w-5 h-5" />
                             </div>
+                            <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Fett</span>
                             <span className="text-xl font-bold text-neutral-dark">
                                 {latestFat.toFixed(1).replace('.',',')}
                             </span>
@@ -266,14 +282,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                         </div>
                     )}
                 </div>
-
-                <button
-                    onClick={onOpenLogWeightModal}
-                    className="mt-6 w-full py-3.5 bg-primary hover:bg-primary-darker text-white font-bold rounded-2xl shadow-md active:scale-95 interactive-transition flex items-center justify-center gap-2"
-                >
-                    <PencilIcon className="w-5 h-5" />
-                    Logga mätning
-                </button>
             </div>
         </div>
 
@@ -328,73 +336,14 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                             currentAppDate={new Date()}
                         />
                         
-                        <ProfileAndGoalEditor initialProfile={userProfile} initialGoals={goals} onSave={onSaveProfileAndGoals} />
-                        
-                        <GamificationCard
-                            goals={goals}
-                            minSafeCalories={minSafeCalories}
-                            highestStreak={highestStreak}
-                            highestLevelId={highestLevelId}
-                            isExpanded={isGamificationCardExpanded}
-                            onToggle={() => {
-                                playAudio('uiClick');
-                                setIsGamificationCardExpanded(prev => !prev);
-                            }}
+                        <ProfileAndGoalEditor 
+                            initialProfile={userProfile} 
+                            initialGoals={goals} 
+                            onSave={onSaveProfileAndGoals} 
+                            isEditing={isProfileEditing}
+                            setIsEditing={handleEditToggle}
+                            isFullGoalEdit={isFullGoalEdit}
                         />
-
-                        {/* AI Analysis Card */}
-                        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-2xl border border-indigo-100 shadow-sm">
-                            {journeyAnalysisFeedback ? (
-                                <>
-                                    <button
-                                        onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
-                                        className="w-full flex justify-between items-center text-left group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-white rounded-full shadow-sm">
-                                                <SparklesIcon className="w-6 h-6 text-indigo-500" />
-                                            </div>
-                                            <div>
-                                                <h3 className="font-bold text-indigo-900">Analys från Coachen</h3>
-                                                <p className="text-xs text-indigo-700/70">
-                                                    {new Date(journeyAnalysisFeedback.analysisDate || Date.now()).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        {isAnalysisExpanded ? <ChevronUpIcon className="w-5 h-5 text-indigo-400" /> : <ChevronDownIcon className="w-5 h-5 text-indigo-400" />}
-                                    </button>
-                                    
-                                    {isAnalysisExpanded && (
-                                        <div className="mt-4 space-y-4 animate-fade-in border-t border-indigo-100/50 pt-4">
-                                            {journeyAnalysisFeedback.sections.map((section, index) => (
-                                                <div key={index}>
-                                                    <h4 className="text-sm font-bold text-indigo-900 mb-1 flex items-center gap-2">
-                                                        <span>{section.emoji}</span>
-                                                        {section.title}
-                                                    </h4>
-                                                    <p className="text-sm text-indigo-800/80 leading-relaxed pl-6">
-                                                        {section.content.replace(/\n/g, ' ')}
-                                                    </p>
-                                                </div>
-                                            ))}
-                                            <button
-                                                onClick={() => onDiscussSavedAnalysis(journeyAnalysisFeedback.analysisDate)}
-                                                className="w-full mt-2 py-3 bg-white text-indigo-600 font-bold text-sm rounded-xl shadow-sm border border-indigo-100 hover:bg-indigo-50 interactive-transition flex items-center justify-center gap-2"
-                                            >
-                                                <AICoachIcon className="w-5 h-5" />
-                                                Djupdyk i analysen
-                                            </button>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <div className="text-center py-4">
-                                    <SparklesIcon className="w-8 h-8 text-indigo-300 mx-auto mb-2" />
-                                    <p className="text-indigo-900 font-medium">Din analys kommer snart!</p>
-                                    <p className="text-xs text-indigo-700/70 mt-1">Logga några dagar till så dyker den upp här.</p>
-                                </div>
-                            )}
-                        </div>
                     </div>
                 )}
                 
@@ -421,28 +370,52 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
           />
       )}
 
-      {/* FAB */}
-      <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
-          {isSpeedDialOpen && (
-              <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
-                  <button onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
-                      <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga Coachen</span>
-                      <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
-                  </button>
-                  <button onClick={() => { playAudio('uiClick'); onOpenLogWeightModal(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
-                      <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Logga Vikt</span>
-                      <div className="w-12 h-12 bg-primary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-darker transition-colors"><ScaleIcon className="w-6 h-6" /></div>
-                  </button>
-              </div>
-          )}
-          <button 
-              onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
-              className={`pointer-events-auto w-16 h-16 rounded-full shadow-soft-xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 ${isSpeedDialOpen ? 'bg-neutral-dark text-white rotate-45' : 'bg-primary text-white'}`}
-              aria-label="Lägg till"
-          >
-              <PlusIcon className="w-8 h-8" />
-          </button>
-      </div>
+      {/* FAB - Hidden during profile editing or when Coach is open */}
+      {!isProfileEditing && !isAICoachOpen && !isProfileOpen && (
+        <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
+            {isSpeedDialOpen && (
+                <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
+                    <button onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                        <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga Coachen</span>
+                        <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
+                    </button>
+                    <button onClick={() => { playAudio('uiClick'); setShowResetConfirmModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                        <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Nytt Mål</span>
+                        <div className="w-12 h-12 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-secondary-darker transition-colors"><Target className="w-6 h-6" /></div>
+                    </button>
+                    <button onClick={() => { playAudio('uiClick'); onOpenLogWeightModal(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                        <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Logga Vikt</span>
+                        <div className="w-12 h-12 bg-primary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-darker transition-colors"><ScaleIcon className="w-6 h-6" /></div>
+                    </button>
+                </div>
+            )}
+            <button 
+                onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
+                className={`pointer-events-auto w-16 h-16 rounded-full shadow-soft-xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 ${isSpeedDialOpen ? 'bg-neutral-dark text-white rotate-45' : 'bg-primary text-white'}`}
+                aria-label="Lägg till"
+            >
+                <PlusIcon className="w-8 h-8" />
+            </button>
+        </div>
+      )}
+
+      {showResetConfirmModal && (
+        <div
+            className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[110] animate-fade-in"
+            onClick={() => setShowResetConfirmModal(false)}
+        >
+            <div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Sätta ett nytt mål?</h3>
+                <p className="text-neutral mb-6">
+                    Detta kommer att markera ditt nuvarande mål som slutfört och låter dig ställa in ett nytt. Vill du fortsätta?
+                </p>
+                <div className="flex justify-end space-x-3">
+                    <button onClick={() => setShowResetConfirmModal(false)} className="px-4 py-2 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md active:scale-95 interactive-transition">Avbryt</button>
+                    <button onClick={handleStartNewGoal} className="px-4 py-2 text-white bg-primary hover:bg-primary-darker rounded-md active:scale-95 interactive-transition">Ja, sätt nytt mål</button>
+                </div>
+            </div>
+        </div>
+      )}
 
     </>
   );

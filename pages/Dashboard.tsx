@@ -120,6 +120,8 @@ interface DashboardProps {
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     onOpenAICoach: () => void;
     isSummarizingYesterday: boolean;
+    isAICoachOpen: boolean;
+    isProfileOpen: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -134,7 +136,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     ensureYesterdayProcessed,
     setToastNotification,
     onOpenAICoach,
-    isSummarizingYesterday
+    isSummarizingYesterday,
+    isAICoachOpen,
+    isProfileOpen
 }) => {
     const {
         currentUser,
@@ -824,9 +828,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* Meal Sections */}
                     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-xl font-bold text-neutral-dark">Måltider</h3>
+                            <h3 className="text-xl font-bold text-neutral-dark">Kalorifördelning</h3>
                         </div>
-                        <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-3">
                             <MealSectionCard 
                                 title="Frukost" 
                                 icon="☕" 
@@ -889,7 +893,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
 
             {/* Floating Action Button (FAB) */}
-            {isEditableView && (
+            {isEditableView && !isAICoachOpen && !isProfileOpen && (
                 <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">

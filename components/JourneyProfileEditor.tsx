@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, GoalSettings, ActivityLevel, GoalType } from '../types';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations';
 import { calculateGoalTimeline } from '../utils/timelineUtils';
 import BmrTdeeInfoModal from './BmrTdeeInfoModal';
 import GoalTimeline from './JourneyGoalTimeline';
-import { InformationCircleIcon, CheckCircleIcon, CheckIcon, PencilIcon, ExclamationTriangleIcon, XMarkIcon } from './icons';
+import { InformationCircleIcon, CheckCircleIcon, CheckIcon, PencilIcon } from './icons';
 
 const activityLevelOptions: { value: ActivityLevel; emoji: string; label: string; description: string; example: string }[] = [
     {
@@ -44,24 +45,43 @@ const activityLevelOptions: { value: ActivityLevel; emoji: string; label: string
     }
 ];
 
-const ProfileAndGoalEditor: React.FC<{
+interface ProfileAndGoalEditorProps {
     initialProfile: UserProfileData;
     initialGoals: GoalSettings;
     onSave: (profile: UserProfileData, goals: GoalSettings) => void;
-}> = ({ initialProfile, initialGoals, onSave }) => {
+    isEditing: boolean;
+    setIsEditing: (isEditing: boolean) => void;
+    isFullGoalEdit: boolean;
+}
+
+const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({ 
+    initialProfile, 
+    initialGoals, 
+    onSave,
+    isEditing,
+    setIsEditing,
+    isFullGoalEdit
+}) => {
     const [profile, setProfile] = useState(initialProfile);
     const [showSavedMessage, setShowSavedMessage] = useState(false);
     const [showBmrTdeeInfoModal, setShowBmrTdeeInfoModal] = useState<boolean>(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [isFullGoalEdit, setIsFullGoalEdit] = useState(false); // New state to differentiate edit modes
-    const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
+    // Sync profile when editing starts or stops
     useEffect(() => {
         if (!isEditing) {
             setProfile(initialProfile);
-            setIsFullGoalEdit(false); // Reset goal edit mode when not editing
+        } else if (isFullGoalEdit) {
+            // When full goal edit starts, we reset the goal-related fields to allow new input
+            setProfile(prev => ({
+                ...prev,
+                mainGoalCompleted: true, // Mark previous goal as essentially done/archived contextually
+                desiredFatMassChangeKg: undefined,
+                desiredMuscleMassChangeKg: undefined,
+                desiredWeightChangeKg: undefined,
+                goalCompletionDate: undefined
+            }));
         }
-    }, [initialProfile, isEditing]);
+    }, [initialProfile, isEditing, isFullGoalEdit]);
     
     useEffect(() => {
         const newGoalType = deriveEffectiveGoalType(profile);
@@ -136,34 +156,31 @@ const ProfileAndGoalEditor: React.FC<{
                 fatGoal: Math.round(recommendations.recommendedFatGrams),
               }
             : initialGoals; // Fallback to initialGoals if recommendations can't be calculated
-        onSave(profile, newGoals);
+        
+        // Create a copy to modify before saving
+        let profileToSave = { ...profile };
+
+        // If this is a full goal edit (New Goal flow), we must reset the starting points
+        // to the CURRENT values to ensure the progress bar starts at 0%.
+        if (isFullGoalEdit) {
+            profileToSave.mainGoalCompleted = false;
+            // Use current values as the new start line
+            profileToSave.goalStartWeight = profile.currentWeightKg;
+            // Reset body comp start values to current
+            profileToSave.goalStartFatMassKg = profile.bodyFatMassKg; 
+            profileToSave.goalStartMuscleMassKg = profile.skeletalMuscleMassKg;
+        }
+
+        onSave(profileToSave, newGoals);
         setShowSavedMessage(true);
         setTimeout(() => setShowSavedMessage(false), 3000);
         setIsEditing(false);
-        setIsFullGoalEdit(false); // Reset on save
     };
     
     const handleCancel = () => {
         setIsEditing(false);
-        setIsFullGoalEdit(false); // Reset on cancel
         setProfile(initialProfile);
     };
-    
-    const handleResetGoals = (e: React.FormEvent) => {
-        e.preventDefault();
-        setProfile(prev => ({
-            ...prev,
-            mainGoalCompleted: true, // Mark current as done
-            desiredFatMassChangeKg: undefined,
-            desiredMuscleMassChangeKg: undefined,
-            desiredWeightChangeKg: undefined,
-            goalCompletionDate: undefined
-        }));
-        setShowResetConfirmModal(false);
-        // This makes the form editable to set a new goal
-        setIsEditing(true); 
-        setIsFullGoalEdit(true); // Enable full edit mode for new goal
-    }
     
     const goalTypeDisplayMap: Record<GoalType, string> = {
         lose_fat: 'Minska fettmassa / vikt',
@@ -181,7 +198,7 @@ const ProfileAndGoalEditor: React.FC<{
             <div className="flex justify-between items-center mb-4">
                 <h3 id="profile-goal-editor-heading" className="text-xl font-semibold text-neutral-dark">Min Profil & Mål</h3>
                 {!isEditing && (
-                    <button onClick={() => { setIsEditing(true); setIsFullGoalEdit(false); }} className="flex items-center px-3 py-1.5 text-sm font-medium text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-md shadow-sm active:scale-95 interactive-transition">
+                    <button onClick={() => setIsEditing(true)} className="flex items-center px-3 py-1.5 text-sm font-medium text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-md shadow-sm active:scale-95 interactive-transition">
                         <PencilIcon className="w-4 h-4 mr-1.5" /> Redigera aktivitetsnivå
                     </button>
                 )}
@@ -345,40 +362,12 @@ const ProfileAndGoalEditor: React.FC<{
                             <CheckCircleIcon className="w-5 h-5 mr-2" /> Profil & mål sparade!
                         </div>
                     )}
-                     {/* New Goal Button */}
-                    <div className="mt-6 pt-4 border-t border-dashed border-neutral-light/80">
-                         <button
-                            type="button"
-                            onClick={() => setShowResetConfirmModal(true)}
-                            className="w-full px-5 py-3 text-lg font-medium text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 transform interactive-transition"
-                        >
-                            Sätt nytt mål
-                        </button>
-                    </div>
                 </div>
             )}
 
             {showBmrTdeeInfoModal && (
                 <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowBmrTdeeInfoModal(false)}>
                     <BmrTdeeInfoModal onClose={() => setShowBmrTdeeInfoModal(false)} />
-                </div>
-            )}
-            
-            {showResetConfirmModal && (
-                <div
-                    className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fade-in"
-                    onClick={() => setShowResetConfirmModal(false)}
-                >
-                    <div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Sätta ett nytt mål?</h3>
-                        <p className="text-neutral mb-6">
-                            Detta kommer att markera ditt nuvarande mål som slutfört och låter dig ställa in ett nytt. Vill du fortsätta?
-                        </p>
-                        <div className="flex justify-end space-x-3">
-                            <button onClick={() => setShowResetConfirmModal(false)} className="px-4 py-2 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md active:scale-95 interactive-transition">Avbryt</button>
-                            <button onClick={handleResetGoals} className="px-4 py-2 text-white bg-primary hover:bg-primary-darker rounded-md active:scale-95 interactive-transition">Ja, sätt nytt mål</button>
-                        </div>
-                    </div>
                 </div>
             )}
         </section>
