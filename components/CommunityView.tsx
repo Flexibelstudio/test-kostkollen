@@ -17,36 +17,46 @@ import {
 } from '../services/firestoreService';
 import { 
     HeartIcon, 
-    TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
-    ShareIcon, PencilIcon,
+    CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
+    ShareIcon, PencilIcon, TrashIcon
 } from './icons';
+import { MoreHorizontal } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 
 // --- HELPER FUNCTION ---
-const formatChange = (change: number | undefined, isFirstEntry: boolean, invertColors: boolean = false): { text: string; colorClass: string } => {
-    if (isFirstEntry) {
-        return { text: '-', colorClass: 'text-neutral' };
-    }
-    if (change === undefined || change === null || isNaN(change)) {
-        return { text: '-', colorClass: 'text-neutral' };
-    }
+const renderWeightDescription = (description: string) => {
+    const parts = description.split('\n'); // Split by newline
+    return (
+        <div className="space-y-1 mt-2">
+            {parts.map(part => {
+                const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
+                if (!match) {
+                    return <p key={part} className="text-base text-neutral-dark">{part}</p>;
+                }
+                
+                const label = match[1];
+                const value = match[2];
+                const changeStr = match[3];
+                const changeNum = parseFloat(changeStr.replace(',', '.'));
 
-    if (Math.abs(change) < 0.05) {
-        return { text: '±0,0 kg', colorClass: 'text-neutral-dark' };
-    }
+                let colorClass = 'text-accent'; // Neutral/yellow for ±0,0
+                if (changeNum > 0) {
+                    if (label === 'Muskler') colorClass = 'text-primary'; // Green for muscle increase
+                    else colorClass = 'text-red-600'; // Red for weight/fat increase
+                } else if (changeNum < 0) {
+                    if (label === 'Muskler') colorClass = 'text-red-600'; // Red for muscle decrease
+                    else colorClass = 'text-primary'; // Green for weight/fat decrease
+                }
 
-    const sign = change > 0 ? '+' : '';
-    const formattedValue = `${sign}${change.toFixed(1).replace('.', ',')} kg`;
-
-    let colorClass = 'text-neutral';
-    if (change > 0) {
-        colorClass = invertColors ? 'text-red-600' : 'text-primary-darker';
-    } else if (change < 0) {
-        colorClass = invertColors ? 'text-primary-darker' : 'text-red-600';
-    }
-    
-    return { text: formattedValue, colorClass };
+                return (
+                    <p key={label} className="text-base text-neutral-dark">
+                        <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
+                    </p>
+                );
+            })}
+        </div>
+    );
 };
 
 // --- SUB-COMPONENTS ---
@@ -55,6 +65,7 @@ const BuddyCard: FC<{
     buddy: BuddyDetails; 
     onRemove: () => void; 
 }> = ({ buddy, onRemove }) => {
+    const [showMenu, setShowMenu] = useState(false);
     
     const progressPercentage = useMemo(() => {
         if (buddy.mainGoalCompleted) return 100;
@@ -117,34 +128,51 @@ const BuddyCard: FC<{
             return `Mål: ${changes.join(' & ')}`;
         }
         
-        return `Mål: ${goalSummary}` || 'Inget specifikt mål';
+        return goalSummary || 'Inget specifikt mål';
     }, [buddy]);
 
     return (
-        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 relative transition-all hover:shadow-soft-xl">
-            <div className="flex justify-between items-start mb-3">
+        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 relative transition-all hover:shadow-soft-xl group">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-3 relative z-10">
                 <div className="flex items-center gap-3 w-full pr-8">
                     <Avatar photoURL={buddy.photoURL} gender={buddy.gender} size={48} />
                     <div className="min-w-0 flex-1">
-                        <h3 className="text-lg font-bold text-primary-darker truncate">{buddy.name}</h3>
-                        <div className="text-sm text-neutral-dark flex flex-wrap items-center gap-x-3 gap-y-0">
-                            <span className="truncate max-w-full">{goalDescription}</span>
-                            <span className="flex items-center text-orange-500 font-semibold whitespace-nowrap">
-                                <span className="mr-1">🔥</span> {buddy.currentStreak} dagar
+                        <h3 className="text-xl font-bold text-primary-darker truncate">{buddy.name}</h3>
+                        <div className="text-sm text-neutral-dark flex flex-wrap items-center gap-x-3">
+                            <span className="truncate max-w-[200px]">{goalDescription}</span>
+                            <span className="flex items-center text-orange-500 font-semibold whitespace-nowrap gap-1">
+                                <span>🔥</span> {buddy.currentStreak} dagar
                             </span>
                         </div>
                     </div>
                 </div>
-                <button 
-                    onClick={onRemove} 
-                    className="absolute top-4 right-4 text-neutral-400 hover:text-red-500 p-1 transition-colors rounded-full hover:bg-red-50"
-                    title={`Ta bort ${buddy.name}`}
-                >
-                    <TrashIcon className="w-5 h-5"/>
-                </button>
+                
+                {/* Menu Button */}
+                <div className="absolute top-0 right-0">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                        className="p-1.5 text-neutral-400 hover:text-neutral-dark rounded-full hover:bg-neutral-light transition-colors"
+                        aria-label="Mer alternativ"
+                    >
+                        <MoreHorizontal className="w-5 h-5" />
+                    </button>
+                    
+                    {showMenu && (
+                        <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setShowMenu(false); onRemove(); }}
+                                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                                <TrashIcon className="w-4 h-4" /> Ta bort vän
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            {/* Progress Bar */}
+            <div className="flex items-center gap-3 relative z-0">
                 <div className="flex-grow bg-neutral-light rounded-full h-2.5 overflow-hidden shadow-inner">
                     <div 
                         className="bg-primary h-full rounded-full transition-all duration-500" 
@@ -155,6 +183,11 @@ const BuddyCard: FC<{
                     {progressPercentage.toFixed(0)}%
                 </span>
             </div>
+
+            {/* Click overlay to close menu */}
+            {showMenu && (
+                <div className="fixed inset-0 z-20 cursor-default" onClick={() => setShowMenu(false)}></div>
+            )}
         </div>
     );
 };
@@ -347,7 +380,7 @@ const FriendManagementView: FC<{
                                 {buddySearchQuery ? 'Inga kompisar matchade din sökning.' : 'Du har inga kompisar än.'}
                             </p>
                         ) : (
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                                 {filteredBuddyDetails.map(buddy => (
                                     <BuddyCard
                                         key={buddy.uid}
@@ -483,40 +516,6 @@ const FriendManagementView: FC<{
                     </div>
                 </div>
             )}
-        </div>
-    );
-};
-
-const renderWeightDescription = (description: string) => {
-    const parts = description.split('\n'); // Split by newline
-    return (
-        <div className="space-y-1 mt-2">
-            {parts.map(part => {
-                const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
-                if (!match) {
-                    return <p key={part} className="text-base text-neutral-dark">{part}</p>;
-                }
-                
-                const label = match[1];
-                const value = match[2];
-                const changeStr = match[3];
-                const changeNum = parseFloat(changeStr.replace(',', '.'));
-
-                let colorClass = 'text-accent'; // Neutral/yellow for ±0,0
-                if (changeNum > 0) {
-                    if (label === 'Muskler') colorClass = 'text-primary'; // Green for muscle increase
-                    else colorClass = 'text-red-600'; // Red for weight/fat increase
-                } else if (changeNum < 0) {
-                    if (label === 'Muskler') colorClass = 'text-red-600'; // Red for muscle decrease
-                    else colorClass = 'text-primary'; // Green for weight/fat decrease
-                }
-
-                return (
-                    <p key={label} className="text-base text-neutral-dark">
-                        <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
-                    </p>
-                );
-            })}
         </div>
     );
 };
@@ -851,6 +850,7 @@ export const CommunityView: React.FC<{
                         setToastNotification={setToastNotification}
                         onDataChanged={onDataChanged}
                         buddyDetails={buddyDetails}
+                        achievements={achievements}
                         initialTab={initialSubTab}
                     />
                 )}

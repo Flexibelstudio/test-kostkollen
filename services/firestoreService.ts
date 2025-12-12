@@ -731,12 +731,12 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
 
 export async function fetchCommunityTimeline(currentUserId: string): Promise<TimelineEvent[]> {
   // Removed strict date filtering to ensure feed populates even if activity is older than 24h
+  // Removed orderBy('timestamp') to avoid "Missing Index" errors on complex array-contains queries.
+  // We fetch matches and sort in memory instead.
   const timelineRef = collection(db, 'communityTimeline');
   const q = query(
     timelineRef,
-    where('visibleTo', 'array-contains', currentUserId),
-    orderBy('timestamp', 'desc'),
-    limit(50)
+    where('visibleTo', 'array-contains', currentUserId)
   );
   
   const snapshot = await getDocsSafe(q);
@@ -767,7 +767,10 @@ export async function fetchCommunityTimeline(currentUserId: string): Promise<Tim
     return eventData;
   });
 
-  return await Promise.all(eventsWithCommentsPromises);
+  const allEvents = await Promise.all(eventsWithCommentsPromises);
+  
+  // Sort and limit in memory
+  return allEvents.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
 }
 
 export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetails[]> {

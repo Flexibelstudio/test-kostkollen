@@ -1,9 +1,33 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { CameraIcon, XMarkIcon } from './icons';
 import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType, NotFoundException } from '@zxing/library';
 import { FileText } from 'lucide-react';
 
+// --- Native BarcodeDetector Types (Experimental) ---
+interface DetectedBarcode {
+  rawValue: string;
+  format: string;
+  boundingBox: DOMRectReadOnly;
+}
+
+interface BarcodeDetectorOptions {
+  formats?: string[];
+}
+
+declare class BarcodeDetector {
+  constructor(options?: BarcodeDetectorOptions);
+  static getSupportedFormats(): Promise<string[]>;
+  detect(image: ImageBitmapSource): Promise<DetectedBarcode[]>;
+}
+
+declare global {
+  interface Window {
+    BarcodeDetector: typeof BarcodeDetector;
+  }
+}
+// ---------------------------------------------------
 
 interface BarcodeScannerModalProps {
   show: boolean;
@@ -17,75 +41,184 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const controlsRef = useRef<IScannerControls | null>(null);
+  const [usingNative, setUsingNative] = useState(false);
+  
+  // Refs for cleanup
+  const controlsRef = useRef<IScannerControls | null>(null); // For ZXing
+  const streamRef = useRef<MediaStream | null>(null);       // For Native
+  const rafIdRef = useRef<number | null>(null);             // For Native loop
+  const isScanningRef = useRef<boolean>(false);             // Flag to stop native loop
 
   useEffect(() => {
-    if (show) {
-      const hints = new Map();
-      const formats = [
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-      ];
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
-      const codeReader = new BrowserMultiFormatReader(hints);
+    let mounted = true;
 
-      const startScanner = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-          if (!videoRef.current) {
-            throw new Error("Video element is not available.");
-          }
+    // Cleanup function to stop all scanners and streams
+    const stopScanners = () => {
+      isScanningRef.current = false;
 
-          const constraints: MediaStreamConstraints = {
-            video: {
-              facingMode: 'environment'
-            }
-          };
-          
-          controlsRef.current = await codeReader.decodeFromConstraints(constraints, videoRef.current, (result, err) => {
-            if (result) {
-              onBarcodeScanned(result.getText());
-            }
-            if (err && !(err instanceof NotFoundException)) {
-              console.error("Barcode scanning error:", err);
-            }
-          });
-          setIsLoading(false);
+      // Stop Native Loop
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
 
-        } catch (err: any) {
-          console.error("Camera access error for barcode scanner:", err);
-          let userFriendlyError = "Kunde inte komma åt kameran.";
-          if (err instanceof DOMException) {
-              switch (err.name) {
-                  case "NotAllowedError": userFriendlyError = "Åtkomst till kameran nekades. Ge behörighet i webbläsarens inställningar."; break;
-                  case "NotFoundError": case "DevicesNotFoundError": userFriendlyError = "Ingen kamera hittades."; break;
-                  case "NotReadableError": case "TrackStartError": userFriendlyError = "Kameran används redan av en annan app."; break;
-                  case "OverconstrainedError": userFriendlyError = "Den bakre kameran kunde inte hittas eller startas."; break;
-                  case "AbortError": userFriendlyError = "Kameraåtkomsten avbröts."; break;
-                  case "SecurityError": userFriendlyError = "Kameraåtkomst blockerades av säkerhetsskäl (använd HTTPS)."; break;
-                  default: userFriendlyError = `Ett oväntat kamerafel uppstod: ${err.message || err.name}.`;
-              }
-          } else if (err.message) {
-              userFriendlyError = err.message;
-          }
-          setError(userFriendlyError);
-          onCameraError(userFriendlyError);
-          setIsLoading(false);
-        }
-      };
-
-      startScanner();
-    }
-
-    return () => {
-      // Cleanup when the modal is closed
+      // Stop ZXing
       if (controlsRef.current) {
         controlsRef.current.stop();
         controlsRef.current = null;
       }
+
+      // Stop Native Stream (if manually created)
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      
+      // Clear video source
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
+
+    const handleCameraError = (err: any) => {
+        if (!mounted) return;
+        console.error("Camera/Scanner error:", err);
+        let msg = "Kunde inte starta kameran.";
+        if (err.name === 'NotAllowedError') msg = "Åtkomst nekad. Kontrollera inställningar.";
+        else if (err.name === 'NotFoundError') msg = "Ingen kamera hittades.";
+        else if (err.name === 'NotReadableError') msg = "Kameran används av en annan app.";
+        
+        setError(msg);
+        onCameraError(msg);
+        setIsLoading(false);
+    };
+
+    const startNativeScanner = async () => {
+      try {
+        setUsingNative(true);
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        
+        if (!mounted) {
+            stream.getTracks().forEach(track => track.stop());
+            return;
+        }
+
+        streamRef.current = stream;
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          // Wait for video to load metadata to ensure dimensions are known
+          await new Promise<void>((resolve) => {
+              if (videoRef.current) {
+                  videoRef.current.onloadedmetadata = () => resolve();
+              }
+          });
+          await videoRef.current.play();
+          
+          // Initialize Native Detector
+          const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
+          const barcodeDetector = new window.BarcodeDetector({ formats });
+          
+          const scanLoop = async () => {
+            if (!isScanningRef.current || !videoRef.current) return;
+            
+            try {
+              if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+                  const barcodes = await barcodeDetector.detect(videoRef.current);
+                  if (barcodes.length > 0) {
+                    const code = barcodes[0].rawValue;
+                    onBarcodeScanned(code);
+                    return; // Stop scanning on success
+                  }
+              }
+            } catch (e) {
+              console.error("Native detection frame error:", e);
+            }
+            
+            if (isScanningRef.current) {
+                rafIdRef.current = requestAnimationFrame(scanLoop);
+            }
+          };
+          
+          isScanningRef.current = true;
+          scanLoop();
+          setIsLoading(false);
+        }
+      } catch (err: any) {
+        // If native fails (e.g. camera busy), try fallback or just error
+        handleCameraError(err);
+      }
+    };
+
+    const startZxingScanner = async () => {
+        try {
+            setUsingNative(false);
+            const hints = new Map();
+            const formats = [
+                BarcodeFormat.EAN_13,
+                BarcodeFormat.EAN_8,
+                BarcodeFormat.UPC_A,
+                BarcodeFormat.UPC_E,
+            ];
+            hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+            hints.set(DecodeHintType.TRY_HARDER, true); // Slightly slower but better detection
+
+            const codeReader = new BrowserMultiFormatReader(hints);
+            
+            if (!videoRef.current) return;
+
+            const constraints = {
+                video: { facingMode: 'environment' }
+            };
+
+            controlsRef.current = await codeReader.decodeFromConstraints(constraints, videoRef.current, (result, err) => {
+                if (result) {
+                    onBarcodeScanned(result.getText());
+                }
+                // Ignore NotFoundException from ZXing log spam
+            });
+            setIsLoading(false);
+        } catch (err: any) {
+            handleCameraError(err);
+        }
+    };
+
+    if (show) {
+      setIsLoading(true);
+      setError(null);
+      stopScanners(); // Ensure we start clean
+
+      // Feature Detection for Native BarcodeDetector
+      if ('BarcodeDetector' in window) {
+        window.BarcodeDetector.getSupportedFormats()
+            .then((supportedFormats) => {
+                // Check if our needed formats are supported. 
+                // EAN_13 is usually 'ean_13' in BarcodeDetector.
+                const needs = ['ean_13', 'ean_8'];
+                const hasSupport = needs.some(f => supportedFormats.includes(f));
+                
+                if (hasSupport || supportedFormats.length === 0) { 
+                    // Some implementations might return empty array but still work for basics, or we assume support if API exists.
+                    // We'll try native.
+                    startNativeScanner();
+                } else {
+                    startZxingScanner();
+                }
+            })
+            .catch((e) => {
+                console.warn("BarcodeDetector exists but getSupportedFormats failed:", e);
+                startZxingScanner();
+            });
+      } else {
+        startZxingScanner();
+      }
+    }
+
+    return () => {
+      mounted = false;
+      stopScanners();
     };
   }, [show, onBarcodeScanned, onCameraError]);
 
@@ -114,9 +247,15 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose
           </button>
         </div>
         <div className="relative w-full aspect-[4/3] bg-neutral-darker rounded-lg shadow-md mb-4 overflow-hidden">
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover"></video>
+            <video 
+                ref={videoRef} 
+                className="absolute inset-0 w-full h-full object-cover"
+                playsInline
+                muted
+            ></video>
+            
             {/* Viewfinder and instruction */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <p className="text-white text-base font-semibold bg-black/50 px-3 py-1 rounded-md mb-2">Placera streckkoden i rutan</p>
                 <div className="w-10/12 h-1/3 border-4 border-white/50 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] relative overflow-hidden">
                     <div 
@@ -127,8 +266,9 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose
                     ></div>
                 </div>
             </div>
+
             {isLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center z-10">
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center z-10 bg-black/20 backdrop-blur-sm">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-primary mx-auto mb-3"></div>
                 <p className="text-white text-lg bg-black bg-opacity-40 px-3 py-1 rounded">Startar kamera...</p>
               </div>
@@ -138,6 +278,13 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ show, onClose
                 <p className="font-medium text-lg mb-1">Kamerafel:</p>
                 <p className="text-sm">{error}</p>
               </div>
+            )}
+            
+            {/* Debug info - only in dev if needed, or hidden */}
+            {usingNative && !isLoading && !error && (
+                <div className="absolute top-2 left-2 pointer-events-none opacity-50">
+                    <span className="text-[10px] text-white bg-green-600/50 px-1 rounded">Native API</span>
+                </div>
             )}
         </div>
         <div className="text-center mb-4">

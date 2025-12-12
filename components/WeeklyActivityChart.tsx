@@ -23,6 +23,7 @@ interface WeeklyActivityChartProps {
   onNextWeek: () => void;
   onToday: () => void;
   goalType?: string;
+  isSummarizingYesterday?: boolean;
 }
 
 const getLocalISODateString = (date: Date): string => {
@@ -41,6 +42,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   onPrevWeek,
   onNextWeek,
   onToday,
+  isSummarizingYesterday = false,
 }) => {
   // Use viewingDate to determine which week to show
   const referenceDate = new Date(viewingDate);
@@ -62,6 +64,11 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   const today = new Date(currentAppDate);
   today.setHours(0, 0, 0, 0);
   const viewingDateISO = getLocalISODateString(viewingDate);
+  
+  // Calculate Yesterday ISO
+  const yesterday = new Date(currentAppDate);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayISO = getLocalISODateString(yesterday);
   
   const currentWeekMonday = new Date(today);
   const currentDayOfWeek = currentWeekMonday.getDay();
@@ -110,6 +117,8 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             const dayISO = getLocalISODateString(day);
             const isFutureDay = day > today;
             const isViewing = dayISO === viewingDateISO;
+            const isYesterday = dayISO === yesterdayISO;
+            const showSpinner = isSummarizingYesterday && isYesterday;
             
             // --- DATA RETRIEVAL ---
             let calories = 0;
@@ -179,7 +188,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 >
                     <div className="relative w-full flex flex-col items-center justify-end h-full pb-6">
                         {/* Surplus Text */}
-                        {isOverGoal && (
+                        {isOverGoal && !showSpinner && (
                             <span className="absolute -top-6 text-[10px] sm:text-xs font-bold text-secondary animate-fade-in">
                                 +{surplus.toFixed(0)}
                             </span>
@@ -187,18 +196,24 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
 
                         {/* Bar Track */}
                         <div className={`w-full max-w-[24px] sm:max-w-[32px] h-full bg-neutral-light/40 rounded-full relative overflow-hidden flex flex-col-reverse justify-start ${isViewing ? 'ring-2 ring-offset-2 ring-primary/30' : ''}`}>
-                            {/* Filled Bar */}
-                            <div 
-                                className={`w-full ${barColor} rounded-full transition-all duration-500 ease-out relative`} 
-                                style={{ height: `${heightPercentage}%` }}
-                            >
-                                {/* Protein Icon inside bar (only if logged and protein met) */}
-                                {proteinGoalMet && hasLog && (
-                                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-full flex justify-center">
-                                        <Dumbbell className="w-3 h-3 sm:w-4 sm:h-4 text-white drop-shadow-sm" />
-                                    </div>
-                                )}
-                            </div>
+                            {showSpinner ? (
+                                <div className="w-full h-full flex items-end justify-center pb-2 animate-fade-in">
+                                     <div className="w-5 h-5 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                                </div>
+                            ) : (
+                                /* Filled Bar */
+                                <div 
+                                    className={`w-full ${barColor} rounded-full transition-all duration-500 ease-out relative`} 
+                                    style={{ height: `${heightPercentage}%` }}
+                                >
+                                    {/* Protein Icon inside bar (only if logged and protein met) */}
+                                    {proteinGoalMet && hasLog && (
+                                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-full flex justify-center">
+                                            <Dumbbell className="w-3 h-3 sm:w-4 sm:h-4 text-white drop-shadow-sm" />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     

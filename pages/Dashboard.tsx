@@ -21,7 +21,7 @@ import {
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
-import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, FireIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, RotateCcwIcon, LifebuoyIcon, TrophyIcon } from '../components/icons';
+import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, FireIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, RotateCcwIcon, LifebuoyIcon, TrophyIcon, SparklesIcon } from '../components/icons';
 import { PiggyBank, Flame } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
@@ -118,6 +118,8 @@ interface DashboardProps {
     formattedViewingDate: string;
     ensureYesterdayProcessed: (uid: string, now?: Date, options?: { force?: boolean; silent?: boolean }) => Promise<any>;
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+    onOpenAICoach: () => void;
+    isSummarizingYesterday: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -130,7 +132,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     onDateSelect,
     formattedViewingDate,
     ensureYesterdayProcessed,
-    setToastNotification
+    setToastNotification,
+    onOpenAICoach,
+    isSummarizingYesterday
 }) => {
     const {
         currentUser,
@@ -802,6 +806,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
                             waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
                         }}
+                        isSummarizingYesterday={isSummarizingYesterday}
                     />
                 </div>
 
@@ -888,6 +893,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
+                            <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga Coachen</span>
+                                <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
+                            </button>
                             <button onClick={handleTakePhoto} className="flex items-center gap-3">
                                 <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fota mat</span>
                                 <div className="w-12 h-12 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-secondary-darker transition-colors"><CameraIcon className="w-6 h-6" /></div>

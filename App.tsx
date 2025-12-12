@@ -312,6 +312,7 @@ export const App = () => {
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
   const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number } | null>(null);
+  const [isSummarizingYesterday, setIsSummarizingYesterday] = useState(false);
 
 
   const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -659,6 +660,7 @@ useEffect(() => {
 // -------------------------------
 
 const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[]): Promise<{ summary: PastDaySummary | null; streakData: { currentStreak: number; lastDateStreakChecked: string | null }; weeklyBank: WeeklyCalorieBank; highestStreak: number; } | void> => {
+  setIsSummarizingYesterday(true); // Start spinner
   setAppStatus(AppStatus.PROCESSING_DAY_END);
   try {
     const { start, end, yKey } = yesterdayRangeSE(now);
@@ -835,6 +837,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
   console.error("Error during daily summary processing:", err);
 } finally {
   setAppStatus(AppStatus.IDLE);
+  setIsSummarizingYesterday(false); // Stop spinner
 }
 }, [currentUser?.uid, userRole, userStatus, setPastDaysSummary]);
 
@@ -1106,7 +1109,7 @@ useEffect(() => {
 
   return (
     <>
-      <div className="min-h-screen bg-neutral-light flex flex-col items-center pb-4">
+      <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-4">
        <header className="w-full bg-white text-neutral-dark p-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
@@ -1189,6 +1192,8 @@ useEffect(() => {
                 formattedViewingDate={formattedViewingDate}
                 ensureYesterdayProcessed={ensureYesterdayProcessed}
                 setToastNotification={setToastNotification}
+                onOpenAICoach={() => { setShowAICoachModal(true); setCoachInitialContext(null); }}
+                isSummarizingYesterday={isSummarizingYesterday} // Pass prop
             />
          )}
          {viewMode === 'journey' && (

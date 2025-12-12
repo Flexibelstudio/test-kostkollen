@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, AIStructuredFeedbackResponse, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
-import { PencilIcon, TrophyIcon, AICoachIcon, ChevronDownIcon, ChevronUpIcon, SparklesIcon } from './icons';
+import { PencilIcon, TrophyIcon, AICoachIcon, ChevronDownIcon, ChevronUpIcon, SparklesIcon, PlusIcon, ScaleIcon } from './icons';
 import { Dumbbell, PieChart } from 'lucide-react';
 import { calculateGoalTimeline } from '../utils/timelineUtils.ts';
 import GamificationCard from './GamificationCard.tsx';
@@ -55,6 +55,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
 
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(true);
   const [isGamificationCardExpanded, setIsGamificationCardExpanded] = useState(false);
+  const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const juneFirst = useMemo(() => new Date(currentYear, 5, 1), [currentYear]); 
@@ -381,7 +382,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                 className="w-full mt-2 py-3 bg-white text-indigo-600 font-bold text-sm rounded-xl shadow-sm border border-indigo-100 hover:bg-indigo-50 interactive-transition flex items-center justify-center gap-2"
                                             >
                                                 <AICoachIcon className="w-5 h-5" />
-                                                Diskutera analysen
+                                                Djupdyk i analysen
                                             </button>
                                         </div>
                                     )}
@@ -412,14 +413,34 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         </div>
       </div>
       
-      {/* FAB for Coach */}
-      <div className="fixed right-6 bottom-6 z-40">
-          <button
-            onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); }}
-            className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-xl hover:bg-blue-600 active:scale-95 transform transition-all animate-pulse-blue"
-            aria-label="Fråga Flexibot AI-Coach"
+      {/* Backdrop for Speed Dial */}
+      {isSpeedDialOpen && (
+          <div 
+              className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[100] animate-fade-in"
+              onClick={() => setIsSpeedDialOpen(false)}
+          />
+      )}
+
+      {/* FAB */}
+      <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
+          {isSpeedDialOpen && (
+              <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
+                  <button onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                      <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga Coachen</span>
+                      <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
+                  </button>
+                  <button onClick={() => { playAudio('uiClick'); onOpenLogWeightModal(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                      <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Logga Vikt</span>
+                      <div className="w-12 h-12 bg-primary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-darker transition-colors"><ScaleIcon className="w-6 h-6" /></div>
+                  </button>
+              </div>
+          )}
+          <button 
+              onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
+              className={`pointer-events-auto w-16 h-16 rounded-full shadow-soft-xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 ${isSpeedDialOpen ? 'bg-neutral-dark text-white rotate-45' : 'bg-primary text-white'}`}
+              aria-label="Lägg till"
           >
-            <AICoachIcon className="w-8 h-8" />
+              <PlusIcon className="w-8 h-8" />
           </button>
       </div>
 
