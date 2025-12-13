@@ -1015,8 +1015,73 @@ useEffect(() => {
   };
 
 
+  // Added handler to toggle focus points
+  const handleToggleFocusPoint = async (lessonId: string, focusPointId: string) => {
+    if (!currentUser) return;
+    playAudio('uiClick');
+
+    const currentProgress = userCourseProgress[lessonId] || {
+      completedFocusPoints: [],
+      reflectionAnswer: '',
+      isCompleted: false
+    };
+
+    const isCompleted = currentProgress.completedFocusPoints.includes(focusPointId);
+    let newFocusPoints;
+
+    if (isCompleted) {
+      newFocusPoints = currentProgress.completedFocusPoints.filter(id => id !== focusPointId);
+    } else {
+      newFocusPoints = [...(currentProgress.completedFocusPoints || []), focusPointId];
+    }
+
+    const updatedProgress = {
+      ...currentProgress,
+      completedFocusPoints: newFocusPoints
+    };
+
+    // Optimistic Update
+    setUserCourseProgress(prev => ({
+      ...prev,
+      [lessonId]: updatedProgress
+    }));
+
+    // Save to DB
+    try {
+        await saveCourseProgress(currentUser.uid, lessonId, updatedProgress, userRole || 'member', userStatus || 'approved');
+    } catch (error) {
+        console.error("Failed to save focus point toggle", error);
+    }
+  };
+
+  // Added handler to mark lesson complete
   const handleMarkLessonComplete = async (lessonId: string) => {
-     // Logic handled inside LessonDetail mostly, just UI update here via context
+      if (!currentUser) return;
+      playAudio('levelUp');
+      
+      const currentProgress = userCourseProgress[lessonId] || {
+        completedFocusPoints: [],
+        reflectionAnswer: '',
+        isCompleted: false
+      };
+
+      const updatedProgress = {
+          ...currentProgress,
+          isCompleted: true,
+          completedAt: Date.now() 
+      };
+
+      setUserCourseProgress(prev => ({
+          ...prev,
+          [lessonId]: updatedProgress
+      }));
+      
+      try {
+          await saveCourseProgress(currentUser.uid, lessonId, updatedProgress, userRole || 'member', userStatus || 'approved');
+          setShowConfetti(true);
+      } catch (error) {
+          console.error("Failed to mark lesson complete", error);
+      }
   };
 
   // --- Course CTA Handlers ---
@@ -1299,9 +1364,9 @@ useEffect(() => {
             <LessonDetail
                 lesson={currentLesson}
                 progress={userCourseProgress[currentLessonId]}
-                onToggleFocusPoint={() => {}}
+                onToggleFocusPoint={handleToggleFocusPoint} // Updated handler
                 onSaveReflection={async () => {}}
-                onMarkComplete={handleMarkLessonComplete}
+                onMarkComplete={handleMarkLessonComplete} // Updated handler
                 onClose={handleCloseLessonDetail}
                 onOpenSpeedDial={handleOpenSpeedDial}
                 onNavigateToJourney={handleNavigateToJourney}
@@ -1388,4 +1453,3 @@ useEffect(() => {
     </>
   );
 };
-    

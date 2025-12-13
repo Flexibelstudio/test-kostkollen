@@ -55,7 +55,7 @@ import type {
     CompletedGoal,
 } from '../types';
 import { DEFAULT_GOALS, LEVEL_DEFINITIONS, DEFAULT_USER_PROFILE } from '../constants';
-import { courseLessons } from '../courseData.ts';
+import { courseLessons, menopauseCourseLessons } from '../courseData.ts';
 import { getWeekInfo } from "../utils/dateUtils.ts";
 
 /* ===== Helpers ===== */
@@ -468,6 +468,25 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   };
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
+
+  // --- Create Timeline Event for Goal Update ---
+  try {
+    let goalDesc = "Nytt mål inställt";
+    if (profile.goalType === 'lose_fat') goalDesc = "Fokus: Minska fettmassa";
+    else if (profile.goalType === 'gain_muscle') goalDesc = "Fokus: Öka muskelmassa";
+    else if (profile.goalType === 'maintain') goalDesc = "Fokus: Bibehålla formen";
+
+    await addTimelineEvent(userId, {
+        type: 'goal_set',
+        timestamp: Date.now(),
+        title: 'har uppdaterat sina mål',
+        description: `${goalDesc} 🎯`,
+        icon: '🎯',
+        relatedDocId: `goal_update_${Date.now()}`
+    });
+  } catch (e) {
+    console.error("Failed to create goal timeline event", e);
+  }
 }
 
 /* ===== Weight ===== */
@@ -596,6 +615,26 @@ export async function saveCourseProgress(userId: string, lessonId: string, progr
     role: role,
     status: status,
   });
+
+  // --- Create Timeline Event for Completed Lesson ---
+  if (progress.isCompleted) {
+    try {
+        const allLessons = [...courseLessons, ...menopauseCourseLessons];
+        const lesson = allLessons.find(l => l.id === lessonId);
+        if (lesson) {
+            await addTimelineEvent(userId, {
+                type: 'course',
+                timestamp: Date.now(),
+                title: 'har klarat en lektion!',
+                description: `Avklarad: ${lesson.title}`,
+                icon: '🎓',
+                relatedDocId: lessonId
+            });
+        }
+    } catch (e) {
+        console.error("Failed to create course timeline event", e);
+    }
+  }
 }
 
 /* ===== Coach ===== */
