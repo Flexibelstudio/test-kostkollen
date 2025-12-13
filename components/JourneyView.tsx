@@ -33,6 +33,7 @@ interface JourneyViewProps {
   setShowAICoachModal: (show: boolean) => void;
   isAICoachOpen: boolean;
   isProfileOpen: boolean;
+  isMorningReportOpen: boolean;
 }
 type Tab = 'goals' | 'achievements';
 
@@ -42,7 +43,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       onOpenLogWeightModal, playAudio, 
       initialTab, minSafeCalories,
       setToastNotification, achievements, unlockedAchievements, achievementInteractions,
-      setShowAICoachModal, isAICoachOpen, isProfileOpen
+      setShowAICoachModal, isAICoachOpen, isProfileOpen, isMorningReportOpen
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -371,7 +372,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       )}
 
       {/* FAB - Hidden during profile editing or when Coach is open */}
-      {!isProfileEditing && !isAICoachOpen && !isProfileOpen && (
+      {!isProfileEditing && !isAICoachOpen && !isProfileOpen && !isMorningReportOpen && (
         <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
             {isSpeedDialOpen && (
                 <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
@@ -420,3 +421,4 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     </>
   );
 };
+    

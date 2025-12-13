@@ -1248,6 +1248,7 @@ useEffect(() => {
                 isSummarizingYesterday={isSummarizingYesterday}
                 isAICoachOpen={showAICoachModal}
                 isProfileOpen={showUserProfileModal}
+                isMorningReportOpen={!!morningReportData}
             />
          )}
          {viewMode === 'journey' && (
@@ -1276,6 +1277,7 @@ useEffect(() => {
                 setShowAICoachModal={setShowAICoachModal}
                 isAICoachOpen={showAICoachModal}
                 isProfileOpen={showUserProfileModal}
+                isMorningReportOpen={!!morningReportData}
             />
          )}
          {viewMode === 'coursesView' && (
@@ -1386,3 +1388,4 @@ useEffect(() => {
     </>
   );
 };
+    

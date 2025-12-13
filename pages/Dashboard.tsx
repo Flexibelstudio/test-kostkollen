@@ -122,6 +122,7 @@ interface DashboardProps {
     isSummarizingYesterday: boolean;
     isAICoachOpen: boolean;
     isProfileOpen: boolean;
+    isMorningReportOpen: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -138,7 +139,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     onOpenAICoach,
     isSummarizingYesterday,
     isAICoachOpen,
-    isProfileOpen
+    isProfileOpen,
+    isMorningReportOpen
 }) => {
     const {
         currentUser,
@@ -893,7 +895,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
 
             {/* Floating Action Button (FAB) */}
-            {isEditableView && !isAICoachOpen && !isProfileOpen && (
+            {isEditableView && !isAICoachOpen && !isProfileOpen && !isMorningReportOpen && (
                 <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
@@ -1000,3 +1002,4 @@ const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
 };
 
 export default Dashboard;
+    

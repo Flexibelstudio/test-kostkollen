@@ -20,7 +20,7 @@ import {
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ChevronDownIcon, ArrowRightIcon,
     ShareIcon, PencilIcon,
 } from './icons';
-import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
+import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart, MoreHorizontal } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 
@@ -52,33 +52,11 @@ const formatChange = (change: number | undefined, isFirstEntry: boolean, invertC
 
 // --- SUB-COMPONENTS ---
 
-const StatCard: FC<{
-    icon: React.ReactNode;
-    label: string;
-    value: string;
-    change: { text: string; colorClass: string };
-    bgColor: string;
-}> = ({ icon, label, value, change, bgColor }) => (
-    <div className="bg-white p-3 rounded-lg shadow-md border border-neutral-light/50 flex-1 min-w-[100px]">
-        <div className="flex items-center gap-2 mb-1">
-            <div className={`p-1.5 rounded-full ${bgColor}`}>
-                {icon}
-            </div>
-            <span className="text-xs font-semibold text-neutral">{label}</span>
-        </div>
-        <p className="text-2xl font-bold text-neutral-dark">{value}</p>
-        <p className={`text-sm font-semibold ${change.colorClass}`}>{change.text}</p>
-    </div>
-);
-
 const BuddyCard: FC<{ 
     buddy: BuddyDetails; 
-    achievements: Achievement[]; 
     onRemove: () => void; 
-    currentUser: User;
-}> = ({ buddy, achievements, onRemove, currentUser }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [poppedAchievement, setPoppedAchievement] = useState<string | null>(null);
+}> = ({ buddy, onRemove }) => {
+    const [showMenu, setShowMenu] = useState(false);
     
     const progressPercentage = useMemo(() => {
         if (buddy.mainGoalCompleted) return 100;
@@ -145,86 +123,56 @@ const BuddyCard: FC<{
     }, [buddy]);
 
     return (
-        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3">
+        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3 relative group">
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                     <Avatar photoURL={buddy.photoURL} gender={buddy.gender} size={48} />
                     <div>
-                        <h3 className="text-2xl font-bold text-primary-darker">{buddy.name}</h3>
-                        <p className="text-xs text-neutral-dark flex items-center gap-2">
-                            <span>{goalDescription}</span>
-                            <span>🔥 {buddy.currentStreak} dagar</span>
+                        <h3 className="text-xl font-bold text-neutral-dark">{buddy.name}</h3>
+                        <p className="text-xs text-neutral flex items-center gap-2 mt-0.5">
+                            <span className="font-medium text-orange-500">🔥 {buddy.currentStreak} dagar</span>
+                            <span className="text-neutral-300">|</span>
+                            <span className="truncate max-w-[150px]">{goalDescription}</span>
                         </p>
                     </div>
                 </div>
-                <button onClick={onRemove} className="p-2 text-neutral hover:text-red-600 rounded-full hover:bg-red-100/50" title={`Ta bort ${buddy.name}`}>
-                    <TrashIcon className="w-5 h-5"/>
-                </button>
-            </div>
-            <div>
-                <div className="w-full bg-neutral-light rounded-full h-2.5 shadow-inner">
-                    <div className="bg-primary h-2.5 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
-                </div>
-                <p className="text-right text-sm font-semibold text-primary-darker mt-1">{progressPercentage.toFixed(0)}%</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-                <StatCard 
-                    icon={<UserIcon size={16} className="text-green-700" />}
-                    label="Vikt"
-                    value={buddy.currentWeight ? `${buddy.currentWeight.toFixed(1).replace('.',',')}kg` : '-'}
-                    change={formatChange(buddy.totalWeightChange, buddy.totalWeightChange === undefined, true)}
-                    bgColor="bg-green-100"
-                />
-                 <StatCard 
-                    icon={<Dumbbell size={16} className="text-orange-700" />}
-                    label="Muskler"
-                    value={buddy.currentMuscleMass ? `${buddy.currentMuscleMass.toFixed(1).replace('.',',')}kg` : '-'}
-                    change={formatChange(buddy.muscleMassChange, buddy.muscleMassChange === undefined, false)}
-                    bgColor="bg-orange-100"
-                />
-                 <StatCard 
-                    icon={<PieChart size={16} className="text-yellow-700" />}
-                    label="Fett"
-                    value={buddy.currentFatMass ? `${buddy.currentFatMass.toFixed(1).replace('.',',')}kg` : '-'}
-                    change={formatChange(buddy.fatMassChange, buddy.fatMassChange === undefined, true)}
-                    bgColor="bg-yellow-100"
-                />
-            </div>
-            <div className="text-center">
-                <button onClick={() => setIsExpanded(!isExpanded)} className="p-1 text-neutral hover:text-primary">
-                    <ChevronDownIcon className={`w-6 h-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                </button>
-            </div>
-            {isExpanded && (
-                <div className="grid grid-cols-5 gap-2 animate-fade-in">
-                    {achievements.map(ach => {
-                        const isUnlocked = !!buddy.unlockedAchievements[ach.id];
-                        const pepps = buddy.achievementInteractions?.[ach.id]?.reactions?.['❤️'] || {};
-                        const peppCount = Object.keys(pepps).length;
-                        const currentUserPepped = !!pepps[currentUser.uid];
-
-                        return (
-                             <div 
-                                key={ach.id} 
-                                className={`relative group p-2 rounded-lg flex flex-col items-center justify-center text-center aspect-square transition-all ${isUnlocked ? 'bg-amber-100/50' : 'bg-neutral-light filter grayscale cursor-not-allowed'}`}
-                                title={ach.name}
+                
+                {/* Menu Trigger */}
+                <div className="relative">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                        className="p-1.5 text-neutral-400 hover:text-neutral-dark rounded-full hover:bg-neutral-light transition-colors"
+                    >
+                        <MoreHorizontal className="w-5 h-5" />
+                    </button>
+                    
+                    {showMenu && (
+                        <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setShowMenu(false); onRemove(); }}
+                                className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                             >
-                                <div className="text-3xl">{ach.icon}</div>
-                                {isUnlocked && peppCount > 0 && (
-                                    <div className="absolute bottom-1 right-1 flex items-center gap-1 bg-white/80 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-xs shadow">
-                                        <HeartIcon className={`w-3 h-3 ${currentUserPepped ? 'text-red-500' : 'text-gray-500'}`} />
-                                        <span className={`font-bold text-xs ${currentUserPepped ? 'text-red-600' : 'text-gray-600'}`}>{peppCount}</span>
-                                    </div>
-                                )}
-                                {poppedAchievement === ach.id && (
-                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                        <HeartIcon className="w-12 h-12 text-red-500 animate-heart-pop" />
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })}
+                                <TrashIcon className="w-4 h-4" /> Ta bort
+                            </button>
+                        </div>
+                    )}
                 </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div>
+                <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-neutral-500">Måluppfyllnad</span>
+                    <span className="text-xs font-bold text-primary-darker">{progressPercentage.toFixed(0)}%</span>
+                </div>
+                <div className="w-full bg-neutral-light rounded-full h-2 shadow-inner">
+                    <div className="bg-primary h-2 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
+                </div>
+            </div>
+
+            {/* Overlay click to close menu */}
+            {showMenu && (
+                <div className="fixed inset-0 z-20 cursor-default" onClick={() => setShowMenu(false)}></div>
             )}
         </div>
     );
@@ -420,14 +368,12 @@ const FriendManagementView: FC<{
                                 {buddySearchQuery ? 'Inga kompisar matchade din sökning.' : 'Du har inga kompisar än.'}
                             </p>
                         ) : (
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {filteredBuddyDetails.map(buddy => (
                                     <BuddyCard
                                         key={buddy.uid}
                                         buddy={buddy}
-                                        achievements={achievements}
                                         onRemove={() => handleRemoveBuddyRequest(buddy)}
-                                        currentUser={currentUser}
                                     />
                                 ))}
                             </div>
