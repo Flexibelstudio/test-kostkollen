@@ -66,21 +66,37 @@ async function sendNotificationToUser(userId, payload, notificationType) {
       return;
   }
 
-
   const subscriptions = userData.pushSubscriptions || [];
   if (subscriptions.length === 0) return;
 
+  const validSubscriptions = [];
+  let dirty = false;
+
   const promises = subscriptions.map((sub) =>
-    webpush.sendNotification(sub, JSON.stringify(payload)).catch((error) => {
-      // Om prenumerationen är ogiltig (t.ex. 404, 410), kan vi logga detta för att senare kunna städa upp.
-      if (error.statusCode === 404 || error.statusCode === 410) {
-        logger.warn(`Subscription for user ${userId} seems to be invalid. Consider removing it.`, { subscription: sub });
-      } else {
-        logger.error(`Error sending notification to user ${userId}:`, { errorBody: error.body });
-      }
-    })
+    webpush.sendNotification(sub, JSON.stringify(payload))
+      .then(() => {
+        // Lyckades skicka, behåll prenumerationen
+        validSubscriptions.push(sub);
+      })
+      .catch((error) => {
+        // Om prenumerationen är ogiltig (404/410), ta bort den.
+        if (error.statusCode === 404 || error.statusCode === 410) {
+          logger.warn(`Removing invalid subscription for user ${userId} (Status: ${error.statusCode})`);
+          dirty = true;
+        } else {
+          // Vid andra fel (t.ex. 500), behåll den och försök igen senare, men logga felet.
+          logger.error(`Error sending notification to user ${userId}:`, { errorBody: error.body });
+          validSubscriptions.push(sub);
+        }
+      })
   );
+
   await Promise.all(promises);
+
+  // Uppdatera användarens prenumerationer om vi tog bort några trasiga
+  if (dirty) {
+    await userDocRef.update({ pushSubscriptions: validSubscriptions });
+  }
 }
 
 // ---- Notis-funktioner ----
@@ -258,7 +274,6 @@ exports.addMutualFriends = functions.firestore
   });
 
 // 5. Ta bort speglad vänrelation när en användare tar bort en kompis.
-// Denna ersätter den gamla 'removeMutualFriends' som var felaktigt implementerad.
 exports.onBuddyRemoved = functions.firestore
   .document("users/{userId}/buddies/{buddyId}")
   .onDelete(async (snapshot, context) => {
@@ -315,6 +330,9 @@ function stockholmNow() {
   };
 }
 
+// Milstolpar att peppa för: 7 dagar, 14, 21, 30, 50, 60, 90, 100, 150, 200, 300, 365
+const MILESTONE_STREAKS = [7, 14, 21, 30, 50, 60, 90, 100, 150, 200, 300, 365];
+
 exports.scheduledNotificationChecker = functions.pubsub
     .schedule("every 1 hours")
     .onRun(async (context) => {
@@ -330,7 +348,55 @@ exports.scheduledNotificationChecker = functions.pubsub
           weekday: dayOfWeek,
         } = stockholmNow();
 
-        // --- VATTENPÅMINNELSE: kl 12 ---
+        // 1. INAKTIVITETSPÅMINNELSE: kl 10:00
+        // Skicka om man inte loggat på 3 dagar (dvs lastLogDate är 3 dagar gammal eller mer)
+        if (localHour === 10 && user.lastLogDate) {
+            const lastLog = new Date(user.lastLogDate);
+            const today = new Date(todayDateString);
+            const diffTime = Math.abs(today - lastLog);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+
+            // Om det gått exakt 3 dagar och vi inte redan skickat en påminnelse idag
+            if (diffDays === 3 && user.lastInactivityReminderSent !== todayDateString) {
+                const payload = {
+                    notification: {
+                        title: "Vi saknar dig! 🥺",
+                        body: "Det var 3 dagar sedan du loggade. Kom tillbaka och håll dina vanor vid liv!",
+                        icon: "/icons/icon-192x192.png",
+                        badge: "/icons/badge-96x96.png",
+                        data: { url: "/?view=main" },
+                    }
+                };
+                await sendNotificationToUser(userId, payload, "inactivityReminder");
+                await db.collection("users").doc(userId).update({ lastInactivityReminderSent: todayDateString });
+            }
+        }
+
+        // 2. MILSTOLPE-PEPP: kl 19:00
+        // Skicka om användaren är 1 dag ifrån en milstolpe och inte har loggat än idag
+        if (localHour === 19 && user.currentStreak > 0) {
+            const nextDayStreak = user.currentStreak + 1;
+            
+            // Kolla om nästa dags streak är en milstolpe
+            if (MILESTONE_STREAKS.includes(nextDayStreak)) {
+                // Kolla om de har loggat idag. Om user.lastLogDate INTE är idag, så behöver de logga för att nå milstolpen.
+                if (user.lastLogDate !== todayDateString && user.lastMilestoneNudgeSentFor !== todayDateString) {
+                    const payload = {
+                        notification: {
+                            title: "Du är så nära! 🔥",
+                            body: `Logga idag för att nå en streak på ${nextDayStreak} dagar! Du fixar det!`,
+                            icon: "/icons/icon-192x192.png",
+                            badge: "/icons/badge-96x96.png",
+                            data: { url: "/?view=main" },
+                        }
+                    };
+                    await sendNotificationToUser(userId, payload, "milestoneNudge");
+                    await db.collection("users").doc(userId).update({ lastMilestoneNudgeSentFor: todayDateString });
+                }
+            }
+        }
+
+        // 3. VATTENPÅMINNELSE: kl 12
         if (
           localHour === 12 &&
           user.lastWaterReminderSent !== todayDateString
@@ -356,7 +422,7 @@ exports.scheduledNotificationChecker = functions.pubsub
           }
         }
 
-        // --- MATPÅMINNELSE: kl 18 ---
+        // 4. MATPÅMINNELSE: kl 18
         if (
           localHour === 18 &&
           user.lastFoodReminderSent !== todayDateString
@@ -382,7 +448,7 @@ exports.scheduledNotificationChecker = functions.pubsub
           }
         }
 
-        // --- VÄGNINGS-PÅMINNELSE: kl 8 på föredragen dag ---
+        // 5. VÄGNINGS-PÅMINNELSE: kl 8 på föredragen dag
         const preferredDay = (user.preferredWeighInDay || "måndag").toLowerCase();
 
         if (
@@ -408,10 +474,6 @@ exports.scheduledNotificationChecker = functions.pubsub
     });
 
 // ---- DATABAS-BACKUP (SCHEMALAGD EXPORT) ----
-// Denna funktion kräver att Cloud Functionens service-konto har rollen
-// "Cloud Datastore Import Export Admin" i IAM & Admin API.
-// Du måste också skapa en Google Cloud Storage-bucket med namnet
-// gs://<DITT-PROJEKT-ID>-backups i ditt Google Cloud-projekt.
 const {Firestore} = require("@google-cloud/firestore");
 const firestoreClient = new Firestore();
 
