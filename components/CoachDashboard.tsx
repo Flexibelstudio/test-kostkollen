@@ -1,13 +1,15 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { CoachViewMember, UserRole } from '../types';
-import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon } from './icons';
+import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from './icons';
 import { User, PieChart, TrendingDown } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { 
     fetchCoachViewMembers, 
     approveMember,
     revokeApproval, 
+    archiveMember,
+    unarchiveMember,
     updateUserRole,
     bulkApproveMembers,
     bulkUpdateUserRole
@@ -39,15 +41,32 @@ const StatCard: React.FC<{
   </div>
 );
 
-const StatusBadge: React.FC<{ status: 'pending' | 'approved' }> = ({ status }) => (
-    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${
-      status === 'pending' 
-        ? 'bg-yellow-50 text-yellow-700 border-yellow-200 animate-pulse' 
-        : 'bg-green-50 text-green-700 border-green-200'
-    }`}>
-        {status === 'pending' ? 'Väntar' : 'Godkänd'}
-    </span>
-);
+const StatusBadge: React.FC<{ status: 'pending' | 'approved' | 'archived' }> = ({ status }) => {
+    let classes = "";
+    let label = "";
+    
+    switch(status) {
+        case 'pending':
+            classes = 'bg-yellow-50 text-yellow-700 border-yellow-200 animate-pulse';
+            label = 'Väntar';
+            break;
+        case 'archived':
+            classes = 'bg-gray-100 text-gray-600 border-gray-200';
+            label = 'Arkiverad';
+            break;
+        case 'approved':
+        default:
+            classes = 'bg-green-50 text-green-700 border-green-200';
+            label = 'Godkänd';
+            break;
+    }
+
+    return (
+        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${classes}`}>
+            {label}
+        </span>
+    );
+};
 
 const SortableHeader: React.FC<{ column: SortableKeys; label: string; tooltip?: string; sortBy: SortableKeys | null; sortOrder: 'asc' | 'desc'; onSort: (column: SortableKeys) => void; }> = ({ column, label, tooltip, sortBy, sortOrder, onSort }) => (
     <th scope="col" className="px-4 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 backdrop-blur-md z-10 border-b border-gray-100">
@@ -76,7 +95,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
 
-        if (totalActiveCount === 0) return { totalActiveCount: 0, pendingCount: membersList.filter(m => m.status === 'pending').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0 };
+        if (totalActiveCount === 0) return { totalActiveCount: 0, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0 };
 
         const membersWithStreak = activeMembers.filter(m => (m.currentStreak || 0) > 0);
         const percentWithStreak = (membersWithStreak.length / totalActiveCount) * 100;
@@ -107,7 +126,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
         const maintainCount = activeMembers.filter(m => m.goalSummary === 'Bibehålla').length;
         const proteinGoalMetPercentage7d = activeMembers.reduce((sum, m) => sum + (m.proteinGoalMetPercentage7d || 0), 0) / totalActiveCount;
 
-        return { totalActiveCount, pendingCount: membersList.filter(m => m.status === 'pending').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d };
+        return { totalActiveCount, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d };
     }, [membersList]);
 
     return (
@@ -135,12 +154,12 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             >
                 <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} colorClass="bg-blue-100" textClass="text-blue-600" />
                 <StatCard icon={<CheckCircleIcon />} title="Väntar godkännande" value={groupInsights.pendingCount.toString()} colorClass="bg-yellow-100" textClass="text-yellow-600" />
+                <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
                 <StatCard icon={<ProteinIcon />} title="Proteinmål (7d)" value={`${groupInsights.proteinGoalMetPercentage7d.toFixed(0)}%`} subtitle="Genomsnittlig uppfyllnad" colorClass="bg-indigo-100" textClass="text-indigo-600" />
                 <StatCard icon={<TrophyIcon />} title="Streak-engagemang" value={`${groupInsights.percentWithStreak.toFixed(0)}%`} subtitle={`Snitt: ${groupInsights.averageStreak.toFixed(1)} dagar`} colorClass="bg-orange-100" textClass="text-orange-600" />
                 <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} subtitle={`Snitt-slutförande: ${groupInsights.averageCourseProgress.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" />
-                <StatCard icon={<User />} title="Snitt-viktnedgång (7d)" value={`${groupInsights.averageWeeklyLoss.toFixed(1)} kg`} subtitle="Av de med minskning" colorClass="bg-green-100" textClass="text-green-600" />
             </div>
         </section>
     );
@@ -148,9 +167,10 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
 
 const MemberFilters: React.FC<{
     searchQuery: string; onSearchChange: (q: string) => void;
-    showOnlyPending: boolean; onPendingChange: (v: boolean) => void; pendingCount: number;
+    filterStatus: 'all' | 'pending' | 'approved' | 'archived'; onFilterStatusChange: (s: 'all' | 'pending' | 'approved' | 'archived') => void;
+    pendingCount: number;
     onRefresh: () => void; isRefreshDisabled: boolean;
-}> = ({ searchQuery, onSearchChange, showOnlyPending, onPendingChange, pendingCount, onRefresh, isRefreshDisabled }) => (
+}> = ({ searchQuery, onSearchChange, filterStatus, onFilterStatusChange, pendingCount, onRefresh, isRefreshDisabled }) => (
     <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold text-neutral-dark self-start md:self-center">Medlemslista</h2>
         
@@ -170,14 +190,25 @@ const MemberFilters: React.FC<{
                 />
             </div>
 
-            {/* Filter Toggle */}
-            <button 
-                onClick={() => onPendingChange(!showOnlyPending)}
-                className={`flex items-center px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all active:scale-95 ${showOnlyPending ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : 'bg-white border-neutral-light text-neutral-dark hover:bg-gray-50'}`}
-            >
-                {showOnlyPending ? <CheckCircleIcon className="w-5 h-5 mr-2" /> : <div className="w-5 h-5 mr-2 border-2 border-gray-300 rounded-full"></div>}
-                Väntande ({pendingCount})
-            </button>
+            {/* Filter Pills */}
+            <div className="flex bg-neutral-light/30 p-1 rounded-xl">
+                {(['all', 'pending', 'approved', 'archived'] as const).map((status) => (
+                    <button
+                        key={status}
+                        onClick={() => onFilterStatusChange(status)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                            filterStatus === status 
+                                ? 'bg-white shadow-sm text-primary' 
+                                : 'text-neutral hover:text-neutral-dark hover:bg-neutral-light/50'
+                        }`}
+                    >
+                        {status === 'all' && 'Alla'}
+                        {status === 'pending' && `Väntar (${pendingCount})`}
+                        {status === 'approved' && 'Aktiva'}
+                        {status === 'archived' && 'Arkiv'}
+                    </button>
+                ))}
+            </div>
 
             {/* Refresh Button */}
             <button 
@@ -235,6 +266,8 @@ const MemberListTable: React.FC<{
     onShowDetails: (member: CoachViewMember) => void;
     onApprove: (id: string) => void;
     onRevoke: (id: string) => void;
+    onArchive: (id: string) => void;
+    onUnarchive: (id: string) => void;
     onUpdateRole: (id: string, newRole: UserRole) => void;
 }> = (props) => (
     <div className="bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden">
@@ -266,7 +299,7 @@ const MemberListTable: React.FC<{
                         <tr 
                             key={member.id} 
                             onClick={() => props.onShowDetails(member)}
-                            className={`group transition-all cursor-pointer ${props.selectedMemberIds.has(member.id) ? 'bg-primary-50' : 'hover:bg-neutral-light/40'}`}
+                            className={`group transition-all cursor-pointer ${props.selectedMemberIds.has(member.id) ? 'bg-primary-50' : 'hover:bg-neutral-light/40'} ${member.status === 'archived' ? 'opacity-70 grayscale-[0.5]' : ''}`}
                         >
                             <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-center">
@@ -314,20 +347,37 @@ const MemberListTable: React.FC<{
                             <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                                 <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                     {member.status === 'pending' ? (
+                                        <>
+                                            <ActionButton 
+                                                onClick={() => props.onApprove(member.id)} 
+                                                disabled={props.updatingMemberId === member.id}
+                                                icon={<CheckCircleIcon className="w-4 h-4" />}
+                                                label="Godkänn"
+                                                className="bg-green-100 text-green-700 hover:bg-green-200"
+                                            />
+                                            <ActionButton 
+                                                onClick={() => props.onRevoke(member.id)} 
+                                                disabled={props.updatingMemberId === member.id}
+                                                icon={<XCircleIcon className="w-4 h-4" />}
+                                                label="Neka"
+                                                className="bg-red-100 text-red-800 hover:bg-red-200"
+                                            />
+                                        </>
+                                    ) : member.status === 'archived' ? (
                                         <ActionButton 
-                                            onClick={() => props.onApprove(member.id)} 
+                                            onClick={() => props.onUnarchive(member.id)} 
                                             disabled={props.updatingMemberId === member.id}
-                                            icon={<CheckCircleIcon className="w-4 h-4" />}
-                                            label="Godkänn"
-                                            className="bg-green-100 text-green-700 hover:bg-green-200"
+                                            icon={<ArrowUturnLeftIcon className="w-4 h-4" />}
+                                            label="Återaktivera"
+                                            className="bg-blue-100 text-blue-700 hover:bg-blue-200"
                                         />
                                     ) : (
                                         <ActionButton 
-                                            onClick={() => props.onRevoke(member.id)} 
+                                            onClick={() => props.onArchive(member.id)} 
                                             disabled={props.updatingMemberId === member.id}
-                                            icon={<XCircleIcon className="w-4 h-4" />}
-                                            label="Neka"
-                                            className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                                            icon={<ArchiveBoxIcon className="w-4 h-4" />}
+                                            label="Arkivera"
+                                            className="bg-gray-100 text-gray-700 hover:bg-gray-200"
                                         />
                                     )}
                                     
@@ -358,7 +408,10 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const [isLoadingMembers, setIsLoadingMembers] = useState(true);
     const [errorMembers, setErrorMembers] = useState<string | null>(null);
     const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
-    const [showOnlyPending, setShowOnlyPending] = useState(false);
+    
+    // New filter status state
+    const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'archived'>('all');
+    
     const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
     const [sortBy, setSortBy] = useState<SortableKeys | null>(initialSortBy);
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialSortOrder);
@@ -408,6 +461,18 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         });
     }, [handleAction]);
 
+    const handleArchiveMember = useCallback((memberId: string) => {
+        handleAction(archiveMember(memberId), memberId).then(() => {
+            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, status: 'archived' } : m));
+        });
+    }, [handleAction]);
+
+    const handleUnarchiveMember = useCallback((memberId: string) => {
+        handleAction(unarchiveMember(memberId), memberId).then(() => {
+            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, status: 'approved' } : m));
+        });
+    }, [handleAction]);
+
     const handleUpdateRole = useCallback((memberId: string, newRole: UserRole) => {
         handleAction(updateUserRole(memberId, newRole), memberId).then(() => {
             setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
@@ -439,10 +504,10 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const filteredMembers = useMemo(() => membersList.filter(member => {
         const searchMatches = searchQuery.trim() === '' || member.name.toLowerCase().includes(searchQuery.toLowerCase()) || member.email.toLowerCase().includes(searchQuery.toLowerCase());
         if (!searchMatches) return false;
-        if (!showOnlyPending) return true;
-        const isPending = showOnlyPending && member.status === 'pending';
-        return isPending;
-    }), [membersList, showOnlyPending, searchQuery]);
+        
+        if (filterStatus === 'all') return true;
+        return member.status === filterStatus;
+    }), [membersList, filterStatus, searchQuery]);
 
     const sortedAndFilteredMembers = useMemo(() => {
         const sortable = [...filteredMembers];
@@ -468,9 +533,9 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
 
 
     return {
-        membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending,
+        membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
         selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
-        searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval,
+        searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval, handleArchiveMember, handleUnarchiveMember,
         handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount
     };
 };
@@ -491,9 +556,9 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
 
   const {
-      membersList, isLoadingMembers, errorMembers, updatingMemberId, showOnlyPending, setShowOnlyPending,
+      membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
       selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
-      searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval,
+      searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval, handleArchiveMember, handleUnarchiveMember,
       handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount
   } = useCoachDashboard();
   
@@ -559,8 +624,8 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             <MemberFilters 
                 searchQuery={searchQuery} 
                 onSearchChange={setSearchQuery} 
-                showOnlyPending={showOnlyPending} 
-                onPendingChange={setShowOnlyPending} 
+                filterStatus={filterStatus}
+                onFilterStatusChange={setFilterStatus}
                 pendingCount={pendingCount} 
                 onRefresh={fetchMembers} 
                 isRefreshDisabled={isLoadingMembers || isBulkUpdating} 
@@ -604,13 +669,15 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         onShowDetails={handleShowMemberDetails} 
                         onApprove={handleApproveMember} 
                         onRevoke={handleRevokeApproval} 
+                        onArchive={handleArchiveMember}
+                        onUnarchive={handleUnarchiveMember}
                         onUpdateRole={handleUpdateRole} 
                     />
                 ) : (
                     <div className="text-center py-16 bg-neutral-light/30 rounded-2xl border border-dashed border-neutral-light">
                         <UserGroupIcon className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
                         <p className="text-neutral-500 font-medium">Inga medlemmar matchade din sökning.</p>
-                        {showOnlyPending && <button onClick={() => setShowOnlyPending(false)} className="mt-2 text-primary font-bold hover:underline text-sm">Visa alla medlemmar</button>}
+                        {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="mt-2 text-primary font-bold hover:underline text-sm">Visa alla medlemmar</button>}
                     </div>
                 )
             )}
@@ -645,6 +712,13 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                             <div>
                                 <p className="font-bold text-neutral-dark text-sm">Godkänn medlemmar</p>
                                 <p className="text-xs">Nya konton markeras som 'Väntar'. Godkänn dem för att ge access.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <ArchiveBoxIcon className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <p className="font-bold text-neutral-dark text-sm">Arkivera</p>
+                                <p className="text-xs">Pausa medlemmars tillgång men behåll deras data.</p>
                             </div>
                         </div>
                         <div className="flex gap-3">

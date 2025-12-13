@@ -8,6 +8,7 @@ import {
 
 import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
+import ArchivedUserScreen from './components/ArchivedUserScreen'; // Import new component
 import SplashScreen from './components/SplashScreen';
 import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
 
@@ -1089,6 +1090,10 @@ useEffect(() => {
 
   if (userStatus === 'pending') {
     return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} />;
+  }
+
+  if (userStatus === 'archived') {
+    return <ArchivedUserScreen onLogout={handleLogout} />;
   }
   
   if (userRole === 'coach' && currentInterface === 'coach') {

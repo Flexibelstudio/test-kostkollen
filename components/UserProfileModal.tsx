@@ -224,8 +224,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         coachStyle: initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
       } as UserProfileData;
     }
-    // For editing, use the complete existing profile
-    return initialProfile || DEFAULT_USER_PROFILE;
+    // For editing, use the complete existing profile but ensure defaults for new fields
+    return {
+        ...DEFAULT_USER_PROFILE,
+        ...(initialProfile || {}),
+        coachStyle: initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle
+    } as UserProfileData;
   }, [isOnboarding, initialProfile]);
 
   const [profile, setProfile] = useState<UserProfileData>(getInitialProfileForState());

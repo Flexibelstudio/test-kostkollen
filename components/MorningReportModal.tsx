@@ -4,7 +4,7 @@ import { PastDaySummary, UserProfileData } from '../types';
 import { CheckCircleIcon, XCircleIcon, FireIcon, TrophyIcon, SparklesIcon, MedalIcon, HeartIcon } from './icons';
 import { getMorningBriefingText, getMorningBriefingAudio } from '../services/geminiService';
 import { COACH_PERSONAS } from '../constants';
-import { Volume2, VolumeX } from 'lucide-react';
+import { Volume2, VolumeX, PiggyBank } from 'lucide-react';
 
 interface MorningReportModalProps {
   show: boolean;
@@ -13,6 +13,33 @@ interface MorningReportModalProps {
   currentStreak: number;
   userProfile: UserProfileData;
 }
+
+// Helper to decode raw PCM data from Gemini (16-bit, 24kHz, Mono)
+const decodePCM = (base64: string, ctx: AudioContext): AudioBuffer => {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  
+  // Create 16-bit view of the data
+  const int16Data = new Int16Array(bytes.buffer);
+  
+  const sampleRate = 24000; // Gemini TTS default
+  const channels = 1;
+  const frameCount = int16Data.length;
+  
+  const buffer = ctx.createBuffer(channels, frameCount, sampleRate);
+  const channelData = buffer.getChannelData(0);
+  
+  // Normalize to [-1.0, 1.0]
+  for (let i = 0; i < frameCount; i++) {
+    channelData[i] = int16Data[i] / 32768.0;
+  }
+  
+  return buffer;
+};
 
 const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile }) => {
   const [briefingText, setBriefingText] = useState<string | null>(null);
@@ -66,14 +93,9 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
           const ctx = audioContextRef.current;
           if (ctx.state === 'suspended') await ctx.resume();
 
-          const binaryString = window.atob(base64Audio);
-          const len = binaryString.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-          }
-
-          const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
+          // Use manual PCM decoding
+          const audioBuffer = decodePCM(base64Audio, ctx);
+          
           const source = ctx.createBufferSource();
           source.buffer = audioBuffer;
           source.connect(ctx.destination);
@@ -96,8 +118,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
   const dateString = dateObj.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const coachStyle = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[coachStyle];
-
+  
   let AvatarIcon = SparklesIcon;
   let avatarColorClass = 'text-blue-500 bg-blue-100';
   
@@ -141,18 +162,31 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
             Här är resultatet för <span className="font-medium capitalize">{dateString}</span>:
         </p>
 
-        {/* Stats Summary */}
-        <div className="flex items-center justify-center gap-4 mb-6">
-             <div className="flex flex-col items-center bg-neutral-light/50 p-3 rounded-lg min-w-[80px]">
-                <FireIcon className={`w-6 h-6 mb-1 ${currentStreak > 0 ? 'text-secondary' : 'text-neutral'}`} />
-                <span className="text-xs font-semibold text-neutral">Streak</span>
-                <span className="text-lg font-bold text-neutral-dark">{currentStreak}</span>
+        {/* Stats Summary Cards */}
+        <div className="grid grid-cols-1 gap-3 mb-6 text-left">
+             <div className="bg-white p-4 rounded-2xl shadow-sm border border-neutral-light flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 ${currentStreak > 0 ? 'bg-orange-100 text-orange-600' : 'bg-neutral-light text-neutral-400'}`}>
+                    <FireIcon className="w-7 h-7" />
+                </div>
+                <div>
+                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Streak</p>
+                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
+                        {currentStreak} <span className="text-sm font-medium text-neutral ml-1">{currentStreak === 1 ? 'dag' : 'dagar'}</span>
+                    </p>
+                </div>
              </div>
+
              {isSuccess && bankedAmount > 0 && (
-                 <div className="flex flex-col items-center bg-primary-50 p-3 rounded-lg min-w-[80px]">
-                    <span className="text-xl mb-1">🏦</span>
-                    <span className="text-xs font-semibold text-primary-darker">Sparpott</span>
-                    <span className="text-lg font-bold text-primary">+{bankedAmount}</span>
+                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-neutral-light flex items-center gap-4 animate-scale-in">
+                    <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm flex-shrink-0">
+                        <PiggyBank className="w-7 h-7" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Sparpott</p>
+                        <p className="text-2xl font-extrabold text-neutral-dark leading-none">
+                            <span className="text-primary">+{bankedAmount}</span> <span className="text-sm font-medium text-neutral ml-1">kcal</span>
+                        </p>
+                    </div>
                  </div>
              )}
         </div>
@@ -163,7 +197,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
         <div className="text-left mb-8">
             <h3 className="text-sm font-bold text-neutral-dark mb-3 uppercase tracking-wide opacity-70">Dagens Briefing</h3>
             <div className="flex gap-4">
-                <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center ${avatarColorClass}`}>
+                <div className={`w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center shadow-sm ${avatarColorClass}`}>
                     <AvatarIcon className="w-7 h-7" />
                 </div>
                 <div className="bg-neutral-light/40 p-4 rounded-2xl rounded-tl-none relative flex-1">
@@ -204,3 +238,4 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
 };
 
 export default MorningReportModal;
+    

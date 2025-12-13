@@ -232,7 +232,7 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, "name"> {
   email: string | null;
   displayName: string;
   role: UserRole;
-  status: "pending" | "approved";
+  status: "pending" | "approved" | "archived";
   hasCompletedOnboarding: boolean;
   createdAt: Timestamp;
   lastLoginAt: Timestamp;
@@ -457,7 +457,7 @@ export interface CoachViewMember {
   name: string;
   email: string;
   role: UserRole;
-  status: "pending" | "approved";
+  status: "pending" | "approved" | "archived";
   photoURL?: string;
   memberSince: string;
   lastLogDate?: string;

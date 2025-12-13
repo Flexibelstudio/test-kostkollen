@@ -1,3 +1,4 @@
+
 import { db } from "../firebase";
 import type { User } from '@firebase/auth';
 import { 
@@ -201,6 +202,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       preferredWeighInDay: 'måndag',
       timezone: timezone,
       pushSubscriptions: [],
+      coachStyle: DEFAULT_USER_PROFILE.coachStyle || 'balanced',
     };
     await setDoc(userDocRef, newUserDoc);
   } else {
@@ -277,7 +279,8 @@ export async function fetchInitialAppData(userId: string) {
       mainGoalCompleted: userDocData.mainGoalCompleted ?? false,
       completedGoals: userDocData.completedGoals ?? [],
       notificationSettings: userDocData.notificationSettings,
-      preferredWeighInDay: userDocData.preferredWeighInDay
+      preferredWeighInDay: userDocData.preferredWeighInDay,
+      coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
     };
     
     const commonMeals = commonMealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as CommonMeal[];
@@ -472,7 +475,61 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
 export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEntry, 'id'>) {
   const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
   const docRef = await addDoc(weightLogsRef, cleanFirestoreData(weightLog));
-  return docRef.id;
+  const newLogId = docRef.id;
+
+  // --- Automatic Timeline Event for Weight Log ---
+  try {
+    // We need the previous log to calculate changes.
+    const logsQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(2));
+    const logsSnap = await getDocsSafe(logsQuery);
+    
+    // docs[0] is the one we just added (or another very recent one), docs[1] is the previous one.
+    // NOTE: Firestore eventual consistency might mean we don't see the new one immediately in a query,
+    // but typically local writes are visible. To be safe, we use the `weightLog` payload for current values.
+    
+    let previousLog: WeightLogEntry | null = null;
+    // Iterate to find a log that isn't the one we just created (by ID check or just taking the next one if inconsistent)
+    for (const doc of logsSnap.docs) {
+      if (doc.id !== newLogId) {
+        previousLog = doc.data() as WeightLogEntry;
+        break;
+      }
+    }
+
+    let weightChange, muscleChange, fatChange;
+    if (previousLog) {
+      weightChange = weightLog.weightKg - previousLog.weightKg;
+      if (weightLog.skeletalMuscleMassKg != null && previousLog.skeletalMuscleMassKg != null) {
+        muscleChange = weightLog.skeletalMuscleMassKg - previousLog.skeletalMuscleMassKg;
+      }
+      if (weightLog.bodyFatMassKg != null && previousLog.bodyFatMassKg != null) {
+        fatChange = weightLog.bodyFatMassKg - previousLog.bodyFatMassKg;
+      }
+    }
+
+    const descriptionParts = [`Vikt: ${weightLog.weightKg.toFixed(1)}kg (${formatChange(weightChange)})`];
+    if (weightLog.skeletalMuscleMassKg != null) {
+      descriptionParts.push(`Muskler: ${weightLog.skeletalMuscleMassKg.toFixed(1)}kg (${formatChange(muscleChange)})`);
+    }
+    if (weightLog.bodyFatMassKg != null) {
+      descriptionParts.push(`Fett: ${weightLog.bodyFatMassKg.toFixed(1)}kg (${formatChange(fatChange)})`);
+    }
+
+    await addTimelineEvent(userId, {
+      type: 'weight',
+      timestamp: weightLog.loggedAt,
+      title: 'har loggat en ny mätning',
+      description: descriptionParts.join('\n'), // Use newline for better formatting in UI
+      icon: '⚖️',
+      relatedDocId: newLogId
+    });
+
+  } catch (err) {
+    console.error("Failed to add weight log to timeline:", err);
+    // Suppress error so we don't break the main save flow
+  }
+
+  return newLogId;
 }
 
 /* ===== Wellbeing ===== */
@@ -642,6 +699,7 @@ export async function fetchDetailedMemberDataForCoach(memberId: string): Promise
     completedGoals: userDocData.completedGoals,
     notificationSettings: userDocData.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
     preferredWeighInDay: userDocData.preferredWeighInDay,
+    coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
   };
 
   return {
@@ -671,6 +729,22 @@ export async function revokeApproval(memberId: string) {
   if (userDoc.exists()) {
     const { role } = userDoc.data();
     await updateDoc(userDocRef, { status: 'pending', role });
+  }
+}
+export async function archiveMember(memberId: string) {
+  const userDocRef = doc(db, 'users', memberId);
+  const userDoc = await getDoc(userDocRef);
+  if (userDoc.exists()) {
+    const { role } = userDoc.data();
+    await updateDoc(userDocRef, { status: 'archived', role });
+  }
+}
+export async function unarchiveMember(memberId: string) {
+  const userDocRef = doc(db, 'users', memberId);
+  const userDoc = await getDoc(userDocRef);
+  if (userDoc.exists()) {
+    const { role } = userDoc.data();
+    await updateDoc(userDocRef, { status: 'approved', role });
   }
 }
 export async function updateUserRole(memberId: string, newRole: UserRole) {
@@ -730,28 +804,35 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
 }
 
 export async function fetchCommunityTimeline(currentUserId: string): Promise<TimelineEvent[]> {
-  // Removed strict date filtering to ensure feed populates even if activity is older than 24h
-  // Removed orderBy('timestamp') to avoid "Missing Index" errors on complex array-contains queries.
-  // We fetch matches and sort in memory instead.
+  // Optimization: Only fetch events from the last 3 days to prevent query overload
+  const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+
   const timelineRef = collection(db, 'communityTimeline');
   const q = query(
     timelineRef,
-    where('visibleTo', 'array-contains', currentUserId)
+    where('visibleTo', 'array-contains', currentUserId),
+    where('timestamp', '>=', threeDaysAgo)
   );
   
   const snapshot = await getDocsSafe(q);
 
-  const eventsWithCommentsPromises = snapshot.docs.map(async (eventDoc) => {
-    const eventData = { id: eventDoc.id, ...eventDoc.data() } as TimelineEvent;
-    
-    const commentsRef = collection(db, 'communityTimeline', eventDoc.id, 'comments');
+  // 1. Extract and sort base events first (Sync)
+  const allBaseEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TimelineEvent));
+  allBaseEvents.sort((a, b) => b.timestamp - a.timestamp);
+
+  // 2. Slice top 50
+  const recentEvents = allBaseEvents.slice(0, 50);
+
+  // 3. Enrich only the top 50 with comments (Async)
+  const eventsWithCommentsPromises = recentEvents.map(async (eventData) => {
+    const commentsRef = collection(db, 'communityTimeline', eventData.id, 'comments');
     const commentsQuery = query(commentsRef, orderBy('timestamp', 'asc'));
     const commentsSnapshot = await getDocsSafe(commentsQuery);
     
     const commentsWithLikesPromises = commentsSnapshot.docs.map(async (commentDoc) => {
       const commentData = { id: commentDoc.id, ...commentDoc.data() } as TimelineComment;
       
-      const likesRef = collection(db, 'communityTimeline', eventDoc.id, 'comments', commentDoc.id, 'likes');
+      const likesRef = collection(db, 'communityTimeline', eventData.id, 'comments', commentDoc.id, 'likes');
       const likesSnapshot = await getDocsSafe(likesRef);
       
       const likesMap: { [uid: string]: string } = {};
@@ -767,10 +848,7 @@ export async function fetchCommunityTimeline(currentUserId: string): Promise<Tim
     return eventData;
   });
 
-  const allEvents = await Promise.all(eventsWithCommentsPromises);
-  
-  // Sort and limit in memory
-  return allEvents.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
+  return await Promise.all(eventsWithCommentsPromises);
 }
 
 export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetails[]> {
