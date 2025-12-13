@@ -262,7 +262,6 @@ ${contextPrompt}
 **VIKTIGA REGLER:**
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
 2.  Använd en vänlig och motiverande ton. Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
-3.  **Avsluta ALLTID ditt svar** med exakt denna fras: "Säg till om du vill ha ett utförligare svar."
 
 **TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
 - **Profil & Mål:** ${JSON.stringify(userProfile)}
@@ -507,7 +506,6 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 **VIKTIGA REGLER FÖR TEXT-SVAR:**
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
 2.  Anpassa din ton efter din persona (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
-3.  **Avsluta ALLTID ditt text-svar** med exakt denna fras: "Säg till om du vill ha ett utförligare svar."
 
 **REGLER FÖR GRAF-SVAR:**
 1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.

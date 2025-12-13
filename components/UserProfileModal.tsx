@@ -416,8 +416,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl border border-neutral-light w-full max-w-2xl mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center">
-          <UserCircleIcon className="w-8 h-8 text-primary mr-3" />
-          <h2 id="user-profile-modal-title" className="text-3xl font-bold text-neutral-dark">
+          <div className="w-12 h-12 bg-primary-100 rounded-2xl flex items-center justify-center text-primary shadow-sm mr-4">
+            <UserCircleIcon className="w-7 h-7" />
+          </div>
+          <h2 id="user-profile-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
             {isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
              isOnboarding && onboardingStep === 'feedback' ? 'Feedback från din Coach' :
              'Redigera Profil'}
@@ -525,19 +527,37 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
                         const persona = COACH_PERSONAS[style];
+                        
+                        let colorClasses;
+                        let iconBgClass;
+                        if (style === 'soft') {
+                            colorClasses = 'bg-green-50 text-green-700 border-green-200';
+                            iconBgClass = 'bg-green-100 text-green-600';
+                        } else if (style === 'balanced') {
+                            colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
+                            iconBgClass = 'bg-blue-100 text-blue-600';
+                        } else {
+                            colorClasses = 'bg-red-50 text-red-700 border-red-200';
+                            iconBgClass = 'bg-red-100 text-red-600';
+                        }
+
+                        const isSelected = profile.coachStyle === style;
+
                         return (
                             <button
                                 type="button"
                                 key={style}
                                 onClick={() => setProfile(prev => ({ ...prev, coachStyle: style }))}
-                                className={`text-left p-4 rounded-lg border-2 transition-all duration-200 flex flex-col items-center text-center ${
-                                    profile.coachStyle === style
-                                        ? 'bg-primary-100/70 border-primary shadow-md'
-                                        : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300'
+                                className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center ${
+                                    isSelected
+                                        ? `${colorClasses} shadow-md`
+                                        : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300 text-neutral-dark'
                                 }`}
                             >
-                                <span className="text-4xl mb-2">{persona.emoji}</span>
-                                <span className={`font-semibold text-sm ${profile.coachStyle === style ? 'text-primary-darker' : 'text-neutral-dark'}`}>{persona.label}</span>
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
+                                    {persona.emoji}
+                                </div>
+                                <span className="font-bold text-sm">{persona.label}</span>
                             </button>
                         );
                     })}
@@ -554,18 +574,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     type="button"
                                     key={opt.value}
                                     onClick={() => handleProfileChange({ target: { name: 'activityLevel', value: opt.value, type: 'select' } } as any)}
-                                    className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-200 ${
+                                    className={`w-full text-left p-3 rounded-2xl border-2 transition-all duration-200 ${
                                         profile.activityLevel === opt.value
-                                            ? 'bg-primary-100/70 border-primary shadow-md'
+                                            ? 'bg-primary-50 border-primary shadow-md'
                                             : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300'
                                     }`}
                                 >
                                     <div className="flex items-center">
-                                        <span className="text-3xl mr-4">{opt.emoji}</span>
+                                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm mr-4 flex-shrink-0">
+                                            {opt.emoji}
+                                        </div>
                                         <div>
-                                            <p className={`font-semibold ${profile.activityLevel === opt.value ? 'text-primary-darker' : 'text-neutral-dark'}`}>{opt.label}</p>
-                                            <p className="text-sm text-neutral-dark">{opt.description}</p>
-                                            <p className="text-xs text-neutral mt-1">{opt.example}</p>
+                                            <p className={`font-bold ${profile.activityLevel === opt.value ? 'text-primary-darker' : 'text-neutral-dark'}`}>{opt.label}</p>
+                                            <p className="text-sm text-neutral-600 leading-snug mt-0.5">{opt.description}</p>
+                                            <p className="text-xs text-neutral-500 mt-1 italic">{opt.example}</p>
                                         </div>
                                     </div>
                                 </button>
@@ -691,8 +713,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     {/* Community Card */}
                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shadow-sm">
-                                <UserGroupIcon className="w-5 h-5" />
+                            <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shadow-sm">
+                                <UserGroupIcon className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Community</h4>
                         </div>
@@ -708,8 +730,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     {/* Sound Card */}
                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shadow-sm">
-                                <Volume2 className="w-5 h-5" />
+                            <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 shadow-sm">
+                                <Volume2 className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Ljud & Feedback</h4>
                         </div>
@@ -725,8 +747,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     {/* Notifications Card */}
                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 shadow-sm">
-                                <BellIcon className="w-5 h-5" />
+                            <div className="w-12 h-12 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600 shadow-sm">
+                                <BellIcon className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Notiser</h4>
                         </div>
@@ -811,8 +833,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                      {/* Push Notification Card */}
                      <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 shadow-sm">
-                                <Smartphone className="w-5 h-5" />
+                            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-600 shadow-sm">
+                                <Smartphone className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Enhet & Pushnotiser</h4>
                         </div>

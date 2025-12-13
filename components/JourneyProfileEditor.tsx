@@ -52,6 +52,9 @@ interface ProfileAndGoalEditorProps {
     isEditing: boolean;
     setIsEditing: (isEditing: boolean) => void;
     isFullGoalEdit: boolean;
+    latestMeasuredWeight?: number;
+    latestMeasuredMuscle?: number;
+    latestMeasuredFat?: number;
 }
 
 const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({ 
@@ -60,7 +63,10 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
     onSave,
     isEditing,
     setIsEditing,
-    isFullGoalEdit
+    isFullGoalEdit,
+    latestMeasuredWeight,
+    latestMeasuredMuscle,
+    latestMeasuredFat
 }) => {
     const [profile, setProfile] = useState(initialProfile);
     const [showSavedMessage, setShowSavedMessage] = useState(false);
@@ -161,14 +167,14 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
         let profileToSave = { ...profile };
 
         // If this is a full goal edit (New Goal flow), we must reset the starting points
-        // to the CURRENT values to ensure the progress bar starts at 0%.
+        // to the LATEST LOGGED values to ensure the progress bar starts at 0%.
         if (isFullGoalEdit) {
             profileToSave.mainGoalCompleted = false;
-            // Use current values as the new start line
-            profileToSave.goalStartWeight = profile.currentWeightKg;
-            // Reset body comp start values to current
-            profileToSave.goalStartFatMassKg = profile.bodyFatMassKg; 
-            profileToSave.goalStartMuscleMassKg = profile.skeletalMuscleMassKg;
+            // Use the latest measured values passed from JourneyView (which come from logs)
+            // fallback to profile values if logs are missing.
+            profileToSave.goalStartWeight = latestMeasuredWeight ?? profile.currentWeightKg;
+            profileToSave.goalStartFatMassKg = latestMeasuredFat ?? profile.bodyFatMassKg; 
+            profileToSave.goalStartMuscleMassKg = latestMeasuredMuscle ?? profile.skeletalMuscleMassKg;
         }
 
         onSave(profileToSave, newGoals);

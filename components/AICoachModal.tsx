@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { SparklesIcon, XMarkIcon } from './icons';
 import { getAICoachResponseStream } from '../services/geminiService';
-import { AIDataForJourneyAnalysis, ChartData } from '../types';
+import { AIDataForJourneyAnalysis, ChartData, CoachStyle } from '../types';
 import { Content } from "@google/genai";
 import { playAudio } from '../services/audioService';
 import SimpleLineChart from './SimpleLineChart';
+import { COACH_PERSONAS } from '../constants';
 
 interface AICoachModalProps {
   show: boolean;
@@ -42,6 +44,17 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   
+  const coachStyle = analysisContext.userProfile.coachStyle || 'balanced';
+
+  // Determine Emoji and Color based on style
+  const getCoachVisuals = (style: CoachStyle) => {
+      if (style === 'soft') return { emoji: COACH_PERSONAS.soft.emoji, colorClass: 'bg-green-100 text-green-600' };
+      if (style === 'hard') return { emoji: COACH_PERSONAS.hard.emoji, colorClass: 'bg-red-100 text-red-600' };
+      return { emoji: COACH_PERSONAS.balanced.emoji, colorClass: 'bg-blue-100 text-blue-600' };
+  };
+
+  const { emoji: CoachEmoji, colorClass } = getCoachVisuals(coachStyle);
+
   const initialMessage: Message = useMemo(() => {
     const funDescriptions = [
       "din digitala krydda i vardagsgrytan",
@@ -192,8 +205,10 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
             onClick={(e) => e.stopPropagation()}
         >
             <header className="flex items-center justify-between p-4 border-b border-neutral-light/70 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                    <SparklesIcon className="w-7 h-7 text-secondary" />
+                <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${colorClass}`}>
+                        <span className="text-2xl">{CoachEmoji}</span>
+                    </div>
                     <h2 id="ai-coach-modal-title" className="text-xl font-semibold text-neutral-dark">
                         Fråga coachen
                     </h2>
@@ -216,7 +231,11 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                     }
                     return (
                         <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                           {msg.sender === 'bot' && <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mb-1" />}
+                           {msg.sender === 'bot' && (
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-1 ${colorClass} bg-opacity-50`}>
+                                    <span className="text-lg">{CoachEmoji}</span>
+                                </div>
+                           )}
                            <div className={`max-w-xs sm:max-w-md p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-primary text-white rounded-br-lg' : 'bg-neutral-light text-neutral-dark rounded-bl-lg'}`}>
                                <div className="text-base space-y-2" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
                                {msg.isStreaming && !msg.chartData && msg.text.length > 0 && <div className="inline-block w-1.5 h-1.5 bg-neutral-dark rounded-full animate-ping ml-1"></div>}
@@ -226,7 +245,9 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                 })}
                 {isLoading && (
                      <div className="flex items-end gap-2 justify-start">
-                        <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mb-1" />
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-1 ${colorClass} bg-opacity-50`}>
+                            <span className="text-lg">{CoachEmoji}</span>
+                        </div>
                         <div className="p-3 rounded-2xl bg-neutral-light text-neutral-dark rounded-bl-lg">
                             <div className="flex items-center gap-1.5">
                                 <div className="w-2 h-2 bg-neutral-dark/50 rounded-full animate-bounce"></div>

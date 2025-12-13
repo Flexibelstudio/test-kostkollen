@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { PastDaySummary, UserProfileData } from '../types';
-import { CheckCircleIcon, XCircleIcon, FireIcon, TrophyIcon, SparklesIcon, MedalIcon, HeartIcon } from './icons';
+import { CheckCircleIcon, XCircleIcon, FireIcon, TrophyIcon, SparklesIcon } from './icons';
 import { getMorningBriefingText, getMorningBriefingAudio } from '../services/geminiService';
 import { COACH_PERSONAS } from '../constants';
 import { Volume2, VolumeX, PiggyBank } from 'lucide-react';
@@ -119,15 +119,18 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
 
   const coachStyle = userProfile.coachStyle || 'balanced';
   
-  let AvatarIcon = SparklesIcon;
-  let avatarColorClass = 'text-blue-500 bg-blue-100';
+  let CoachEmoji;
+  let avatarColorClass;
   
   if (coachStyle === 'soft') {
-      AvatarIcon = HeartIcon;
+      CoachEmoji = COACH_PERSONAS.soft.emoji;
       avatarColorClass = 'text-green-600 bg-green-100';
   } else if (coachStyle === 'hard') {
-      AvatarIcon = MedalIcon;
+      CoachEmoji = COACH_PERSONAS.hard.emoji;
       avatarColorClass = 'text-red-600 bg-red-100';
+  } else {
+      CoachEmoji = COACH_PERSONAS.balanced.emoji;
+      avatarColorClass = 'text-blue-600 bg-blue-100';
   }
 
   return (
@@ -197,8 +200,8 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
         <div className="text-left mb-8">
             <h3 className="text-sm font-bold text-neutral-dark mb-3 uppercase tracking-wide opacity-70">Dagens Briefing</h3>
             <div className="flex gap-4">
-                <div className={`w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center shadow-sm ${avatarColorClass}`}>
-                    <AvatarIcon className="w-7 h-7" />
+                <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-sm ${avatarColorClass}`}>
+                    <span className="text-2xl">{CoachEmoji}</span>
                 </div>
                 <div className="bg-neutral-light/40 p-4 rounded-2xl rounded-tl-none relative flex-1">
                     {isLoadingBriefing ? (
@@ -238,4 +241,3 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
 };
 
 export default MorningReportModal;
-    

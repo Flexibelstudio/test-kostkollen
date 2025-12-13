@@ -156,19 +156,21 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     const isFatLossGoal = userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
     const isMuscleGainGoal = userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
 
+    // Use userProfile values as primary source for current values to ensure immediate UI update after editing, 
+    // falling back to latest log if needed.
     if (isFatLossGoal) {
         startValueKg = userProfile.goalStartFatMassKg;
-        currentValueKg = latestWeightLog?.bodyFatMassKg;
+        currentValueKg = userProfile.bodyFatMassKg ?? latestWeightLog?.bodyFatMassKg;
         goalChangeKg = userProfile.desiredFatMassChangeKg;
         goalUnit = 'kg fett';
     } else if (isMuscleGainGoal) {
         startValueKg = userProfile.goalStartMuscleMassKg;
-        currentValueKg = latestWeightLog?.skeletalMuscleMassKg;
+        currentValueKg = userProfile.skeletalMuscleMassKg ?? latestWeightLog?.skeletalMuscleMassKg;
         goalChangeKg = userProfile.desiredMuscleMassChangeKg;
         goalUnit = 'kg muskler';
     } else if (isScaleGoal) {
         startValueKg = userProfile.goalStartWeight;
-        currentValueKg = latestWeightLog?.weightKg;
+        currentValueKg = userProfile.currentWeightKg ?? latestWeightLog?.weightKg;
         goalChangeKg = userProfile.desiredWeightChangeKg;
         goalUnit = 'kg vikt';
     } else {
@@ -286,81 +288,104 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             </div>
         </div>
 
-        {/* Tabs & Content */}
-        <div className="bg-white p-2 rounded-2xl shadow-soft-lg border border-neutral-light">
-            <div className="flex p-1 bg-neutral-light/50 rounded-xl">
-                <button
-                    onClick={() => setActiveTab('goals')}
-                    className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'goals' ? 'bg-white text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark'}`}
-                >
-                    Mål & Framsteg
-                </button>
-                <button
-                    onClick={() => setActiveTab('achievements')}
-                    className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'achievements' ? 'bg-white text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark'}`}
-                >
-                    Bragder
-                </button>
+        {/* CONTENT AREA: TOGGLES BETWEEN EDITING AND VIEWING */}
+        {isProfileEditing ? (
+            // --- EDIT MODE ---
+            // Shows only the editor to minimize distraction
+            <div className="animate-fade-in">
+                <ProfileAndGoalEditor 
+                    initialProfile={userProfile} 
+                    initialGoals={goals} 
+                    onSave={onSaveProfileAndGoals} 
+                    isEditing={isProfileEditing}
+                    setIsEditing={handleEditToggle}
+                    isFullGoalEdit={isFullGoalEdit}
+                    latestMeasuredWeight={latestWeight}
+                    latestMeasuredMuscle={latestMuscle}
+                    latestMeasuredFat={latestFat}
+                />
             </div>
+        ) : (
+            // --- NORMAL MODE ---
+            // Shows Tabs, Goal Status, Timeline and Summary
+            <div className="bg-white p-2 rounded-2xl shadow-soft-lg border border-neutral-light">
+                <div className="flex p-1 bg-neutral-light/50 rounded-xl">
+                    <button
+                        onClick={() => setActiveTab('goals')}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'goals' ? 'bg-white text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark'}`}
+                    >
+                        Mål & Framsteg
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('achievements')}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'achievements' ? 'bg-white text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark'}`}
+                    >
+                        Bragder
+                    </button>
+                </div>
 
-            <div className="mt-4 p-2">
-                {activeTab === 'goals' && (
-                    <div className="space-y-3 animate-fade-in">
-                        {/* Current Goal Card */}
-                        <div className="bg-neutral-light/30 p-4 rounded-2xl border border-neutral-light">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-bold text-neutral-dark flex items-center gap-2">
-                                    <TrophyIcon className="w-5 h-5 text-accent" />
-                                    Ditt Mål
-                                </h3>
+                <div className="mt-4 p-2">
+                    {activeTab === 'goals' && (
+                        <div className="space-y-3 animate-fade-in">
+                            {/* Current Goal Card */}
+                            <div className="bg-neutral-light/30 p-4 rounded-2xl border border-neutral-light">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="font-bold text-neutral-dark flex items-center gap-2">
+                                        <TrophyIcon className="w-5 h-5 text-accent" />
+                                        Ditt Mål
+                                    </h3>
+                                    {!userProfile.mainGoalCompleted && (
+                                        <span className="text-xs font-bold text-primary bg-white px-2 py-1 rounded-md shadow-sm">
+                                            {goalProgress.toFixed(0)}% klart
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-sm font-medium text-neutral-dark mb-3">
+                                    {goalDisplayString}
+                                </p>
                                 {!userProfile.mainGoalCompleted && (
-                                    <span className="text-xs font-bold text-primary bg-white px-2 py-1 rounded-md shadow-sm">
-                                        {goalProgress.toFixed(0)}% klart
-                                    </span>
+                                    <div className="w-full bg-white rounded-full h-3 shadow-inner overflow-hidden">
+                                        <div className="bg-primary h-full rounded-full" style={{ width: `${goalProgress}%` }}></div>
+                                    </div>
                                 )}
                             </div>
-                            <p className="text-sm font-medium text-neutral-dark mb-3">
-                                {goalDisplayString}
-                            </p>
-                            {!userProfile.mainGoalCompleted && (
-                                <div className="w-full bg-white rounded-full h-3 shadow-inner overflow-hidden">
-                                    <div className="bg-primary h-full rounded-full" style={{ width: `${goalProgress}%` }}></div>
-                                </div>
-                            )}
-                        </div>
 
-                        <GoalTimeline 
-                            milestones={timeline.milestones} 
-                            paceFeedback={timeline.paceFeedback} 
-                            weightLogs={filteredWeightLogs} 
-                            goalType={userProfile.goalType} 
-                            currentAppDate={new Date()}
-                        />
-                        
-                        <ProfileAndGoalEditor 
-                            initialProfile={userProfile} 
-                            initialGoals={goals} 
-                            onSave={onSaveProfileAndGoals} 
-                            isEditing={isProfileEditing}
-                            setIsEditing={handleEditToggle}
-                            isFullGoalEdit={isFullGoalEdit}
-                        />
-                    </div>
-                )}
-                
-                {activeTab === 'achievements' && (
-                    <div className="animate-fade-in">
-                        <AchievementsView 
-                            userProfile={userProfile}
-                            achievements={achievements}
-                            unlockedAchievements={unlockedAchievements}
-                            achievementInteractions={achievementInteractions}
-                            setToastNotification={setToastNotification}
-                        />
-                    </div>
-                )}
+                            <GoalTimeline 
+                                milestones={timeline.milestones} 
+                                paceFeedback={timeline.paceFeedback} 
+                                weightLogs={filteredWeightLogs} 
+                                goalType={userProfile.goalType} 
+                                currentAppDate={new Date()}
+                            />
+                            
+                            <ProfileAndGoalEditor 
+                                initialProfile={userProfile} 
+                                initialGoals={goals} 
+                                onSave={onSaveProfileAndGoals} 
+                                isEditing={false}
+                                setIsEditing={handleEditToggle}
+                                isFullGoalEdit={isFullGoalEdit}
+                                latestMeasuredWeight={latestWeight}
+                                latestMeasuredMuscle={latestMuscle}
+                                latestMeasuredFat={latestFat}
+                            />
+                        </div>
+                    )}
+                    
+                    {activeTab === 'achievements' && (
+                        <div className="animate-fade-in">
+                            <AchievementsView 
+                                userProfile={userProfile}
+                                achievements={achievements}
+                                unlockedAchievements={unlockedAchievements}
+                                achievementInteractions={achievementInteractions}
+                                setToastNotification={setToastNotification}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+        )}
       </div>
       
       {/* Backdrop for Speed Dial */}
@@ -421,4 +446,3 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     </>
   );
 };
-    
