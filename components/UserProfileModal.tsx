@@ -245,9 +245,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
 
   useEffect(() => {
-    setProfile(getInitialProfileForState());
-    setNewPhotoDataUrl(null);
-  }, [initialProfile, isOnboarding, getInitialProfileForState]);
+    // Only reset the profile state if we are NOT in the 'feedback' step.
+    // This prevents the form from clearing visually when saving (which updates initialProfile)
+    // while the component waits for AI feedback or transitions.
+    if (onboardingStep !== 'feedback') {
+        setProfile(getInitialProfileForState());
+        setNewPhotoDataUrl(null);
+    }
+  }, [initialProfile, isOnboarding, getInitialProfileForState, onboardingStep]);
 
 
   // Derive goalType automatically based on desired changes

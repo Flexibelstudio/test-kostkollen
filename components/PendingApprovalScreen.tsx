@@ -33,6 +33,30 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
     }
   }, []);
 
+  // Safety Timeout: Om isSuccessMode är sant men vi inte blir approved inom 8 sekunder,
+  // anta att session_id är gammalt/ogiltigt och visa betalningsvyn igen.
+  useEffect(() => {
+    let safetyTimer: NodeJS.Timeout;
+
+    if (isSuccessMode && !isApproved) {
+        safetyTimer = setTimeout(() => {
+            console.warn("Betalningsverifiering tog för lång tid eller sessionen är ogiltig. Återgår.");
+            setIsSuccessMode(false);
+            
+            // Rensa URL snyggt utan att ladda om sidan
+            if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('session_id');
+                // Om vi var på /success, byt till root '/'
+                const newPath = url.pathname.endsWith('/success') ? '/' : url.pathname;
+                window.history.replaceState({}, '', newPath + url.search);
+            }
+        }, 8000);
+    }
+
+    return () => clearTimeout(safetyTimer);
+  }, [isSuccessMode, isApproved]);
+
   // Auto-redirect logic
   useEffect(() => {
     if (!userId) return;
@@ -132,13 +156,6 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
                 <p className="text-xs text-neutral mb-6">
                     Sidan uppdateras automatiskt så fort ditt konto är redo. Stäng inte fönstret.
                 </p>
-                
-                <button 
-                    onClick={() => window.location.href = '/'}
-                    className="text-primary hover:text-primary-darker text-sm font-semibold hover:underline"
-                >
-                    Tar det lång tid? Klicka här för att uppdatera.
-                </button>
              </>
           )}
         </div>
