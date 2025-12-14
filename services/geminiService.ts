@@ -26,20 +26,24 @@ export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Pr
 Namn: ${persona.label}
 Tonläge: ${persona.promptTone}
 
+DEFINITIONER:
+- Streak: Att logga mat. Hålls levande oavsett kalorimängd. Det är beviset på vanan att vara konsekvent.
+- Mål: Att träffa rätt kalorimängd. Detta är dagens prestation.
+
 Din uppgift är att ge en kort "morgonbriefing" baserat på gårdagens resultat.
 Användaren heter ${name}.
-Gårdagens resultat:
-- Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'}
-- Kalorier: ${summary.consumedCalories.toFixed(0)} / ${summary.calorieGoal.toFixed(0)} kcal
-- Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
-- Nuvarande streak: ${currentStreak} dagar
 
-Instruktioner:
+SITUATION IGÅR:
+- Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
+- Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
+- Streak-status: ${currentStreak > 0 ? `AKTIV (${currentStreak} dagar i rad). Användaren loggade igår!` : 'BRUTEN (0 dagar). Användaren loggade inte igår.'}
+
+INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
-2. Om målet uppfylldes, beröm enligt din persona.
-3. Om målet missades, ge feedback enligt din persona (trösta, peppa eller kräv skärpning).
-4. Nämn streaken om den är bruten eller ökad.
-5. Avsluta med en uppmaning för idag.
+2. VIKTIGT: Om 'Mål uppfyllt' är NEJ men 'Streak-status' är AKTIV: Beröm användaren tydligt för att hen ändå loggade och höll sin streak vid liv (det är det viktigaste beteendet!). Döm inte det missade målet, utan peppa mjukt att sikta på det idag istället.
+3. Om både mål och streak är positiva, ge stort beröm enligt din persona.
+4. Om streak är bruten, var uppmuntrande kring nystart idag.
+5. Avsluta med en kort uppmaning för idag.
 6. Svara på SVENSKA.`;
 
   try {
