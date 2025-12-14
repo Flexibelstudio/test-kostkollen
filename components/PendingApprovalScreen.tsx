@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { UserCircleIcon, ArrowRightOnRectangleIcon, LockClosedIcon } from './icons';
+import { UserCircleIcon, ArrowRightOnRectangleIcon, LockClosedIcon, CheckCircleIcon } from './icons';
 import { functions, db } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot } from '@firebase/firestore';
@@ -12,6 +13,7 @@ interface PendingApprovalScreenProps {
 
 const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout, userEmail, userId }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const isSuccessMode = typeof window !== 'undefined' && window.location.pathname.endsWith('/success');
 
   // Auto-redirect if user status changes to 'approved'
   useEffect(() => {
@@ -23,7 +25,12 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
             const data = docSnap.data();
             if (data.status === 'approved') {
                 // Force a reload to re-initialize the entire app state cleanly
-                window.location.reload();
+                // If we are on /success, redirect to root clean
+                if (window.location.pathname.endsWith('/success')) {
+                    window.location.href = '/?payment_success=true';
+                } else {
+                    window.location.reload();
+                }
             }
         }
     });
@@ -65,6 +72,31 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
         setIsLoading(false);
     }
   };
+
+  if (isSuccessMode) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-light p-4">
+        <div className="bg-white p-8 rounded-xl shadow-soft-xl w-full max-w-lg text-center animate-fade-in">
+          <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
+            <CheckCircleIcon className="w-16 h-16 text-green-600" />
+          </div>
+          <h2 className="text-3xl font-bold text-neutral-dark mb-4">Betalning mottagen!</h2>
+          <p className="text-neutral-dark text-lg mb-8">
+            Tack! Vi håller på att aktivera ditt konto och ställa in allt åt dig. Detta tar oftast bara några sekunder...
+          </p>
+          
+          <div className="flex justify-center items-center gap-3 mb-8">
+             <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div>
+             <span className="text-neutral font-medium">Synkroniserar...</span>
+          </div>
+
+          <p className="text-xs text-neutral">
+            Sidan uppdateras automatiskt så fort ditt konto är redo. Stäng inte fönstret.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-light p-4">
