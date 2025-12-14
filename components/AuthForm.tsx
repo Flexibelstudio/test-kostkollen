@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail
 } from "@firebase/auth"; 
+import { ensureUserProfileInFirestore } from "../services/firestoreService";
 
 import { UserCircleIcon, LockClosedIcon, ExclamationTriangleIcon, EyeIcon, EyeSlashIcon, KeyIcon, CheckCircleIcon, XMarkIcon } from './icons'; 
 
@@ -148,7 +149,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password); 
       } else {
-        await createUserWithEmailAndPassword(auth, email, password); 
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Explicitly ensure user profile exists in Firestore immediately
+        await ensureUserProfileInFirestore(userCredential.user);
       }
       // onAuthStateChanged in App.tsx will handle the rest
     } catch (err: any) {
