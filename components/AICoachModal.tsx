@@ -54,29 +54,28 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   };
 
   const { emoji: CoachEmoji, colorClass } = getCoachVisuals(coachStyle);
+  const personaName = COACH_PERSONAS[coachStyle].label;
 
   const initialMessage: Message = useMemo(() => {
-    const funDescriptions = [
-      "din digitala krydda i vardagsgrytan",
-      "din virtuella visp i smeten",
-      "ditt personliga saltkorn på frukostägget",
-      "din digitala dillkvist på färskpotatisen",
-      "din personliga köttbulle i gräddsåsen",
-      "ditt virtuella strössel på fredagsglassen",
-      "din digitala havregryn i morgongröten",
-      "din virtuella purjolök i soppan",
-      "din digitala morot i höstmörkret"
-    ];
-    const randomDescription = funDescriptions[Math.floor(Math.random() * funDescriptions.length)];
+    // Customize initial message based on persona
+    let introText = "";
     const name = analysisContext.userProfile.name || 'du';
+
+    if (coachStyle === 'hard') {
+        introText = `Givakt ${name}! **${personaName}** här. Inga ursäkter, nu kör vi. Vad behöver du hjälp med?`;
+    } else if (coachStyle === 'soft') {
+        introText = `Hej ${name}! **${personaName}** här. Jag hoppas du mår bra idag. Jag finns här för att stötta och peppa dig. Vad funderar du på?`;
+    } else {
+        introText = `Hej ${name}! **${personaName}** här. Jag är redo att analysera dina data och hjälpa dig nå dina mål. Vad vill du veta?`;
+    }
     
     return {
         id: 0,
-        text: `Hej ${name}! Jag är din coach här i Kostloggen, tänk på mig som **${randomDescription}** – här för att peppa dig när motivationen tryter. Oavsett om jag är din virtuella purjolök i soppan eller din digitala morot i höstmörkret, så är jag här för att göra din kostresa lite mer underhållande!`,
+        text: introText,
         sender: 'bot',
         isSystem: true,
     };
-  }, [analysisContext.userProfile.name]);
+  }, [analysisContext.userProfile.name, coachStyle, personaName]);
 
 
   useEffect(() => {
@@ -210,7 +209,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                         <span className="text-2xl">{CoachEmoji}</span>
                     </div>
                     <h2 id="ai-coach-modal-title" className="text-xl font-semibold text-neutral-dark">
-                        Fråga coachen
+                        Fråga {personaName}
                     </h2>
                 </div>
                  <button onClick={onClose} className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90 interactive-transition" aria-label="Stäng">

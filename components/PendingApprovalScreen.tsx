@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { UserCircleIcon, ArrowRightOnRectangleIcon, LockClosedIcon, CheckCircleIcon } from './icons';
+import { UserCircleIcon, ArrowRightOnRectangleIcon, LockClosedIcon, CheckCircleIcon, SparklesIcon } from './icons';
 import { functions, db } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import { doc, onSnapshot } from '@firebase/firestore';
@@ -122,17 +121,17 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
 
   if (isSuccessMode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-light p-4">
-        <div className="bg-white p-8 rounded-xl shadow-soft-xl w-full max-w-lg text-center animate-fade-in">
-          <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
-            <CheckCircleIcon className="w-16 h-16 text-green-600" />
+      <div className="min-h-screen flex items-center justify-center bg-neutral-light bg-dotted-pattern bg-dotted-size p-4">
+        <div className="bg-white p-10 rounded-3xl shadow-soft-xl w-full max-w-lg text-center animate-scale-in border border-neutral-light/50">
+          <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-check-pop-in">
+            <CheckCircleIcon className="w-14 h-14 text-green-600" />
           </div>
           
           {isApproved ? (
              // APPROVED STATE
              <>
-                <h2 className="text-3xl font-bold text-neutral-dark mb-4">Allt klart!</h2>
-                <p className="text-neutral-dark text-lg mb-8">
+                <h2 className="text-3xl font-extrabold text-neutral-dark mb-4">Allt klart!</h2>
+                <p className="text-neutral-dark text-lg mb-8 font-medium">
                     Ditt konto är nu aktiverat och redo att användas.
                 </p>
                 <div className="flex justify-center items-center gap-3 mb-4">
@@ -143,17 +142,17 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
           ) : (
              // WAITING FOR WEBHOOK STATE
              <>
-                <h2 className="text-3xl font-bold text-neutral-dark mb-4">Betalning mottagen!</h2>
-                <p className="text-neutral-dark text-lg mb-8">
+                <h2 className="text-3xl font-extrabold text-neutral-dark mb-4">Betalning mottagen!</h2>
+                <p className="text-neutral-dark text-lg mb-8 font-medium">
                     Tack! Vi håller på att aktivera ditt konto och ställa in allt åt dig. Detta tar oftast bara några sekunder...
                 </p>
                 
-                <div className="flex justify-center items-center gap-3 mb-8">
+                <div className="flex justify-center items-center gap-3 mb-8 bg-neutral-light/50 p-4 rounded-xl">
                     <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div>
                     <span className="text-neutral font-medium">Synkroniserar...</span>
                 </div>
 
-                <p className="text-xs text-neutral mb-6">
+                <p className="text-xs text-neutral mb-6 opacity-70">
                     Sidan uppdateras automatiskt så fort ditt konto är redo. Stäng inte fönstret.
                 </p>
              </>
@@ -164,45 +163,65 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-light p-4">
-      <div className="bg-white p-8 rounded-xl shadow-soft-xl w-full max-w-lg text-center animate-fade-in">
-        <UserCircleIcon className="w-20 h-20 text-primary mx-auto mb-4" />
-        <h2 className="text-3xl font-bold text-neutral-dark mb-3">Kul att du vill ta tag i din hälsa!</h2>
-        <p className="text-neutral-dark text-lg mb-6">
-          Ditt konto ({userEmail}) väntar på att godkännas. För att aktivera ditt konto och få tillgång till appen behöver du starta din prenumeration.
-        </p>
+    <div className="min-h-screen flex items-center justify-center bg-neutral-light bg-dotted-pattern bg-dotted-size p-4">
+      <div className="bg-white p-8 sm:p-10 rounded-3xl shadow-soft-xl w-full max-w-lg text-center animate-scale-in border border-neutral-light/50 relative overflow-hidden">
         
-        <button
-          onClick={handleSubscribe}
-          disabled={isLoading}
-          className="flex items-center justify-center w-full px-6 py-4 mb-6 bg-primary hover:bg-primary-darker text-white font-bold text-lg rounded-xl shadow-md active:scale-95 transform transition-all disabled:opacity-70 disabled:cursor-wait"
-        >
-          {isLoading ? (
-            <>
-                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-3"></div>
-                Laddar betalning...
-            </>
-          ) : (
-            <>
-                <LockClosedIcon className="w-5 h-5 mr-2" />
-                Starta prenumeration (95 kr/mån)
-            </>
-          )}
-        </button>
+        {/* Decorational background blob */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none"></div>
 
-        <p className="text-neutral text-sm mb-8">
-          Betalningen hanteras säkert via Stripe. Ingen bindningstid.
-          <br/>
-          Ditt konto aktiveras automatiskt direkt efter betalning.
-        </p>
-        
-        <button
-          onClick={onLogout}
-          className="flex items-center justify-center w-full px-6 py-3 bg-secondary hover:bg-secondary-darker text-white font-semibold rounded-lg shadow-md active:scale-95 transform transition-all"
-        >
-          <ArrowRightOnRectangleIcon className="w-5 h-5 mr-2" />
-          Logga ut
-        </button>
+        <div className="relative z-10">
+            <div className="w-20 h-20 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+                <UserCircleIcon className="w-12 h-12 text-primary" />
+            </div>
+            <h2 className="text-3xl font-extrabold text-neutral-dark mb-3">Välkommen!</h2>
+            <p className="text-neutral font-medium text-base mb-1">{userEmail}</p>
+            <p className="text-neutral-dark text-lg mb-8 leading-relaxed">
+            Ditt konto väntar på att aktiveras. För att få tillgång till alla funktioner i Kostloggen behöver du starta din prenumeration.
+            </p>
+            
+            <div className="bg-primary-50 border border-primary-100 rounded-2xl p-6 mb-8 text-left relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">PREMIUM</div>
+                <h3 className="font-bold text-primary-darker text-lg mb-2 flex items-center gap-2">
+                    <SparklesIcon className="w-5 h-5 text-primary" /> Allt detta ingår:
+                </h3>
+                <ul className="space-y-2 text-sm text-neutral-dark">
+                    <li className="flex items-start gap-2"><CheckCircleIcon className="w-4 h-4 text-green-500 mt-0.5" /> Obegränsad loggning & statistik</li>
+                    <li className="flex items-start gap-2"><CheckCircleIcon className="w-4 h-4 text-green-500 mt-0.5" /> Personlig AI-Coachning</li>
+                    <li className="flex items-start gap-2"><CheckCircleIcon className="w-4 h-4 text-green-500 mt-0.5" /> Kurser (Viktkontroll & Klimakteriet)</li>
+                    <li className="flex items-start gap-2"><CheckCircleIcon className="w-4 h-4 text-green-500 mt-0.5" /> Community & Peppkompisar</li>
+                </ul>
+            </div>
+            
+            <button
+            onClick={handleSubscribe}
+            disabled={isLoading}
+            className="flex items-center justify-center w-full px-6 py-4 mb-4 bg-gradient-to-r from-primary to-primary-darker hover:from-primary-darker hover:to-primary-darker text-white font-bold text-lg rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transform transition-all disabled:opacity-70 disabled:cursor-wait group"
+            >
+            {isLoading ? (
+                <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-3"></div>
+                    Laddar betalning...
+                </>
+            ) : (
+                <>
+                    <LockClosedIcon className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+                    Starta prenumeration (95 kr/mån)
+                </>
+            )}
+            </button>
+
+            <p className="text-neutral text-xs mb-8">
+            Betalningen hanteras säkert via Stripe. Ingen bindningstid.
+            </p>
+            
+            <button
+            onClick={onLogout}
+            className="flex items-center justify-center w-full px-6 py-3 text-neutral-dark font-semibold hover:bg-neutral-light rounded-xl transition-all text-sm"
+            >
+            <ArrowRightOnRectangleIcon className="w-4 h-4 mr-2" />
+            Logga ut
+            </button>
+        </div>
       </div>
     </div>
   );

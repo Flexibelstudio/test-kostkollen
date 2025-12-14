@@ -17,6 +17,7 @@ import {
     MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
     MIN_ABSOLUTE_CALORIES_THRESHOLD,
     LOCAL_STORAGE_KEYS,
+    COACH_PERSONAS
 } from '../constants';
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
@@ -628,13 +629,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     const handleTakePhoto = () => openModalWithType(setShowCameraModal);
     const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal, 'dinner'); // Recipe usually for dinner
 
-    // Context-aware openers (from Section Cards 'Add' button - removed in child but kept for logic structure if needed later)
-    // Actually, the section card add button is removed per request, but the Section Card itself is clickable to OPEN.
-    // The requirement: "Remove + on meal cards, remove Add button in modal".
-    // AND "Can fab button be visible when modal is open?" -> YES.
-    // AND "Question 1 close" -> When FAB is clicked, modal closes.
-
     // --- RENDER ---
+
+    const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
 
     return (
         <div className="flex flex-col gap-3 pb-0 relative">
@@ -900,7 +897,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                             <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga Coachen</span>
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga {coachName}</span>
                                 <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
                             </button>
                             <button onClick={handleTakePhoto} className="flex items-center gap-3">
@@ -1002,4 +999,3 @@ const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
 };
 
 export default Dashboard;
-    

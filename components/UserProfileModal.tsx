@@ -125,6 +125,39 @@ const ToggleSwitch: React.FC<{
     </div>
 );
 
+const renderMarkdown = (text: string) => {
+  // 1. Bold: **text**
+  let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // 2. Lists & Newlines
+  const lines = html.split('\n');
+  let inList = false;
+  let result = '';
+  
+  lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('* ')) {
+          if (!inList) {
+              result += '<ul class="list-disc ml-5 space-y-1">';
+              inList = true;
+          }
+          result += `<li>${trimmed.substring(2)}</li>`;
+      } else {
+          if (inList) {
+              result += '</ul>';
+              inList = false;
+          }
+          if (result && !result.endsWith('</ul>')) {
+             result += '<br />';
+          }
+          result += line;
+      }
+  });
+  
+  if (inList) result += '</ul>';
+  
+  return result;
+};
 
 const UserProfileModal: React.FC<UserProfileModalProps> = ({
   initialProfile,
@@ -141,6 +174,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
     const [isSubscribing, setIsSubscribing] = useState(false);
     
+    // Get Persona Details based on profile
+    const coachStyle = initialProfile.coachStyle || 'balanced';
+    const persona = COACH_PERSONAS[coachStyle];
+    
+    // Theme colors based on coach style
+    let coachTheme = { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', iconBg: 'bg-blue-100', iconText: 'text-blue-600' };
+    if (coachStyle === 'soft') {
+        coachTheme = { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-800', iconBg: 'bg-green-100', iconText: 'text-green-600' };
+    } else if (coachStyle === 'hard') {
+        coachTheme = { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800', iconBg: 'bg-red-100', iconText: 'text-red-600' };
+    }
+
     useEffect(() => {
         // This effect runs when the modal opens to get the current, actual permission state.
         if (typeof Notification !== 'undefined') {
@@ -274,7 +319,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   }, [profile]);
   
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string; type: string } }) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
     
     setProfile(prev => {
         if (type === 'checkbox') {
@@ -426,7 +471,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
           <h2 id="user-profile-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
             {isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
-             isOnboarding && onboardingStep === 'feedback' ? 'Feedback från din Coach' :
+             isOnboarding && onboardingStep === 'feedback' ? `Coach: ${persona.label}` :
              'Redigera Profil'}
           </h2>
         </div>
@@ -449,33 +494,45 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       {isOnboarding && onboardingStep === 'feedback' ? (
         <div className="animate-fade-in min-h-[300px]">
           {aiFeedbackLoading && (
-            <div className="flex flex-col items-center justify-center p-8 text-neutral-dark h-full">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary mb-4"></div>
-              Flexibot analyserar dina mål...
+            <div className="flex flex-col items-center justify-center p-12 text-neutral-dark h-full space-y-4">
+              <div className="w-16 h-16 bg-neutral-light rounded-2xl flex items-center justify-center animate-pulse">
+                  <span className="text-3xl">{persona.emoji}</span>
+              </div>
+              <p className="text-lg font-medium">{persona.label} analyserar din plan...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
             </div>
           )}
+          
           {aiFeedbackError && !aiFeedbackLoading && (
              <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md">
-              <p className="font-medium">Fel från Coach:</p>
+              <p className="font-medium">Ett fel uppstod:</p>
               <p>{aiFeedbackError}</p>
             </div>
           )}
+          
           {aiFeedbackMessage && !aiFeedbackLoading && (
-             <div className="p-4 bg-primary-100/60 border border-primary-200/80 rounded-lg text-neutral-dark space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              {typeof aiFeedbackMessage === 'string' && aiFeedbackMessage.split('\n\n').map((paragraph, index) => (
-                <p key={index} className="text-base leading-relaxed">
-                  {paragraph}
-                </p>
-              ))}
+             <div className="flex flex-col gap-4">
+                <div className="flex items-end gap-3">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${coachTheme.iconBg} ${coachTheme.iconText}`}>
+                        <span className="text-3xl">{persona.emoji}</span>
+                    </div>
+                    <div className={`p-5 rounded-2xl rounded-bl-none border shadow-sm ${coachTheme.bg} ${coachTheme.border} ${coachTheme.text}`}>
+                        <h4 className="font-bold text-lg mb-2">Meddelande från {persona.label}</h4>
+                        {typeof aiFeedbackMessage === 'string' && aiFeedbackMessage.split('\n\n').map((paragraph, index) => (
+                            <div key={index} className="text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(paragraph) }} />
+                        ))}
+                    </div>
+                </div>
             </div>
           )}
+          
           <div className="mt-8 text-center">
             <button
               onClick={onClose}
               disabled={aiFeedbackLoading}
-              className="w-full sm:w-auto px-8 py-3 bg-primary text-white text-lg font-semibold rounded-lg shadow-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform interactive-transition disabled:opacity-60"
+              className="w-full sm:w-auto px-10 py-4 bg-primary text-white text-xl font-bold rounded-2xl shadow-lg hover:bg-primary-darker focus:outline-none focus:ring-4 focus:ring-primary/30 active:scale-95 transform interactive-transition disabled:opacity-60"
             >
-              Kom igång med min resa!
+              Kör igång!
             </button>
           </div>
         </div>
@@ -527,11 +584,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </section>
             
             <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Coachningsstil</h4>
-                <p className="text-sm text-neutral mb-4">Välj hur du vill att din AI-coach ska kommunicera med dig.</p>
+                <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
-                        const persona = COACH_PERSONAS[style];
+                        const p = COACH_PERSONAS[style];
                         
                         let colorClasses;
                         let iconBgClass;
@@ -560,9 +616,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 }`}
                             >
                                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
-                                    {persona.emoji}
+                                    {p.emoji}
                                 </div>
-                                <span className="font-bold text-sm">{persona.label}</span>
+                                <span className="font-bold text-sm">{p.label}</span>
+                                <span className="text-xs opacity-80 mt-1">{p.description}</span>
                             </button>
                         );
                     })}

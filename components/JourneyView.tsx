@@ -7,6 +7,7 @@ import { calculateGoalTimeline } from '../utils/timelineUtils.ts';
 import GoalTimeline from './JourneyGoalTimeline.tsx';
 import ProfileAndGoalEditor from './JourneyProfileEditor.tsx';
 import AchievementsView from './AchievementsView.tsx';
+import { COACH_PERSONAS } from '../constants';
 
 interface JourneyViewProps {
   pastDaysData: PastDaysSummaryCollection;
@@ -233,6 +234,8 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       }
   };
 
+  const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
+
   return (
     <>
       <div className="animate-fade-in relative pb-0 flex flex-col gap-3">
@@ -402,7 +405,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             {isSpeedDialOpen && (
                 <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                     <button onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
-                        <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga Coachen</span>
+                        <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga {coachName}</span>
                         <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
                     </button>
                     <button onClick={() => { playAudio('uiClick'); setShowResetConfirmModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">

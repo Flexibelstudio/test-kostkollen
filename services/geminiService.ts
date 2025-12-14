@@ -220,6 +220,9 @@ Exempel för "öl": {"foodItem": "Öl, vanlig", "servingDescription": "1 burk (3
 
 export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> => {
   const { userProfile, userGoals, userName, mentalWellbeing, isOnboarding } = data;
+  
+  const style = userProfile.coachStyle || 'balanced';
+  const persona = COACH_PERSONAS[style];
     
   const wellbeingDataString = `
 - Stressnivå: ${mentalWellbeing.stressLevel || 'Ej angivet'} (1=hög, 5=låg)
@@ -243,7 +246,9 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
 4.  Ge ett konkret, litet tips som är kopplat till det nya målet. Exempel (vid muskelökning): "Kom ihåg att protein är extra viktigt nu när du vill bygga muskler. Sikta på att få i dig lite protein vid varje måltid." Exempel (vid fettminskning): "Vatten och fibrer från grönsaker kommer bli dina bästa vänner för att hålla dig mätt och nöjd."
 5.  Avsluta med en kort, peppande fras. Exempel: "Det här klarar du galant!" eller "Jag finns här och stöttar dig hela vägen."`;
 
-  const fullPrompt = `Du är Flexibot, en hjälpsam och kunnig AI-coach från Kostloggen.se. Ditt tonläge är uppmuntrande, positivt och informativt. Du ger alltid förslag, aldrig order. Ge feedback på SVENSKA.
+  const fullPrompt = `Du är ${persona.label}, en AI-coach från Kostloggen.se.
+Din persona: ${persona.promptTone}
+Ge feedback på SVENSKA.
 
 **Användarens Status:**
 - Namn: ${userName || 'Användare'}
@@ -261,7 +266,7 @@ ${contextPrompt}
 
 **VIKTIGA REGLER:**
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
-2.  Använd en vänlig och motiverande ton. Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
+2.  Använd din specifika ton (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
 
 **TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
 - **Profil & Mål:** ${JSON.stringify(userProfile)}
@@ -285,11 +290,11 @@ ${contextPrompt}
     console.error("Error getting feedback from Coach from Gemini:", error);
     if (error instanceof Error) {
       if (error.message.includes('500') || error.message.toLowerCase().includes('internal')) {
-        throw new Error("Coachen har stött på ett tekniskt problem och kan inte svara just nu. Vänligen försök igen om en liten stund.");
+        throw new Error(`${persona.label} har stött på ett tekniskt problem och kan inte svara just nu. Vänligen försök igen om en liten stund.`);
       }
-      throw new Error(`Kunde inte hämta feedback från Coachen: ${error.message}`);
+      throw new Error(`Kunde inte hämta feedback från ${persona.label}: ${error.message}`);
     }
-    throw new Error("Kunde inte hämta feedback från Coachen på grund av ett okänt fel.");
+    throw new Error(`Kunde inte hämta feedback från ${persona.label} på grund av ett okänt fel.`);
   }
 };
 
@@ -497,9 +502,8 @@ export const getAICoachResponseStream = async (
   const style = userProfile.coachStyle || 'balanced';
   const persona = COACH_PERSONAS[style];
 
-  const systemInstruction = `Du är Flexibot, en AI-coach i appen Kostloggen.
-Din persona är: ${persona.label}.
-Ditt tonläge ska vara: ${persona.promptTone}
+  const systemInstruction = `Du är ${persona.label}, en AI-coach i appen Kostloggen.
+Din persona är: ${persona.promptTone}.
 
 Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att analysera användarens loggade data och svara tydligt och personligt enligt din persona. Svara alltid på SVENSKA.
 
@@ -810,8 +814,14 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     // Updated Course Prompt Logic: Assume access to all courses.
     const kursFeedbackPrompt = `Användaren har tillgång till kurserna 'Praktisk Viktkontroll' och 'Maxa Klimakteriet'. Koppla dina insikter till relevanta koncept från 'Praktisk Viktkontroll'. Om användaren t.ex. har en platå, kan du referera till Lektion 7 ('Bryt en platå'). Om de är inkonsekventa, nämn Lektion 4 ('Hantera utmaningar').`;
 
+    const style = userProfile.coachStyle || 'balanced';
+    const persona = COACH_PERSONAS[style];
+
     const prompt = `
-Du är den personliga coachen i Kostloggen – inte en extern coach. Skriv återkopplingen som att det är du som vägleder användaren. Undvik formuleringar som "prata med din coach", "ta upp det med någon" eller liknande – du ÄR den hjälpen.
+Du är ${persona.label}, en personlig coach i appen Kostloggen.
+Ditt tonläge: ${persona.promptTone}
+
+Du är en INTE en extern coach, du ÄR ${persona.label}. Skriv återkopplingen som att det är du som vägleder användaren. Undvik formuleringar som "prata med din coach" - du ÄR coachen.
 ${plateauPromptPart}
 Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med följande exakta struktur:
 {
