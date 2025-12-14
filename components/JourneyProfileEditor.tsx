@@ -45,6 +45,31 @@ const activityLevelOptions: { value: ActivityLevel; emoji: string; label: string
     }
 ];
 
+const ToggleSwitch: React.FC<{
+    id: string;
+    label: string;
+    description?: string;
+    checked: boolean;
+    onChange: () => void;
+}> = ({ id, label, description, checked, onChange }) => (
+    <div className="flex items-center justify-between p-3 bg-neutral-light/30 rounded-xl hover:bg-neutral-light/50 transition-colors border border-neutral-light/50">
+        <div className="pr-4">
+            <label htmlFor={id} className="block text-sm font-semibold text-neutral-dark cursor-pointer">{label}</label>
+            {description && <p className="text-xs text-neutral mt-0.5">{description}</p>}
+        </div>
+        <label htmlFor={id} className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+            <input 
+                type="checkbox" 
+                id={id}
+                checked={checked}
+                onChange={onChange}
+                className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-focus:ring-2 peer-focus:ring-primary-lighter peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+        </label>
+    </div>
+);
+
 interface ProfileAndGoalEditorProps {
     initialProfile: UserProfileData;
     initialGoals: GoalSettings;
@@ -71,11 +96,17 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
     const [profile, setProfile] = useState(initialProfile);
     const [showSavedMessage, setShowSavedMessage] = useState(false);
     const [showBmrTdeeInfoModal, setShowBmrTdeeInfoModal] = useState<boolean>(false);
+    
+    // Manual goals state
+    const [isManualGoalMode, setIsManualGoalMode] = useState(false);
+    const [manualGoals, setManualGoals] = useState<GoalSettings>(initialGoals);
 
     // Sync profile when editing starts or stops
     useEffect(() => {
         if (!isEditing) {
             setProfile(initialProfile);
+            setManualGoals(initialGoals);
+            setIsManualGoalMode(false);
         } else if (isFullGoalEdit) {
             // When full goal edit starts, we reset the goal-related fields to allow new input
             setProfile(prev => ({
@@ -87,7 +118,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                 goalCompletionDate: undefined
             }));
         }
-    }, [initialProfile, isEditing, isFullGoalEdit]);
+    }, [initialProfile, initialGoals, isEditing, isFullGoalEdit]);
     
     useEffect(() => {
         const newGoalType = deriveEffectiveGoalType(profile);
@@ -103,6 +134,18 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
         return null;
     }, [profile]);
     
+    // Sync manual goals with recommendations if NOT in manual mode
+    useEffect(() => {
+        if (recommendations && !isManualGoalMode) {
+            setManualGoals({
+                calorieGoal: Math.round(recommendations.recommendedCalories),
+                proteinGoal: Math.round(recommendations.recommendedProteinGrams),
+                carbohydrateGoal: Math.round(recommendations.recommendedCarbsGrams),
+                fatGoal: Math.round(recommendations.recommendedFatGrams),
+            });
+        }
+    }, [recommendations, isManualGoalMode]);
+
     const timeline = useMemo(() => {
         // Only calculate and show the projected timeline when actively setting a new goal
         if (isEditing && isFullGoalEdit) {
@@ -132,6 +175,16 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
         
         setProfile(updatedProfile);
     };
+
+    const handleManualGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        const numValue = parseInt(value, 10) || 0;
+        setManualGoals(prev => ({
+            ...prev,
+            [name]: numValue
+        }));
+    };
+
      const handleAdjustBodyCompGoal = useCallback((field: 'desiredFatMassChangeKg' | 'desiredMuscleMassChangeKg' | 'desiredWeightChangeKg', direction: 'increase' | 'decrease') => {
         const amount = 0.5;
         setProfile(prev => {
@@ -154,14 +207,21 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
 
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
-        const newGoals: GoalSettings = recommendations
-            ? {
+        
+        // Determine goals to save
+        let newGoals: GoalSettings;
+        if (isManualGoalMode) {
+            newGoals = manualGoals;
+        } else if (recommendations) {
+            newGoals = {
                 calorieGoal: Math.round(recommendations.recommendedCalories),
                 proteinGoal: Math.round(recommendations.recommendedProteinGrams),
                 carbohydrateGoal: Math.round(recommendations.recommendedCarbsGrams),
                 fatGoal: Math.round(recommendations.recommendedFatGrams),
-              }
-            : initialGoals; // Fallback to initialGoals if recommendations can't be calculated
+            };
+        } else {
+            newGoals = initialGoals;
+        }
         
         // Create a copy to modify before saving
         let profileToSave = { ...profile };
@@ -188,15 +248,10 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
         setProfile(initialProfile);
     };
     
-    const goalTypeDisplayMap: Record<GoalType, string> = {
-        lose_fat: 'Minska fettmassa / vikt',
-        maintain: 'Behålla nuvarande vikt/sammansättning',
-        gain_muscle: 'Öka muskelmassa / vikt',
-    };
-
-    const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed";
+    const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed";
     const compactInputClass = "w-20 text-center px-2 py-1.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-base disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed";
     const stepperButtonClass = "px-2.5 py-1 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary active:scale-90 text-lg font-semibold interactive-transition disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed";
+    const manualInputClass = "block w-full px-3 py-2 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed font-medium text-right pr-8";
 
 
     return (
@@ -205,17 +260,18 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                 <h3 id="profile-goal-editor-heading" className="text-xl font-semibold text-neutral-dark">Min Profil & Mål</h3>
                 {!isEditing && (
                     <button onClick={() => setIsEditing(true)} className="flex items-center px-3 py-1.5 text-sm font-medium text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-md shadow-sm active:scale-95 interactive-transition">
-                        <PencilIcon className="w-4 h-4 mr-1.5" /> Redigera aktivitetsnivå
+                        <PencilIcon className="w-4 h-4 mr-1.5" /> Redigera
                     </button>
                 )}
             </div>
 
             {isEditing ? (
                 <form onSubmit={handleSave} className="space-y-6 animate-fade-in">
+                    
                     {/* Activity Level */}
                     <section aria-labelledby="activity-level-heading">
-                        <h4 id="activity-level-heading" className="text-lg font-semibold text-neutral-dark mb-3">Aktivitetsnivå</h4>
-                        <div className="grid grid-cols-1 gap-3">
+                        <h4 id="activity-level-heading" className="text-base font-semibold text-neutral-dark mb-2">Aktivitetsnivå</h4>
+                        <div className="grid grid-cols-1 gap-2">
                             {activityLevelOptions.map(opt => (
                                 <button
                                     type="button"
@@ -223,44 +279,113 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                                     onClick={() => handleProfileChange({ target: { name: 'activityLevel', value: opt.value, type: 'select' } } as any)}
                                     className={`w-full text-left p-3 rounded-lg border-2 transition-all duration-200 ${
                                         profile.activityLevel === opt.value
-                                            ? 'bg-primary-100/70 border-primary shadow-md'
-                                            : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300'
+                                            ? 'bg-primary-100/70 border-primary shadow-sm'
+                                            : 'bg-white border-neutral-light hover:border-gray-300'
                                     }`}
                                 >
                                     <div className="flex items-center">
                                         <span className="text-2xl mr-3">{opt.emoji}</span>
                                         <div>
-                                            <p className={`font-semibold ${profile.activityLevel === opt.value ? 'text-primary-darker' : 'text-neutral-dark'}`}>{opt.label}</p>
-                                            <p className="text-xs text-neutral-dark">{opt.description}</p>
+                                            <p className={`text-sm font-semibold ${profile.activityLevel === opt.value ? 'text-primary-darker' : 'text-neutral-dark'}`}>{opt.label}</p>
+                                            {profile.activityLevel === opt.value && <p className="text-xs text-neutral-dark mt-0.5">{opt.description}</p>}
                                         </div>
                                     </div>
                                 </button>
                             ))}
                         </div>
                     </section>
+
+                    {/* Manual Goals Override */}
+                    <section aria-labelledby="manual-goals-heading" className="bg-neutral-light/10 p-4 rounded-xl border border-neutral-light/50">
+                        <div className="mb-4">
+                            <ToggleSwitch
+                                id="manualGoalOverride"
+                                label="Ange manuella mål"
+                                description="Om du vill styra dina makros helt själv."
+                                checked={isManualGoalMode}
+                                onChange={() => setIsManualGoalMode(!isManualGoalMode)}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="relative">
+                                <label className="block text-xs font-semibold text-neutral-dark mb-1">Kalorier</label>
+                                <input 
+                                    type="number" 
+                                    name="calorieGoal"
+                                    value={manualGoals.calorieGoal}
+                                    onChange={handleManualGoalChange}
+                                    disabled={!isManualGoalMode}
+                                    className={manualInputClass}
+                                />
+                                <span className="absolute right-3 top-[26px] text-xs text-neutral-400">kcal</span>
+                            </div>
+                            <div className="relative">
+                                <label className="block text-xs font-semibold text-neutral-dark mb-1">Protein</label>
+                                <input 
+                                    type="number" 
+                                    name="proteinGoal"
+                                    value={manualGoals.proteinGoal}
+                                    onChange={handleManualGoalChange}
+                                    disabled={!isManualGoalMode}
+                                    className={manualInputClass}
+                                />
+                                <span className="absolute right-3 top-[26px] text-xs text-neutral-400">g</span>
+                            </div>
+                            <div className="relative">
+                                <label className="block text-xs font-semibold text-neutral-dark mb-1">Kolhydrater</label>
+                                <input 
+                                    type="number" 
+                                    name="carbohydrateGoal"
+                                    value={manualGoals.carbohydrateGoal}
+                                    onChange={handleManualGoalChange}
+                                    disabled={!isManualGoalMode}
+                                    className={manualInputClass}
+                                />
+                                <span className="absolute right-3 top-[26px] text-xs text-neutral-400">g</span>
+                            </div>
+                            <div className="relative">
+                                <label className="block text-xs font-semibold text-neutral-dark mb-1">Fett</label>
+                                <input 
+                                    type="number" 
+                                    name="fatGoal"
+                                    value={manualGoals.fatGoal}
+                                    onChange={handleManualGoalChange}
+                                    disabled={!isManualGoalMode}
+                                    className={manualInputClass}
+                                />
+                                <span className="absolute right-3 top-[26px] text-xs text-neutral-400">g</span>
+                            </div>
+                        </div>
+                        {!isManualGoalMode && (
+                            <p className="text-xs text-neutral text-center mt-3 flex items-center justify-center">
+                                <InformationCircleIcon className="w-3 h-3 mr-1" /> Värden beräknas automatiskt
+                            </p>
+                        )}
+                    </section>
                     
                      {isFullGoalEdit && (
                         <div className="p-4 bg-secondary-100/60 rounded-lg border border-secondary-200/80 animate-fade-in">
                             <h4 className="text-lg font-semibold text-secondary-darker mb-2">Sätt ditt nya mål</h4>
                             <p className="text-sm text-neutral-dark mb-4">
-                                Ange din önskade förändring nedan. Appen kommer automatiskt att beräkna en rekommenderad tidsplan. Du kan lägga till ett eget måldatum om du har en specifik tidsram.
+                                Ange din önskade förändring nedan. Appen kommer automatiskt att beräkna en rekommenderad tidsplan.
                             </p>
                             
                             {/* Measurement Method */}
                             <section aria-labelledby="measurement-method-heading">
-                                <h5 id="measurement-method-heading" className="text-base font-semibold text-neutral-dark mb-2">Hur mäter du dig?</h5>
+                                <h5 id="measurement-method-heading" className="text-sm font-semibold text-neutral-dark mb-2">Mätmetod</h5>
                                 <div className="flex flex-col sm:flex-row gap-3">
                                     <button
                                         type="button"
                                         onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
-                                        className={`flex-1 text-center px-4 py-2 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
+                                        className={`flex-1 text-center px-4 py-2 rounded-lg border-2 font-semibold transition-colors duration-200 text-sm ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-white border-neutral-light hover:border-gray-300'}`}
                                     >
-                                        InBody / Avancerad våg
+                                        InBody / Avancerad
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
-                                        className={`flex-1 text-center px-4 py-2 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
+                                        className={`flex-1 text-center px-4 py-2 rounded-lg border-2 font-semibold transition-colors duration-200 text-sm ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-white border-neutral-light hover:border-gray-300'}`}
                                     >
                                         Vanlig våg
                                     </button>
@@ -269,10 +394,10 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
 
                             {/* Body Comp Goals */}
                             <section aria-labelledby="body-composition-goals-heading" className="mt-4">
-                                <h5 id="body-composition-goals-heading" className="text-base font-semibold text-neutral-dark mb-2">Önskad förändring</h5>
+                                <h5 id="body-composition-goals-heading" className="text-sm font-semibold text-neutral-dark mb-2">Önskad förändring</h5>
                                 {profile.measurementMethod === 'scale' ? (
                                     <div className="animate-fade-in">
-                                        <label htmlFor="desiredWeightChangeKg" className="block text-sm font-medium text-neutral-dark mb-1.5">Önskad viktförändring (kg)</label>
+                                        <label htmlFor="desiredWeightChangeKg" className="block text-xs font-medium text-neutral-dark mb-1">Viktförändring (kg)</label>
                                         <div className="flex items-center space-x-2">
                                             <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
                                             <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
@@ -280,9 +405,9 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="space-y-4 animate-fade-in">
+                                    <div className="space-y-3 animate-fade-in">
                                         <div>
-                                            <label htmlFor="desiredFatMassChangeKg" className="block text-sm font-medium text-neutral-dark mb-1.5">Fettmassaförändring (kg)</label>
+                                            <label htmlFor="desiredFatMassChangeKg" className="block text-xs font-medium text-neutral-dark mb-1">Fettmassaförändring (kg)</label>
                                             <div className="flex items-center space-x-2">
                                                 <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
                                                 <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
@@ -290,7 +415,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                                             </div>
                                         </div>
                                         <div>
-                                            <label htmlFor="desiredMuscleMassChangeKg" className="block text-sm font-medium text-neutral-dark mb-1.5">Muskelmassaförändring (kg)</label>
+                                            <label htmlFor="desiredMuscleMassChangeKg" className="block text-xs font-medium text-neutral-dark mb-1">Muskelmassaförändring (kg)</label>
                                             <div className="flex items-center space-x-2">
                                                 <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
                                                 <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
@@ -300,8 +425,8 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                                     </div>
                                 )}
                                 <div className="mt-4">
-                                    <label htmlFor="goalCompletionDate" className="block text-sm font-medium text-neutral-dark mb-1.5">Eget måldatum (valfritt)</label>
-                                    <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass.replace('disabled:bg-gray-200', 'bg-white')} min={new Date().toISOString().split('T')[0]}/>
+                                    <label htmlFor="goalCompletionDate" className="block text-xs font-medium text-neutral-dark mb-1">Eget måldatum (valfritt)</label>
+                                    <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass.replace('disabled:bg-gray-100', 'bg-white')} min={new Date().toISOString().split('T')[0]}/>
                                 </div>
                             </section>
 
@@ -347,22 +472,22 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                         <p className="text-sm font-medium text-neutral">Mätmetod</p>
                         <p className="text-base text-neutral-dark">{profile.measurementMethod === 'inbody' ? 'InBody / Avancerad våg' : 'Vanlig våg'}</p>
                     </div>
-                    {recommendations && (
-                        <div className="p-4 bg-primary-100/50 rounded-lg">
-                             <div className="flex justify-between items-center mb-2">
-                                <p className="text-sm font-medium text-neutral">Rekommenderade Mål</p>
-                                <button onClick={() => setShowBmrTdeeInfoModal(true)} className="text-primary hover:underline text-xs flex items-center gap-1">
-                                    <InformationCircleIcon className="w-4 h-4" /> Info BMR/TDEE
-                                </button>
-                             </div>
-                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm text-neutral-dark">
-                                <div><strong>{Math.round(recommendations.recommendedCalories)}</strong> kcal</div>
-                                <div><strong>{Math.round(recommendations.recommendedProteinGrams)} g</strong> Protein</div>
-                                <div><strong>{Math.round(recommendations.recommendedCarbsGrams)} g</strong> Kolh.</div>
-                                <div><strong>{Math.round(recommendations.recommendedFatGrams)} g</strong> Fett</div>
-                             </div>
-                        </div>
-                    )}
+                    {/* Display current active goals (either manual or auto) */}
+                    <div className="p-4 bg-primary-100/50 rounded-lg">
+                         <div className="flex justify-between items-center mb-2">
+                            <p className="text-sm font-medium text-neutral">Dina Dagliga Mål</p>
+                            <button onClick={() => setShowBmrTdeeInfoModal(true)} className="text-primary hover:underline text-xs flex items-center gap-1">
+                                <InformationCircleIcon className="w-4 h-4" /> Info BMR/TDEE
+                            </button>
+                         </div>
+                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm text-neutral-dark">
+                            <div><strong>{Math.round(initialGoals.calorieGoal)}</strong> kcal</div>
+                            <div><strong>{Math.round(initialGoals.proteinGoal)} g</strong> Protein</div>
+                            <div><strong>{Math.round(initialGoals.carbohydrateGoal)} g</strong> Kolh.</div>
+                            <div><strong>{Math.round(initialGoals.fatGoal)} g</strong> Fett</div>
+                         </div>
+                    </div>
+                    
                     {showSavedMessage && (
                         <div className="p-3 bg-green-100 text-green-700 rounded-md text-center text-sm font-medium flex items-center justify-center animate-fade-in">
                             <CheckCircleIcon className="w-5 h-5 mr-2" /> Profil & mål sparade!
