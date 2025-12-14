@@ -30,12 +30,15 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
   onClose
 }) => {
   // Calculate totals for this specific meal section
-  const totals = useMemo(() => meals.reduce((acc, meal) => ({
-    calories: acc.calories + meal.nutritionalInfo.calories,
-    protein: acc.protein + meal.nutritionalInfo.protein,
-    carbs: acc.carbs + meal.nutritionalInfo.carbohydrates,
-    fat: acc.fat + meal.nutritionalInfo.fat,
-  }), { calories: 0, protein: 0, carbs: 0, fat: 0 }), [meals]);
+  const totals = useMemo(() => meals.reduce((acc, meal) => {
+    const count = meal.count || 1;
+    return {
+        calories: acc.calories + (meal.nutritionalInfo.calories * count),
+        protein: acc.protein + (meal.nutritionalInfo.protein * count),
+        carbs: acc.carbs + (meal.nutritionalInfo.carbohydrates * count),
+        fat: acc.fat + (meal.nutritionalInfo.fat * count),
+    };
+  }, { calories: 0, protein: 0, carbs: 0, fat: 0 }), [meals]);
 
   const isEmpty = meals.length === 0;
 
