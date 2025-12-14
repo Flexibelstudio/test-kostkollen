@@ -1127,13 +1127,58 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
           completedAt: Date.now() 
       };
 
+      // Optimistic update for the completed lesson
       setUserCourseProgress(prev => ({
           ...prev,
           [lessonId]: updatedProgress
       }));
       
+      // Check if this is a "Maxa Klimakteriet" lesson and unlock the next one
+      let nextLessonPromise = Promise.resolve();
+      const menopauseIndex = menopauseCourseLessons.findIndex(l => l.id === lessonId);
+      
+      if (menopauseIndex !== -1 && menopauseIndex < menopauseCourseLessons.length - 1) {
+          const nextLesson = menopauseCourseLessons[menopauseIndex + 1];
+          const nextLessonId = nextLesson.id;
+          
+          // Only unlock if not already unlocked
+          if (!userCourseProgress[nextLessonId]?.unlockedAt) {
+              const nextLessonProgress = userCourseProgress[nextLessonId] || {
+                  completedFocusPoints: [],
+                  reflectionAnswer: '',
+                  isCompleted: false
+              };
+
+              const updatedNextProgress = {
+                  ...nextLessonProgress,
+                  unlockedAt: Date.now()
+              };
+
+              // Optimistic update for the next lesson
+              setUserCourseProgress(prev => ({
+                  ...prev,
+                  [nextLessonId]: updatedNextProgress
+              }));
+              
+              // Show notification/modal for new lesson
+              setNewlyUnlockedLesson(nextLesson);
+
+              // Queue save for next lesson
+              nextLessonPromise = saveCourseProgress(
+                  currentUser.uid, 
+                  nextLessonId, 
+                  updatedNextProgress, 
+                  userRole || 'member', 
+                  userStatus || 'approved'
+              );
+          }
+      }
+
       try {
-          await saveCourseProgress(currentUser.uid, lessonId, updatedProgress, userRole || 'member', userStatus || 'approved');
+          await Promise.all([
+              saveCourseProgress(currentUser.uid, lessonId, updatedProgress, userRole || 'member', userStatus || 'approved'),
+              nextLessonPromise
+          ]);
           setShowConfetti(true);
       } catch (error) {
           console.error("Failed to mark lesson complete", error);
