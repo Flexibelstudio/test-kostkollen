@@ -7,6 +7,15 @@ const logger = require("firebase-functions/logger");
 admin.initializeApp();
 const db = admin.firestore();
 
+// ---- Stripe Konfiguration ----
+const stripeSecretKey = functions.config().stripe ? functions.config().stripe.secret_key : null;
+let stripe;
+if (stripeSecretKey) {
+    stripe = require("stripe")(stripeSecretKey);
+} else {
+    logger.warn("Stripe secret key is missing in functions config.");
+}
+
 // ---- VAPID-nycklar ----
 // Båda nycklarna hämtas nu från Firebase config för bättre säkerhet och hantering.
 const vapidPublicKey = functions.config().webpush ? functions.config().webpush.public_key : null;
@@ -98,6 +107,59 @@ async function sendNotificationToUser(userId, payload, notificationType) {
     await userDocRef.update({ pushSubscriptions: validSubscriptions });
   }
 }
+
+// ---- Betalningsfunktioner ----
+
+exports.createSubscription = functions.region("us-central1").https.onCall(async (data, context) => {
+    // 1. Autentisering
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "User must be logged in to create a subscription.");
+    }
+
+    const userId = context.auth.uid;
+    const userEmail = context.auth.token.email;
+    const returnUrl = data.returnUrl || "https://kostloggen.se"; // Fallback URL
+
+    // 2. Kontrollera Stripe-konfig
+    if (!stripe) {
+        logger.error("Stripe is not configured on the server.");
+        throw new functions.https.HttpsError("failed-precondition", "Payment service is currently unavailable.");
+    }
+
+    try {
+        // 3. Skapa Stripe Checkout Session
+        // OBS: Ersätt 'price_...' med ditt faktiska Price ID från Stripe Dashboard.
+        // Du kan också lägga detta i functions.config().stripe.price_id
+        const priceId = functions.config().stripe.price_id || "price_1QkiwOGd3JxaW4hb...example"; 
+
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ["card"],
+            mode: "subscription",
+            line_items: [
+                {
+                    price: priceId,
+                    quantity: 1,
+                },
+            ],
+            customer_email: userEmail,
+            client_reference_id: userId,
+            success_url: `${returnUrl}?payment_success=true`,
+            cancel_url: `${returnUrl}?payment_cancelled=true`,
+            metadata: {
+                userId: userId,
+            },
+        });
+
+        logger.log(`Created Stripe session for user ${userId}: ${session.id}`);
+
+        // 4. Returnera URL till frontend
+        return { url: session.url };
+
+    } catch (error) {
+        logger.error("Error creating Stripe session:", error);
+        throw new functions.https.HttpsError("internal", "Unable to create payment session.", error);
+    }
+});
 
 // ---- Notis-funktioner ----
 
