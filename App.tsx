@@ -601,10 +601,17 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   const handleSaveProfileAndGoals = async (profileData: UserProfileData, newGoals: GoalSettings, newPhotoDataUrl?: string | null) => {
     if (!currentUser) return;
     setAppStatus(AppStatus.SAVING);
+    
+    // Update local state and prepare data with the new photo if available
+    const updatedProfile = { ...profileData };
+    if (newPhotoDataUrl) {
+        updatedProfile.photoURL = newPhotoDataUrl;
+    }
+
     try {
         // 1. Save to DB (Existing)
-        await saveProfileAndGoals(currentUser.uid, profileData, newGoals);
-        setUserProfile(profileData);
+        await saveProfileAndGoals(currentUser.uid, updatedProfile, newGoals);
+        setUserProfile(updatedProfile);
         setGoals(newGoals);
 
         // 2. Check if Onboarding (NEW)
@@ -617,10 +624,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             // Call Gemini
             try {
                 const feedback = await getAIFeedback({
-                    userName: profileData.name,
+                    userName: updatedProfile.name,
                     todayTotals: { calories: 0, protein: 0, carbohydrates: 0, fat: 0 },
                     userGoals: newGoals,
-                    userProfile: profileData,
+                    userProfile: updatedProfile,
                     currentStreak: 0,
                     activeLesson: null,
                     isOnboarding: true,
