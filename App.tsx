@@ -1261,7 +1261,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
   return (
     <>
       <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-4">
-       <header className="w-full bg-white text-neutral-dark p-4 shadow-lg sticky top-0 z-30">
+       <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
@@ -1291,7 +1291,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                             onClick={() => setShowProfileDropdown(prev => !prev)}
                         >
                              <div className="icon-wrap p-0 relative">
-                                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
+                                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
                              </div>
                         </button>
                         {showProfileDropdown && (
