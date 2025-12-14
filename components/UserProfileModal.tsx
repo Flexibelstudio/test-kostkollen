@@ -320,9 +320,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string; type: string } }) => {
     const { name, value } = e.target;
+    // Fix: Rename 'type' to 'inputType' to avoid ReferenceError and collision with TS 'type' keyword in closures
+    const inputType = e.target.type;
     
     setProfile(prev => {
-        if (type === 'checkbox') {
+        if (inputType === 'checkbox') {
             const { checked } = e.target as HTMLInputElement;
             return { ...prev, [name]: checked };
         }
