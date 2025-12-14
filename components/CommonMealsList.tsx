@@ -2,7 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
 import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon } from './icons.tsx';
-import { MoreHorizontal } from 'lucide-react';
+import { 
+  MoreHorizontal, 
+  Soup, Egg, Sandwich, CupSoda, Drumstick, Beef, Fish, Salad, Carrot,
+  Pizza, Coffee, Cake, Cookie, IceCream, Apple, Utensils, Croissant, Wine
+} from 'lucide-react';
 import { playAudio } from '../services/audioService.ts';
 
 interface CommonMealsListProps {
@@ -13,25 +17,90 @@ interface CommonMealsListProps {
   disabled?: boolean;
 }
 
-// Helper to guess an emoji based on the meal name
-const getMealIcon = (name: string): string => {
+// Helper to match a Lucide icon and color theme based on the meal name
+const getMealIcon = (name: string) => {
   const n = name.toLowerCase();
-  if (n.includes('gröt') || n.includes('havre') || n.includes('oat')) return '🥣';
-  if (n.includes('ägg') || n.includes('omelett') || n.includes('kokt')) return '🥚';
-  if (n.includes('bröd') || n.includes('macka') || n.includes('toast') || n.includes('smörgås')) return '🥪';
-  if (n.includes('smoothie') || n.includes('shake') || n.includes('dryck')) return '🥤';
-  if (n.includes('kyckling') || n.includes('fågel')) return '🍗';
-  if (n.includes('kött') || n.includes('biff') || n.includes('burgare')) return '🍔';
-  if (n.includes('fisk') || n.includes('lax') || n.includes('torsk')) return '🐟';
-  if (n.includes('sallad') || n.includes('grönsak')) return '🥗';
-  if (n.includes('pasta') || n.includes('spaghetti')) return '🍝';
-  if (n.includes('ris') || n.includes('bowl')) return '🍚';
-  if (n.includes('frukt') || n.includes('banan') || n.includes('äpple')) return '🍎';
-  if (n.includes('kaffe')) return '☕';
-  if (n.includes('yoghurt') || n.includes('kvarg')) return '🥛';
-  if (n.includes('pizza')) return '🍕';
-  if (n.includes('taco')) return '🌮';
-  return '🍽️'; // Default fallback
+  const iconProps = { className: "w-6 h-6", strokeWidth: 2 };
+
+  // Drinks (Coffee/Tea)
+  if (n.includes('kaffe') || n.includes('te ') || n.includes('latte') || n.includes('espresso') || n.includes('cappuccino')) {
+    return { icon: <Coffee {...iconProps} />, bg: 'bg-amber-100', text: 'text-amber-700' };
+  }
+  
+  // Drinks (Cold)
+  if (n.includes('smoothie') || n.includes('shake') || n.includes('dryck') || n.includes('vatten') || n.includes('juice') || n.includes('läsk') || n.includes('saft') || n.includes('mjölk')) {
+    return { icon: <CupSoda {...iconProps} />, bg: 'bg-blue-100', text: 'text-blue-600' };
+  }
+  
+  // Alcohol
+  if (n.includes('öl') || n.includes('vin') || n.includes('cider') || n.includes('bubbel')) {
+     return { icon: <Wine {...iconProps} />, bg: 'bg-purple-100', text: 'text-purple-700' };
+  }
+
+  // Breakfast / Porridge / Dairy
+  if (n.includes('gröt') || n.includes('havre') || n.includes('oat') || n.includes('soppa') || n.includes('yoghurt') || n.includes('fil') || n.includes('kvarg') || n.includes('bowl') || n.includes('flingor') || n.includes('müsli')) {
+    return { icon: <Soup {...iconProps} />, bg: 'bg-pink-100', text: 'text-pink-600' }; 
+  }
+
+  // Eggs
+  if (n.includes('ägg') || n.includes('omelett') || n.includes('kokt')) {
+    return { icon: <Egg {...iconProps} />, bg: 'bg-yellow-100', text: 'text-yellow-600' };
+  }
+
+  // Bread / Sandwiches
+  if (n.includes('bröd') || n.includes('macka') || n.includes('toast') || n.includes('smörgås') || n.includes('knäcke') || n.includes('baguette') || n.includes('fralla')) {
+    return { icon: <Sandwich {...iconProps} />, bg: 'bg-orange-100', text: 'text-orange-600' };
+  }
+  if (n.includes('croissant') || n.includes('bulle') || n.includes('wiener')) {
+      return { icon: <Croissant {...iconProps} />, bg: 'bg-amber-100', text: 'text-amber-700' };
+  }
+
+  // Poultry
+  if (n.includes('kyckling') || n.includes('fågel') || n.includes('kalkon') || n.includes('anka')) {
+    return { icon: <Drumstick {...iconProps} />, bg: 'bg-orange-100', text: 'text-orange-700' };
+  }
+
+  // Meat
+  if (n.includes('kött') || n.includes('biff') || n.includes('burgare') || n.includes('färs') || n.includes('korv') || n.includes('stek') || n.includes('skinka') || n.includes('bacon')) {
+    return { icon: <Beef {...iconProps} />, bg: 'bg-red-100', text: 'text-red-700' };
+  }
+
+  // Fish/Seafood
+  if (n.includes('fisk') || n.includes('lax') || n.includes('torsk') || n.includes('räkor') || n.includes('skaldjur') || n.includes('tonfisk') || n.includes('sushi')) {
+    return { icon: <Fish {...iconProps} />, bg: 'bg-cyan-100', text: 'text-cyan-700' };
+  }
+
+  // Green / Veg
+  if (n.includes('sallad') || n.includes('grönsak') || n.includes('vegetarisk') || n.includes('vegan') || n.includes('avokado') || n.includes('böna') || n.includes('lins')) {
+    return { icon: <Salad {...iconProps} />, bg: 'bg-green-100', text: 'text-green-600' };
+  }
+  if (n.includes('morot') || n.includes('rotfrukt') || n.includes('potatis')) {
+      return { icon: <Carrot {...iconProps} />, bg: 'bg-orange-50', text: 'text-orange-600' };
+  }
+
+  // Pizza / Fast food
+  if (n.includes('pizza') || n.includes('taco') || n.includes('kebab')) {
+    return { icon: <Pizza {...iconProps} />, bg: 'bg-yellow-100', text: 'text-yellow-700' };
+  }
+
+  // Sweets
+  if (n.includes('kaka') || n.includes('tårta') || n.includes('bakelse')) {
+    return { icon: <Cake {...iconProps} />, bg: 'bg-pink-100', text: 'text-pink-500' };
+  }
+  if (n.includes('kex') || n.includes('cookie') || n.includes('godis') || n.includes('choklad')) {
+    return { icon: <Cookie {...iconProps} />, bg: 'bg-amber-100', text: 'text-amber-800' };
+  }
+  if (n.includes('glass') || n.includes('sorbet')) {
+      return { icon: <IceCream {...iconProps} />, bg: 'bg-purple-100', text: 'text-purple-600' };
+  }
+
+  // Fruit
+  if (n.includes('äpple') || n.includes('banan') || n.includes('frukt') || n.includes('bär') || n.includes('päron') || n.includes('apelsin')) {
+    return { icon: <Apple {...iconProps} />, bg: 'bg-green-100', text: 'text-green-700' };
+  }
+
+  // Default
+  return { icon: <Utensils {...iconProps} />, bg: 'bg-neutral-100', text: 'text-neutral-600' };
 };
 
 const CommonMealCard: React.FC<{
@@ -125,7 +194,7 @@ const CommonMealCard: React.FC<{
     );
   }
 
-  const icon = getMealIcon(meal.name);
+  const { icon, bg, text } = getMealIcon(meal.name);
 
   return (
     <div className={`relative group bg-white rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
@@ -162,8 +231,8 @@ const CommonMealCard: React.FC<{
         disabled={disabled}
         className="w-full h-full p-4 flex flex-col items-center justify-center text-center cursor-pointer outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-2xl active:scale-95 transition-transform"
       >
-        {/* Updated Icon Container with Squircle */}
-        <div className="w-12 h-12 bg-neutral-100 rounded-xl flex items-center justify-center text-2xl mb-2 text-neutral-600">
+        {/* Updated Icon Container with Squircle and dynamic color */}
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 shadow-sm ${bg} ${text}`}>
           {icon}
         </div>
         
