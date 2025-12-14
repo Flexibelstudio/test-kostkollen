@@ -187,7 +187,10 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                 const oldCalories = prev.calorieGoal;
                 let newProtein, newCarbs, newFat;
 
-                if (oldCalories > 0) {
+                // Kollar om makros är "levande" (>0). Om de är 0 kan vi inte skala dem (0*ratio = 0).
+                const hasMacros = prev.proteinGoal > 0 || prev.carbohydrateGoal > 0 || prev.fatGoal > 0;
+
+                if (oldCalories > 0 && hasMacros) {
                     // Behåll befintlig procentuell fördelning
                     const ratio = numValue / oldCalories;
                     newProtein = Math.round(prev.proteinGoal * ratio);
@@ -195,6 +198,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                     newFat = Math.round(prev.fatGoal * ratio);
                 } else {
                     // Fallback om gamla kalorier var 0 (t.ex. nollställd av användaren först)
+                    // eller om makros råkat bli 0.
                     // Använd en standardfördelning (ca 30E% P, 40E% K, 30E% F) som default
                     newProtein = Math.round((numValue * 0.30) / 4);
                     newCarbs = Math.round((numValue * 0.40) / 4);
