@@ -602,16 +602,48 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser) return;
     setAppStatus(AppStatus.SAVING);
     try {
+        // 1. Save to DB (Existing)
         await saveProfileAndGoals(currentUser.uid, profileData, newGoals);
         setUserProfile(profileData);
         setGoals(newGoals);
-        setShowUserProfileModal(false);
-        setToastNotification({ message: "Profil sparad!", type: 'success' });
-        setTimeout(() => setToastNotification(null), 3000);
+
+        // 2. Check if Onboarding (NEW)
+        if (isProfileModalOnboarding) {
+            // Change UI state to loading feedback (Do NOT close modal)
+            setOnboardingStep('feedback');
+            setAIFeedbackLoading(true);
+            setAppStatus(AppStatus.ANALYZING_FEEDBACK);
+
+            // Call Gemini
+            try {
+                const feedback = await getAIFeedback({
+                    userName: profileData.name,
+                    todayTotals: { calories: 0, protein: 0, carbohydrates: 0, fat: 0 },
+                    userGoals: newGoals,
+                    userProfile: profileData,
+                    currentStreak: 0,
+                    activeLesson: null,
+                    isOnboarding: true,
+                    mentalWellbeing: { stressLevel: null, energyLevel: null, sleepQuality: null, mood: null }
+                });
+                setAIFeedbackMessage(feedback);
+            } catch (aiError) {
+                console.error("AI Error", aiError);
+                setAiFeedbackError("Kunde inte generera feedback just nu, men din profil är sparad.");
+            } finally {
+                setAIFeedbackLoading(false);
+                setAppStatus(AppStatus.IDLE);
+            }
+        } else {
+            // Normal Edit - Close modal
+            setShowUserProfileModal(false);
+            setToastNotification({ message: "Profil sparad!", type: 'success' });
+            setTimeout(() => setToastNotification(null), 3000);
+            setAppStatus(AppStatus.IDLE);
+        }
     } catch (error: any) {
        handleFirestoreError(error, 'spara profil');
-    } finally {
-        setAppStatus(AppStatus.IDLE);
+       setAppStatus(AppStatus.IDLE);
     }
   };
 
