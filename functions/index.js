@@ -1,3 +1,4 @@
+
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
@@ -617,9 +618,10 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
 
             logger.log(`Betalning genomförd för användare: ${firebaseUid}`);
 
-            // Uppdatera användaren i Firestore till "active"
+            // Uppdatera användaren i Firestore till "active" OCH "approved"
             await db.collection('users').doc(firebaseUid).update({
                 subscriptionStatus: 'active',
+                status: 'approved', // <--- ÄNDRAT HÄR: Sätter status till approved så användaren kommer in
                 stripeCustomerId: session.customer,
                 subscriptionId: session.subscription,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
