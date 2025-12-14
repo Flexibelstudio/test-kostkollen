@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { UserCircleIcon, ArrowRightOnRectangleIcon, LockClosedIcon } from './icons';
 import { functions, db } from '../firebase';
@@ -43,8 +42,13 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
         // Backend-funktionen heter nu 'createCheckoutSession'
         const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
         
-        console.log("Startar betalningssession...");
-        const result = await createCheckoutSession();
+        // Hämta aktuell origin (t.ex. https://staging--... eller https://app.kostloggen.se)
+        const currentOrigin = window.location.origin;
+
+        console.log("Startar betalningssession med returnUrl:", currentOrigin);
+
+        // Skicka med returnUrl till backend
+        const result = await createCheckoutSession({ returnUrl: currentOrigin });
         
         // Backend returnerar { sessionId: string, url: string }
         const data = result.data as { url: string; sessionId: string };

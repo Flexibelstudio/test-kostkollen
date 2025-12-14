@@ -516,7 +516,6 @@ exports.manualSummarizeYesterday = functions
                 consumedCalories: totalNutrients.calories,
                 calorieGoal: user.goals.calorieGoal,
                 streakForThisDay: newStreak,
-                // ... Förenklad data för korthetens skull, men lägg till all om du vill
             };
 
             allWriteOps.push({ref: db.collection("users").doc(userId).collection("pastDaySummaries").doc(yesterdayDateUID), data: summaryData, type: "set"});
@@ -562,10 +561,10 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     const userId = context.auth.uid;
     const userEmail = context.auth.token.email;
 
-    // Här bestämmer du vilken URL användaren ska skickas till efter köp
-    // Byt ut dessa mot din staging-URL vid testning om du vill: 
-    // t.ex. 'https://staging--test-kostkollen.netlify.app/success'
-    const domainURL = 'https://app.kostloggen.se'; 
+    // HÄR ÄR ÄNDRINGEN:
+    // Vi använder URL:en som skickas från appen (data.returnUrl).
+    // Om ingen skickas med, faller vi tillbaka på produktions-adressen som säkerhet.
+    const domainURL = data.returnUrl || 'https://app.kostloggen.se'; 
 
     try {
         const session = await stripe.checkout.sessions.create({
@@ -574,7 +573,7 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
             customer_email: userEmail,
             line_items: [
                 {
-                    // VIKTIGT: Byt ut detta ID mot ditt riktiga Price ID från Stripe Dashboard!
+                    // VIKTIGT: Detta är ditt riktiga Price ID du skickade med
                     price: 'price_1RtQRCK0orFqQ8UR0oXWzweX', 
                     quantity: 1,
                 },
