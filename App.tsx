@@ -420,6 +420,79 @@ export const App = () => {
         }
     }, [isInitialDataLoaded, currentUser, hasCompletedOnboarding, userRole, userStatus, showUserProfileModal]);
 
+    // Fix for "stuck" lessons in sequential courses (e.g. Maxa Klimakteriet)
+    useEffect(() => {
+        if (!currentUser || !isInitialDataLoaded) return;
+
+        const checkAndFixProgress = async () => {
+            let updatesNeeded = false;
+            const updates: Record<string, UserLessonProgress> = {};
+            const currentProgressState = userCourseProgress;
+
+            // 1. Ensure first lesson is always unlocked
+            const firstLessonId = menopauseCourseLessons[0].id;
+            if (!currentProgressState[firstLessonId]?.unlockedAt) {
+                 updatesNeeded = true;
+                 updates[firstLessonId] = {
+                     ...(currentProgressState[firstLessonId] || {
+                         completedFocusPoints: [],
+                         reflectionAnswer: '',
+                         isCompleted: false
+                     }),
+                     unlockedAt: Date.now()
+                 };
+            }
+
+            // 2. Ensure sequential unlocking
+            for (let i = 0; i < menopauseCourseLessons.length - 1; i++) {
+                const currentLesson = menopauseCourseLessons[i];
+                const nextLesson = menopauseCourseLessons[i + 1];
+                
+                // Get state from current prop or pending updates
+                const currentLessonState = updates[currentLesson.id] || currentProgressState[currentLesson.id];
+                const nextLessonState = updates[nextLesson.id] || currentProgressState[nextLesson.id];
+
+                const currentIsCompleted = currentLessonState?.isCompleted;
+                const nextIsUnlocked = !!nextLessonState?.unlockedAt;
+                
+                if (currentIsCompleted && !nextIsUnlocked) {
+                    updatesNeeded = true;
+                    updates[nextLesson.id] = {
+                        ...(nextLessonState || {
+                            completedFocusPoints: [],
+                            reflectionAnswer: '',
+                            isCompleted: false
+                        }),
+                        unlockedAt: Date.now()
+                    };
+                }
+            }
+
+            if (updatesNeeded) {
+                console.log("Auto-fixing course progress:", Object.keys(updates));
+                
+                // Optimistic update
+                setUserCourseProgress(prev => ({
+                    ...prev,
+                    ...updates
+                }));
+
+                // Persist changes
+                for (const [lessonId, progress] of Object.entries(updates)) {
+                    await saveCourseProgress(
+                        currentUser.uid, 
+                        lessonId, 
+                        progress, 
+                        userRole || 'member', 
+                        userStatus || 'approved'
+                    );
+                }
+            }
+        };
+
+        checkAndFixProgress();
+    }, [isInitialDataLoaded, currentUser, userCourseProgress, userRole, userStatus, setUserCourseProgress]);
+
 
     useEffect(() => {
         setViewingDate(new Date(currentDate));
