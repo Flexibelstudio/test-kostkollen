@@ -647,15 +647,11 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
   };
 
-const handleCloseUserProfileModal = () => {
-    setShowUserProfileModal(false);
-    setOnboardingStep('form');
-};
-
-const handleFinishOnboarding = async () => {
+  const handleFinishOnboarding = async () => {
     if (!currentUser) return;
     setShowOnboardingCompletion(false);
     setShowAIFeedbackModal(false);
+    setShowUserProfileModal(false); // Ensure this is closed too
     setHasCompletedOnboarding(true);
     setShowSpotlight(true);
     
@@ -677,6 +673,18 @@ const handleFinishOnboarding = async () => {
         playAudio('levelUp');
     } catch (error) {
         handleFirestoreError(error, 'slutföra onboarding');
+    }
+  };
+
+  const handleCloseUserProfileModal = () => {
+    if (isProfileModalOnboarding && onboardingStep === 'feedback') {
+        // Om användaren stänger modalen i feedback-steget (klickar på "Kom igång"), 
+        // räknar vi det som att onboarding är klar.
+        handleFinishOnboarding();
+    } else {
+        // Annars (om de avbryter formuläret eller redigerar profil senare), stäng bara.
+        setShowUserProfileModal(false);
+        setOnboardingStep('form');
     }
   };
 

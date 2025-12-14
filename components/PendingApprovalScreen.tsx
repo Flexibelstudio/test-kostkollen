@@ -13,6 +13,7 @@ interface PendingApprovalScreenProps {
 
 const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout, userEmail, userId }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
   
   // Kontrollera om vi är på success-sidan OCH har ett session_id (äkta retur från Stripe)
   const [isSuccessMode, setIsSuccessMode] = useState(false);
@@ -32,7 +33,7 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
     }
   }, []);
 
-  // Auto-redirect if user status changes to 'approved'
+  // Auto-redirect logic
   useEffect(() => {
     if (!userId) return;
 
@@ -41,11 +42,12 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
         if (docSnap.exists()) {
             const data = docSnap.data();
             if (data.status === 'approved') {
-                // Force a reload to re-initialize the entire app state cleanly
-                // If we are on /success, redirect to root clean
-                if (window.location.pathname.endsWith('/success')) {
-                    window.location.href = '/?payment_success=true';
+                if (isSuccessMode) {
+                    // Success mode (payment just happened) -> Set approved state to show animation, 
+                    // redirect will happen via the timer effect below.
+                    setIsApproved(true);
                 } else {
+                    // Standard waiting mode -> Immediate redirect/reload
                     window.location.reload();
                 }
             }
@@ -53,7 +55,17 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
     });
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, isSuccessMode]);
+
+  // Timer effect for redirect
+  useEffect(() => {
+      if (isApproved && isSuccessMode) {
+          const timer = setTimeout(() => {
+              window.location.href = '/?payment_success=true';
+          }, 4000); // 4 second delay
+          return () => clearTimeout(timer);
+      }
+  }, [isApproved, isSuccessMode]);
 
   const handleSubscribe = async () => {
     if (!functions) {
@@ -91,26 +103,44 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
           <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
             <CheckCircleIcon className="w-16 h-16 text-green-600" />
           </div>
-          <h2 className="text-3xl font-bold text-neutral-dark mb-4">Betalning mottagen!</h2>
-          <p className="text-neutral-dark text-lg mb-8">
-            Tack! Vi håller på att aktivera ditt konto och ställa in allt åt dig. Detta tar oftast bara några sekunder...
-          </p>
           
-          <div className="flex justify-center items-center gap-3 mb-8">
-             <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div>
-             <span className="text-neutral font-medium">Synkroniserar...</span>
-          </div>
+          {isApproved ? (
+             // APPROVED STATE
+             <>
+                <h2 className="text-3xl font-bold text-neutral-dark mb-4">Allt klart!</h2>
+                <p className="text-neutral-dark text-lg mb-8">
+                    Ditt konto är nu aktiverat och redo att användas.
+                </p>
+                <div className="flex justify-center items-center gap-3 mb-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div>
+                    <span className="text-neutral font-medium">Skickar dig vidare...</span>
+                </div>
+             </>
+          ) : (
+             // WAITING FOR WEBHOOK STATE
+             <>
+                <h2 className="text-3xl font-bold text-neutral-dark mb-4">Betalning mottagen!</h2>
+                <p className="text-neutral-dark text-lg mb-8">
+                    Tack! Vi håller på att aktivera ditt konto och ställa in allt åt dig. Detta tar oftast bara några sekunder...
+                </p>
+                
+                <div className="flex justify-center items-center gap-3 mb-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div>
+                    <span className="text-neutral font-medium">Synkroniserar...</span>
+                </div>
 
-          <p className="text-xs text-neutral mb-6">
-            Sidan uppdateras automatiskt så fort ditt konto är redo. Stäng inte fönstret.
-          </p>
-          
-          <button 
-            onClick={() => window.location.href = '/'}
-            className="text-primary hover:text-primary-darker text-sm font-semibold hover:underline"
-          >
-            Tar det lång tid? Klicka här för att uppdatera.
-          </button>
+                <p className="text-xs text-neutral mb-6">
+                    Sidan uppdateras automatiskt så fort ditt konto är redo. Stäng inte fönstret.
+                </p>
+                
+                <button 
+                    onClick={() => window.location.href = '/'}
+                    className="text-primary hover:text-primary-darker text-sm font-semibold hover:underline"
+                >
+                    Tar det lång tid? Klicka här för att uppdatera.
+                </button>
+             </>
+          )}
         </div>
       </div>
     );
