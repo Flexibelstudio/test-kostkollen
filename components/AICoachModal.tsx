@@ -205,7 +205,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
         >
             <header className="flex items-center justify-between p-4 border-b border-neutral-light/70 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${colorClass}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorClass}`}>
                         <span className="text-2xl">{CoachEmoji}</span>
                     </div>
                     <h2 id="ai-coach-modal-title" className="text-xl font-semibold text-neutral-dark">
@@ -231,7 +231,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                     return (
                         <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                            {msg.sender === 'bot' && (
-                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-1 ${colorClass} bg-opacity-50`}>
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mb-1 ${colorClass} bg-opacity-50`}>
                                     <span className="text-lg">{CoachEmoji}</span>
                                 </div>
                            )}
@@ -244,7 +244,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                 })}
                 {isLoading && (
                      <div className="flex items-end gap-2 justify-start">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-1 ${colorClass} bg-opacity-50`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mb-1 ${colorClass} bg-opacity-50`}>
                             <span className="text-lg">{CoachEmoji}</span>
                         </div>
                         <div className="p-3 rounded-2xl bg-neutral-light text-neutral-dark rounded-bl-lg">

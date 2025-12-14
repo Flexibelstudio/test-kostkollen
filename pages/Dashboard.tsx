@@ -23,7 +23,7 @@ import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
 import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, FireIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, RotateCcwIcon, LifebuoyIcon, TrophyIcon, SparklesIcon } from '../components/icons';
-import { PiggyBank, Flame } from 'lucide-react';
+import { PiggyBank, Flame, Coffee, Sandwich, CookingPot, Apple } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
 import { getDateUID } from '../utils/dateUtils';
@@ -236,26 +236,32 @@ const Dashboard: React.FC<DashboardProps> = ({
         { calories: 0, protein: 0, carbohydrates: 0, fat: 0 }
     ), [dailyLog]);
 
-    const totalCoveredByBank = useMemo(() => {
-        // On Mondays, the bank resets. You cannot use bank from previous week.
-        if (isViewingMonday) return 0;
+    // --- DYNAMIC BANK CALCULATION START ---
+    // Instead of relying on saved 'caloriesCoveredByBank' on meals, we calculate it dynamically
+    // based on the daily totals and the available bank.
+    
+    // 1. How much bank is theoretically available? (0 on Mondays, otherwise from DB)
+    const availableBank = isViewingMonday ? 0 : weeklyBank.bankedCalories;
 
-        return dailyLog.reduce(
-            (sum, meal) => sum + (meal.caloriesCoveredByBank || 0), 0
-        );
-    }, [dailyLog, isViewingMonday]);
+    // 2. How much are we over the goal?
+    const rawCaloriesOver = Math.max(0, totalNutrients.calories - goals.calorieGoal);
+
+    // 3. How much of that overage is covered by the bank?
+    // We use the bank if we are over the goal.
+    const calculatedBankUsage = Math.min(rawCaloriesOver, availableBank);
+
+    // 4. What is the remaining "net" overage after bank use?
+    const netCaloriesOver = Math.max(0, rawCaloriesOver - calculatedBankUsage);
+
+    // 5. What does the bank balance look like AFTER this day's usage?
+    // This provides the "Real-time" updated balance effect.
+    const remainingBankDisplay = Math.max(0, availableBank - calculatedBankUsage);
 
     const minSafeCalories = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
     const caloriesRemaining = Math.max(0, goals.calorieGoal - totalNutrients.calories);
     
-    const rawCaloriesOver = Math.max(0, totalNutrients.calories - goals.calorieGoal);
-    // Net overage is total overage minus what the bank covered.
-    const netCaloriesOver = Math.max(0, rawCaloriesOver - totalCoveredByBank);
-    
     // Logic for circular progress
     const isOverBudget = rawCaloriesOver > 0;
-    // If we are over budget, but bank covers it all (netOver is 0), then it's fully covered.
-    // Note: On Mondays, totalCoveredByBank is forced to 0, so this will be false if over budget.
     const isFullyCoveredByBank = isOverBudget && netCaloriesOver === 0;
     const isNetOverBudget = netCaloriesOver > 0;
 
@@ -269,6 +275,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     } else if (isFullyCoveredByBank) {
         progressColor = "text-blue-500"; // Blue if covered by bank
     }
+    // --- DYNAMIC BANK CALCULATION END ---
 
     const groupedMeals = useMemo(() => {
         const grouped: LoggedMeal[] = [];
@@ -436,7 +443,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 id: 'temp-id-' + timestamp, // Temp ID
                 dateString: getDateUID(viewingDate),
                 timestamp: timestamp,
-                mealType: mealType
+                mealType: mealType,
+                caloriesCoveredByBank: 0 // Do not save bank coverage on meal anymore
             };
         } else {
              newMeal = {
@@ -444,28 +452,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                 dateString: getDateUID(viewingDate),
                 timestamp: timestamp,
                 mealType: mealType,
-                nutritionalInfo: data as NutritionalInfo
+                nutritionalInfo: data as NutritionalInfo,
+                caloriesCoveredByBank: 0 // Do not save bank coverage on meal anymore
             };
         }
 
         try {
-            // Calculate bank usage
-            const caloriesBefore = totalNutrients.calories;
-            const caloriesAfter = caloriesBefore + newMeal.nutritionalInfo.calories;
-            
-            let coveredByBank = 0;
-            // Only consider using bank if it's NOT Monday
-            if (caloriesAfter > goals.calorieGoal && !isViewingMonday) {
-                const overage = caloriesAfter - goals.calorieGoal;
-                const availableBank = weeklyBank.bankedCalories;
-                if (availableBank > 0) {
-                    const previouslyCovered = dailyLog.reduce((sum, m) => sum + (m.caloriesCoveredByBank || 0), 0);
-                    const newTotalCovered = Math.min(availableBank, previouslyCovered + overage);
-                    coveredByBank = Math.max(0, newTotalCovered - previouslyCovered);
-                }
-            }
-            newMeal.caloriesCoveredByBank = coveredByBank;
-
             // Optimistic update
             const updatedLogs = [newMeal, ...dailyLog];
             setDailyLog(updatedLogs);
@@ -766,7 +758,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             {/* Streak Card */}
                             <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
                                 <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
-                                    <Flame className="w-7 h-7" />
+                                    <Flame className="w-6 h-6" />
                                 </div>
                                 <div className="relative z-10 flex-1">
                                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Streak</p>
@@ -780,12 +772,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                             {/* Bank Card */}
                             <div ref={bankRef} className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
                                 <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10">
-                                    <PiggyBank className="w-7 h-7" />
+                                    <PiggyBank className="w-6 h-6" />
                                 </div>
                                 <div className="relative z-10 flex-1">
                                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Sparpott</p>
                                     <p className="text-2xl font-extrabold text-neutral-dark leading-none">
-                                        {weeklyBank.bankedCalories} 
+                                        {remainingBankDisplay} 
                                         <span className="text-sm font-medium text-neutral ml-1">kcal</span>
                                     </p>
                                 </div>
@@ -832,7 +824,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="grid grid-cols-2 gap-3">
                             <MealSectionCard 
                                 title="Frukost" 
-                                icon="☕" 
+                                icon={<Coffee className="w-6 h-6" />} 
                                 meals={mealsBySection.breakfast} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
@@ -844,7 +836,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             />
                             <MealSectionCard 
                                 title="Lunch" 
-                                icon="🥪" 
+                                icon={<Sandwich className="w-6 h-6" />} 
                                 meals={mealsBySection.lunch} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
@@ -856,7 +848,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             />
                             <MealSectionCard 
                                 title="Middag" 
-                                icon="🍝" 
+                                icon={<CookingPot className="w-6 h-6" />} 
                                 meals={mealsBySection.dinner} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
@@ -868,7 +860,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             />
                             <MealSectionCard 
                                 title="Mellanmål" 
-                                icon="🍿" 
+                                icon={<Apple className="w-6 h-6" />} 
                                 meals={mealsBySection.snack} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}

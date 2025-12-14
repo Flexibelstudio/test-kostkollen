@@ -6,7 +6,7 @@ import { XMarkIcon } from './icons';
 
 interface MealSectionCardProps {
   title: string;
-  icon: string;
+  icon: React.ReactNode;
   meals: LoggedMeal[];
   onDeleteMeal: (id: string) => void;
   onUpdateMeal: (id: string, data: NutritionalInfo) => void;
@@ -73,7 +73,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
             {/* Modal Header */}
             <div className="p-5 border-b border-neutral-light/70 flex justify-between items-center bg-white sticky top-0 z-10">
                 <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm ${theme.bg}`}>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${theme.bg} ${theme.text}`}>
                         {icon}
                     </div>
                     <div>
@@ -158,7 +158,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
         <div className="flex justify-between items-start">
             {/* Updated Icon Container with Squircle */}
             <div className={`
-                w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-sm transition-colors duration-300
+                w-12 h-12 rounded-xl flex items-center justify-center shadow-sm transition-colors duration-300
                 ${theme.bg} ${theme.text}
             `}>
                 {icon}
