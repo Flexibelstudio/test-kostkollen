@@ -238,11 +238,12 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
     ? `**Din Uppgift (Onboarding):**
 1.  Hälsa användaren välkommen med hens namn (använd fältet "Namn"). Använd en vänlig och peppande ton.
 2.  Bekräfta deras startpunkt (vikt, längd, ålder) och säg att det är en utmärkt grund för att skräddarsy rekommendationer.
-3.  Kommentera deras nuvarande välbefinnande på ett positivt och stöttande sätt, och relatera det till deras resa. Exempel: "Jag ser att du känner dig energifylld, vilket är en fantastisk startpunkt!" eller "Jag ser att du känner dig stressad. Det är starkt av dig att ta tag i detta nu; appen kommer hjälpa dig hitta en balans."
-4.  Analysera deras mål. Titta på 'Önskad fettförändring' och 'Önskad muskelförändring' för att förstå deras primära mål (minska fett, bygga muskler, eller behålla).
-5.  Kommentera målet och måldatumet. Om målet är fettminskning (negativ 'Önskad fettförändring') och ett måldatum är satt, beräkna den nödvändiga viktnedgången per vecka och bedöm om tidsplanen är realistisk. En säker och hållbar takt är ca 0.5-1% av kroppsvikten per vecka. Om tidsplanen är väldigt ambitiös, föreslå på ett positivt sätt att en något längre tidsplan kan vara mer hållbar, men att det är användaren som bestämmer. Om målet är realistiskt, beröm dem för en bra plan. Om målet är att bygga muskler eller behålla, ge en uppmuntrande kommentar om det.
-6.  Inkludera en kommentar om proteinintaget och varför det är viktigt för deras mål. Använd det rekommenderade proteinintaget och relatera det till deras kroppsvikt (ca 1.5-2.0g per kg är vanligt).
-7.  Avsluta med en uppmuntrande fras och en fråga om de är redo att logga sin första måltid.`
+3.  **VIKTIGT OM KALORIER:** Om användaren har ett väldigt högt BMI (fetma), var uppmärksam på att standardformler för kaloribehov kan överskatta behovet. Om de beräknade målen verkar höga, nämn ödmjukt att formler bara är gissningar och att det kan vara klokt att justera nedåt manuellt om vikten står stilla. Uppmuntra till att känna efter mättnad.
+4.  Kommentera deras nuvarande välbefinnande på ett positivt och stöttande sätt, och relatera det till deras resa. Exempel: "Jag ser att du känner dig energifylld, vilket är en fantastisk startpunkt!" eller "Jag ser att du känner dig stressad. Det är starkt av dig att ta tag i detta nu; appen kommer hjälpa dig hitta en balans."
+5.  Analysera deras mål. Titta på 'Önskad fettförändring' och 'Önskad muskelförändring' för att förstå deras primära mål (minska fett, bygga muskler, eller behålla).
+6.  Kommentera målet och måldatumet. Om målet är fettminskning (negativ 'Önskad fettförändring') och ett måldatum är satt, beräkna den nödvändiga viktnedgången per vecka och bedöm om tidsplanen är realistisk. En säker och hållbar takt är ca 0.5-1% av kroppsvikten per vecka. Om tidsplanen är väldigt ambitiös, föreslå på ett positivt sätt att en något längre tidsplan kan vara mer hållbar, men att det är användaren som bestämmer. Om målet är realistiskt, beröm dem för en bra plan. Om målet är att bygga muskler eller behålla, ge en uppmuntrande kommentar om det.
+7.  Inkludera en kommentar om proteinintaget och varför det är viktigt för deras mål. Använd det rekommenderade proteinintaget och relatera det till deras kroppsvikt (ca 1.5-2.0g per kg är vanligt).
+8.  Avsluta med en uppmuntrande fras och en fråga om de är redo att logga sin första måltid.`
     : `**Din Uppgift (Mål uppdaterat):**
 1.  Börja med en positiv bekräftelse på att målet är uppdaterat, använd användarens namn. Exempel: "Snyggt, ${userName}! Ditt mål är nu uppdaterat."
 2.  Kommentera deras nuvarande välbefinnande i relation till det nya målet. Exempel: "Jag ser att du känner dig motiverad, det är perfekt timing för att sätta ett nytt mål!" eller "Jag ser att du rapporterar låg energi. Det nya målet kan bli en jättebra morot för att hitta ny kraft."
@@ -514,6 +515,7 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 **VIKTIGA REGLER FÖR TEXT-SVAR:**
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
 2.  Anpassa din ton efter din persona (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
+3.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
 
 **REGLER FÖR GRAF-SVAR:**
 1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.
@@ -701,6 +703,7 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
 2. Ställ försiktigt två frågor för att uppmuntra till självreflektion:
    - Fråga om loggningens noggrannhet (t.ex. "Ibland är det lätt att glömma småsaker som olja eller såser. Känner du att loggen fångar upp precis allt?").
    - Fråga om aktivitetsnivån fortfarande stämmer (t.ex. "En annan vanlig anledning är att aktivitetsnivån ändrats. Känns din inställning '${userProfile.activityLevel}' fortfarande rätt? Du kan enkelt justera den under 'Min Resa' -> 'Mål'.").
+   - **Tillägg för högt BMI:** Om användaren har högt BMI, föreslå att de manuellt sänker sitt kalorimål något om de står stilla trots att de följer det beräknade målet. Standardformler kan överskatta behovet.
 3. Avsluta med att uppmuntra dem att justera om det behövs och att du finns där för att hjälpa.
 `;
                     }

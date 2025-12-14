@@ -3,6 +3,7 @@ import { ACTIVITY_MULTIPLIERS, PROTEIN_PER_KG_TARGET, FAT_PERCENTAGE_OF_CALORIES
 
 /**
  * Calculates Basal Metabolic Rate (BMR) using the Mifflin-St Jeor equation.
+ * Applies a "Smart BMI Damping" factor for high BMI individuals to account for lower metabolic activity of adipose tissue.
  * @param weightKg Weight in kilograms.
  * @param heightCm Height in centimeters.
  * @param ageYears Age in years.
@@ -15,11 +16,30 @@ export const calculateMifflinStJeorBMR = (
   ageYears: number,
   gender: Gender
 ): number => {
+  let bmr = 0;
   if (gender === 'male') {
-    return (10 * weightKg) + (6.25 * heightCm) - (5 * ageYears) + 5;
+    bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * ageYears) + 5;
   } else { // 'female'
-    return (10 * weightKg) + (6.25 * heightCm) - (5 * ageYears) - 161;
+    bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * ageYears) - 161;
   }
+
+  // --- Smart BMI Damping ---
+  // Standard formulas often overestimate caloric needs for individuals with high obesity 
+  // because fat tissue is less metabolically active than lean mass.
+  if (heightCm > 0) {
+    const heightM = heightCm / 100;
+    const bmi = weightKg / (heightM * heightM);
+
+    if (bmi > 40) {
+      // Kraftig fetma: Minska BMR med 15%
+      bmr *= 0.85; 
+    } else if (bmi > 30) {
+      // Fetma: Minska BMR med 10%
+      bmr *= 0.90;
+    }
+  }
+
+  return bmr;
 };
 
 /**

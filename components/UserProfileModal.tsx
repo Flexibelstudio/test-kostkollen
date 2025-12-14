@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle } from '../types.ts';
 import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
-import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon } from './icons.tsx';
+import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
 
 
@@ -288,6 +288,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   });
 
+  // Manual goals override state
+  const [isManualGoalMode, setIsManualGoalMode] = useState(false);
+  const [manualGoals, setManualGoals] = useState<GoalSettings>(DEFAULT_GOALS);
+
 
   useEffect(() => {
     // Only reset the profile state if we are NOT in the 'feedback' step.
@@ -296,6 +300,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     if (onboardingStep !== 'feedback') {
         setProfile(getInitialProfileForState());
         setNewPhotoDataUrl(null);
+        setIsManualGoalMode(false); // Reset to auto mode on open
     }
   }, [initialProfile, isOnboarding, getInitialProfileForState, onboardingStep]);
 
@@ -318,6 +323,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     return null;
   }, [profile]);
   
+  // Sync manual goals with recommendations when recommendations change AND NOT in manual mode
+  useEffect(() => {
+      if (!isManualGoalMode && recommendations) {
+          setManualGoals({
+              calorieGoal: Math.round(recommendations.recommendedCalories),
+              proteinGoal: Math.round(recommendations.recommendedProteinGrams),
+              carbohydrateGoal: Math.round(recommendations.recommendedCarbsGrams),
+              fatGoal: Math.round(recommendations.recommendedFatGrams),
+          });
+      }
+  }, [recommendations, isManualGoalMode]);
+
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string; type: string } }) => {
     const { name, value } = e.target;
     // Fix: Rename 'type' to 'inputType' to avoid ReferenceError and collision with TS 'type' keyword in closures
@@ -354,6 +371,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         return updatedProfile;
     });
+  };
+
+  const handleManualGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      const numValue = parseInt(value, 10) || 0;
+      setManualGoals(prev => ({
+          ...prev,
+          [name]: numValue
+      }));
   };
 
   const handleNotificationSettingChange = (setting: keyof NotificationSettings) => {
@@ -420,7 +446,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     e.preventDefault();
     let newGoals: GoalSettings;
 
-    if (recommendations) {
+    if (isManualGoalMode) {
+        newGoals = manualGoals;
+    } else if (recommendations) {
       newGoals = {
         calorieGoal: recommendations.recommendedCalories,
         proteinGoal: recommendations.recommendedProteinGrams,
@@ -752,15 +780,89 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     </section>
                     
                     <section aria-labelledby="recommendations-heading" className="mt-6 pt-6 border-t border-neutral-light/70">
-                        <h3 id="recommendations-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Dina rekommenderade dagliga mål</h3>
+                        <h3 id="recommendations-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Dina dagliga mål</h3>
+                        
+                        {/* Toggle for Manual Goals */}
+                        <div className="mb-4">
+                            <ToggleSwitch
+                                id="manualGoalOverride"
+                                label="Ange egna mål manuellt"
+                                description="Om du vill åsidosätta de automatiskt beräknade målen."
+                                checked={isManualGoalMode}
+                                onChange={() => setIsManualGoalMode(!isManualGoalMode)}
+                            />
+                        </div>
+
                         {recommendations ? (
-                            <div className="p-4 bg-primary-100/60 border border-primary-200/80 rounded-lg space-y-2">
-                                <p className="text-neutral-dark">Baserat på dina ifyllda uppgifter, är detta dina uppskattade rekommendationer:</p>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1.5">
-                                    <div className="flex items-center"><span className="w-5 h-5 mr-1.5 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span><strong>{Math.round(recommendations.recommendedCalories)} kcal</strong></div>
-                                    <div className="flex items-center"><span className="w-5 h-5 mr-1.5 flex items-center justify-center" role="img" aria-label="Protein">💪</span><strong>{Math.round(recommendations.recommendedProteinGrams)} g P</strong></div>
-                                    <div className="flex items-center"><span className="w-5 h-5 mr-1.5 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span><strong>{Math.round(recommendations.recommendedCarbsGrams)} g K</strong></div>
-                                    <div className="flex items-center"><span className="w-5 h-5 mr-1.5 flex items-center justify-center" role="img" aria-label="Fett">🥑</span><strong>{Math.round(recommendations.recommendedFatGrams)} g F</strong></div>
+                            <div className={`p-4 rounded-lg space-y-4 border ${isManualGoalMode ? 'bg-white border-neutral-light' : 'bg-primary-100/60 border-primary-200/80'}`}>
+                                <p className="text-neutral-dark">
+                                    {isManualGoalMode 
+                                        ? "Du har valt att ställa in dina mål manuellt. Justera värdena nedan."
+                                        : "Baserat på dina ifyllda uppgifter, är detta dina uppskattade rekommendationer:"
+                                    }
+                                </p>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Calories */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
+                                            <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span> Kalorier
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            name="calorieGoal"
+                                            value={isManualGoalMode ? manualGoals.calorieGoal : Math.round(recommendations.recommendedCalories)}
+                                            onChange={handleManualGoalChange}
+                                            disabled={!isManualGoalMode}
+                                            className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
+                                        />
+                                        {!isManualGoalMode && <span className="text-xs text-neutral">kcal</span>}
+                                    </div>
+
+                                    {/* Protein */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
+                                            <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Protein">💪</span> Protein (g)
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            name="proteinGoal"
+                                            value={isManualGoalMode ? manualGoals.proteinGoal : Math.round(recommendations.recommendedProteinGrams)}
+                                            onChange={handleManualGoalChange}
+                                            disabled={!isManualGoalMode}
+                                            className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
+                                        />
+                                    </div>
+
+                                    {/* Carbs */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
+                                            <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span> Kolhydrater (g)
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            name="carbohydrateGoal"
+                                            value={isManualGoalMode ? manualGoals.carbohydrateGoal : Math.round(recommendations.recommendedCarbsGrams)}
+                                            onChange={handleManualGoalChange}
+                                            disabled={!isManualGoalMode}
+                                            className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
+                                        />
+                                    </div>
+
+                                    {/* Fat */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
+                                            <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Fett">🥑</span> Fett (g)
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            name="fatGoal"
+                                            value={isManualGoalMode ? manualGoals.fatGoal : Math.round(recommendations.recommendedFatGrams)}
+                                            onChange={handleManualGoalChange}
+                                            disabled={!isManualGoalMode}
+                                            className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         ) : (
