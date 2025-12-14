@@ -933,7 +933,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             {/* Checklist & Spotlight (Onboarding) */}
             {checklistState && !checklistState.dismissed && (
-                <div className="mt-8 mb-4 max-w-lg mx-auto">
+                <div className="mb-4 max-w-lg mx-auto w-full">
                     <OnboardingChecklist 
                         state={checklistState}
                         onNavigate={onOnboardingNavigate}
