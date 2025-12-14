@@ -40,16 +40,19 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
     
     setIsLoading(true);
     try {
-        const createSubscription = httpsCallable(functions, 'createSubscription');
-        // Vi skickar med nuvarande URL så att Stripe kan skicka tillbaka användaren hit
-        // efter lyckad (eller avbruten) betalning.
-        const result = await createSubscription({ 
-            returnUrl: window.location.origin
-        }) as { data: { url: string } };
+        // Backend-funktionen heter nu 'createCheckoutSession'
+        const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
         
-        if (result.data && result.data.url) {
-            window.location.href = result.data.url;
+        console.log("Startar betalningssession...");
+        const result = await createCheckoutSession();
+        
+        // Backend returnerar { sessionId: string, url: string }
+        const data = result.data as { url: string; sessionId: string };
+        
+        if (data && data.url) {
+            window.location.href = data.url; // Skicka användaren till Stripe
         } else {
+            console.error("Ingen URL mottogs från Stripe", data);
             throw new Error("Ingen betallänk mottogs från servern.");
         }
     } catch (error: any) {
