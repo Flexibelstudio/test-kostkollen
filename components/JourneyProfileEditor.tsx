@@ -185,32 +185,32 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
             // SCENARIO 1: Ändrar Kalorier -> Skala om makros
             if (name === 'calorieGoal') {
                 const oldCalories = prev.calorieGoal;
-                let newProtein, newCarbs, newFat;
+                
+                // Räkna ut summan av kalorier från nuvarande makros för att se om de är giltiga
+                const totalCurrentMacroEnergy = (prev.proteinGoal * 4) + (prev.carbohydrateGoal * 4) + (prev.fatGoal * 9);
+                
+                let pRatio = 0.30;
+                let cRatio = 0.40;
+                let fRatio = 0.30;
 
-                // Kollar om makros är "levande" (>0). Om de är 0 kan vi inte skala dem (0*ratio = 0).
-                const hasMacros = prev.proteinGoal > 0 || prev.carbohydrateGoal > 0 || prev.fatGoal > 0;
-
-                if (oldCalories > 0 && hasMacros) {
-                    // Behåll befintlig procentuell fördelning
-                    const ratio = numValue / oldCalories;
-                    newProtein = Math.round(prev.proteinGoal * ratio);
-                    newCarbs = Math.round(prev.carbohydrateGoal * ratio);
-                    newFat = Math.round(prev.fatGoal * ratio);
-                } else {
-                    // Fallback om gamla kalorier var 0 (t.ex. nollställd av användaren först)
-                    // eller om makros råkat bli 0.
-                    // Använd en standardfördelning (ca 30E% P, 40E% K, 30E% F) som default
-                    newProtein = Math.round((numValue * 0.30) / 4);
-                    newCarbs = Math.round((numValue * 0.40) / 4);
-                    newFat = Math.round((numValue * 0.30) / 9);
+                // VIKTIGT: Om vi utgår från ett väldigt lågt tal (t.ex. användaren raderade fältet och det blev 0),
+                // så har makros sannolikt avrundats ner till 0. Då tappar vi fördelningen (0/0 = NaN).
+                // Därför: Om gamla kalorier är < 200 (eller makros är 0), använd en standardfördelning.
+                // Detta fixar buggen där "1000 kcal" resulterade i 0 fett om man skrivit in det från noll.
+                if (oldCalories >= 200 && totalCurrentMacroEnergy > 0) {
+                     // Behåll användarens nuvarande fördelning
+                     // Vi använder totalCurrentMacroEnergy som bas för att få exakta % av makrosarna
+                     pRatio = (prev.proteinGoal * 4) / totalCurrentMacroEnergy;
+                     cRatio = (prev.carbohydrateGoal * 4) / totalCurrentMacroEnergy;
+                     fRatio = (prev.fatGoal * 9) / totalCurrentMacroEnergy;
                 }
 
                 return {
                     ...prev,
                     calorieGoal: numValue,
-                    proteinGoal: newProtein,
-                    carbohydrateGoal: newCarbs,
-                    fatGoal: newFat
+                    proteinGoal: Math.round((numValue * pRatio) / 4),
+                    carbohydrateGoal: Math.round((numValue * cRatio) / 4),
+                    fatGoal: Math.round((numValue * fRatio) / 9)
                 };
             }
 
