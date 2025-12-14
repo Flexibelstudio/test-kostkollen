@@ -593,7 +593,7 @@ export async function savePushSubscription(userId: string, subscription: object)
 
 /* ===== Course ===== */
 
-export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved') {
+export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved' | 'archived') {
   const courseProgressRef = doc(db, 'users', userId, 'courseProgress', lessonId);
   await setDoc(courseProgressRef, cleanFirestoreData(progress), { merge: true });
   

@@ -536,6 +536,25 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
   }, [isInitialDataLoaded, currentUser]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') === 'community') {
+      setViewMode('community');
+      if (params.get('tab') === 'requests') setCommunityInitialSubTab('requests');
+      if (params.get('highlight')) setHighlightEventId(params.get('highlight'));
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    
+    // Check for payment success
+    if (params.get('payment_success') === 'true' && userStatus === 'approved') {
+        setToastNotification({ message: "Betalning bekräftad! Välkommen in!", type: 'success' });
+        // Clean URL
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('payment_success');
+        window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
+    }
+  }, [userStatus]);
+
   const handleViewLatestUpdate = () => {
     setShowLatestUpdateView(true);
     setShowProfileDropdown(false);
@@ -917,16 +936,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     localStorage.setItem('iosInstallPromptDismissed', 'true');
   };
 
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('view') === 'community') {
-    setViewMode('community');
-    if (params.get('tab') === 'requests') setCommunityInitialSubTab('requests');
-    if (params.get('highlight')) setHighlightEventId(params.get('highlight'));
-    window.history.replaceState({}, '', window.location.pathname);
-  }
-}, []);
-
     // Onboarding Logic
     const handleCloseOnboardingRewardModal = () => {
         setShowOnboardingRewardModal(false);
@@ -1154,7 +1163,7 @@ useEffect(() => {
   }
 
   if (userStatus === 'pending') {
-    return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} />;
+    return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} userId={currentUser.uid} />;
   }
 
   if (userStatus === 'archived') {
