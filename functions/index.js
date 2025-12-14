@@ -583,8 +583,9 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
             metadata: {
                 firebaseUid: userId
             },
-            success_url: `${domainURL}/success`, // Skapa en sida i din app som heter /success
-            cancel_url: `${domainURL}/cancel`,   // Skapa en sida i din app som heter /cancel
+            // Add session_id to URL to allow frontend validation
+            success_url: `${domainURL}/success?session_id={CHECKOUT_SESSION_ID}`, 
+            cancel_url: `${domainURL}/cancel`,   
         });
 
         return { sessionId: session.id, url: session.url };

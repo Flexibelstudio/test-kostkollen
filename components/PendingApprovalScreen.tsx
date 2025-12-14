@@ -13,7 +13,24 @@ interface PendingApprovalScreenProps {
 
 const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout, userEmail, userId }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const isSuccessMode = typeof window !== 'undefined' && window.location.pathname.endsWith('/success');
+  
+  // Kontrollera om vi är på success-sidan OCH har ett session_id (äkta retur från Stripe)
+  const [isSuccessMode, setIsSuccessMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasSessionId = urlParams.has('session_id');
+        const isSuccessPath = window.location.pathname.endsWith('/success');
+
+        if (isSuccessPath && hasSessionId) {
+            setIsSuccessMode(true);
+        } else if (isSuccessPath && !hasSessionId) {
+            // Om användaren går till /success manuellt utan ID, skicka tillbaka till start
+            window.location.href = '/';
+        }
+    }
+  }, []);
 
   // Auto-redirect if user status changes to 'approved'
   useEffect(() => {
@@ -46,22 +63,16 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
     
     setIsLoading(true);
     try {
-        // Backend-funktionen heter nu 'createCheckoutSession'
         const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
-        
-        // Hämta aktuell origin (t.ex. https://staging--... eller https://app.kostloggen.se)
         const currentOrigin = window.location.origin;
 
         console.log("Startar betalningssession med returnUrl:", currentOrigin);
 
-        // Skicka med returnUrl till backend
         const result = await createCheckoutSession({ returnUrl: currentOrigin });
-        
-        // Backend returnerar { sessionId: string, url: string }
         const data = result.data as { url: string; sessionId: string };
         
         if (data && data.url) {
-            window.location.href = data.url; // Skicka användaren till Stripe
+            window.location.href = data.url; 
         } else {
             console.error("Ingen URL mottogs från Stripe", data);
             throw new Error("Ingen betallänk mottogs från servern.");
@@ -90,9 +101,16 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
              <span className="text-neutral font-medium">Synkroniserar...</span>
           </div>
 
-          <p className="text-xs text-neutral">
+          <p className="text-xs text-neutral mb-6">
             Sidan uppdateras automatiskt så fort ditt konto är redo. Stäng inte fönstret.
           </p>
+          
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="text-primary hover:text-primary-darker text-sm font-semibold hover:underline"
+          >
+            Tar det lång tid? Klicka här för att uppdatera.
+          </button>
         </div>
       </div>
     );
