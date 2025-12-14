@@ -178,11 +178,53 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
 
     const handleManualGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        const numValue = parseInt(value, 10) || 0;
-        setManualGoals(prev => ({
-            ...prev,
-            [name]: numValue
-        }));
+        // Parse value, handle empty string as 0 to allow clearing input
+        const numValue = value === '' ? 0 : Math.max(0, parseInt(value, 10));
+
+        setManualGoals(prev => {
+            // SCENARIO 1: Ändrar Kalorier -> Skala om makros
+            if (name === 'calorieGoal') {
+                const oldCalories = prev.calorieGoal;
+                let newProtein, newCarbs, newFat;
+
+                if (oldCalories > 0) {
+                    // Behåll befintlig procentuell fördelning
+                    const ratio = numValue / oldCalories;
+                    newProtein = Math.round(prev.proteinGoal * ratio);
+                    newCarbs = Math.round(prev.carbohydrateGoal * ratio);
+                    newFat = Math.round(prev.fatGoal * ratio);
+                } else {
+                    // Fallback om gamla kalorier var 0 (t.ex. nollställd av användaren först)
+                    // Använd en standardfördelning (ca 30E% P, 40E% K, 30E% F) som default
+                    newProtein = Math.round((numValue * 0.30) / 4);
+                    newCarbs = Math.round((numValue * 0.40) / 4);
+                    newFat = Math.round((numValue * 0.30) / 9);
+                }
+
+                return {
+                    ...prev,
+                    calorieGoal: numValue,
+                    proteinGoal: newProtein,
+                    carbohydrateGoal: newCarbs,
+                    fatGoal: newFat
+                };
+            }
+
+            // SCENARIO 2: Ändrar en Makro (P/K/F) -> Räkna om totala kalorier
+            const nextGoals = { ...prev, [name]: numValue };
+
+            // Räkna ut summan: (P * 4) + (K * 4) + (F * 9)
+            // Vi använder de uppdaterade värdena i `nextGoals`
+            const newTotalCalories =
+                (nextGoals.proteinGoal * 4) +
+                (nextGoals.carbohydrateGoal * 4) +
+                (nextGoals.fatGoal * 9);
+
+            return {
+                ...nextGoals,
+                calorieGoal: Math.round(newTotalCalories)
+            };
+        });
     };
 
      const handleAdjustBodyCompGoal = useCallback((field: 'desiredFatMassChangeKg' | 'desiredMuscleMassChangeKg' | 'desiredWeightChangeKg', direction: 'increase' | 'decrease') => {
