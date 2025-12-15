@@ -596,7 +596,45 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
 });
 
 
-// 2. Webhook för att lyssna på Stripe-händelser (Säkert anrop från Stripe)
+// 2. Avsluta Prenumeration (Anropa från appen)
+exports.cancelSubscription = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Du måste vara inloggad för att hantera prenumerationen.');
+    }
+
+    const userId = context.auth.uid;
+    
+    try {
+        // Hämta user doc för att få subscriptionId
+        const userSnapshot = await db.collection('users').doc(userId).get();
+        const userData = userSnapshot.data();
+
+        if (!userData || !userData.subscriptionId) {
+             throw new functions.https.HttpsError('failed-precondition', 'Ingen aktiv prenumeration hittades.');
+        }
+
+        // Avsluta i Stripe (vid periodens slut)
+        const subscription = await stripe.subscriptions.update(userData.subscriptionId, {
+            cancel_at_period_end: true
+        });
+
+        // Uppdatera Firestore direkt (optimistiskt)
+        // Webhooken kommer också få ett event, men detta ger snabbare feedback
+        await db.collection('users').doc(userId).update({
+            subscriptionStatus: 'canceling',
+            currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        return { success: true };
+    } catch (error) {
+        logger.error("Cancel Subscription Error:", error);
+        throw new functions.https.HttpsError('internal', 'Kunde inte avsluta prenumerationen. Försök igen eller kontakta support.');
+    }
+});
+
+
+// 3. Webhook för att lyssna på Stripe-händelser (Säkert anrop från Stripe)
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     const signature = req.headers['stripe-signature'];
     const endpointSecret = functions.config().stripe.webhook_secret;
@@ -622,25 +660,65 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
             // Uppdatera användaren i Firestore till "active" OCH "approved"
             await db.collection('users').doc(firebaseUid).update({
                 subscriptionStatus: 'active',
-                status: 'approved', // <--- ÄNDRAT HÄR: Sätter status till approved så användaren kommer in
+                status: 'approved',
                 stripeCustomerId: session.customer,
                 subscriptionId: session.subscription,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
         } 
+        else if (event.type === 'customer.subscription.updated') {
+             const subscription = event.data.object;
+             // Kolla om den är satt att avslutas
+             if (subscription.cancel_at_period_end) {
+                 const usersSnapshot = await db.collection('users').where('subscriptionId', '==', subscription.id).get();
+                 if (!usersSnapshot.empty) {
+                     const batch = db.batch();
+                     usersSnapshot.forEach((doc) => {
+                         batch.update(doc.ref, {
+                             subscriptionStatus: 'canceling',
+                             currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+                             updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                         });
+                     });
+                     await batch.commit();
+                     logger.log(`Prenumeration uppdaterad till 'canceling' för id: ${subscription.id}`);
+                 }
+             } else {
+                 // Om användaren ångrat sig och återaktiverat (cancel_at_period_end = false)
+                 // Kan vi sätta tillbaka till 'active' här om vi vill stödja det flödet i framtiden
+                 const usersSnapshot = await db.collection('users').where('subscriptionId', '==', subscription.id).get();
+                 if (!usersSnapshot.empty) {
+                     const batch = db.batch();
+                     usersSnapshot.forEach((doc) => {
+                         // Bara uppdatera om status var canceling/canceled
+                         if (doc.data().subscriptionStatus !== 'active') {
+                             batch.update(doc.ref, {
+                                 subscriptionStatus: 'active',
+                                 currentPeriodEnd: admin.firestore.FieldValue.delete(),
+                                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                             });
+                         }
+                     });
+                     await batch.commit();
+                 }
+             }
+        }
         else if (event.type === 'customer.subscription.deleted') {
             const subscription = event.data.object;
             // Vi måste hitta vem som hade denna subscription
             const usersSnapshot = await db.collection('users').where('subscriptionId', '==', subscription.id).get();
             
             if (!usersSnapshot.empty) {
-                usersSnapshot.forEach(async (doc) => {
-                    await doc.ref.update({
+                const batch = db.batch();
+                usersSnapshot.forEach((doc) => {
+                    batch.update(doc.ref, {
                         subscriptionStatus: 'canceled',
+                        status: 'archived', // Stäng tillgången
                         updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
-                    logger.log(`Prenumeration avslutad för användare: ${doc.id}`);
                 });
+                await batch.commit();
+                logger.log(`Prenumeration raderad (löpt ut) för id: ${subscription.id}`);
             }
         }
     } catch (err) {

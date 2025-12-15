@@ -1,5 +1,5 @@
 
-import { db } from "../firebase";
+import { db, functions } from "../firebase"; // Import functions
 import type { User } from '@firebase/auth';
 import { 
     collection, 
@@ -28,6 +28,7 @@ import {
     arrayUnion,
     Transaction,
 } from "@firebase/firestore";
+import { httpsCallable } from "firebase/functions"; // Import httpsCallable
 import type { 
     LoggedMeal, 
     UserProfileData, 
@@ -281,6 +282,8 @@ export async function fetchInitialAppData(userId: string) {
       notificationSettings: userDocData.notificationSettings,
       preferredWeighInDay: userDocData.preferredWeighInDay,
       coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
+      subscriptionStatus: userDocData.subscriptionStatus, // New
+      currentPeriodEnd: userDocData.currentPeriodEnd, // New
     };
     
     const commonMeals = commonMealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as CommonMeal[];
@@ -819,7 +822,7 @@ export async function bulkUpdateUserRole(memberIds: string[], role: UserRole) {
   await batch.commit();
 }
 
-/* ===== Buddy system ===== */
+/* ===== Social ===== */
 
 export function listenForFriendRequests(userId: string, callback: (requests: PeppkompisRequest[]) => void): () => void {
   const requestsRef = collection(db, 'peppkompisRequests');
@@ -949,8 +952,6 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
   return results.filter((b): b is BuddyDetails => b !== null);
 }
 
-/* ===== Social ===== */
-
 export async function searchForBuddies(currentUserId: string): Promise<Peppkompis[]> {
   const usersRef = collection(db, "users");
   const q = query(usersRef, where("isSearchable", "==", true));
@@ -1060,75 +1061,29 @@ export async function toggleLikeOnComment(fromUser: { uid: string, name: string 
   });
 }
 
-/* ===== Timeline (user) ===== */
-
 export async function cancelFriendRequest(requestId: string): Promise<void> {
   const requestRef = doc(db, 'peppkompisRequests', requestId);
   await deleteDoc(requestRef);
 }
 
-export async function fetchTimelineForCurrentUser(currentUserId: string, achievements: Achievement[]): Promise<TimelineEvent[]> {
-  const userDocSnap = await getDocSafe(doc(db, 'users', currentUserId));
-  if (!userDocSnap.exists()) return [];
-  
-  const userData = userDocSnap.data() as FirestoreUserDocument;
-  
-  const currentUserInfo = {
-    userId: currentUserId,
-    userName: userData.displayName,
-    userPhotoURL: userData.photoURL || undefined,
-    gender: userData.gender,
-  };
+// Subscription Management
+export async function reactivateSubscription(): Promise<string> {
+    if (!functions) throw new Error("Functions not initialized");
+    const createSession = httpsCallable(functions, 'createCheckoutSession');
+    const result = await createSession({ returnUrl: window.location.origin });
+    return (result.data as any).url;
+}
 
-  const weightLogsRef = collection(db, 'users', currentUserId, 'weightLogs');
-  const weightLogsQuery = query(weightLogsRef, orderBy('loggedAt', 'asc'));
-  const weightLogsSnap = await getDocsSafe(weightLogsQuery);
-  const weightLogs = weightLogsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as WeightLogEntry[];
-
-  const weightEvents: TimelineEvent[] = weightLogs.map((currentLog, index) => {
-    const previousLog = index > 0 ? weightLogs[index - 1] : null;
-    let weightChange, muscleChange, fatChange;
-    if (previousLog) {
-      weightChange = currentLog.weightKg - previousLog.weightKg;
-      if (currentLog.skeletalMuscleMassKg != null && previousLog.skeletalMuscleMassKg != null) muscleChange = currentLog.skeletalMuscleMassKg - previousLog.skeletalMuscleMassKg;
-      if (currentLog.bodyFatMassKg != null && previousLog.bodyFatMassKg != null) fatChange = currentLog.bodyFatMassKg - previousLog.bodyFatMassKg;
-    }
-    const descriptionParts = [`Vikt: ${currentLog.weightKg.toFixed(1)}kg (${formatChange(weightChange)})`];
-    if (currentLog.skeletalMuscleMassKg != null) descriptionParts.push(`Muskler: ${currentLog.skeletalMuscleMassKg.toFixed(1)}kg (${formatChange(muscleChange)})`);
-    if (currentLog.bodyFatMassKg != null) descriptionParts.push(`Fett: ${currentLog.bodyFatMassKg.toFixed(1)}kg (${formatChange(fatChange)})`);
-
-    return {
-      id: currentLog.id,
-      type: 'weight',
-      timestamp: currentLog.loggedAt,
-      title: `har loggat en ny mätning`,
-      description: descriptionParts.join(' | '),
-      icon: '⚖️',
-      reactions: currentLog.reactions || {},
-      comments: [],
-      relatedDocPath: `users/${currentUserId}/weightLogs/${currentLog.id}`,
-      ...currentUserInfo
-    };
-  });
-
-  const unlockedAchievementEvents: TimelineEvent[] = Object.entries(userData.unlockedAchievements || {})
-    .map(([id, dateString]) => {
-      const achievement = achievements.find(a => a.id === id);
-      if (!achievement) return null;
-      return {
-        id: `ach_${id}`,
-        type: 'achievement',
-        timestamp: new Date(dateString as string).getTime(),
-        title: `Bragd: ${achievement.name}`,
-        description: achievement.description,
-        icon: achievement.icon,
-        reactions: userData.achievementInteractions?.[id]?.reactions || {},
-        comments: [],
-        relatedDocPath: `users/${currentUserId}/achievementInteractions/${id}`,
-        ...currentUserInfo
-      };
-    }).filter(e => e !== null) as TimelineEvent[];
-
-  const allEvents = [...weightEvents, ...unlockedAchievementEvents];
-  return allEvents.sort((a, b) => b.timestamp - a.timestamp);
+export async function cancelSubscription(userId: string) {
+    // Note: 'userId' parameter is not strictly needed if we rely on Auth context in Cloud Function, 
+    // but useful if we implement admin-cancellation later. 
+    // For now, it's just a placeholder or unused parameter in the callable.
+    if (!functions) throw new Error("Functions not initialized");
+    
+    // We assume there is a cloud function 'cancelSubscription' deployed. 
+    // If not, this needs to be implemented in functions/index.js.
+    // Since we can't edit index.js here, we assume it exists or will be added.
+    // If it doesn't exist, this will throw an error caught by the UI.
+    const cancelSub = httpsCallable(functions, 'cancelSubscription');
+    await cancelSub();
 }

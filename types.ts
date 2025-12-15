@@ -224,6 +224,10 @@ export interface UserProfileData {
   isCourseActive?: boolean;
   courseInterest?: boolean;
   coachStyle: CoachStyle; // New field for coaching style
+  
+  // Subscription fields
+  subscriptionStatus?: 'active' | 'canceling' | 'canceled';
+  currentPeriodEnd?: string; // ISO date string
 }
 
 // Firestore user document structure
