@@ -8,7 +8,7 @@ import {
 
 import CoachDashboard from './components/CoachDashboard';
 import PendingApprovalScreen from './components/PendingApprovalScreen';
-import ArchivedUserScreen from './components/ArchivedUserScreen'; // Import new component
+import ArchivedUserScreen from './components/ArchivedUserScreen';
 import SplashScreen from './components/SplashScreen';
 import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
 
@@ -68,7 +68,7 @@ import UpdateNoticeModal from './components/UpdateNoticeModal.tsx';
 import WaterSplashEffect from './components/WaterSplashEffect';
 import MorningReportModal from './components/MorningReportModal.tsx';
 import GamificationModal from './components/GamificationModal.tsx';
-import SubscriptionModal from './components/SubscriptionModal.tsx'; // Import new modal
+import SubscriptionModal from './components/SubscriptionModal.tsx';
 
 import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -104,7 +104,6 @@ const dayKeySE = (d: Date) => {
 const yesterdayRangeSE = (now = new Date()) => {
   const today = startOfDaySE(now);
   const start = new Date(+today - 86400000);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const end = today;
   return { start, end, yKey: dayKeySE(start) };
 };
@@ -112,21 +111,6 @@ const yesterdayRangeSE = (now = new Date()) => {
 /* ===========================
    End of Daily Summary Helpers
    =========================== */
-
-const urlBase64ToUint8Array = (base64String: string) => {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding)
-        .replace(/-/g, '+')
-        .replace(/_/g, '/');
-
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-
-    for (let i = 0; i < rawData.length; ++i) {
-        outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
-};
 
 const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
   try {
@@ -178,18 +162,65 @@ const AIFeedbackModal: React.FC<{
         className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-2xl animate-scale-in flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ... Content omitted for brevity, assume same modal structure ... */}
-        <div className="min-h-[100px] flex-grow overflow-y-auto custom-scrollbar">
-            {/* ... feedback display logic ... */}
-            {feedbackMessage && !isLoading && !error && (
-                 <div className="space-y-6">
-                    {/* Simple render for feedback */}
-                    {typeof feedbackMessage === 'string' ? feedbackMessage : feedbackMessage.greeting}
-                 </div>
-            )}
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-neutral-light/70 flex-shrink-0">
+            <div className="flex items-center gap-3">
+                <div className="bg-primary-50 p-2.5 rounded-xl">
+                    {modalIcon}
+                </div>
+                <h3 id="ai-feedback-modal-title" className="text-2xl font-bold text-neutral-dark">{modalTitle}</h3>
+            </div>
         </div>
-        <div className="mt-6 flex flex-col sm:flex-row gap-3 flex-shrink-0">
-            <button onClick={onClose} className="w-full px-5 py-3 text-lg font-medium text-white bg-primary rounded-md">Stäng</button>
+        
+        <div className="flex-grow overflow-y-auto custom-scrollbar">
+            {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-primary mb-4"></div>
+                    <p className="text-neutral font-medium">Coachen tänker...</p>
+                </div>
+            ) : error ? (
+                <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg">
+                    <p className="font-bold mb-1">Ett fel uppstod</p>
+                    <p>{error}</p>
+                </div>
+            ) : feedbackMessage ? (
+                 <div className="space-y-4">
+                    {typeof feedbackMessage === 'string' ? (
+                        <p className="text-neutral-dark leading-relaxed whitespace-pre-wrap">{feedbackMessage}</p>
+                    ) : (
+                        <>
+                            <p className="text-lg font-medium text-neutral-dark mb-4">{feedbackMessage.greeting}</p>
+                            <div className="space-y-4">
+                                {feedbackMessage.sections.map((section, idx) => (
+                                    <div key={idx} className="bg-neutral-50 p-4 rounded-xl border border-neutral-100">
+                                        <h4 className="font-bold text-neutral-dark mb-2 flex items-center gap-2">
+                                            <span className="text-xl">{section.emoji}</span>
+                                            {section.title}
+                                        </h4>
+                                        <p className="text-neutral-dark text-sm leading-relaxed whitespace-pre-wrap">{section.content}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                 </div>
+            ) : null}
+        </div>
+
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 flex-shrink-0 pt-4 border-t border-neutral-light/70">
+            {showDiscussButton && (
+                <button 
+                    onClick={onDiscuss} 
+                    className="flex-1 px-5 py-3 text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                    <SparklesIcon className="w-5 h-5" /> Diskutera med Coach
+                </button>
+            )}
+            <button 
+                onClick={onClose} 
+                className={`flex-1 px-5 py-3 text-lg font-medium rounded-xl shadow-md active:scale-95 transition-all ${showDiscussButton ? 'bg-neutral-light text-neutral-dark hover:bg-gray-200' : 'bg-primary text-white hover:bg-primary-darker'}`}
+            >
+                {isOnboardingContext ? 'Fortsätt' : 'Stäng'}
+            </button>
         </div>
       </div>
     </div>
@@ -278,7 +309,7 @@ export const App = () => {
   const [showUserProfileModal, setShowUserProfileModal] = useState<boolean>(false);
   const [isProfileModalOnboarding, setIsProfileModalOnboarding] = useState(false);
   const [showGamificationModal, setShowGamificationModal] = useState(false); 
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false); // NEW
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   const [journeyInitialTab, setJourneyInitialTab] = useState<'calendar' | 'profile' | 'achievements'>('calendar');
 
@@ -349,7 +380,6 @@ export const App = () => {
   const formattedViewingDate = useMemo(() => {
     const opts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
     let s = viewingDate.toLocaleDateString('sv-SE', opts);
-    // Ta bort punkter som kan finnas i kortformat (t.ex. "tis.") och gör första bokstaven stor
     s = s.replace(/\./g, '');
     return s.charAt(0).toUpperCase() + s.slice(1);
   }, [viewingDate]);
@@ -750,8 +780,9 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     const handleOnboardingNavigate = (view: 'journey' | 'community', subView?: 'search') => {
         if (view === 'community') {
-             // Logic to set tabs if needed
+             updateChecklistItem('communityViewed');
         } else { 
+            updateChecklistItem('journeyViewed');
             setJourneyInitialTab('calendar');
         }
         setViewMode(view);
@@ -837,7 +868,24 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
   // Added handler to mark lesson complete
   const handleMarkLessonComplete = async (lessonId: string) => {
-      // ... (existing lesson logic)
+      if (!currentUser) return;
+      playAudio('logSuccess');
+      
+      const currentProgress = userCourseProgress[lessonId] || {};
+      const updatedProgress = { ...currentProgress, isCompleted: true };
+      
+      // Optimistic Update
+      setUserCourseProgress(prev => ({
+          ...prev,
+          [lessonId]: updatedProgress as any
+      }));
+      
+      try {
+          await saveCourseProgress(currentUser.uid, lessonId, updatedProgress as any, userRole || 'member', userStatus || 'approved');
+          // If a new lesson is unlocked, check logic
+      } catch (error) {
+          console.error("Failed to mark lesson complete", error);
+      }
   };
 
   // --- Course CTA Handlers ---
@@ -865,6 +913,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
   };
 
   const handleUseStreakSaver = async () => {
+      // Mock logic or call correct service
       setDayToPotentiallySave(null);
   };
 
@@ -890,6 +939,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
   };
 
   const handleSaveWellbeingAndProceed = async (data: MentalWellbeingData) => {
+      // Mock save
       setShowMentalWellbeingModal(false);
   };
 
@@ -960,7 +1010,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
                 </div>
                 <div className="flex flex-wrap justify-end items-center gap-1">
-                    {/* ... Navigation Items ... */}
                     {navItems.map(item => (
                         <button
                             key={item.key}
@@ -1055,11 +1104,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
           ? "w-full flex-grow flex flex-col h-full" 
           : `w-full ${mainContentMaxWidth} mx-auto p-2 sm:p-4 flex-grow flex flex-col`
         }>
-         {/* ... View Rendering ... */}
          {viewMode === 'main' && (
             <Dashboard 
                 checklistState={checklistState}
                 onOnboardingNavigate={handleOnboardingNavigate}
+                onChecklistUpdate={updateChecklistItem} // Passed correctly now!
                 showSpotlight={showSpotlight}
                 onDismissSpotlight={handleDismissSpotlight}
                 isInstallBannerVisible={showInstallBanner || showIosInstallPrompt}

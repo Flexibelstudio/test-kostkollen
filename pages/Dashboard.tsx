@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo } from 'react';
 import { 
     LoggedMeal, 
@@ -10,7 +9,8 @@ import {
     OnboardingChecklistState,
     CommonMeal,
     MealType,
-    PastDaySummary
+    PastDaySummary,
+    OnboardingChecklistItemStatus
 } from '../types';
 import { 
     DEFAULT_WATER_GOAL_ML,
@@ -111,6 +111,7 @@ const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
 interface DashboardProps {
     checklistState: OnboardingChecklistState | null;
     onOnboardingNavigate: (view: 'journey' | 'community', subView?: 'search') => void;
+    onChecklistUpdate: (item: keyof OnboardingChecklistItemStatus) => void;
     showSpotlight: boolean;
     onDismissSpotlight: () => void;
     isInstallBannerVisible: boolean;
@@ -129,6 +130,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ 
     checklistState,
     onOnboardingNavigate,
+    onChecklistUpdate,
     showSpotlight,
     onDismissSpotlight,
     isInstallBannerVisible,
@@ -482,6 +484,10 @@ const Dashboard: React.FC<DashboardProps> = ({
             setToastNotification({ message: 'Måltid loggad!', type: 'success' });
             playAudio('logSuccess');
 
+            if (checklistState && !checklistState.items.mealLogged) {
+                onChecklistUpdate('mealLogged');
+            }
+
         } catch (error) {
             console.error("Error adding meal:", error);
             setToastNotification({ message: 'Kunde inte spara måltiden.', type: 'error' });
@@ -543,6 +549,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         playAudio('waterSplash');
         try {
             await setWaterLog(currentUser.uid, getDateUID(viewingDate), newAmount);
+            if (checklistState && !checklistState.items.waterLogged && newAmount > 0) {
+                onChecklistUpdate('waterLogged');
+            }
         } catch (error) {
             console.error("Error logging water:", error);
             setWaterLoggedMl(waterLoggedMl); // Revert
