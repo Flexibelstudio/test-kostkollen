@@ -118,6 +118,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
   const dateString = dateObj.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const coachStyle = userProfile.coachStyle || 'balanced';
+  const personaLabel = COACH_PERSONAS[coachStyle].label;
   
   let CoachEmoji;
   let avatarColorClass;
@@ -205,10 +206,13 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
                 </div>
                 <div className="bg-neutral-light/40 p-4 rounded-2xl rounded-tl-none relative flex-1">
                     {isLoadingBriefing ? (
-                        <div className="flex items-center gap-2 text-neutral">
-                            <div className="w-2 h-2 bg-neutral/40 rounded-full animate-bounce"></div>
-                            <div className="w-2 h-2 bg-neutral/40 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                            <div className="w-2 h-2 bg-neutral/40 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="flex items-center gap-3 py-2 animate-fade-in">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${avatarColorClass} bg-opacity-20 animate-pulse`}>
+                                <span className="text-lg">{CoachEmoji}</span>
+                            </div>
+                            <span className="text-neutral-500 text-sm font-medium italic animate-pulse">
+                                {personaLabel} analyserar din gårdag...
+                            </span>
                         </div>
                     ) : (
                         <p className="text-neutral-dark text-base leading-relaxed animate-fade-in">

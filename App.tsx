@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'r
 import { db } from './firebase';
 import {
   doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction,
-  where, updateDoc, getDoc
+  where, updateDoc, getDoc, increment
 } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
@@ -740,10 +740,24 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
   };
 
     // Onboarding Logic
-    const handleCloseOnboardingRewardModal = () => {
+    const handleCloseOnboardingRewardModal = async () => {
         setShowOnboardingRewardModal(false);
         setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, { ...checklistState, dismissed: true });
         setChecklistState(null);
+
+        // Apply bonus ONLY if goal is not gain_muscle
+        if (currentUser && userProfile.goalType !== 'gain_muscle') {
+             try {
+                await updateUserDocument(currentUser.uid, {
+                    "weeklyBank.bankedCalories": increment(100)
+                });
+                setWeeklyBank(prev => ({ ...prev, bankedCalories: prev.bankedCalories + 100 }));
+                setToastNotification({ message: "100 kcal bonus tillagd i din sparpott!", type: 'success' });
+                playAudio('calorieBank');
+             } catch (e) { 
+                 console.error("Failed to add onboarding bonus", e); 
+             }
+        }
     };
 
     const updateChecklistItem = useCallback((itemKey: keyof OnboardingChecklistItemStatus) => {
@@ -1003,7 +1017,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
   return (
     <>
-      <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-20 sm:pb-4">
+      <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0">
        <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
@@ -1209,7 +1223,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         
         {/* Global Modals */}
         {showLatestUpdateView && <UpdateNoticeModal show={showLatestUpdateView} onClose={() => setShowLatestUpdateView(false)} onNavigateToCourses={handleNavigateToCourses} />}
-        {showOnboardingRewardModal && <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} />}
+        {showOnboardingRewardModal && <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} goalType={userProfile.goalType} />}
         {dayToPotentiallySave && <UseStreakSaverModal show={!!dayToPotentiallySave} onClose={() => setDayToPotentiallySave(null)} onConfirm={handleUseStreakSaver} daySummary={dayToPotentiallySave} />}
         {showMotivationModal && <MotivationModal show={!!showMotivationModal} onClose={() => setShowMotivationModal(null)} daySummary={showMotivationModal} />}
         {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => setMorningReportData(null)} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} />}

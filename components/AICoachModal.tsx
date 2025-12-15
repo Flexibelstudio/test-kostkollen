@@ -243,17 +243,13 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                     );
                 })}
                 {isLoading && (
-                     <div className="flex items-end gap-2 justify-start">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mb-1 ${colorClass} bg-opacity-50`}>
-                            <span className="text-lg">{CoachEmoji}</span>
+                     <div className="flex items-center gap-3 justify-start p-2 pl-1 animate-fade-in">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${colorClass} animate-pulse`}>
+                            <span className="text-xl">{CoachEmoji}</span>
                         </div>
-                        <div className="p-3 rounded-2xl bg-neutral-light text-neutral-dark rounded-bl-lg">
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 bg-neutral-dark/50 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-neutral-dark/50 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                                <div className="w-2 h-2 bg-neutral-dark/50 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                            </div>
-                        </div>
+                        <span className="text-neutral-500 text-sm font-medium italic animate-pulse">
+                            {personaName} skriver...
+                        </span>
                     </div>
                 )}
                 <div ref={chatEndRef}></div>
