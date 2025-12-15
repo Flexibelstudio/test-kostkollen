@@ -88,6 +88,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
       fat: Math.round((recipe.totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog),
     };
     onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealTypes[recipe.title] as MealType });
+    onClose(); // Close modal immediately after logging
   };
   
   // FIX: Changed 'icon' type from JSX.Element to React.ReactNode to resolve namespace error.

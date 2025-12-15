@@ -149,6 +149,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         fat: Math.round((totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog),
       };
       onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealType });
+      onClose(); // Close modal immediately after logging
     }
   };
 

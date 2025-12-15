@@ -70,6 +70,7 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
         fat: editedInfo.fat || 0,
     };
     onLog(validatedInfo, { saveAsCommon, mealType: selectedMealType }); 
+    onClose(); // Close modal immediately after logging
   };
 
   if (!show || !analysisResult || !imageDataUrl) return null;

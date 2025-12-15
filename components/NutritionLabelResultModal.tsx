@@ -54,6 +54,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
         ...finalNutrients,
         foodItem: `${finalNutrients.foodItem || 'Skannad produkt'} (${amountGrams}g)`
     }, { saveAsCommon: false, mealType: selectedMealType });
+    onClose(); // Close modal immediately after logging
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {

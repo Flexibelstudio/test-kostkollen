@@ -60,6 +60,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
       ...calculatedNutrients,
       foodItem: `${scanResult.name} (${scanResult.brand})`
     }, { saveAsCommon: false, mealType: selectedMealType });
+    onClose(); // Close modal immediately after logging
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
