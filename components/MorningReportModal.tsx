@@ -216,7 +216,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
                         </div>
                     ) : (
                         <p className="text-neutral-dark text-base leading-relaxed animate-fade-in">
-                            {briefingText}
+                            {briefingText || `God morgon ${userProfile.name || 'kompis'}! Hoppas du får en fantastisk dag!`}
                         </p>
                     )}
                     

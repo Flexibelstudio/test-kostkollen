@@ -54,10 +54,15 @@ INSTRUKTIONER:
         temperature: 0.7,
       },
     });
-    return response.text.trim();
+    
+    const text = response.text;
+    if (!text || text.trim().length === 0) {
+        throw new Error("Empty response from AI");
+    }
+    return text.trim();
   } catch (error) {
     console.error("Error generating morning briefing text:", error);
-    return "God morgon! Hoppas du får en bra dag. Vi kör på!";
+    return `God morgon ${name}! Hoppas du får en bra dag. Vi kör på!`;
   }
 };
 
@@ -125,7 +130,8 @@ För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
     
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
@@ -186,7 +192,9 @@ Exempel för "öl": {"foodItem": "Öl, vanlig", "servingDescription": "1 burk (3
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
+
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
@@ -289,7 +297,7 @@ ${contextPrompt}
       },
     });
 
-    return response.text.trim();
+    return response.text?.trim() || "Kunde inte generera svar.";
 
   } catch (error) {
     console.error("Error getting feedback from Coach from Gemini:", error);
@@ -351,7 +359,9 @@ Användarens fråga: "${recipeQuery}"`;
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
+
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
@@ -439,7 +449,9 @@ JSON-struktur för varje recept i 'recipeSuggestions':
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
+
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
@@ -644,7 +656,7 @@ Skriv en kort (1-2 meningar), uppmuntrande och personlig inledning till lektione
         topP: 0.95,
       },
     });
-    return response.text.trim();
+    return response.text?.trim() || "";
   } catch (error) {
     console.error(`Error getting AI personalized intro for hint '${hint}':`, error);
     // Return empty string on failure to allow fallback to static content
@@ -904,7 +916,9 @@ ${bodyCompositionDataPrompt}
             },
         });
 
-        let jsonStr = response.text.trim();
+        let jsonStr = response.text?.trim();
+        if (!jsonStr) throw new Error("No text response");
+
         const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
         const match = jsonStr.match(fenceRegex);
         if (match && match[2]) {
@@ -978,7 +992,7 @@ Skapa en sammanfattning med följande tre rubriker:
                 temperature: 0.5,
             },
         });
-        return response.text.trim();
+        return response.text?.trim() || "";
     } catch (error) {
         console.error("Error getting AI coach summary from Gemini:", error);
         if (error instanceof Error) {
@@ -1022,7 +1036,8 @@ Exempel: {"foodItem": "Ekologisk Mellanmjölk", "calories": 45, "protein": 3.5, 
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
     
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
