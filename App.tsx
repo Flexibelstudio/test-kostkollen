@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'r
 import { db } from './firebase';
 import {
   doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction,
-  where, updateDoc, getDoc, increment
+  where, updateDoc, getDoc, increment, getDocs, query
 } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
@@ -38,7 +38,8 @@ import {
   setWaterLog, fetchWaterLog,
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   addMentalWellbeingLog, listenForFriendRequests,
-  getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate
+  getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate,
+  setPastDaySummary
 } from './services/firestoreService.ts';
 
 // Context
@@ -703,13 +704,126 @@ useEffect(() => {
 // -------------------------------
 
 const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[]): Promise<{ summary: PastDaySummary | null; streakData: { currentStreak: number; lastDateStreakChecked: string | null }; weeklyBank: WeeklyCalorieBank; highestStreak: number; } | void> => {
-  // ... (existing daily summary processing logic, kept intact)
-  return undefined; // placeholder
-}, [currentUser?.uid, userRole, userStatus, setPastDaysSummary]);
+    if (!uid || userRole === 'coach' || userStatus !== 'approved') return;
+
+    const { start: yesterdayStart, end: yesterdayEnd, yKey: yesterdayUID } = yesterdayRangeSE(now);
+    
+    // Check if we already processed exactly yesterday.
+    // However, if the last check was OLDER than yesterday (gap day), we still need to process YESTERDAY to catch up.
+    // The key logic fix is: if lastDateStreakChecked < yesterdayUID, we must run.
+    if (streakData.lastDateStreakChecked === yesterdayUID && !options.force) {
+        return;
+    }
+
+    setIsSummarizingYesterday(true);
+    if (!options.silent) {
+        // Optional: show a mini-toast or just rely on the spinner in MorningReportModal if opened
+    }
+
+    try {
+        // 1. Fetch yesterday's data
+        const [yesterdayMeals, yesterdayWater] = await Promise.all([
+            fetchMealLogsForDate(uid, yesterdayUID),
+            fetchWaterLog(uid, yesterdayUID)
+        ]);
+
+        const mealsToProcess = manualLogOverride || yesterdayMeals;
+
+        // 2. Calculate Stats
+        const totals = mealsToProcess.reduce((acc, meal) => ({
+            calories: acc.calories + meal.nutritionalInfo.calories,
+            protein: acc.protein + meal.nutritionalInfo.protein,
+            carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
+            fat: acc.fat + meal.nutritionalInfo.fat,
+        }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+
+        const minSafe = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+        
+        let goalMet = false;
+        if (totals.calories >= minSafe) {
+             if (userProfile.goalType === 'lose_fat') goalMet = totals.calories <= goals.calorieGoal;
+             else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300);
+             else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
+        }
+
+        // 3. Streak Logic: Did we have ANY logs?
+        const hasLogs = mealsToProcess.length > 0;
+        let newStreak = streakData.currentStreak;
+
+        // IMPORTANT: If we missed days between last check and yesterday, the streak effectively broke *before* yesterday.
+        // But if we logged yesterday, we start a new streak of 1 (or continue if the gap wasn't real).
+        // For simplicity in this catch-up logic:
+        // If yesterday had logs -> Streak becomes 1 (if broken) or continues.
+        // But since we can't easily check day-by-day history for the gap here without complex queries,
+        // we assume if lastDateStreakChecked < (yesterday - 1 day), the streak BROKE.
+        // Then we calculate yesterday's contribution.
+        
+        const dayBeforeYesterday = new Date(yesterdayStart);
+        dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+        const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
+
+        if (streakData.lastDateStreakChecked !== dayBeforeYesterdayUID && streakData.lastDateStreakChecked !== yesterdayUID) {
+             // GAP DETECTED! Reset streak before calculating yesterday.
+             newStreak = 0;
+        }
+
+        if (hasLogs) {
+            newStreak += 1;
+        } else {
+            newStreak = 0;
+        }
+
+        // 4. Create Summary Object
+        const summary: PastDaySummary = {
+            date: yesterdayUID,
+            goalMet,
+            consumedCalories: totals.calories,
+            calorieGoal: goals.calorieGoal,
+            proteinGoalMet: totals.protein >= goals.proteinGoal,
+            consumedProtein: totals.protein,
+            proteinGoal: goals.proteinGoal,
+            consumedCarbohydrates: totals.carbohydrates,
+            carbohydrateGoal: goals.carbohydrateGoal,
+            consumedFat: totals.fat,
+            fatGoal: goals.fatGoal,
+            goalType: userProfile.goalType,
+            waterGoalMet: yesterdayWater >= DEFAULT_WATER_GOAL_ML,
+            streakForThisDay: newStreak,
+            bankedAmount: 0 // Simplification for now
+        };
+
+        // 5. Update Firestore
+        await setPastDaySummary(uid, yesterdayUID, summary);
+        
+        await updateUserDocument(uid, {
+            currentStreak: newStreak,
+            lastDateStreakChecked: yesterdayUID
+        });
+
+        // 6. Update Local State
+        setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
+        setStreakData({ currentStreak: newStreak, lastDateStreakChecked: yesterdayUID });
+        
+        // 7. Show Modal
+        setMorningReportData({ summary, currentStreak: newStreak });
+        playAudio('levelUp'); // Or a simpler chime
+
+        return { summary, streakData: { currentStreak: newStreak, lastDateStreakChecked: yesterdayUID }, weeklyBank, highestStreak };
+
+    } catch (error) {
+        console.error("Error ensuring yesterday processed:", error);
+        setToastNotification({ message: "Kunde inte sammanställa gårdagen.", type: 'error' });
+    } finally {
+        setIsSummarizingYesterday(false);
+    }
+}, [currentUser?.uid, userRole, userStatus, streakData, goals, userProfile, weeklyBank, highestStreak, setPastDaysSummary, setStreakData, setToastNotification]);
 
     useEffect(() => {
-        // ... (existing onWake logic)
-    }, [currentUser?.uid, isInitialDataLoaded, ensureYesterdayProcessed, streakData.lastDateStreakChecked]);
+        if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
+            // Trigger the check immediately when data is ready
+            ensureYesterdayProcessed(currentUser.uid, new Date());
+        }
+    }, [currentUser, isInitialDataLoaded, userStatus, ensureYesterdayProcessed]);
 
   
   useEffect(() => {
