@@ -838,7 +838,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 meals={mealsBySection.breakfast} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
                                 isEditable={isEditableView}
                                 isOpen={activeMealSection === 'breakfast'}
                                 onOpen={() => setActiveMealSection('breakfast')}
@@ -850,7 +850,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 meals={mealsBySection.lunch} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
                                 isEditable={isEditableView}
                                 isOpen={activeMealSection === 'lunch'}
                                 onOpen={() => setActiveMealSection('lunch')}
@@ -862,7 +862,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 meals={mealsBySection.dinner} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
                                 isEditable={isEditableView}
                                 isOpen={activeMealSection === 'dinner'}
                                 onOpen={() => setActiveMealSection('dinner')}
@@ -874,7 +874,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 meals={mealsBySection.snack} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => setMealToSaveAsCommon(meal)}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
                                 isEditable={isEditableView}
                                 isOpen={activeMealSection === 'snack'}
                                 onOpen={() => setActiveMealSection('snack')}
