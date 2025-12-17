@@ -195,6 +195,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [mealToSaveAsCommon, setMealToSaveAsCommon] = useState<LoggedMeal | null>(null);
     const [nutritionLabelResult, setNutritionLabelResult] = useState<NutritionalInfo | null>(null);
     const [defaultMealTypeForModal, setDefaultMealTypeForModal] = useState<MealType | null>(null);
+    
+    // Camera context state
+    const [cameraMode, setCameraMode] = useState<'mealAnalysis' | 'ingredientCapture'>('mealAnalysis');
 
     // UI States
     const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
@@ -628,7 +631,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal);
     const handleSearchText = () => openModalWithType(setShowTextEntryModal);
-    const handleTakePhoto = () => openModalWithType(setShowCameraModal);
+    const handleTakePhoto = () => {
+        setCameraMode('mealAnalysis'); // Set normal meal analysis mode
+        openModalWithType(setShowCameraModal);
+    };
     const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal, 'dinner'); // Recipe usually for dinner
 
     // --- RENDER ---
@@ -973,11 +979,50 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             )}
 
-            {showCameraModal && <CameraModal show={showCameraModal} onClose={() => setShowCameraModal(false)} onImageCapture={async (imgData) => { setShowCameraModal(false); setAnalyzedImageDataUrl(`data:image/jpeg;base64,${imgData}`); setAppStatus('analyzing'); try { const result = await analyzeFoodImage(imgData); setImageAnalysisResult(result); setShowImageAnalysisResultModal(true); } catch (e: any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(err) => alert(err)} />}
+            {showCameraModal && (
+                <CameraModal 
+                    show={showCameraModal} 
+                    onClose={() => setShowCameraModal(false)} 
+                    onImageCapture={async (imgData) => { 
+                        setShowCameraModal(false); 
+                        if (cameraMode === 'mealAnalysis') {
+                            setAnalyzedImageDataUrl(`data:image/jpeg;base64,${imgData}`); 
+                            setAppStatus('analyzing'); 
+                            try { 
+                                const result = await analyzeFoodImage(imgData); 
+                                setImageAnalysisResult(result); 
+                                setShowImageAnalysisResultModal(true); 
+                            } catch (e: any) { 
+                                alert(e.message); 
+                            } finally { 
+                                setAppStatus('idle'); 
+                            }
+                        } else if (cameraMode === 'ingredientCapture') {
+                            setIngredientImages(prev => [...prev, `data:image/jpeg;base64,${imgData}`]);
+                            setShowIngredientCaptureModal(true); 
+                        }
+                    }} 
+                    onCameraError={(err) => alert(err)} 
+                />
+            )}
             {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => setShowTextEntryModal(false)} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
             {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => setShowRecipeChoiceModal(false)} onChooseSearch={() => { setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
             {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => setShowRecipeModal(false)} onSearch={async (q) => { setAppStatus('searching'); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} />}
-            {showIngredientCaptureModal && <IngredientCaptureModal show={showIngredientCaptureModal} onClose={() => setShowIngredientCaptureModal(false)} images={ingredientImages} onRemoveImage={(i) => setIngredientImages(prev => prev.filter((_, idx) => idx !== i))} onUploadImages={async (files) => { for(let i=0; i<files.length; i++) { const base64 = await resizeImageForLog(files[i], 800); setIngredientImages(prev => [...prev, base64]); } }} openCameraModal={() => { setShowIngredientCaptureModal(false); setShowCameraModal(true); /* Logic needs loop back to capture modal */ }} onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} />}
+            {showIngredientCaptureModal && (
+                <IngredientCaptureModal 
+                    show={showIngredientCaptureModal} 
+                    onClose={() => setShowIngredientCaptureModal(false)} 
+                    images={ingredientImages} 
+                    onRemoveImage={(i) => setIngredientImages(prev => prev.filter((_, idx) => idx !== i))} 
+                    onUploadImages={async (files) => { for(let i=0; i<files.length; i++) { const base64 = await resizeImageForLog(files[i], 800); setIngredientImages(prev => [...prev, base64]); } }} 
+                    openCameraModal={() => { 
+                        setCameraMode('ingredientCapture'); // Set correct mode for ingredients
+                        setShowIngredientCaptureModal(false); 
+                        setShowCameraModal(true); 
+                    }} 
+                    onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} 
+                />
+            )}
             {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} />}
             {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setShowCameraModal(true); /* Logic needs redirect to NutritionLabel flow */ }} />}
             {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
