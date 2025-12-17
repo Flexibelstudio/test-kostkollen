@@ -425,16 +425,96 @@ export const App = () => {
         }
     }, [isInitialDataLoaded, currentUser, hasCompletedOnboarding, userRole, userStatus, showUserProfileModal]);
 
-    // Fix for "stuck" lessons in sequential courses (e.g. Maxa Klimakteriet)
+    // Lesson Unlock Logic
     useEffect(() => {
-        if (!currentUser || !isInitialDataLoaded) return;
+        if (!currentUser || !isInitialDataLoaded || userRole === 'coach' || userStatus !== 'approved') return;
 
-        const checkAndFixProgress = async () => {
-            // ... (existing fix logic omitted for brevity, keeping it)
+        const checkAndUnlockLessons = async () => {
+            const batch = writeBatch(db);
+            let hasUnlockedAny = false;
+
+            // 1. Check "Praktisk Viktkontroll" (Streak-based)
+            const pvLessons = courseLessons;
+            let lastStreakAtUnlock = 0;
+            let lastUnlockedIdx = -1;
+
+            for (let i = 0; i < pvLessons.length; i++) {
+                const lessonId = pvLessons[i].id;
+                const prog = userCourseProgress[lessonId];
+                if (prog?.unlockedAt) {
+                    lastUnlockedIdx = i;
+                    lastStreakAtUnlock = prog.streakAtUnlock ?? 0;
+                } else {
+                    // Check if conditions met for unlock
+                    const isFirstLesson = i === 0;
+                    const prevWasUnlocked = isFirstLesson || lastUnlockedIdx === i - 1;
+                    const streakTarget = isFirstLesson ? 0 : lastStreakAtUnlock + 7;
+
+                    if (prevWasUnlocked && streakData.currentStreak >= streakTarget) {
+                        const newProg: UserLessonProgress = {
+                            unlockedAt: Date.now(),
+                            streakAtUnlock: streakData.currentStreak,
+                            completedFocusPoints: [],
+                            isCompleted: false,
+                            reflectionAnswer: ''
+                        };
+                        const ref = doc(db, 'users', currentUser.uid, 'courseProgress', lessonId);
+                        batch.set(ref, newProg, { merge: true });
+                        
+                        // Optimistic local update
+                        setUserCourseProgress(prev => ({ ...prev, [lessonId]: newProg }));
+                        setNewlyUnlockedLesson(pvLessons[i]);
+                        hasUnlockedAny = true;
+                        playAudio('levelUp');
+                        break; // Only unlock one per check cycle
+                    }
+                    break; 
+                }
+            }
+
+            // 2. Check "Maxa Klimakteriet" (Sequential completion-based)
+            const mkLessons = menopauseCourseLessons;
+            for (let i = 0; i < mkLessons.length; i++) {
+                const lessonId = mkLessons[i].id;
+                const prog = userCourseProgress[lessonId];
+                if (prog?.unlockedAt) {
+                    // Already unlocked, continue to check next
+                } else {
+                    const isFirst = i === 0;
+                    const prevIsCompleted = i > 0 && userCourseProgress[mkLessons[i-1].id]?.isCompleted;
+
+                    if (isFirst || prevIsCompleted) {
+                        const newProg: UserLessonProgress = {
+                            unlockedAt: Date.now(),
+                            streakAtUnlock: streakData.currentStreak,
+                            completedFocusPoints: [],
+                            isCompleted: false,
+                            reflectionAnswer: ''
+                        };
+                        const ref = doc(db, 'users', currentUser.uid, 'courseProgress', lessonId);
+                        batch.set(ref, newProg, { merge: true });
+                        
+                        setUserCourseProgress(prev => ({ ...prev, [lessonId]: newProg }));
+                        setNewlyUnlockedLesson(mkLessons[i]);
+                        hasUnlockedAny = true;
+                        playAudio('levelUp');
+                        break;
+                    }
+                    break;
+                }
+            }
+
+            if (hasUnlockedAny) {
+                try {
+                    await batch.commit();
+                } catch (e) {
+                    console.error("Batch unlock failed", e);
+                }
+            }
         };
 
-        checkAndFixProgress();
-    }, [isInitialDataLoaded, currentUser, userCourseProgress, userRole, userStatus, setUserCourseProgress]);
+        checkAndUnlockLessons();
+    }, [isInitialDataLoaded, currentUser, streakData.currentStreak, userCourseProgress, userRole, userStatus]);
 
 
     useEffect(() => {
