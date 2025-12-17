@@ -572,6 +572,7 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
             payment_method_types: ['card'],
             mode: 'subscription',
             customer_email: userEmail,
+            allow_promotion_codes: true, // Lägg till rabattkodsfält
             line_items: [
                 {
                     // VIKTIGT: Detta är ditt riktiga Price ID du skickade med
