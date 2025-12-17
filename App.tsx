@@ -29,7 +29,7 @@ import {
 import {
   DEFAULT_GOALS, LOCAL_STORAGE_KEYS, DEFAULT_WATER_GOAL_ML,
   DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
-  ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY
+  ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, COACH_PERSONAS
 } from './constants.ts';
 
 import { getAIFeedback, getDetailedJourneyAnalysis } from './services/geminiService.ts';
@@ -1129,6 +1129,9 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
   const lessonsForDetail = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
   const currentLesson = lessonsForDetail.find(l => l.id === currentLessonId);
 
+  // Dynamic coach name for onboarding screen
+  const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Din Coach';
+
   return (
     <>
       <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0">
@@ -1343,7 +1346,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => setMorningReportData(null)} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} />}
         {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
         {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} /></div></div>}
-        {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} /></div></div>}
+        {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
         {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />}
         {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
         {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}

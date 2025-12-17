@@ -488,8 +488,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   // Enable save button only if essential fields are filled
   const canSave = isOnboarding 
-    ? (profile.currentWeightKg && profile.heightCm && profile.ageYears && profile.currentWeightKg > 0 && profile.heightCm > 0 && profile.ageYears > 0)
-    : (profile.heightCm && profile.ageYears && profile.heightCm > 0 && profile.ageYears > 0);
+    ? (
+        !!profile.name?.trim() &&
+        !!profile.gender &&
+        !!profile.coachStyle &&
+        (profile.currentWeightKg || 0) > 0 && 
+        (profile.heightCm || 0) > 0 && 
+        (profile.ageYears || 0) > 0
+      )
+    : (
+        (profile.heightCm || 0) > 0 && 
+        (profile.ageYears || 0) > 0
+      );
 
 
   return (
@@ -586,25 +596,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <h3 id="profile-details-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Personliga detaljer</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
                     <div>
-                        <label htmlFor="name" className="block text-base font-medium text-neutral-dark">Ditt namn</label>
-                        <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleProfileChange} className={inputClass} placeholder="T.ex. ditt förnamn" />
+                        <label htmlFor="name" className="block text-base font-medium text-neutral-dark">Ditt namn *</label>
+                        <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleProfileChange} className={inputClass} placeholder="T.ex. ditt förnamn" required />
                     </div>
                     {isOnboarding && (
                         <div>
-                            <label htmlFor="currentWeightKg" className="block text-base font-medium text-neutral-dark">Nuvarande vikt (kg)</label>
+                            <label htmlFor="currentWeightKg" className="block text-base font-medium text-neutral-dark">Nuvarande vikt (kg) *</label>
                             <input type="number" name="currentWeightKg" id="currentWeightKg" value={profile.currentWeightKg == null ? '' : profile.currentWeightKg} onChange={handleProfileChange} className={inputClass} min="1" step="0.1" placeholder="T.ex. 70" required />
                         </div>
                     )}
                     <div>
-                        <label htmlFor="heightCm" className="block text-base font-medium text-neutral-dark">Längd (cm)</label>
+                        <label htmlFor="heightCm" className="block text-base font-medium text-neutral-dark">Längd (cm) *</label>
                         <input type="number" name="heightCm" id="heightCm" value={profile.heightCm == null ? '' : profile.heightCm} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 170" required />
                     </div>
                     <div>
-                        <label htmlFor="ageYears" className="block text-base font-medium text-neutral-dark">Ålder (år)</label>
+                        <label htmlFor="ageYears" className="block text-base font-medium text-neutral-dark">Ålder (år) *</label>
                         <input type="number" name="ageYears" id="ageYears" value={profile.ageYears == null ? '' : profile.ageYears} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 30" required />
                     </div>
                     <div>
-                        <label htmlFor="gender" className="block text-base font-medium text-neutral-dark">Kön</label>
+                        <label htmlFor="gender" className="block text-base font-medium text-neutral-dark">Kön *</label>
                         <select name="gender" id="gender" value={profile.gender} onChange={handleProfileChange} className={selectClass} required>
                             <option value="female">Kvinna</option>
                             <option value="male">Man</option>
@@ -614,7 +624,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </section>
             
             <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av</h4>
+                <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
                         const p = COACH_PERSONAS[style];
