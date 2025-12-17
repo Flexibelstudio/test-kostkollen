@@ -85,10 +85,19 @@ const formatChange = (change: number | undefined): string => {
   return `${sign}${change.toFixed(1).replace('.', ',')}`;
 };
 
-// Helper to remove undefined fields from objects before saving to Firestore
+/**
+ * Rensar bort undefined-fält från objekt innan de sparas i Firestore.
+ * FIX: Ignorerar Firestore interna FieldValue-objekt (som increment) 
+ * så att de inte "tvättas" sönder till vanliga text-objekt i databasen.
+ */
 const cleanFirestoreData = (data: any) => {
   if (typeof data !== 'object' || data === null) return data;
   
+  // Om objektet är ett Firestore-kommando (har interna fält som _methodName eller Cc), låt det vara.
+  if (data._methodName || data.hasOwnProperty('Cc')) {
+    return data;
+  }
+
   if (Array.isArray(data)) {
     return data.map(item => cleanFirestoreData(item));
   }
@@ -256,6 +265,16 @@ export async function fetchInitialAppData(userId: string) {
     }
 
     const userDocData = userDocSnap.data() as FirestoreUserDocument;
+
+    // --- SJÄLVLÄKNING AV SPARPOT ---
+    // Om bankedCalories är ett objekt (pga buggen) istället för en siffra, återställ det.
+    if (userDocData.weeklyBank && typeof userDocData.weeklyBank.bankedCalories !== 'number') {
+      const corruptValue: any = userDocData.weeklyBank.bankedCalories;
+      // Försök hämta värdet från Cc-fältet som Firestore-increment skapar internt, annars 0.
+      const healedValue = (corruptValue && typeof corruptValue.Cc === 'number') ? corruptValue.Cc : 0;
+      userDocData.weeklyBank.bankedCalories = healedValue;
+      console.warn(`FirestoreService: Korrupt sparpott upptäckt för ${userId}. Återställde till ${healedValue}.`);
+    }
 
     const profile: UserProfileData = {
       name: userDocData.displayName,
