@@ -746,6 +746,16 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
              else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
         }
 
+        // --- NY LOGIK FÖR SPARPOTT ---
+        // Spara mellanskillnaden om målet är viktminskning/balans, intaget >= minSafe och intaget < målet
+        let bankedAmount = 0;
+        if (userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') {
+            if (totals.calories >= minSafe && totals.calories < goals.calorieGoal) {
+                bankedAmount = Math.round(goals.calorieGoal - totals.calories);
+            }
+        }
+        // Vid muskelökning sparas inget (0)
+
         // 3. Streak Logic: Did we have ANY logs?
         const hasLogs = mealsToProcess.length > 0;
         let newStreak = streakData.currentStreak;
@@ -789,20 +799,36 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             goalType: userProfile.goalType,
             waterGoalMet: yesterdayWater >= DEFAULT_WATER_GOAL_ML,
             streakForThisDay: newStreak,
-            bankedAmount: 0 // Simplification for now
+            bankedAmount: bankedAmount // Sätt det beräknade värdet här
         };
 
         // 5. Update Firestore
         await setPastDaySummary(uid, yesterdayUID, summary);
         
-        await updateUserDocument(uid, {
+        // Uppdatera användardokumentet
+        const userUpdates: any = {
             currentStreak: newStreak,
             lastDateStreakChecked: yesterdayUID
-        });
+        };
+
+        // Om vi har sparat kalorier, öka sparpotten i DB
+        if (bankedAmount > 0) {
+            userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
+        }
+
+        await updateUserDocument(uid, userUpdates);
 
         // 6. Update Local State
         setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
         setStreakData({ currentStreak: newStreak, lastDateStreakChecked: yesterdayUID });
+        
+        // Uppdatera lokal sparpott om vi sparat något
+        if (bankedAmount > 0) {
+            setWeeklyBank(prev => ({
+                ...prev,
+                bankedCalories: prev.bankedCalories + bankedAmount
+            }));
+        }
         
         // 7. Show Modal
         setMorningReportData({ summary, currentStreak: newStreak });
