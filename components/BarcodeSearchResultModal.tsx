@@ -18,6 +18,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
   const [unit, setUnit] = useState<'g' | 'servings'>('g');
   const [calculatedNutrients, setCalculatedNutrients] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
+  const [saveAsCommon, setSaveAsCommon] = useState<boolean>(false);
 
   useEffect(() => {
     if (scanResult) {
@@ -51,6 +52,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
           setUnit('g');
           setAmount('100');
       }
+      setSaveAsCommon(false);
   }, [scanResult]);
 
   const handleLog = () => {
@@ -59,7 +61,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
     onLog({
       ...calculatedNutrients,
       foodItem: `${scanResult.name} (${scanResult.brand})`
-    }, { saveAsCommon: false, mealType: selectedMealType });
+    }, { saveAsCommon: saveAsCommon, mealType: selectedMealType });
     onClose(); // Close modal immediately after logging
   };
 
@@ -132,9 +134,23 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
                   <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-orange-500" /> Fett: {calculatedNutrients.fat} g</div>
               </div>
           </div>
+          
+          <div className="mt-4 pt-3 border-t border-neutral-light/60">
+            <label htmlFor="saveAsCommonBarcode" className="flex items-center text-base text-neutral-dark cursor-pointer">
+              <input
+                type="checkbox"
+                id="saveAsCommonBarcode"
+                checked={saveAsCommon}
+                onChange={(e) => setSaveAsCommon(e.target.checked)}
+                className="h-5 w-5 text-primary border-neutral-light rounded focus:ring-primary mr-2.5"
+              />
+              <span className="mr-1.5" role="img" aria-hidden="true">📌</span>
+              Spara som vanligt val
+            </label>
+          </div>
         </div>
         
-         <div className="mt-8 flex flex-col sm:flex-row sm:justify-end sm:space-x-3.5 space-y-3 sm:space-y-0">
+         <div className="mt-6 flex flex-col sm:flex-row sm:justify-end sm:space-x-3.5 space-y-3 sm:space-y-0">
           <button
             type="button"
             onClick={onClose}
