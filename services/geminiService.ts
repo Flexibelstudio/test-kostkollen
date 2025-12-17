@@ -1,6 +1,7 @@
-import { GoogleGenAI, GenerateContentResponse, Content } from "@google/genai";
-import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel } from '../types.ts';
-import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS } from '../constants.ts';
+
+import { GoogleGenAI, GenerateContentResponse, Content, Modality } from "@google/genai";
+import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle } from '../types.ts';
+import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
 
 // Ensure API_KEY is available.
 if (!process.env.API_KEY) {
@@ -8,6 +9,89 @@ if (!process.env.API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "MISSING_API_KEY" });
+
+export interface AIDataForMorningBriefing {
+  userProfile: UserProfileData;
+  summary: PastDaySummary;
+  currentStreak: number;
+}
+
+export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
+  const { userProfile, summary, currentStreak } = data;
+  const style = userProfile.coachStyle || 'balanced';
+  const persona = COACH_PERSONAS[style];
+  const name = userProfile.name || 'du';
+
+  const prompt = `Du är en hälsocoach med följande persona:
+Namn: ${persona.label}
+Tonläge: ${persona.promptTone}
+
+DEFINITIONER:
+- Streak: Att logga mat. Hålls levande oavsett kalorimängd. Det är beviset på vanan att vara konsekvent.
+- Mål: Att träffa rätt kalorimängd. Detta är dagens prestation.
+
+Din uppgift är att ge en kort "morgonbriefing" baserat på gårdagens resultat.
+Användaren heter ${name}.
+
+SITUATION IGÅR:
+- Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
+- Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
+- Streak-status: ${currentStreak > 0 ? `AKTIV (${currentStreak} dagar i rad). Användaren loggade igår!` : 'BRUTEN (0 dagar). Användaren loggade inte igår.'}
+
+INSTRUKTIONER:
+1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
+2. VIKTIGT: Om 'Mål uppfyllt' är NEJ men 'Streak-status' är AKTIV: Beröm användaren tydligt för att hen ändå loggade och höll sin streak vid liv (det är det viktigaste beteendet!). Döm inte det missade målet, utan peppa mjukt att sikta på det idag istället.
+3. Om både mål och streak är positiva, ge stort beröm enligt din persona.
+4. Om streak är bruten, var uppmuntrande kring nystart idag.
+5. Avsluta med en kort uppmaning för idag.
+6. Svara på SVENSKA.`;
+
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL_NAME_TEXT,
+      contents: prompt,
+      config: {
+        temperature: 0.7,
+      },
+    });
+    
+    const text = response.text;
+    if (!text || text.trim().length === 0) {
+        throw new Error("Empty response from AI");
+    }
+    return text.trim();
+  } catch (error) {
+    console.error("Error generating morning briefing text:", error);
+    return `God morgon ${name}! Hoppas du får en bra dag. Vi kör på!`;
+  }
+};
+
+export const getMorningBriefingAudio = async (text: string, style: CoachStyle): Promise<string | null> => {
+  const persona = COACH_PERSONAS[style];
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: persona.voice },
+            },
+        },
+      },
+    });
+
+    // The response contains base64 encoded audio in candidates[0].content.parts[0].inlineData.data
+    const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    return audioData || null;
+
+  } catch (error) {
+    console.error("Error generating morning briefing audio:", error);
+    return null;
+  }
+};
 
 export const analyzeFoodImage = async (base64ImageData: string): Promise<NutritionalInfo> => {
   const imagePart = {
@@ -46,7 +130,8 @@ För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
     
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
@@ -107,7 +192,9 @@ Exempel för "öl": {"foodItem": "Öl, vanlig", "servingDescription": "1 burk (3
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
+
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
@@ -145,6 +232,9 @@ Exempel för "öl": {"foodItem": "Öl, vanlig", "servingDescription": "1 burk (3
 
 export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> => {
   const { userProfile, userGoals, userName, mentalWellbeing, isOnboarding } = data;
+  
+  const style = userProfile.coachStyle || 'balanced';
+  const persona = COACH_PERSONAS[style];
     
   const wellbeingDataString = `
 - Stressnivå: ${mentalWellbeing.stressLevel || 'Ej angivet'} (1=hög, 5=låg)
@@ -156,11 +246,12 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
     ? `**Din Uppgift (Onboarding):**
 1.  Hälsa användaren välkommen med hens namn (använd fältet "Namn"). Använd en vänlig och peppande ton.
 2.  Bekräfta deras startpunkt (vikt, längd, ålder) och säg att det är en utmärkt grund för att skräddarsy rekommendationer.
-3.  Kommentera deras nuvarande välbefinnande på ett positivt och stöttande sätt, och relatera det till deras resa. Exempel: "Jag ser att du känner dig energifylld, vilket är en fantastisk startpunkt!" eller "Jag ser att du känner dig stressad. Det är starkt av dig att ta tag i detta nu; appen kommer hjälpa dig hitta en balans."
-4.  Analysera deras mål. Titta på 'Önskad fettförändring' och 'Önskad muskelförändring' för att förstå deras primära mål (minska fett, bygga muskler, eller behålla).
-5.  Kommentera målet och måldatumet. Om målet är fettminskning (negativ 'Önskad fettförändring') och ett måldatum är satt, beräkna den nödvändiga viktnedgången per vecka och bedöm om tidsplanen är realistisk. En säker och hållbar takt är ca 0.5-1% av kroppsvikten per vecka. Om tidsplanen är väldigt ambitiös, föreslå på ett positivt sätt att en något längre tidsplan kan vara mer hållbar, men att det är användaren som bestämmer. Om målet är realistiskt, beröm dem för en bra plan. Om målet är att bygga muskler eller behålla, ge en uppmuntrande kommentar om det.
-6.  Inkludera en kommentar om proteinintaget och varför det är viktigt för deras mål. Använd det rekommenderade proteinintaget och relatera det till deras kroppsvikt (ca 1.5-2.0g per kg är vanligt).
-7.  Avsluta med en uppmuntrande fras och en fråga om de är redo att logga sin första måltid.`
+3.  **VIKTIGT OM KALORIER:** Om användaren har ett väldigt högt BMI (fetma), var uppmärksam på att standardformler för kaloribehov kan överskatta behovet. Om de beräknade målen verkar höga, nämn ödmjukt att formler bara är gissningar och att det kan vara klokt att justera nedåt manuellt om vikten står stilla. Uppmuntra till att känna efter mättnad.
+4.  Kommentera deras nuvarande välbefinnande på ett positivt och stöttande sätt, och relatera det till deras resa. Exempel: "Jag ser att du känner dig energifylld, vilket är en fantastisk startpunkt!" eller "Jag ser att du känner dig stressad. Det är starkt av dig att ta tag i detta nu; appen kommer hjälpa dig hitta en balans."
+5.  Analysera deras mål. Titta på 'Önskad fettförändring' och 'Önskad muskelförändring' för att förstå deras primära mål (minska fett, bygga muskler, eller behålla).
+6.  Kommentera målet och måldatumet. Om målet är fettminskning (negativ 'Önskad fettförändring') och ett måldatum är satt, beräkna den nödvändiga viktnedgången per vecka och bedöm om tidsplanen är realistisk. En säker och hållbar takt är ca 0.5-1% av kroppsvikten per vecka. Om tidsplanen är väldigt ambitiös, föreslå på ett positivt sätt att en något längre tidsplan kan vara mer hållbar, men att det är användaren som bestämmer. Om målet är realistiskt, beröm dem för en bra plan. Om målet är att bygga muskler eller behålla, ge en uppmuntrande kommentar om det.
+7.  Inkludera en kommentar om proteinintaget och varför det är viktigt för deras mål. Använd det rekommenderade proteinintaget och relatera det till deras kroppsvikt (ca 1.5-2.0g per kg är vanligt).
+8.  Avsluta med en uppmuntrande fras och en fråga om de är redo att logga sin första måltid.`
     : `**Din Uppgift (Mål uppdaterat):**
 1.  Börja med en positiv bekräftelse på att målet är uppdaterat, använd användarens namn. Exempel: "Snyggt, ${userName}! Ditt mål är nu uppdaterat."
 2.  Kommentera deras nuvarande välbefinnande i relation till det nya målet. Exempel: "Jag ser att du känner dig motiverad, det är perfekt timing för att sätta ett nytt mål!" eller "Jag ser att du rapporterar låg energi. Det nya målet kan bli en jättebra morot för att hitta ny kraft."
@@ -168,7 +259,9 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
 4.  Ge ett konkret, litet tips som är kopplat till det nya målet. Exempel (vid muskelökning): "Kom ihåg att protein är extra viktigt nu när du vill bygga muskler. Sikta på att få i dig lite protein vid varje måltid." Exempel (vid fettminskning): "Vatten och fibrer från grönsaker kommer bli dina bästa vänner för att hålla dig mätt och nöjd."
 5.  Avsluta med en kort, peppande fras. Exempel: "Det här klarar du galant!" eller "Jag finns här och stöttar dig hela vägen."`;
 
-  const fullPrompt = `Du är Flexibot, en hjälpsam och kunnig AI-coach från Kostloggen.se. Ditt tonläge är uppmuntrande, positivt och informativt. Du ger alltid förslag, aldrig order. Ge feedback på SVENSKA.
+  const fullPrompt = `Du är ${persona.label}, en AI-coach från Kostloggen.se.
+Din persona: ${persona.promptTone}
+Ge feedback på SVENSKA.
 
 **Användarens Status:**
 - Namn: ${userName || 'Användare'}
@@ -184,7 +277,14 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
 
 ${contextPrompt}
 
-**VIKTIGT:** Ditt svar ska vara en enda sammanhängande text, men uppdelad i flera korta stycken för att göra det luftigt och lättläst. Använd en dubbel nyrad (som \\n\\n) mellan varje stycke. Kombinera de olika delarna till ett flytande och naturligt meddelande. Undvik att lista punkterna, integrera dem i ett meddelande. Använd emojis för att förstärka den positiva och coachande känslan.`;
+**VIKTIGA REGLER:**
+1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
+2.  Använd din specifika ton (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
+
+**TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
+- **Profil & Mål:** ${JSON.stringify(userProfile)}
+- **Streak:** ${data.currentStreak} dagar
+`;
   
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
@@ -197,17 +297,17 @@ ${contextPrompt}
       },
     });
 
-    return response.text.trim();
+    return response.text?.trim() || "Kunde inte generera svar.";
 
   } catch (error) {
     console.error("Error getting feedback from Coach from Gemini:", error);
     if (error instanceof Error) {
       if (error.message.includes('500') || error.message.toLowerCase().includes('internal')) {
-        throw new Error("Coachen har stött på ett tekniskt problem och kan inte svara just nu. Vänligen försök igen om en liten stund.");
+        throw new Error(`${persona.label} har stött på ett tekniskt problem och kan inte svara just nu. Vänligen försök igen om en liten stund.`);
       }
-      throw new Error(`Kunde inte hämta feedback från Coachen: ${error.message}`);
+      throw new Error(`Kunde inte hämta feedback från ${persona.label}: ${error.message}`);
     }
-    throw new Error("Kunde inte hämta feedback från Coachen på grund av ett okänt fel.");
+    throw new Error(`Kunde inte hämta feedback från ${persona.label} på grund av ett okänt fel.`);
   }
 };
 
@@ -259,7 +359,9 @@ Användarens fråga: "${recipeQuery}"`;
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
+
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
@@ -347,7 +449,9 @@ JSON-struktur för varje recept i 'recipeSuggestions':
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
+
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
@@ -412,12 +516,18 @@ export const getAICoachResponseStream = async (
     proteinGoalMet: s.proteinGoalMet,
   })).slice(0, 30);
 
-  const systemInstruction = `Du är Flexibot, en vänlig, kunnig och konkret hälso-coach i appen Kostloggen. Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att analysera användarens loggade data och svara tydligt och personligt. Svara alltid på SVENSKA.
+  const style = userProfile.coachStyle || 'balanced';
+  const persona = COACH_PERSONAS[style];
+
+  const systemInstruction = `Du är ${persona.label}, en AI-coach i appen Kostloggen.
+Din persona är: ${persona.promptTone}.
+
+Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att analysera användarens loggade data och svara tydligt och personligt enligt din persona. Svara alltid på SVENSKA.
 
 **VIKTIGA REGLER FÖR TEXT-SVAR:**
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
-2.  Använd en vänlig och motiverande ton. Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
-3.  **Avsluta ALLTID ditt text-svar** med exakt denna fras: "Säg till om du vill ha ett utförligare svar."
+2.  Anpassa din ton efter din persona (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
+3.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
 
 **REGLER FÖR GRAF-SVAR:**
 1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.
@@ -546,7 +656,7 @@ Skriv en kort (1-2 meningar), uppmuntrande och personlig inledning till lektione
         topP: 0.95,
       },
     });
-    return response.text.trim();
+    return response.text?.trim() || "";
   } catch (error) {
     console.error(`Error getting AI personalized intro for hint '${hint}':`, error);
     // Return empty string on failure to allow fallback to static content
@@ -605,6 +715,7 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
 2. Ställ försiktigt två frågor för att uppmuntra till självreflektion:
    - Fråga om loggningens noggrannhet (t.ex. "Ibland är det lätt att glömma småsaker som olja eller såser. Känner du att loggen fångar upp precis allt?").
    - Fråga om aktivitetsnivån fortfarande stämmer (t.ex. "En annan vanlig anledning är att aktivitetsnivån ändrats. Känns din inställning '${userProfile.activityLevel}' fortfarande rätt? Du kan enkelt justera den under 'Min Resa' -> 'Mål'.").
+   - **Tillägg för högt BMI:** Om användaren har högt BMI, föreslå att de manuellt sänker sitt kalorimål något om de står stilla trots att de följer det beräknade målet. Standardformler kan överskatta behovet.
 3. Avsluta med att uppmuntra dem att justera om det behövs och att du finns där för att hjälpa.
 `;
                     }
@@ -722,8 +833,14 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     // Updated Course Prompt Logic: Assume access to all courses.
     const kursFeedbackPrompt = `Användaren har tillgång till kurserna 'Praktisk Viktkontroll' och 'Maxa Klimakteriet'. Koppla dina insikter till relevanta koncept från 'Praktisk Viktkontroll'. Om användaren t.ex. har en platå, kan du referera till Lektion 7 ('Bryt en platå'). Om de är inkonsekventa, nämn Lektion 4 ('Hantera utmaningar').`;
 
+    const style = userProfile.coachStyle || 'balanced';
+    const persona = COACH_PERSONAS[style];
+
     const prompt = `
-Du är den personliga coachen i Kostloggen – inte en extern coach. Skriv återkopplingen som att det är du som vägleder användaren. Undvik formuleringar som "prata med din coach", "ta upp det med någon" eller liknande – du ÄR den hjälpen.
+Du är ${persona.label}, en personlig coach i appen Kostloggen.
+Ditt tonläge: ${persona.promptTone}
+
+Du är en INTE en extern coach, du ÄR ${persona.label}. Skriv återkopplingen som att det är du som vägleder användaren. Undvik formuleringar som "prata med din coach" - du ÄR coachen.
 ${plateauPromptPart}
 Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med följande exakta struktur:
 {
@@ -799,7 +916,9 @@ ${bodyCompositionDataPrompt}
             },
         });
 
-        let jsonStr = response.text.trim();
+        let jsonStr = response.text?.trim();
+        if (!jsonStr) throw new Error("No text response");
+
         const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
         const match = jsonStr.match(fenceRegex);
         if (match && match[2]) {
@@ -844,7 +963,7 @@ export const getAICoachSummaryForMember = async (data: AIDataForCoachSummary): P
     const weightLogText = last5WeightLogs.map(w => `- ${new Date(w.loggedAt).toLocaleDateString('sv-SE')}: ${w.weightKg.toFixed(1)} kg`).join('\n');
 
     const prompt = `
-Du är en AI-assistent för en hälsocoach. Ge en kort, koncis och insiktsfull sammanfattning (max 120 ord) om medlemmen baserat på följande data. Formatera ditt svar med Markdown. Använd fetstil för rubriker och punktlistor under varje rubrik.
+Du är en AI-assistent för en hälsocoach. Ge en kort, koncis och insiktsfull sammanfattning (max 120 ord) om medlemmens baserat på följande data. Formatera ditt svar med Markdown. Använd fetstil för rubriker och punktlistor under varje rubrik.
 
 **Medlemsdata:**
 - Namn: ${memberName}
@@ -873,7 +992,7 @@ Skapa en sammanfattning med följande tre rubriker:
                 temperature: 0.5,
             },
         });
-        return response.text.trim();
+        return response.text?.trim() || "";
     } catch (error) {
         console.error("Error getting AI coach summary from Gemini:", error);
         if (error instanceof Error) {
@@ -917,7 +1036,8 @@ Exempel: {"foodItem": "Ekologisk Mellanmjölk", "calories": 45, "protein": 3.5, 
       },
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.text?.trim();
+    if (!jsonStr) throw new Error("No text response");
     
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);

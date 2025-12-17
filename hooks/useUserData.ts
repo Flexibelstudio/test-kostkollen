@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { 
     UserProfileData, GoalSettings, LoggedMeal, PastDaysSummaryCollection, 
@@ -12,6 +13,7 @@ import {
     fetchInitialAppData, ensureUserProfileInFirestore 
 } from '../services/firestoreService';
 import { getWeekInfo } from '../utils/dateUtils';
+import { auth } from '../firebase'; // Import auth to get current user details
 
 export interface UseUserDataReturn {
     // State
@@ -49,8 +51,8 @@ export interface UseUserDataReturn {
     setHasCompletedOnboarding: React.Dispatch<React.SetStateAction<boolean>>;
     userRole: UserRole | null;
     setUserRole: React.Dispatch<React.SetStateAction<UserRole | null>>;
-    userStatus: 'pending' | 'approved' | null;
-    setUserStatus: React.Dispatch<React.SetStateAction<'pending' | 'approved' | null>>;
+    userStatus: 'pending' | 'approved' | 'archived' | null;
+    setUserStatus: React.Dispatch<React.SetStateAction<'pending' | 'approved' | 'archived' | null>>;
     journeyAnalysisFeedback: AIStructuredFeedbackResponse | null;
     setJourneyAnalysisFeedback: React.Dispatch<React.SetStateAction<AIStructuredFeedbackResponse | null>>;
     mentalWellbeingLogs: MentalWellbeingLog[];
@@ -91,7 +93,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
     const [userCourseProgress, setUserCourseProgress] = useState<UserCourseProgress>({});
     const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
     const [userRole, setUserRole] = useState<UserRole | null>(null);
-    const [userStatus, setUserStatus] = useState<'pending' | 'approved' | null>(null);
+    const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'archived' | null>(null);
     const [journeyAnalysisFeedback, setJourneyAnalysisFeedback] = useState<AIStructuredFeedbackResponse | null>(null);
     const [mentalWellbeingLogs, setMentalWellbeingLogs] = useState<MentalWellbeingLog[]>([]);
 
@@ -126,12 +128,11 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
 
         setIsDataLoading(true);
         try {
-            // Ensure user document exists first
-            // We need a mock user object here just for the UID if we don't have the full object
-            // But in the context of this hook, userId is enough to fetch.
-            // ensureUserProfileInFirestore usually takes a User object, but for existing users fetching is safe.
-            // Ideally, ensureUserProfileInFirestore is called once on auth. 
-            // Here we assume the user exists or handle null.
+            // CRITICAL FIX: Ensure the user document exists in Firestore.
+            // If it's a new user (Auth created but no Firestore doc), this will create it with status: 'pending'.
+            if (auth.currentUser) {
+                await ensureUserProfileInFirestore(auth.currentUser);
+            }
             
             const appData = await fetchInitialAppData(userId);
 
@@ -160,7 +161,8 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
                 
                 setIsInitialDataLoaded(true);
             } else {
-                console.error("fetchInitialAppData returned null");
+                console.error("fetchInitialAppData returned null despite ensureUserProfileInFirestore");
+                // If it's still null, it might be a network lag, but we reset to be safe
                 resetUserData();
             }
         } catch (error) {

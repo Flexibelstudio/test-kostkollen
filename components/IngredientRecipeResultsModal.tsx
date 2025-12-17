@@ -1,19 +1,20 @@
 
-
 import React, { useState, useEffect } from 'react';
-import { RecipeSuggestion, NutritionalInfo } from '../types';
+import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
 import { XMarkIcon, SparklesIcon, FireIcon, ProteinIcon, LeafIcon, CheckIcon as LogIcon, InformationCircleIcon } from './icons';
 import { playAudio } from '../services/audioService';
+import MealTypeSelector from './MealTypeSelector';
 
 interface IngredientRecipeResultsModalProps {
   show: boolean;
   onClose: () => void;
   identifiedIngredients: string[];
   recipeSuggestions: RecipeSuggestion[];
-  onLogRecipe: (nutritionalInfo: NutritionalInfo) => void;
+  onLogRecipe: (nutritionalInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void;
   isLoading: boolean;
   error: string | null;
   isLoggingDisabled?: boolean;
+  defaultMealType?: MealType | null;
 }
 
 const parseServings = (servingsStr: string | undefined): number => {
@@ -35,19 +36,24 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
   isLoading,
   error,
   isLoggingDisabled = false,
+  defaultMealType = null,
 }) => {
   const [portionsToLog, setPortionsToLog] = useState<{ [recipeTitle: string]: string }>({});
+  const [selectedMealTypes, setSelectedMealTypes] = useState<{ [recipeTitle: string]: MealType | null }>({});
 
   useEffect(() => {
-    // Initialize portion state when new recipes are loaded to fix the disabled button bug.
+    // Initialize portion state when new recipes are loaded
     if (recipeSuggestions) {
       const initialPortions: { [key: string]: string } = {};
+      const initialTypes: { [key: string]: MealType | null } = {};
       recipeSuggestions.forEach(recipe => {
         initialPortions[recipe.title] = "1";
+        initialTypes[recipe.title] = defaultMealType; 
       });
       setPortionsToLog(initialPortions);
+      setSelectedMealTypes(initialTypes);
     }
-  }, [recipeSuggestions]);
+  }, [recipeSuggestions, defaultMealType]);
 
 
   if (!show) return null;
@@ -59,7 +65,12 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
     }
   };
 
+  const handleMealTypeChange = (recipeTitle: string, type: MealType) => {
+      setSelectedMealTypes(prev => ({ ...prev, [recipeTitle]: type }));
+  };
+
   const handleLog = (recipe: RecipeSuggestion) => {
+    if (!selectedMealTypes[recipe.title]) return; // Should be disabled, safe guard
     playAudio('uiClick');
     const recipeBaseServings = parseServings(recipe.servings);
     const numPortionsToLog = parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") || 1;
@@ -76,7 +87,8 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
       carbohydrates: Math.round((recipe.totalNutritionalInfo.carbohydrates / recipeBaseServings) * numPortionsToLog),
       fat: Math.round((recipe.totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog),
     };
-    onLogRecipe(loggedNutritionalInfo);
+    onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealTypes[recipe.title] as MealType });
+    onClose(); // Close modal immediately after logging
   };
   
   // FIX: Changed 'icon' type from JSX.Element to React.ReactNode to resolve namespace error.
@@ -181,22 +193,34 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                             </div>
                           </div>
                         )}
-                        <div className="pt-2">
-                          <label htmlFor={`portions-${recipe.title}`} className="block text-sm font-medium text-neutral-dark mb-0.5">Antal portioner att logga:</label>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            id={`portions-${recipe.title}`}
-                            value={portionsToLog[recipe.title] || "1"}
-                            onChange={(e) => handlePortionsChange(recipe.title, e.target.value)}
-                            className={`${inputClass} w-full sm:w-32 py-1.5 text-sm`}
-                            placeholder="1"
-                            disabled={isLoggingDisabled}
-                          />
+                        
+                        <div className="pt-2 space-y-3">
+                            <div>
+                                <label className="block text-sm font-medium text-neutral-dark mb-1">Måltidstyp</label>
+                                <MealTypeSelector 
+                                    selectedType={selectedMealTypes[recipe.title] || defaultMealType} 
+                                    onSelect={(type) => handleMealTypeChange(recipe.title, type)} 
+                                />
+                                {!selectedMealTypes[recipe.title] && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
+                            </div>
+                            <div>
+                                <label htmlFor={`portions-${recipe.title}`} className="block text-sm font-medium text-neutral-dark mb-0.5">Antal portioner att logga:</label>
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    id={`portions-${recipe.title}`}
+                                    value={portionsToLog[recipe.title] || "1"}
+                                    onChange={(e) => handlePortionsChange(recipe.title, e.target.value)}
+                                    className={`${inputClass} w-full sm:w-32 py-1.5 text-sm`}
+                                    placeholder="1"
+                                    disabled={isLoggingDisabled}
+                                />
+                            </div>
                         </div>
+
                         <button
                           onClick={() => handleLog(recipe)}
-                          disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0}
+                          disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0 || !selectedMealTypes[recipe.title]}
                           className="w-full mt-2 px-4 py-2 text-sm font-medium text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
                         >
                           <LogIcon className="w-4 h-4 mr-2" /> Logga Recept

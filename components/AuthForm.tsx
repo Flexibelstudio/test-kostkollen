@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail
 } from "@firebase/auth"; 
+import { ensureUserProfileInFirestore } from "../services/firestoreService";
 
 import { UserCircleIcon, LockClosedIcon, ExclamationTriangleIcon, EyeIcon, EyeSlashIcon, KeyIcon, CheckCircleIcon, XMarkIcon } from './icons'; 
 
@@ -21,7 +22,7 @@ const TermsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
         aria-labelledby="terms-modal-title"
       >
         <div
-          className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-2xl animate-scale-in max-h-[85vh] flex flex-col"
+          className="bg-white p-6 sm:p-8 rounded-3xl shadow-soft-xl w-full max-w-2xl animate-scale-in max-h-[85vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-4 flex-shrink-0">
@@ -33,46 +34,46 @@ const TermsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
               className="p-1.5 text-neutral hover:text-red-500 rounded-full hover:bg-red-100"
               aria-label="Stäng villkor"
             >
-              <XMarkIcon className="w-5 h-5" />
+              <XMarkIcon className="w-6 h-6" />
             </button>
           </div>
-          <div className="overflow-y-auto custom-scrollbar pr-2 space-y-2">
-            <p>
+          <div className="overflow-y-auto custom-scrollbar pr-2 space-y-3 pb-4">
+            <p className="text-base text-neutral-dark leading-relaxed">
               För att använda Kostloggen behöver du godkänna följande villkor. Tjänsten är framtagen för att hjälpa dig förstå dina matvanor, stötta din hälsoutveckling och skapa hållbara rutiner. Din integritet är viktig för oss och vi hanterar dina uppgifter med största omsorg.
             </p>
-            <h4 className="font-semibold text-neutral-dark pt-3">1. Ditt ansvar</h4>
-            <p className="text-sm text-neutral-dark">
+            <h4 className="font-bold text-neutral-dark pt-3 text-lg">1. Ditt ansvar</h4>
+            <p className="text-sm text-neutral leading-relaxed">
               Du ansvarar för att uppgifterna du registrerar i Kostloggen är sanningsenliga och relevanta.
             </p>
-            <p className="text-sm text-neutral-dark">
+            <p className="text-sm text-neutral leading-relaxed">
               Tjänsten är ett stödverktyg och ersätter inte medicinsk rådgivning. Vid sjukdom eller annan behandlingskrävande problematik bör du alltid rådfråga vårdpersonal innan du gör större förändringar i kost eller livsstil.
             </p>
-            <h4 className="font-semibold text-neutral-dark pt-3">2. Hantering av personuppgifter och datalagring</h4>
-            <p className="text-sm text-neutral-dark">
+            <h4 className="font-bold text-neutral-dark pt-3 text-lg">2. Hantering av personuppgifter och datalagring</h4>
+            <p className="text-sm text-neutral leading-relaxed">
               Dina inmatade uppgifter sparas i molnet via Google Firebase. Endast behörig personal på Flexibel Hälsostudio har tillgång till uppgifterna och endast i syfte att stödja dig i ditt hälsoprogram.
             </p>
-            <p className="text-sm text-neutral-dark">
+            <p className="text-sm text-neutral leading-relaxed">
               Vi följer gällande dataskyddsförordning (GDPR). Dina uppgifter behandlas konfidentiellt och delas aldrig med tredje part utan ditt uttryckliga samtycke.
             </p>
-            <p className="text-sm text-neutral-dark">
+            <p className="text-sm text-neutral leading-relaxed">
               Du har rätt att när som helst begära ut, rätta eller radera dina uppgifter. Kontakta oss om du önskar detta.
             </p>
-            <h4 className="font-semibold text-neutral-dark pt-3">3. Ansvarsbegränsning</h4>
-            <p className="text-sm text-neutral-dark">
+            <h4 className="font-bold text-neutral-dark pt-3 text-lg">3. Ansvarsbegränsning</h4>
+            <p className="text-sm text-neutral leading-relaxed">
               Kostloggen är ett hjälpmedel för att öka medvetenhet kring kostvanor, men garanterar inte specifika resultat.
             </p>
-            <p className="text-sm text-neutral-dark">
+            <p className="text-sm text-neutral leading-relaxed">
               Flexibel Hälsostudio ansvarar inte för eventuella negativa effekter om informationen används på ett sätt som inte överensstämmer med våra riktlinjer eller dina personliga behov.
             </p>
-            <h4 className="font-semibold text-neutral-dark pt-3">4. Godkännande av villkor</h4>
-            <p className="text-sm text-neutral-dark">
+            <h4 className="font-bold text-neutral-dark pt-3 text-lg">4. Godkännande av villkor</h4>
+            <p className="text-sm text-neutral leading-relaxed">
               Genom att börja använda Kostloggen bekräftar du att du har tagit del av och godkänner dessa villkor. Om du har frågor kring tjänsten, datalagring eller hur vi hanterar din information – kontakta din coach på Flexibel Hälsostudio.
             </p>
           </div>
-          <div className="mt-6 flex-shrink-0 text-right">
+          <div className="mt-4 flex-shrink-0 text-right pt-4 border-t border-neutral-light/70">
             <button
               onClick={onClose}
-              className="px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm"
+              className="px-6 py-3 text-base font-bold text-white bg-primary hover:bg-primary-darker rounded-xl shadow-md active:scale-95 interactive-transition"
             >
               Jag förstår
             </button>
@@ -148,7 +149,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password); 
       } else {
-        await createUserWithEmailAndPassword(auth, email, password); 
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Explicitly ensure user profile exists in Firestore immediately
+        await ensureUserProfileInFirestore(userCredential.user);
       }
       // onAuthStateChanged in App.tsx will handle the rest
     } catch (err: any) {
@@ -196,12 +199,12 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
 
   return (
     <>
-      <div className="min-h-screen flex items-start sm:items-center justify-center bg-neutral-light p-4 pt-12 sm:pt-4">
-        <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-md animate-fade-in">
+      <div className="min-h-screen flex items-start sm:items-center justify-center bg-neutral-light bg-dotted-pattern bg-dotted-size p-4 pt-12 sm:pt-4">
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-soft-xl w-full max-w-md animate-scale-in border border-neutral-light/50">
           <div className="text-center mb-6">
-            <img src="/favicon.png" alt="Kostloggen.se logo" className="h-20 w-20 mx-auto mb-3" />
+            <img src="/favicon.png" alt="Kostloggen.se logo" className="h-20 w-20 mx-auto mb-3 drop-shadow-sm" />
             <h2 className="text-2xl sm:text-3xl font-bold text-neutral-dark">{isLogin ? "Logga in" : "Skapa konto"}</h2>
-            <p className="text-neutral mt-1">{isLogin ? "Välkommen tillbaka!" : "Fyll i dina uppgifter för att börja."}</p>
+            <p className="text-neutral mt-1 font-medium">{isLogin ? "Välkommen tillbaka!" : "Fyll i dina uppgifter för att börja."}</p>
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-4">

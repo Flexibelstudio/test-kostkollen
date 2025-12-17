@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek } from '../types.ts';
-import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM } from '../constants.ts';
+import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle } from '../types.ts';
+import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
-import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon } from './icons.tsx';
-import { UserRound, UserRoundCog, User as UserIconLucide } from 'lucide-react';
+import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon } from './icons.tsx';
+import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
 
 
 export const Avatar: React.FC<{
@@ -106,12 +107,12 @@ const ToggleSwitch: React.FC<{
   checked: boolean;
   onChange: () => void;
 }> = ({ id, label, description, checked, onChange }) => (
-    <div className="flex items-center justify-between p-4 bg-neutral-light/60 rounded-lg">
-        <div>
-            <label htmlFor={id} className="block text-base font-medium text-neutral-dark cursor-pointer">{label}</label>
-            {description && <p className="text-sm text-neutral">{description}</p>}
+    <div className="flex items-center justify-between p-3.5 bg-neutral-light/40 rounded-xl hover:bg-neutral-light/60 transition-colors">
+        <div className="pr-4">
+            <label htmlFor={id} className="block text-base font-semibold text-neutral-dark cursor-pointer">{label}</label>
+            {description && <p className="text-xs text-neutral mt-0.5">{description}</p>}
         </div>
-        <label htmlFor={id} className="relative inline-flex items-center cursor-pointer">
+        <label htmlFor={id} className="relative inline-flex items-center cursor-pointer flex-shrink-0">
             <input 
                 type="checkbox" 
                 id={id}
@@ -124,6 +125,39 @@ const ToggleSwitch: React.FC<{
     </div>
 );
 
+const renderMarkdown = (text: string) => {
+  // 1. Bold: **text**
+  let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // 2. Lists & Newlines
+  const lines = html.split('\n');
+  let inList = false;
+  let result = '';
+  
+  lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('* ')) {
+          if (!inList) {
+              result += '<ul class="list-disc ml-5 space-y-1">';
+              inList = true;
+          }
+          result += `<li>${trimmed.substring(2)}</li>`;
+      } else {
+          if (inList) {
+              result += '</ul>';
+              inList = false;
+          }
+          if (result && !result.endsWith('</ul>')) {
+             result += '<br />';
+          }
+          result += line;
+      }
+  });
+  
+  if (inList) result += '</ul>';
+  
+  return result;
+};
 
 const UserProfileModal: React.FC<UserProfileModalProps> = ({
   initialProfile,
@@ -140,6 +174,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
     const [isSubscribing, setIsSubscribing] = useState(false);
     
+    // Get Persona Details based on profile
+    const coachStyle = initialProfile.coachStyle || 'balanced';
+    const persona = COACH_PERSONAS[coachStyle];
+    
+    // Theme colors based on coach style
+    let coachTheme = { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', iconBg: 'bg-blue-100', iconText: 'text-blue-600' };
+    if (coachStyle === 'soft') {
+        coachTheme = { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-800', iconBg: 'bg-green-100', iconText: 'text-green-600' };
+    } else if (coachStyle === 'hard') {
+        coachTheme = { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800', iconBg: 'bg-red-100', iconText: 'text-red-600' };
+    }
+
     useEffect(() => {
         // This effect runs when the modal opens to get the current, actual permission state.
         if (typeof Notification !== 'undefined') {
@@ -220,10 +266,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         courseInterest: false,
         isSearchable: true, // Default to searchable for new users
         notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
+        coachStyle: initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
       } as UserProfileData;
     }
-    // For editing, use the complete existing profile
-    return initialProfile || DEFAULT_USER_PROFILE;
+    // For editing, use the complete existing profile but ensure defaults for new fields
+    return {
+        ...DEFAULT_USER_PROFILE,
+        ...(initialProfile || {}),
+        coachStyle: initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle
+    } as UserProfileData;
   }, [isOnboarding, initialProfile]);
 
   const [profile, setProfile] = useState<UserProfileData>(getInitialProfileForState());
@@ -237,11 +288,21 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   });
 
+  // Manual goals override state
+  const [isManualGoalMode, setIsManualGoalMode] = useState(false);
+  const [manualGoals, setManualGoals] = useState<GoalSettings>(DEFAULT_GOALS);
+
 
   useEffect(() => {
-    setProfile(getInitialProfileForState());
-    setNewPhotoDataUrl(null);
-  }, [initialProfile, isOnboarding, getInitialProfileForState]);
+    // Only reset the profile state if we are NOT in the 'feedback' step.
+    // This prevents the form from clearing visually when saving (which updates initialProfile)
+    // while the component waits for AI feedback or transitions.
+    if (onboardingStep !== 'feedback') {
+        setProfile(getInitialProfileForState());
+        setNewPhotoDataUrl(null);
+        setIsManualGoalMode(false); // Reset to auto mode on open
+    }
+  }, [initialProfile, isOnboarding, getInitialProfileForState, onboardingStep]);
 
 
   // Derive goalType automatically based on desired changes
@@ -262,11 +323,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     return null;
   }, [profile]);
   
+  // Sync manual goals with recommendations when recommendations change AND NOT in manual mode
+  useEffect(() => {
+      if (!isManualGoalMode && recommendations) {
+          setManualGoals({
+              calorieGoal: Math.round(recommendations.recommendedCalories),
+              proteinGoal: Math.round(recommendations.recommendedProteinGrams),
+              carbohydrateGoal: Math.round(recommendations.recommendedCarbsGrams),
+              fatGoal: Math.round(recommendations.recommendedFatGrams),
+          });
+      }
+  }, [recommendations, isManualGoalMode]);
+
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string; type: string } }) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
+    // Fix: Rename 'type' to 'inputType' to avoid ReferenceError and collision with TS 'type' keyword in closures
+    const inputType = e.target.type;
     
     setProfile(prev => {
-        if (type === 'checkbox') {
+        if (inputType === 'checkbox') {
             const { checked } = e.target as HTMLInputElement;
             return { ...prev, [name]: checked };
         }
@@ -296,6 +371,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         return updatedProfile;
     });
+  };
+
+  const handleManualGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      const numValue = parseInt(value, 10) || 0;
+      setManualGoals(prev => ({
+          ...prev,
+          [name]: numValue
+      }));
   };
 
   const handleNotificationSettingChange = (setting: keyof NotificationSettings) => {
@@ -362,7 +446,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     e.preventDefault();
     let newGoals: GoalSettings;
 
-    if (recommendations) {
+    if (isManualGoalMode) {
+        newGoals = manualGoals;
+    } else if (recommendations) {
       newGoals = {
         calorieGoal: recommendations.recommendedCalories,
         proteinGoal: recommendations.recommendedProteinGrams,
@@ -402,18 +488,30 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   // Enable save button only if essential fields are filled
   const canSave = isOnboarding 
-    ? (profile.currentWeightKg && profile.heightCm && profile.ageYears && profile.currentWeightKg > 0 && profile.heightCm > 0 && profile.ageYears > 0)
-    : (profile.heightCm && profile.ageYears && profile.heightCm > 0 && profile.ageYears > 0);
+    ? (
+        !!profile.name?.trim() &&
+        !!profile.gender &&
+        !!profile.coachStyle &&
+        (profile.currentWeightKg || 0) > 0 && 
+        (profile.heightCm || 0) > 0 && 
+        (profile.ageYears || 0) > 0
+      )
+    : (
+        (profile.heightCm || 0) > 0 && 
+        (profile.ageYears || 0) > 0
+      );
 
 
   return (
     <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl border border-neutral-light w-full max-w-2xl mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center">
-          <UserCircleIcon className="w-8 h-8 text-primary mr-3" />
-          <h2 id="user-profile-modal-title" className="text-3xl font-bold text-neutral-dark">
+          <div className="w-12 h-12 bg-primary-100 rounded-2xl flex items-center justify-center text-primary shadow-sm mr-4">
+            <UserCircleIcon className="w-7 h-7" />
+          </div>
+          <h2 id="user-profile-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
             {isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
-             isOnboarding && onboardingStep === 'feedback' ? 'Feedback från din Coach' :
+             isOnboarding && onboardingStep === 'feedback' ? `Coach: ${persona.label}` :
              'Redigera Profil'}
           </h2>
         </div>
@@ -436,33 +534,45 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       {isOnboarding && onboardingStep === 'feedback' ? (
         <div className="animate-fade-in min-h-[300px]">
           {aiFeedbackLoading && (
-            <div className="flex flex-col items-center justify-center p-8 text-neutral-dark h-full">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary mb-4"></div>
-              Flexibot analyserar dina mål...
+            <div className="flex flex-col items-center justify-center p-12 text-neutral-dark h-full space-y-4">
+              <div className="w-16 h-16 bg-neutral-light rounded-2xl flex items-center justify-center animate-pulse">
+                  <span className="text-3xl">{persona.emoji}</span>
+              </div>
+              <p className="text-lg font-medium">{persona.label} analyserar din plan...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
             </div>
           )}
+          
           {aiFeedbackError && !aiFeedbackLoading && (
              <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md">
-              <p className="font-medium">Fel från Coach:</p>
+              <p className="font-medium">Ett fel uppstod:</p>
               <p>{aiFeedbackError}</p>
             </div>
           )}
+          
           {aiFeedbackMessage && !aiFeedbackLoading && (
-             <div className="p-4 bg-primary-100/60 border border-primary-200/80 rounded-lg text-neutral-dark space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              {typeof aiFeedbackMessage === 'string' && aiFeedbackMessage.split('\n\n').map((paragraph, index) => (
-                <p key={index} className="text-base leading-relaxed">
-                  {paragraph}
-                </p>
-              ))}
+             <div className="flex flex-col gap-4">
+                <div className="flex items-end gap-3">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${coachTheme.iconBg} ${coachTheme.iconText}`}>
+                        <span className="text-3xl">{persona.emoji}</span>
+                    </div>
+                    <div className={`p-5 rounded-2xl rounded-bl-none border shadow-sm ${coachTheme.bg} ${coachTheme.border} ${coachTheme.text}`}>
+                        <h4 className="font-bold text-lg mb-2">Meddelande från {persona.label}</h4>
+                        {typeof aiFeedbackMessage === 'string' && aiFeedbackMessage.split('\n\n').map((paragraph, index) => (
+                            <div key={index} className="text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(paragraph) }} />
+                        ))}
+                    </div>
+                </div>
             </div>
           )}
+          
           <div className="mt-8 text-center">
             <button
               onClick={onClose}
               disabled={aiFeedbackLoading}
-              className="w-full sm:w-auto px-8 py-3 bg-primary text-white text-lg font-semibold rounded-lg shadow-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform interactive-transition disabled:opacity-60"
+              className="w-full sm:w-auto px-10 py-4 bg-primary text-white text-xl font-bold rounded-2xl shadow-lg hover:bg-primary-darker focus:outline-none focus:ring-4 focus:ring-primary/30 active:scale-95 transform interactive-transition disabled:opacity-60"
             >
-              Kom igång med min resa!
+              Kör igång!
             </button>
           </div>
         </div>
@@ -486,25 +596,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <h3 id="profile-details-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Personliga detaljer</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
                     <div>
-                        <label htmlFor="name" className="block text-base font-medium text-neutral-dark">Ditt namn</label>
-                        <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleProfileChange} className={inputClass} placeholder="T.ex. ditt förnamn" />
+                        <label htmlFor="name" className="block text-base font-medium text-neutral-dark">Ditt namn *</label>
+                        <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleProfileChange} className={inputClass} placeholder="T.ex. ditt förnamn" required />
                     </div>
                     {isOnboarding && (
                         <div>
-                            <label htmlFor="currentWeightKg" className="block text-base font-medium text-neutral-dark">Nuvarande vikt (kg)</label>
+                            <label htmlFor="currentWeightKg" className="block text-base font-medium text-neutral-dark">Nuvarande vikt (kg) *</label>
                             <input type="number" name="currentWeightKg" id="currentWeightKg" value={profile.currentWeightKg == null ? '' : profile.currentWeightKg} onChange={handleProfileChange} className={inputClass} min="1" step="0.1" placeholder="T.ex. 70" required />
                         </div>
                     )}
                     <div>
-                        <label htmlFor="heightCm" className="block text-base font-medium text-neutral-dark">Längd (cm)</label>
+                        <label htmlFor="heightCm" className="block text-base font-medium text-neutral-dark">Längd (cm) *</label>
                         <input type="number" name="heightCm" id="heightCm" value={profile.heightCm == null ? '' : profile.heightCm} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 170" required />
                     </div>
                     <div>
-                        <label htmlFor="ageYears" className="block text-base font-medium text-neutral-dark">Ålder (år)</label>
+                        <label htmlFor="ageYears" className="block text-base font-medium text-neutral-dark">Ålder (år) *</label>
                         <input type="number" name="ageYears" id="ageYears" value={profile.ageYears == null ? '' : profile.ageYears} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 30" required />
                     </div>
                     <div>
-                        <label htmlFor="gender" className="block text-base font-medium text-neutral-dark">Kön</label>
+                        <label htmlFor="gender" className="block text-base font-medium text-neutral-dark">Kön *</label>
                         <select name="gender" id="gender" value={profile.gender} onChange={handleProfileChange} className={selectClass} required>
                             <option value="female">Kvinna</option>
                             <option value="male">Man</option>
@@ -513,6 +623,49 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
             </section>
             
+            <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
+                        const p = COACH_PERSONAS[style];
+                        
+                        let colorClasses;
+                        let iconBgClass;
+                        if (style === 'soft') {
+                            colorClasses = 'bg-green-50 text-green-700 border-green-200';
+                            iconBgClass = 'bg-green-100 text-green-600';
+                        } else if (style === 'balanced') {
+                            colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
+                            iconBgClass = 'bg-blue-100 text-blue-600';
+                        } else {
+                            colorClasses = 'bg-red-50 text-red-700 border-red-200';
+                            iconBgClass = 'bg-red-100 text-red-600';
+                        }
+
+                        const isSelected = profile.coachStyle === style;
+
+                        return (
+                            <button
+                                type="button"
+                                key={style}
+                                onClick={() => setProfile(prev => ({ ...prev, coachStyle: style }))}
+                                className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center ${
+                                    isSelected
+                                        ? `${colorClasses} shadow-md`
+                                        : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300 text-neutral-dark'
+                                }`}
+                            >
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
+                                    {p.emoji}
+                                </div>
+                                <span className="font-bold text-sm">{p.label}</span>
+                                <span className="text-xs opacity-80 mt-1">{p.description}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </section>
+
             {isOnboarding && (
                 <>
                     <section aria-labelledby="activity-level-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
@@ -523,18 +676,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     type="button"
                                     key={opt.value}
                                     onClick={() => handleProfileChange({ target: { name: 'activityLevel', value: opt.value, type: 'select' } } as any)}
-                                    className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-200 ${
+                                    className={`w-full text-left p-3 rounded-2xl border-2 transition-all duration-200 ${
                                         profile.activityLevel === opt.value
-                                            ? 'bg-primary-100/70 border-primary shadow-md'
+                                            ? 'bg-primary-50 border-primary shadow-md'
                                             : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300'
                                     }`}
                                 >
                                     <div className="flex items-center">
-                                        <span className="text-3xl mr-4">{opt.emoji}</span>
+                                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm mr-4 flex-shrink-0">
+                                            {opt.emoji}
+                                        </div>
                                         <div>
-                                            <p className={`font-semibold ${profile.activityLevel === opt.value ? 'text-primary-darker' : 'text-neutral-dark'}`}>{opt.label}</p>
-                                            <p className="text-sm text-neutral-dark">{opt.description}</p>
-                                            <p className="text-xs text-neutral mt-1">{opt.example}</p>
+                                            <p className={`font-bold ${profile.activityLevel === opt.value ? 'text-primary-darker' : 'text-neutral-dark'}`}>{opt.label}</p>
+                                            <p className="text-sm text-neutral-600 leading-snug mt-0.5">{opt.description}</p>
+                                            <p className="text-xs text-neutral-500 mt-1 italic">{opt.example}</p>
                                         </div>
                                     </div>
                                 </button>
@@ -635,15 +790,89 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     </section>
                     
                     <section aria-labelledby="recommendations-heading" className="mt-6 pt-6 border-t border-neutral-light/70">
-                        <h3 id="recommendations-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Dina rekommenderade dagliga mål</h3>
+                        <h3 id="recommendations-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Dina dagliga mål</h3>
+                        
+                        {/* Toggle for Manual Goals */}
+                        <div className="mb-4">
+                            <ToggleSwitch
+                                id="manualGoalOverride"
+                                label="Ange egna mål manuellt"
+                                description="Om du vill åsidosätta de automatiskt beräknade målen."
+                                checked={isManualGoalMode}
+                                onChange={() => setIsManualGoalMode(!isManualGoalMode)}
+                            />
+                        </div>
+
                         {recommendations ? (
-                            <div className="p-4 bg-primary-100/60 border border-primary-200/80 rounded-lg space-y-2">
-                                <p className="text-neutral-dark">Baserat på dina ifyllda uppgifter, är detta dina uppskattade rekommendationer:</p>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1.5">
-                                    <div className="flex items-center"><span className="w-5 h-5 mr-1.5 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span><strong>{Math.round(recommendations.recommendedCalories)} kcal</strong></div>
-                                    <div className="flex items-center"><span className="w-5 h-5 mr-1.5 flex items-center justify-center" role="img" aria-label="Protein">💪</span><strong>{Math.round(recommendations.recommendedProteinGrams)} g P</strong></div>
-                                    <div className="flex items-center"><span className="w-5 h-5 mr-1.5 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span><strong>{Math.round(recommendations.recommendedCarbsGrams)} g K</strong></div>
-                                    <div className="flex items-center"><span className="w-5 h-5 mr-1.5 flex items-center justify-center" role="img" aria-label="Fett">🥑</span><strong>{Math.round(recommendations.recommendedFatGrams)} g F</strong></div>
+                            <div className={`p-4 rounded-lg space-y-4 border ${isManualGoalMode ? 'bg-white border-neutral-light' : 'bg-primary-100/60 border-primary-200/80'}`}>
+                                <p className="text-neutral-dark">
+                                    {isManualGoalMode 
+                                        ? "Du har valt att ställa in dina mål manuellt. Justera värdena nedan."
+                                        : "Baserat på dina ifyllda uppgifter, är detta dina uppskattade rekommendationer:"
+                                    }
+                                </p>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Calories */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
+                                            <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span> Kalorier
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            name="calorieGoal"
+                                            value={isManualGoalMode ? manualGoals.calorieGoal : Math.round(recommendations.recommendedCalories)}
+                                            onChange={handleManualGoalChange}
+                                            disabled={!isManualGoalMode}
+                                            className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
+                                        />
+                                        {!isManualGoalMode && <span className="text-xs text-neutral">kcal</span>}
+                                    </div>
+
+                                    {/* Protein */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
+                                            <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Protein">💪</span> Protein (g)
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            name="proteinGoal"
+                                            value={isManualGoalMode ? manualGoals.proteinGoal : Math.round(recommendations.recommendedProteinGrams)}
+                                            onChange={handleManualGoalChange}
+                                            disabled={!isManualGoalMode}
+                                            className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
+                                        />
+                                    </div>
+
+                                    {/* Carbs */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
+                                            <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span> Kolhydrater (g)
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            name="carbohydrateGoal"
+                                            value={isManualGoalMode ? manualGoals.carbohydrateGoal : Math.round(recommendations.recommendedCarbsGrams)}
+                                            onChange={handleManualGoalChange}
+                                            disabled={!isManualGoalMode}
+                                            className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
+                                        />
+                                    </div>
+
+                                    {/* Fat */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
+                                            <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Fett">🥑</span> Fett (g)
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            name="fatGoal"
+                                            value={isManualGoalMode ? manualGoals.fatGoal : Math.round(recommendations.recommendedFatGrams)}
+                                            onChange={handleManualGoalChange}
+                                            disabled={!isManualGoalMode}
+                                            className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         ) : (
@@ -654,8 +883,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             )}
 
             {!isOnboarding && (
-                 <>
-                    <section aria-labelledby="community-settings-heading">
+                 <div className="space-y-4 mt-6">
+                    <h3 className="text-xl font-bold text-neutral-dark px-1">Inställningar</h3>
+
+                    {/* Community Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shadow-sm">
+                                <UserGroupIcon className="w-6 h-6" />
+                            </div>
+                            <h4 className="text-lg font-bold text-neutral-dark">Community</h4>
+                        </div>
                         <ToggleSwitch
                             id="isSearchable"
                             label="Sökbar som kompis"
@@ -663,10 +901,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             checked={profile.isSearchable ?? false}
                             onChange={() => setProfile(prev => ({...prev, isSearchable: !prev.isSearchable}))}
                          />
-                    </section>
+                    </div>
 
-                    <section aria-labelledby="sound-settings-heading">
-                        <h3 id="sound-settings-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Ljud & Feedback</h3>
+                    {/* Sound Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 shadow-sm">
+                                <Volume2 className="w-6 h-6" />
+                            </div>
+                            <h4 className="text-lg font-bold text-neutral-dark">Ljud & Feedback</h4>
+                        </div>
                          <ToggleSwitch
                             id="appSound"
                             label="App-ljud"
@@ -674,93 +918,122 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             checked={!isSoundMuted}
                             onChange={handleToggleSound}
                          />
-                    </section>
+                    </div>
                     
-                    <section aria-labelledby="notification-settings-heading">
-                        <h3 id="notification-settings-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Notisinställningar</h3>
-                         <div className="space-y-3">
-                            <h4 className="font-semibold text-neutral-dark">Påminnelser</h4>
-                             <ToggleSwitch 
-                                id="waterReminder"
-                                label="Vattenpåminnelse"
-                                description="Vid lunch om inget vatten loggats"
-                                checked={profile.notificationSettings?.waterReminder ?? true}
-                                onChange={() => handleNotificationSettingChange('waterReminder')}
-                            />
-                             <ToggleSwitch 
-                                id="foodReminder"
-                                label="Matloggningspåminnelse"
-                                description="Kl 18:00 om ingen mat loggats"
-                                checked={profile.notificationSettings?.foodReminder ?? true}
-                                onChange={() => handleNotificationSettingChange('foodReminder')}
-                            />
-                             <ToggleSwitch 
-                                id="weighInReminder"
-                                label="Vägningspåminnelse"
-                                checked={profile.notificationSettings?.weighInReminder ?? true}
-                                onChange={() => handleNotificationSettingChange('weighInReminder')}
-                            />
-                             <div className="pl-4">
-                                <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark">Föredragen dag för vägning</label>
-                                <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
-                                    {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
-                                        <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
-                                    ))}
-                                </select>
-                             </div>
-                             <ToggleSwitch 
-                                id="inactivityReminder"
-                                label="Inaktivitetspåminnelse"
-                                description="Om du inte loggat på 3 dagar"
-                                checked={profile.notificationSettings?.inactivityReminder ?? true}
-                                onChange={() => handleNotificationSettingChange('inactivityReminder')}
-                            />
-                             <ToggleSwitch 
-                                id="milestoneNudge"
-                                label="Milstolpe-pepp"
-                                description="När du närmar dig en ny nivå/streak"
-                                checked={profile.notificationSettings?.milestoneNudge ?? true}
-                                onChange={() => handleNotificationSettingChange('milestoneNudge')}
-                            />
-                             <h4 className="font-semibold text-neutral-dark pt-2">Sociala notiser</h4>
-                            <ToggleSwitch 
-                                id="friendRequests"
-                                label="Peppkompis-förfrågningar"
-                                checked={profile.notificationSettings?.friendRequests ?? true}
-                                onChange={() => handleNotificationSettingChange('friendRequests')}
-                            />
-                            <ToggleSwitch 
-                                id="newEvents"
-                                label="Händelser i flödet"
-                                description="Från dina kompisar"
-                                checked={profile.notificationSettings?.newEvents ?? true}
-                                onChange={() => handleNotificationSettingChange('newEvents')}
-                            />
-                             <ToggleSwitch 
-                                id="comments"
-                                label="Kommentarer"
-                                description="På dina inlägg"
-                                checked={profile.notificationSettings?.comments ?? true}
-                                onChange={() => handleNotificationSettingChange('comments')}
-                            />
+                    {/* Notifications Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600 shadow-sm">
+                                <BellIcon className="w-6 h-6" />
+                            </div>
+                            <h4 className="text-lg font-bold text-neutral-dark">Notiser</h4>
                         </div>
-                    </section>
+                        
+                         <div className="space-y-4">
+                            <div>
+                                <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-2 px-1">Påminnelser</h5>
+                                <div className="space-y-3">
+                                    <ToggleSwitch 
+                                        id="waterReminder"
+                                        label="Vattenpåminnelse"
+                                        description="Vid lunch om inget vatten loggats"
+                                        checked={profile.notificationSettings?.waterReminder ?? true}
+                                        onChange={() => handleNotificationSettingChange('waterReminder')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="foodReminder"
+                                        label="Matloggningspåminnelse"
+                                        description="Kl 18:00 om ingen mat loggats"
+                                        checked={profile.notificationSettings?.foodReminder ?? true}
+                                        onChange={() => handleNotificationSettingChange('foodReminder')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="weighInReminder"
+                                        label="Vägningspåminnelse"
+                                        checked={profile.notificationSettings?.weighInReminder ?? true}
+                                        onChange={() => handleNotificationSettingChange('weighInReminder')}
+                                    />
+                                    <div className="pl-4 pr-1 py-2">
+                                        <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark mb-1">Föredragen dag för vägning</label>
+                                        <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
+                                            {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
+                                                <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <ToggleSwitch 
+                                        id="inactivityReminder"
+                                        label="Inaktivitetspåminnelse"
+                                        description="Om du inte loggat på 3 dagar"
+                                        checked={profile.notificationSettings?.inactivityReminder ?? true}
+                                        onChange={() => handleNotificationSettingChange('inactivityReminder')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="milestoneNudge"
+                                        label="Milstolpe-pepp"
+                                        description="När du närmar dig en ny nivå/streak"
+                                        checked={profile.notificationSettings?.milestoneNudge ?? true}
+                                        onChange={() => handleNotificationSettingChange('milestoneNudge')}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-2 px-1 border-t border-neutral-light/50 pt-4">Socialt</h5>
+                                <div className="space-y-3">
+                                    <ToggleSwitch 
+                                        id="friendRequests"
+                                        label="Peppkompis-förfrågningar"
+                                        checked={profile.notificationSettings?.friendRequests ?? true}
+                                        onChange={() => handleNotificationSettingChange('friendRequests')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="newEvents"
+                                        label="Händelser i flödet"
+                                        description="Från dina kompisar"
+                                        checked={profile.notificationSettings?.newEvents ?? true}
+                                        onChange={() => handleNotificationSettingChange('newEvents')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="comments"
+                                        label="Kommentarer"
+                                        description="På dina inlägg"
+                                        checked={profile.notificationSettings?.comments ?? true}
+                                        onChange={() => handleNotificationSettingChange('comments')}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
-                     <section aria-labelledby="push-notification-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                        <h3 id="push-notification-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Pushnotiser för denna enhet</h3>
-                         <div className="p-4 bg-neutral-light/60 rounded-lg">
+                     {/* Push Notification Card */}
+                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-600 shadow-sm">
+                                <Smartphone className="w-6 h-6" />
+                            </div>
+                            <h4 className="text-lg font-bold text-neutral-dark">Enhet & Pushnotiser</h4>
+                        </div>
+                        
+                         <div className="p-4 bg-neutral-light/40 rounded-xl">
                             {permissionStatus === 'granted' && (
-                                <p className="text-primary-darker font-medium flex items-center"><CheckCircleIcon className="w-5 h-5 mr-2" /> Pushnotiser är aktiva på denna enhet.</p>
+                                <div className="flex items-center text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
+                                    <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0" />
+                                    <span className="font-medium">Pushnotiser är aktiva på denna enhet.</span>
+                                </div>
                             )}
                             {permissionStatus === 'denied' && (
-                                <p className="text-red-600 font-medium">Du har blockerat notiser. För att aktivera dem, gå till din webbläsares inställningar för denna sida.</p>
+                                <div className="flex items-start text-red-700 bg-red-50 p-3 rounded-lg border border-red-200">
+                                    <XMarkIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+                                    <span className="font-medium">Du har blockerat notiser. För att aktivera dem, gå till din webbläsares inställningar för denna sida.</span>
+                                </div>
                             )}
                             {permissionStatus === 'default' && (
                                 <button
                                     type="button"
                                     onClick={handleActivatePush}
                                     disabled={isSubscribing}
-                                    className="w-full px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95 transform interactive-transition flex items-center justify-center disabled:opacity-60"
+                                    className="w-full px-5 py-3 text-base font-bold text-white bg-primary hover:bg-primary-darker rounded-xl shadow-md active:scale-95 transform interactive-transition flex items-center justify-center disabled:opacity-60"
                                 >
                                     {isSubscribing ? (
                                         <><div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div> Bearbetar...</>
@@ -770,8 +1043,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 </button>
                             )}
                         </div>
-                    </section>
-                 </>
+                    </div>
+                 </div>
             )}
             
             <div className="mt-8 pt-6 border-t border-neutral-light/70 flex flex-col sm:flex-row justify-end items-center gap-4">

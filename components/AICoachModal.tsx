@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { SparklesIcon, XMarkIcon } from './icons';
 import { getAICoachResponseStream } from '../services/geminiService';
-import { AIDataForJourneyAnalysis, ChartData } from '../types';
+import { AIDataForJourneyAnalysis, ChartData, CoachStyle } from '../types';
 import { Content } from "@google/genai";
 import { playAudio } from '../services/audioService';
 import SimpleLineChart from './SimpleLineChart';
+import { COACH_PERSONAS } from '../constants';
 
 interface AICoachModalProps {
   show: boolean;
@@ -42,28 +44,38 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   
+  const coachStyle = analysisContext.userProfile.coachStyle || 'balanced';
+
+  // Determine Emoji and Color based on style
+  const getCoachVisuals = (style: CoachStyle) => {
+      if (style === 'soft') return { emoji: COACH_PERSONAS.soft.emoji, colorClass: 'bg-green-100 text-green-600' };
+      if (style === 'hard') return { emoji: COACH_PERSONAS.hard.emoji, colorClass: 'bg-red-100 text-red-600' };
+      return { emoji: COACH_PERSONAS.balanced.emoji, colorClass: 'bg-blue-100 text-blue-600' };
+  };
+
+  const { emoji: CoachEmoji, colorClass } = getCoachVisuals(coachStyle);
+  const personaName = COACH_PERSONAS[coachStyle].label;
+
   const initialMessage: Message = useMemo(() => {
-    const funDescriptions = [
-      "din digitala krydda i vardagsgrytan",
-      "din virtuella visp i smeten",
-      "ditt personliga saltkorn på frukostägget",
-      "din digitala dillkvist på färskpotatisen",
-      "din personliga köttbulle i gräddsåsen",
-      "ditt virtuella strössel på fredagsglassen",
-      "din digitala havregryn i morgongröten",
-      "din virtuella purjolök i soppan",
-      "din digitala morot i höstmörkret"
-    ];
-    const randomDescription = funDescriptions[Math.floor(Math.random() * funDescriptions.length)];
+    // Customize initial message based on persona
+    let introText = "";
     const name = analysisContext.userProfile.name || 'du';
+
+    if (coachStyle === 'hard') {
+        introText = `Givakt ${name}! **${personaName}** här. Inga ursäkter, nu kör vi. Vad behöver du hjälp med?`;
+    } else if (coachStyle === 'soft') {
+        introText = `Hej ${name}! **${personaName}** här. Jag hoppas du mår bra idag. Jag finns här för att stötta och peppa dig. Vad funderar du på?`;
+    } else {
+        introText = `Hej ${name}! **${personaName}** här. Jag är redo att analysera dina data och hjälpa dig nå dina mål. Vad vill du veta?`;
+    }
     
     return {
         id: 0,
-        text: `Hej ${name}! Jag är din coach här i Kostloggen, tänk på mig som **${randomDescription}** – här för att peppa dig när motivationen tryter. Oavsett om jag är din virtuella purjolök i soppan eller din digitala morot i höstmörkret, så är jag här för att göra din kostresa lite mer underhållande!`,
+        text: introText,
         sender: 'bot',
         isSystem: true,
     };
-  }, [analysisContext.userProfile.name]);
+  }, [analysisContext.userProfile.name, coachStyle, personaName]);
 
 
   useEffect(() => {
@@ -192,10 +204,12 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
             onClick={(e) => e.stopPropagation()}
         >
             <header className="flex items-center justify-between p-4 border-b border-neutral-light/70 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                    <SparklesIcon className="w-7 h-7 text-secondary" />
+                <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorClass}`}>
+                        <span className="text-2xl">{CoachEmoji}</span>
+                    </div>
                     <h2 id="ai-coach-modal-title" className="text-xl font-semibold text-neutral-dark">
-                        Fråga coachen
+                        Fråga {personaName}
                     </h2>
                 </div>
                  <button onClick={onClose} className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90 interactive-transition" aria-label="Stäng">
@@ -216,7 +230,11 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                     }
                     return (
                         <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                           {msg.sender === 'bot' && <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mb-1" />}
+                           {msg.sender === 'bot' && (
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mb-1 ${colorClass} bg-opacity-50`}>
+                                    <span className="text-lg">{CoachEmoji}</span>
+                                </div>
+                           )}
                            <div className={`max-w-xs sm:max-w-md p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-primary text-white rounded-br-lg' : 'bg-neutral-light text-neutral-dark rounded-bl-lg'}`}>
                                <div className="text-base space-y-2" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
                                {msg.isStreaming && !msg.chartData && msg.text.length > 0 && <div className="inline-block w-1.5 h-1.5 bg-neutral-dark rounded-full animate-ping ml-1"></div>}
@@ -225,15 +243,13 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                     );
                 })}
                 {isLoading && (
-                     <div className="flex items-end gap-2 justify-start">
-                        <SparklesIcon className="w-6 h-6 text-secondary flex-shrink-0 mb-1" />
-                        <div className="p-3 rounded-2xl bg-neutral-light text-neutral-dark rounded-bl-lg">
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 bg-neutral-dark/50 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-neutral-dark/50 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                                <div className="w-2 h-2 bg-neutral-dark/50 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                            </div>
+                     <div className="flex items-center gap-3 justify-start p-2 pl-1 animate-fade-in">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${colorClass} animate-pulse`}>
+                            <span className="text-xl">{CoachEmoji}</span>
                         </div>
+                        <span className="text-neutral-500 text-sm font-medium italic animate-pulse">
+                            {personaName} skriver...
+                        </span>
                     </div>
                 )}
                 <div ref={chatEndRef}></div>

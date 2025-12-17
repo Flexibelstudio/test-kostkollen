@@ -1,5 +1,4 @@
 
-
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import {
   getAuth,
@@ -15,6 +14,7 @@ import {
   enableIndexedDbPersistence,
   type Firestore,
 } from "@firebase/firestore";
+import { getFunctions, type Functions } from "firebase/functions";
 
 // ?mock=true aktiverar mock-läge (praktiskt för lokal test)
 const isMockQuery =
@@ -74,6 +74,7 @@ const useMock = isMockQuery || !hasValidConfig;
 let app: FirebaseApp | undefined;
 let realAuth: Auth | undefined;
 let db: Firestore | undefined;
+let functions: Functions | undefined;
 
 if (useMock) {
   console.warn(
@@ -86,6 +87,7 @@ if (useMock) {
     app = initializeApp(firebaseConfig);
     realAuth = getAuth(app);
     db = getFirestore(app); // Prod & staging = separata projekt via netlify.toml
+    functions = getFunctions(app, 'us-central1'); // Init functions in same region as backend
   } catch (e) {
     console.error("Firebase init misslyckades:", e);
   }
@@ -93,7 +95,7 @@ if (useMock) {
 
 // ===== Exporterade instanser =====
 export const auth = useMock ? (mockAuth as any) : (realAuth as Auth);
-export { db, app };
+export { db, app, functions };
 
 // ===== Promises för persistence (används i App.tsx) =====
 export const authPersistencePromise: Promise<{

@@ -1,11 +1,13 @@
+
 import React from 'react';
-import { CheckCircleIcon, SparklesIcon, ChartLineIcon, CourseIcon } from './icons.tsx';
+import { CheckCircleIcon, SparklesIcon, ChartLineIcon, CourseIcon, PlusIcon } from './icons.tsx';
 
 interface OnboardingCompletionScreenProps {
   onFinish: () => void;
+  coachName: string;
 }
 
-const OnboardingCompletionScreen: React.FC<OnboardingCompletionScreenProps> = ({ onFinish }) => {
+const OnboardingCompletionScreen: React.FC<OnboardingCompletionScreenProps> = ({ onFinish, coachName }) => {
   return (
     <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl border border-neutral-light w-full max-w-2xl mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
       <div className="text-center">
@@ -22,7 +24,7 @@ const OnboardingCompletionScreen: React.FC<OnboardingCompletionScreenProps> = ({
           <div>
             <h3 className="font-semibold text-lg text-primary-darker">Din Personliga AI-Coach</h3>
             <p>
-              "Flexibot", din AI-coach, är här för att ge dig daglig feedback och ge dig de insikter du behöver för att lyckas.
+              Din coach "{coachName}" är redo att ge dig daglig feedback och de insikter du behöver för att lyckas.
             </p>
           </div>
         </div>
@@ -47,6 +49,15 @@ const OnboardingCompletionScreen: React.FC<OnboardingCompletionScreenProps> = ({
             </p>
           </div>
         </div>
+      </div>
+
+      <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center justify-center sm:justify-start">
+        <div className="bg-primary text-white p-2 rounded-full mr-4 shadow-sm flex-shrink-0">
+            <PlusIcon className="w-6 h-6" />
+        </div>
+        <p className="text-neutral-dark font-medium">
+            Tryck på ➕-knappen för att prata med din coach eller logga mat.
+        </p>
       </div>
 
       <div className="mt-10 text-center">

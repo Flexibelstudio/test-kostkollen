@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 // --- Original Icons ---
@@ -92,6 +93,18 @@ export const ChevronUpIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ classNa
   </svg>
 );
 
+export const ChevronLeftIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+  </svg>
+);
+
+export const ChevronRightIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+  </svg>
+);
+
 export const HistoryIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -142,7 +155,7 @@ export const ArrowRightOnRectangleIcon: React.FC<React.SVGProps<SVGSVGElement>> 
 
 export const UserGroupIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m-7.542 2.72c.266.04.53.076.797.108a9.097 9.097 0 0 1 8.861-11.414 2.986 2.986 0 0 0-4.682-2.72m-7.542 2.72a3 3 0 0 0-4.682-2.72m7.542 2.72c.266.04.53.076.797.108a9.097 9.097 0 0 0 8.861-11.414 2.986 2.986 0 0 1-4.682-2.72M6.75 9.75h.008v.008H6.75V9.75Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 4.5h.008v.008h-.008v-.008Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-4.125-4.5h.008v.008H6.75v-.008Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 0h.008v.008h-.008V9.75Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-4.125 4.5h.008v.008H6.75v-.008Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 0h.008v.008h-.008v-.008Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m-7.542 2.72c.266.04.53.076.797.108a9.097 9.097 0 0 1 8.861-11.414 2.986 2.986 0 0 0-4.682-2.72m-7.542 2.72a3 3 0 0 0-4.682-2.72m7.542 2.72c.266.04.53.076.797.108a9.097 9.097 0 0 0 8.861-11.414 2.986 2.986 0 0 1-4.682-2.72M6.75 9.75h.008v.008H6.75V9.75Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 4.5h.008v.008h-.008v-.008Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-4.125-4.5h.008v.008H6.75v-.008Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 0h.008v.008h-.008V9.75Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-4.125 4.5h.008v.008H6.75v-.008Zm-.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
   </svg>
 );
 
@@ -193,7 +206,7 @@ export const HomeIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, .
 
 export const ChatBubbleOvalLeftEllipsisIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.455.09-.934.018-1.402a5.969 5.969 0 0 1-.474-1.065 4.48 4.48 0 0 0 .978-2.025c.09-.455.09-.934.018-1.402a5.969 5.969 0 0 1-.474-1.065 4.48 4.48 0 0 0 .978-2.025c.09-.455.09-.934.018-1.402a5.972 5.972 0 0 1-.474-1.065 4.48 4.48 0 0 0-.978-2.025 5.969 5.969 0 0 1 .474-.065 5.972 5.972 0 0 1 2.555-.337c4.97 0 9 3.694 9 8.25Z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.455.09-.934.018-1.402a5.969 5.969 0 0 1-.474-1.065 4.48 4.48 0 0 0 .978-2.025c.09-.455.09-.934.018-1.402a5.969 5.969 0 0 1-.474-1.065 4.48 4.48 0 0 0-.978-2.025 5.969 5.969 0 0 1 .474-.065 5.972 5.972 0 0 1 2.555-.337c4.97 0 9 3.694 9 8.25Z" />
   </svg>
 );
 
@@ -325,5 +338,43 @@ export const BalanceScaleIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ clas
     <path d="m2 16 3-8 3 8c.2.6 0 1.2-.5 1.5-.7.3-1.5 0-1.7-.7L4 13l-1.3 3.8c-.2.7-1 1-1.7.7-.5-.3-.7-.9-.5-1.5z"/>
     <path d="M12 3v18"/>
     <path d="M3 7h18"/>
+  </svg>
+);
+
+export const CalendarIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+  </svg>
+);
+
+export const MedalIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 1 0-2.636 6.364M16.5 12V8.25" />
+  </svg>
+);
+
+export const ArchiveBoxIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+  </svg>
+);
+
+export const ArrowUturnLeftIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+  </svg>
+);
+
+export const TargetIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className || "w-6 h-6"} {...props}>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="6" />
+    <circle cx="12" cy="12" r="2" />
+  </svg>
+);
+
+export const CreditCardIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
   </svg>
 );

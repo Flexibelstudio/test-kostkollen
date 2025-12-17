@@ -1,3 +1,4 @@
+
 // FIX: Corrected import path for Firestore's Timestamp type
 // FIX: Changed import from 'firebase/firestore' to '@firebase/firestore' to resolve missing member error.
 import { Timestamp } from "@firebase/firestore";
@@ -34,6 +35,7 @@ export interface GoalSettings {
   proteinGoal: number;
   carbohydrateGoal: number;
   fatGoal: number;
+  waterGoal?: number;
 }
 
 export interface CalculatedNutritionalRecommendations {
@@ -47,6 +49,8 @@ export interface CalculatedNutritionalRecommendations {
 
 // --- Logging & Data Structures ---
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
 export interface LoggedMeal {
   id: string;
   timestamp: number; // Client-side timestamp of when the log entry was created/finalized
@@ -55,6 +59,7 @@ export interface LoggedMeal {
   nutritionalInfo: NutritionalInfo;
   caloriesCoveredByBank?: number;
   commonMealId?: string; // To identify meals logged from "Common Meals" for grouping
+  mealType: MealType; // New field for categorization
 
   // Frontend-only properties for display logic
   count?: number;
@@ -174,6 +179,8 @@ export type DayOfWeek =
   | "lördag"
   | "söndag";
 
+export type CoachStyle = 'soft' | 'balanced' | 'hard';
+
 export interface NotificationSettings {
   // Social notifications
   friendRequests: boolean;
@@ -213,6 +220,14 @@ export interface UserProfileData {
   completedGoals?: CompletedGoal[];
   notificationSettings: NotificationSettings;
   preferredWeighInDay?: DayOfWeek;
+  // New fields for course access management
+  isCourseActive?: boolean;
+  courseInterest?: boolean;
+  coachStyle: CoachStyle; // New field for coaching style
+  
+  // Subscription fields
+  subscriptionStatus?: 'active' | 'canceling' | 'canceled';
+  currentPeriodEnd?: string; // ISO date string
 }
 
 // Firestore user document structure
@@ -221,7 +236,7 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, "name"> {
   email: string | null;
   displayName: string;
   role: UserRole;
-  status: "pending" | "approved";
+  status: "pending" | "approved" | "archived";
   hasCompletedOnboarding: boolean;
   createdAt: Timestamp;
   lastLoginAt: Timestamp;
@@ -446,7 +461,7 @@ export interface CoachViewMember {
   name: string;
   email: string;
   role: UserRole;
-  status: "pending" | "approved";
+  status: "pending" | "approved" | "archived";
   photoURL?: string;
   memberSince: string;
   lastLogDate?: string;
@@ -463,6 +478,9 @@ export interface CoachViewMember {
   ageYears?: number;
   gender: Gender;
   numberOfBuddies?: number;
+  // New fields for course access management
+  isCourseActive?: boolean;
+  courseInterest?: boolean;
 }
 
 // --- Community & Social Types ---

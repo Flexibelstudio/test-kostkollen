@@ -1,13 +1,18 @@
+
 import React from 'react';
-import { TrophyIcon } from './icons';
+import { TrophyIcon, FireIcon } from './icons';
+import { GoalType } from '../types';
 
 interface OnboardingRewardModalProps {
   show: boolean;
   onClose: () => void;
+  goalType: GoalType;
 }
 
-const OnboardingRewardModal: React.FC<OnboardingRewardModalProps> = ({ show, onClose }) => {
+const OnboardingRewardModal: React.FC<OnboardingRewardModalProps> = ({ show, onClose, goalType }) => {
   if (!show) return null;
+
+  const isMuscleGain = goalType === 'gain_muscle';
 
   return (
     <div
@@ -21,22 +26,40 @@ const OnboardingRewardModal: React.FC<OnboardingRewardModalProps> = ({ show, onC
         className="bg-white p-8 rounded-xl shadow-soft-xl text-center max-w-md w-full animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <TrophyIcon className="w-24 h-24 text-accent mx-auto mb-4" />
+        {isMuscleGain ? (
+             <div className="w-24 h-24 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4 text-orange-600">
+                <FireIcon className="w-12 h-12" />
+             </div>
+        ) : (
+            <TrophyIcon className="w-24 h-24 text-accent mx-auto mb-4" />
+        )}
+        
         <h2 id="onboarding-reward-title" className="text-3xl font-bold text-neutral-dark mb-3">
-          Snyggt jobbat! Du är redo!
+          {isMuscleGain ? "Snyggt jobbat – du är redo!" : "Snyggt jobbat! Du är redo!"}
         </h2>
-        <p className="text-lg text-neutral-dark mb-4">
+        
+        <p className="text-lg text-neutral-dark mb-6">
           Du har klarat av de första stegen och har nu koll på grunderna i appen.
         </p>
-        <div className="bg-primary-100/60 p-4 rounded-lg border border-primary-200 text-left">
-            <h3 className="font-semibold text-primary-darker text-lg mb-2">Belöning: Sparpott-bonus! 🏦</h3>
-            <p className="text-sm text-neutral-dark">
-                Som tack får du en startbonus på <strong>100 kcal</strong> i din Sparpott. Sparpotten är en veckovis pott där du samlar kalorier du har 'över' på bra dagar, som du sedan kan använda när du vill unna dig något extra.
-            </p>
-        </div>
+
+        {isMuscleGain ? (
+            <div className="bg-orange-50 p-6 rounded-xl border border-orange-200 text-center mb-2">
+                <p className="text-lg font-bold text-orange-800 leading-relaxed">
+                    "Du har nu full koll på verktygen. Nu lägger vi i högsta växeln för att bygga din styrka!"
+                </p>
+            </div>
+        ) : (
+            <div className="bg-primary-100/60 p-4 rounded-lg border border-primary-200 text-left">
+                <h3 className="font-semibold text-primary-darker text-lg mb-2">Belöning: Sparpott-bonus! 🏦</h3>
+                <p className="text-sm text-neutral-dark">
+                    Som tack får du en startbonus på <strong>100 kcal</strong> i din Sparpott. Unna dig något gott i helgen!
+                </p>
+            </div>
+        )}
+
         <button
           onClick={onClose}
-          className="w-full mt-8 px-6 py-3 bg-primary text-white text-lg font-semibold rounded-lg shadow-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform"
+          className={`w-full mt-8 px-6 py-3 text-white text-lg font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-opacity-50 active:scale-95 transform ${isMuscleGain ? 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500' : 'bg-primary hover:bg-primary-darker focus:ring-primary'}`}
         >
           Grymt, kör igång!
         </button>

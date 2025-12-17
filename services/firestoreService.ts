@@ -1,4 +1,5 @@
-import { db } from "../firebase";
+
+import { db, functions } from "../firebase"; // Import functions
 import type { User } from '@firebase/auth';
 import { 
     collection, 
@@ -27,6 +28,7 @@ import {
     arrayUnion,
     Transaction,
 } from "@firebase/firestore";
+import { httpsCallable } from "firebase/functions"; // Import httpsCallable
 import type { 
     LoggedMeal, 
     UserProfileData, 
@@ -54,7 +56,7 @@ import type {
     CompletedGoal,
 } from '../types';
 import { DEFAULT_GOALS, LEVEL_DEFINITIONS, DEFAULT_USER_PROFILE } from '../constants';
-import { courseLessons } from '../courseData.ts';
+import { courseLessons, menopauseCourseLessons } from '../courseData.ts';
 import { getWeekInfo } from "../utils/dateUtils.ts";
 
 /* ===== Helpers ===== */
@@ -81,6 +83,22 @@ const formatChange = (change: number | undefined): string => {
   if (Math.abs(change) < 0.05) return '±0,0';
   const sign = change > 0 ? '+' : '';
   return `${sign}${change.toFixed(1).replace('.', ',')}`;
+};
+
+// Helper to remove undefined fields from objects before saving to Firestore
+const cleanFirestoreData = (data: any) => {
+  if (typeof data !== 'object' || data === null) return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(item => cleanFirestoreData(item));
+  }
+
+  return Object.entries(data).reduce((acc, [key, value]) => {
+    if (value !== undefined) {
+      acc[key] = cleanFirestoreData(value);
+    }
+    return acc;
+  }, {} as any);
 };
 
 export const getDocSafe = async (docRef: DocumentReference) => {
@@ -185,6 +203,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       preferredWeighInDay: 'måndag',
       timezone: timezone,
       pushSubscriptions: [],
+      coachStyle: DEFAULT_USER_PROFILE.coachStyle || 'balanced',
     };
     await setDoc(userDocRef, newUserDoc);
   } else {
@@ -261,7 +280,10 @@ export async function fetchInitialAppData(userId: string) {
       mainGoalCompleted: userDocData.mainGoalCompleted ?? false,
       completedGoals: userDocData.completedGoals ?? [],
       notificationSettings: userDocData.notificationSettings,
-      preferredWeighInDay: userDocData.preferredWeighInDay
+      preferredWeighInDay: userDocData.preferredWeighInDay,
+      coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
+      subscriptionStatus: userDocData.subscriptionStatus, // New
+      currentPeriodEnd: userDocData.currentPeriodEnd, // New
     };
     
     const commonMeals = commonMealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as CommonMeal[];
@@ -318,7 +340,7 @@ export async function addMealLog(userId: string, mealId: string, mealData: Omit<
   const userDocRef = doc(db, 'users', userId);
   
   const batch = writeBatch(db);
-  batch.set(mealLogRef, mealData);
+  batch.set(mealLogRef, cleanFirestoreData(mealData));
   batch.update(userDocRef, { lastLogDate: mealData.dateString }); // endast lastLogDate
   await batch.commit();
 }
@@ -330,7 +352,7 @@ export async function deleteMealLog(userId: string, mealLogId: string) {
 
 export async function updateMealLog(userId: string, mealLogId: string, updatedInfo: Partial<NutritionalInfo>) {
   const mealLogRef = doc(db, 'users', userId, 'mealLogs', mealLogId);
-  await updateDoc(mealLogRef, { nutritionalInfo: updatedInfo });
+  await updateDoc(mealLogRef, { nutritionalInfo: cleanFirestoreData(updatedInfo) });
 }
 
 export async function fetchMealLogsForDate(userId: string, dateUID: string): Promise<LoggedMeal[]> {
@@ -381,7 +403,7 @@ export async function addTimelineEvent(
         console.log(`Timeline event with ID "${uniqueEventId}" already exists. Skipping creation.`);
         return;
       }
-      transaction.set(timelineDocRef, fullEvent);
+      transaction.set(timelineDocRef, cleanFirestoreData(fullEvent));
     });
   } catch (error) {
     console.error("Transaction to create timeline event failed: ", error);
@@ -406,7 +428,7 @@ export async function fetchWaterLog(userId: string, dateUID: string): Promise<nu
 
 export async function addCommonMeal(userId: string, commonMealData: Omit<CommonMeal, 'id'>) {
   const commonMealsRef = collection(db, 'users', userId, 'commonMeals');
-  const docRef = await addDoc(commonMealsRef, commonMealData);
+  const docRef = await addDoc(commonMealsRef, cleanFirestoreData(commonMealData));
   return docRef.id;
 }
 
@@ -417,7 +439,7 @@ export async function deleteCommonMeal(userId: string, commonMealId: string) {
 
 export async function updateCommonMeal(userId: string, commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) {
   const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);
-  await updateDoc(commonMealRef, updatedData);
+  await updateDoc(commonMealRef, cleanFirestoreData(updatedData));
 }
 
 /* ===== Profile & goals ===== */
@@ -448,28 +470,95 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
     ...(maybeSummaryStart ? { summaryStartDate: maybeSummaryStart } : {}),
   };
 
-  function noUndefined(obj: any) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([k, v]) => [k, v === undefined ? null : v])
-    );
-  }
+  await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
 
-  await updateDoc(userDocRef, noUndefined(dataToUpdate as any));
+  // --- Create Timeline Event for Goal Update ---
+  try {
+    let goalDesc = "Nytt mål inställt";
+    if (profile.goalType === 'lose_fat') goalDesc = "Fokus: Minska fettmassa";
+    else if (profile.goalType === 'gain_muscle') goalDesc = "Fokus: Öka muskelmassa";
+    else if (profile.goalType === 'maintain') goalDesc = "Fokus: Bibehålla formen";
+
+    await addTimelineEvent(userId, {
+        type: 'goal_set',
+        timestamp: Date.now(),
+        title: 'har uppdaterat sina mål',
+        description: `${goalDesc} 🎯`,
+        icon: '🎯',
+        relatedDocId: `goal_update_${Date.now()}`
+    });
+  } catch (e) {
+    console.error("Failed to create goal timeline event", e);
+  }
 }
 
 /* ===== Weight ===== */
 
 export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEntry, 'id'>) {
   const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
-  const docRef = await addDoc(weightLogsRef, weightLog);
-  return docRef.id;
+  const docRef = await addDoc(weightLogsRef, cleanFirestoreData(weightLog));
+  const newLogId = docRef.id;
+
+  // --- Automatic Timeline Event for Weight Log ---
+  try {
+    // We need the previous log to calculate changes.
+    const logsQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(2));
+    const logsSnap = await getDocsSafe(logsQuery);
+    
+    // docs[0] is the one we just added (or another very recent one), docs[1] is the previous one.
+    // NOTE: Firestore eventual consistency might mean we don't see the new one immediately in a query,
+    // but typically local writes are visible. To be safe, we use the `weightLog` payload for current values.
+    
+    let previousLog: WeightLogEntry | null = null;
+    // Iterate to find a log that isn't the one we just created (by ID check or just taking the next one if inconsistent)
+    for (const doc of logsSnap.docs) {
+      if (doc.id !== newLogId) {
+        previousLog = doc.data() as WeightLogEntry;
+        break;
+      }
+    }
+
+    let weightChange, muscleChange, fatChange;
+    if (previousLog) {
+      weightChange = weightLog.weightKg - previousLog.weightKg;
+      if (weightLog.skeletalMuscleMassKg != null && previousLog.skeletalMuscleMassKg != null) {
+        muscleChange = weightLog.skeletalMuscleMassKg - previousLog.skeletalMuscleMassKg;
+      }
+      if (weightLog.bodyFatMassKg != null && previousLog.bodyFatMassKg != null) {
+        fatChange = weightLog.bodyFatMassKg - previousLog.bodyFatMassKg;
+      }
+    }
+
+    const descriptionParts = [`Vikt: ${weightLog.weightKg.toFixed(1)}kg (${formatChange(weightChange)})`];
+    if (weightLog.skeletalMuscleMassKg != null) {
+      descriptionParts.push(`Muskler: ${weightLog.skeletalMuscleMassKg.toFixed(1)}kg (${formatChange(muscleChange)})`);
+    }
+    if (weightLog.bodyFatMassKg != null) {
+      descriptionParts.push(`Fett: ${weightLog.bodyFatMassKg.toFixed(1)}kg (${formatChange(fatChange)})`);
+    }
+
+    await addTimelineEvent(userId, {
+      type: 'weight',
+      timestamp: weightLog.loggedAt,
+      title: 'har loggat en ny mätning',
+      description: descriptionParts.join('\n'), // Use newline for better formatting in UI
+      icon: '⚖️',
+      relatedDocId: newLogId
+    });
+
+  } catch (err) {
+    console.error("Failed to add weight log to timeline:", err);
+    // Suppress error so we don't break the main save flow
+  }
+
+  return newLogId;
 }
 
 /* ===== Wellbeing ===== */
 
 export async function addMentalWellbeingLog(userId: string, logData: Omit<MentalWellbeingLog, 'id'>): Promise<string> {
   const wellbeingLogsRef = collection(db, 'users', userId, 'mentalWellbeingLogs');
-  const docRef = await addDoc(wellbeingLogsRef, logData);
+  const docRef = await addDoc(wellbeingLogsRef, cleanFirestoreData(logData));
   return docRef.id;
 }
 
@@ -484,12 +573,12 @@ export async function fetchMentalWellbeingLogs(userId: string): Promise<MentalWe
 
 export async function setPastDaySummary(userId: string, dateUID: string, summary: PastDaySummary) {
   const summaryRef = doc(db, 'users', userId, 'pastDaySummaries', dateUID);
-  await setDoc(summaryRef, summary, { merge: true });
+  await setDoc(summaryRef, cleanFirestoreData(summary), { merge: true });
 }
 
 export async function updateUserDocument(userId: string, data: { [key: string]: any }) {
   const userDocRef = doc(db, 'users', userId);
-  await updateDoc(userDocRef, data);
+  await updateDoc(userDocRef, cleanFirestoreData(data));
 }
 
 export async function savePushSubscription(userId: string, subscription: object) {
@@ -507,9 +596,9 @@ export async function savePushSubscription(userId: string, subscription: object)
 
 /* ===== Course ===== */
 
-export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved') {
+export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved' | 'archived') {
   const courseProgressRef = doc(db, 'users', userId, 'courseProgress', lessonId);
-  await setDoc(courseProgressRef, progress, { merge: true });
+  await setDoc(courseProgressRef, cleanFirestoreData(progress), { merge: true });
   
   const progressCollectionRef = collection(db, 'users', userId, 'courseProgress');
   const snapshot = await getDocsSafe(progressCollectionRef);
@@ -529,6 +618,26 @@ export async function saveCourseProgress(userId: string, lessonId: string, progr
     role: role,
     status: status,
   });
+
+  // --- Create Timeline Event for Completed Lesson ---
+  if (progress.isCompleted) {
+    try {
+        const allLessons = [...courseLessons, ...menopauseCourseLessons];
+        const lesson = allLessons.find(l => l.id === lessonId);
+        if (lesson) {
+            await addTimelineEvent(userId, {
+                type: 'course',
+                timestamp: Date.now(),
+                title: 'har klarat en lektion!',
+                description: `Avklarad: ${lesson.title}`,
+                icon: '🎓',
+                relatedDocId: lessonId
+            });
+        }
+    } catch (e) {
+        console.error("Failed to create course timeline event", e);
+    }
+  }
 }
 
 /* ===== Coach ===== */
@@ -632,6 +741,7 @@ export async function fetchDetailedMemberDataForCoach(memberId: string): Promise
     completedGoals: userDocData.completedGoals,
     notificationSettings: userDocData.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
     preferredWeighInDay: userDocData.preferredWeighInDay,
+    coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
   };
 
   return {
@@ -661,6 +771,22 @@ export async function revokeApproval(memberId: string) {
   if (userDoc.exists()) {
     const { role } = userDoc.data();
     await updateDoc(userDocRef, { status: 'pending', role });
+  }
+}
+export async function archiveMember(memberId: string) {
+  const userDocRef = doc(db, 'users', memberId);
+  const userDoc = await getDoc(userDocRef);
+  if (userDoc.exists()) {
+    const { role } = userDoc.data();
+    await updateDoc(userDocRef, { status: 'archived', role });
+  }
+}
+export async function unarchiveMember(memberId: string) {
+  const userDocRef = doc(db, 'users', memberId);
+  const userDoc = await getDoc(userDocRef);
+  if (userDoc.exists()) {
+    const { role } = userDoc.data();
+    await updateDoc(userDocRef, { status: 'approved', role });
   }
 }
 export async function updateUserRole(memberId: string, newRole: UserRole) {
@@ -696,7 +822,7 @@ export async function bulkUpdateUserRole(memberIds: string[], role: UserRole) {
   await batch.commit();
 }
 
-/* ===== Buddy system ===== */
+/* ===== Social ===== */
 
 export function listenForFriendRequests(userId: string, callback: (requests: PeppkompisRequest[]) => void): () => void {
   const requestsRef = collection(db, 'peppkompisRequests');
@@ -720,34 +846,35 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
 }
 
 export async function fetchCommunityTimeline(currentUserId: string): Promise<TimelineEvent[]> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const startOfYesterdayTimestamp = yesterday.getTime();
+  // Optimization: Only fetch events from the last 3 days to prevent query overload
+  const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
 
   const timelineRef = collection(db, 'communityTimeline');
   const q = query(
     timelineRef,
     where('visibleTo', 'array-contains', currentUserId),
-    where('timestamp', '>=', startOfYesterdayTimestamp),
-    orderBy('timestamp', 'desc'),
-    limit(50)
+    where('timestamp', '>=', threeDaysAgo)
   );
   
   const snapshot = await getDocsSafe(q);
 
-  const eventsWithCommentsPromises = snapshot.docs.map(async (eventDoc) => {
-    const eventData = { id: eventDoc.id, ...eventDoc.data() } as TimelineEvent;
-    
-    const commentsRef = collection(db, 'communityTimeline', eventDoc.id, 'comments');
+  // 1. Extract and sort base events first (Sync)
+  const allBaseEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TimelineEvent));
+  allBaseEvents.sort((a, b) => b.timestamp - a.timestamp);
+
+  // 2. Slice top 50
+  const recentEvents = allBaseEvents.slice(0, 50);
+
+  // 3. Enrich only the top 50 with comments (Async)
+  const eventsWithCommentsPromises = recentEvents.map(async (eventData) => {
+    const commentsRef = collection(db, 'communityTimeline', eventData.id, 'comments');
     const commentsQuery = query(commentsRef, orderBy('timestamp', 'asc'));
     const commentsSnapshot = await getDocsSafe(commentsQuery);
     
     const commentsWithLikesPromises = commentsSnapshot.docs.map(async (commentDoc) => {
       const commentData = { id: commentDoc.id, ...commentDoc.data() } as TimelineComment;
       
-      const likesRef = collection(db, 'communityTimeline', eventDoc.id, 'comments', commentDoc.id, 'likes');
+      const likesRef = collection(db, 'communityTimeline', eventData.id, 'comments', commentDoc.id, 'likes');
       const likesSnapshot = await getDocsSafe(likesRef);
       
       const likesMap: { [uid: string]: string } = {};
@@ -825,8 +952,6 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
   return results.filter((b): b is BuddyDetails => b !== null);
 }
 
-/* ===== Social ===== */
-
 export async function searchForBuddies(currentUserId: string): Promise<Peppkompis[]> {
   const usersRef = collection(db, "users");
   const q = query(usersRef, where("isSearchable", "==", true));
@@ -858,7 +983,7 @@ export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string)
     status: 'pending',
     createdAt: Date.now(),
   };
-  await addDoc(requestsRef, newRequest);
+  await addDoc(requestsRef, cleanFirestoreData(newRequest));
 }
 
 export async function updateFriendRequestStatus(request: PeppkompisRequest, status: 'accepted' | 'declined'): Promise<void> {
@@ -916,7 +1041,7 @@ export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: s
 
 export async function addCommentToTimelineEvent(eventId: string, commentData: Omit<TimelineComment, 'id'>): Promise<string> {
   const commentsRef = collection(db, 'communityTimeline', eventId, 'comments');
-  const docRef = await addDoc(commentsRef, commentData);
+  const docRef = await addDoc(commentsRef, cleanFirestoreData(commentData));
   return docRef.id;
 }
 
@@ -936,75 +1061,29 @@ export async function toggleLikeOnComment(fromUser: { uid: string, name: string 
   });
 }
 
-/* ===== Timeline (user) ===== */
-
 export async function cancelFriendRequest(requestId: string): Promise<void> {
   const requestRef = doc(db, 'peppkompisRequests', requestId);
   await deleteDoc(requestRef);
 }
 
-export async function fetchTimelineForCurrentUser(currentUserId: string, achievements: Achievement[]): Promise<TimelineEvent[]> {
-  const userDocSnap = await getDocSafe(doc(db, 'users', currentUserId));
-  if (!userDocSnap.exists()) return [];
-  
-  const userData = userDocSnap.data() as FirestoreUserDocument;
-  
-  const currentUserInfo = {
-    userId: currentUserId,
-    userName: userData.displayName,
-    userPhotoURL: userData.photoURL || undefined,
-    gender: userData.gender,
-  };
+// Subscription Management
+export async function reactivateSubscription(): Promise<string> {
+    if (!functions) throw new Error("Functions not initialized");
+    const createSession = httpsCallable(functions, 'createCheckoutSession');
+    const result = await createSession({ returnUrl: window.location.origin });
+    return (result.data as any).url;
+}
 
-  const weightLogsRef = collection(db, 'users', currentUserId, 'weightLogs');
-  const weightLogsQuery = query(weightLogsRef, orderBy('loggedAt', 'asc'));
-  const weightLogsSnap = await getDocsSafe(weightLogsQuery);
-  const weightLogs = weightLogsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as WeightLogEntry[];
-
-  const weightEvents: TimelineEvent[] = weightLogs.map((currentLog, index) => {
-    const previousLog = index > 0 ? weightLogs[index - 1] : null;
-    let weightChange, muscleChange, fatChange;
-    if (previousLog) {
-      weightChange = currentLog.weightKg - previousLog.weightKg;
-      if (currentLog.skeletalMuscleMassKg != null && previousLog.skeletalMuscleMassKg != null) muscleChange = currentLog.skeletalMuscleMassKg - previousLog.skeletalMuscleMassKg;
-      if (currentLog.bodyFatMassKg != null && previousLog.bodyFatMassKg != null) fatChange = currentLog.bodyFatMassKg - previousLog.bodyFatMassKg;
-    }
-    const descriptionParts = [`Vikt: ${currentLog.weightKg.toFixed(1)}kg (${formatChange(weightChange)})`];
-    if (currentLog.skeletalMuscleMassKg != null) descriptionParts.push(`Muskler: ${currentLog.skeletalMuscleMassKg.toFixed(1)}kg (${formatChange(muscleChange)})`);
-    if (currentLog.bodyFatMassKg != null) descriptionParts.push(`Fett: ${currentLog.bodyFatMassKg.toFixed(1)}kg (${formatChange(fatChange)})`);
-
-    return {
-      id: currentLog.id,
-      type: 'weight',
-      timestamp: currentLog.loggedAt,
-      title: `har loggat en ny mätning`,
-      description: descriptionParts.join(' | '),
-      icon: '⚖️',
-      reactions: currentLog.reactions || {},
-      comments: [],
-      relatedDocPath: `users/${currentUserId}/weightLogs/${currentLog.id}`,
-      ...currentUserInfo
-    };
-  });
-
-  const unlockedAchievementEvents: TimelineEvent[] = Object.entries(userData.unlockedAchievements || {})
-    .map(([id, dateString]) => {
-      const achievement = achievements.find(a => a.id === id);
-      if (!achievement) return null;
-      return {
-        id: `ach_${id}`,
-        type: 'achievement',
-        timestamp: new Date(dateString as string).getTime(),
-        title: `Bragd: ${achievement.name}`,
-        description: achievement.description,
-        icon: achievement.icon,
-        reactions: userData.achievementInteractions?.[id]?.reactions || {},
-        comments: [],
-        relatedDocPath: `users/${currentUserId}/achievementInteractions/${id}`,
-        ...currentUserInfo
-      };
-    }).filter(e => e !== null) as TimelineEvent[];
-
-  const allEvents = [...weightEvents, ...unlockedAchievementEvents];
-  return allEvents.sort((a, b) => b.timestamp - a.timestamp);
+export async function cancelSubscription(userId: string) {
+    // Note: 'userId' parameter is not strictly needed if we rely on Auth context in Cloud Function, 
+    // but useful if we implement admin-cancellation later. 
+    // For now, it's just a placeholder or unused parameter in the callable.
+    if (!functions) throw new Error("Functions not initialized");
+    
+    // We assume there is a cloud function 'cancelSubscription' deployed. 
+    // If not, this needs to be implemented in functions/index.js.
+    // Since we can't edit index.js here, we assume it exists or will be added.
+    // If it doesn't exist, this will throw an error caught by the UI.
+    const cancelSub = httpsCallable(functions, 'cancelSubscription');
+    await cancelSub();
 }

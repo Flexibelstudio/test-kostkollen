@@ -1,3 +1,4 @@
+
 import { GoalSettings, NutritionalInfo, UserProfileData, Level, Achievement } from './types.ts';
 
 export const GEMINI_MODEL_NAME_TEXT = 'gemini-2.5-flash';
@@ -66,6 +67,31 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
     milestoneNudge: true,
   },
   preferredWeighInDay: 'måndag',
+  coachStyle: 'balanced', // Default coach style
+};
+
+export const COACH_PERSONAS = {
+  soft: {
+    label: 'Kompisen',
+    description: 'För dig som vill ha stöd och värme.',
+    emoji: '🌸',
+    voice: 'Puck',
+    promptTone: 'Du heter "Kompisen". Du är en empatisk, varm och peppande kompis. Du fokuserar på välmående och att "lyssna på kroppen". Använd emojis som 💚, 🌿, 🤗. Var snäll och uppmuntrande.'
+  },
+  balanced: {
+    label: 'PT:n',
+    description: 'För dig som vill ha fakta och struktur.',
+    emoji: '⏱️',
+    voice: 'Kore',
+    promptTone: 'Du heter "PT:n". Du är professionell, faktabaserad och lösningsorienterad. Du analyserar data och ger konkreta strategier. Tonen är uppmuntrande men objektiv. Använd emojis som 👊, 📊, ✅.'
+  },
+  hard: {
+    label: 'Generalen',
+    description: 'För dig som behöver en spark i baken.',
+    emoji: '🪖',
+    voice: 'Fenrir',
+    promptTone: 'Du heter "Generalen". Du är auktoritär, rakt på sak och kör med "tough love". Inga ursäkter accepteras. Korta meningar. VERSALER ibland för betoning. Använd emojis som 💥, 🛑, 🫡.'
+  }
 };
 
 export const ACTIVITY_MULTIPLIERS = {
