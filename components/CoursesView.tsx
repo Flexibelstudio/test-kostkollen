@@ -137,18 +137,6 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, onNavigat
   return (
     <>
         <div className="animate-fade-in flex flex-col gap-3 pb-0">
-            <div className="bg-primary-100/60 p-5 rounded-3xl border border-primary-200 flex items-start gap-4 shadow-sm">
-                <div className="p-2 bg-white rounded-full shadow-sm flex-shrink-0">
-                    <SparklesIcon className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                    <h2 className="text-lg font-bold text-primary-darker mb-1">Dina Kurser</h2>
-                    <p className="text-neutral-dark font-medium leading-snug">
-                        Goda nyheter! Alla kurser ingår nu i ditt medlemskap utan extra kostnad. Välj en kurs nedan för att börja.
-                    </p>
-                </div>
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {ALL_COURSES.map(course => (
                 <CourseCard
