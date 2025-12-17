@@ -199,10 +199,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     // UI States
     const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
     const [showBonusCoin, setShowBonusCoin] = useState(false);
-    const [activeMealSection, setActiveMealSection] = useState<MealType | null>(null);
-    
-    // Context state for Camera (log meal vs capture ingredient)
-    const [cameraMode, setCameraMode] = useState<'log' | 'ingredient'>('log');
+    const [activeMealSection, setActiveMealSection] = useState<MealType | null>(null); // Lifted state for open section
 
     const bankRef = useRef<HTMLDivElement>(null);
     const waterLoggerRef = useRef<HTMLDivElement>(null);
@@ -614,77 +611,27 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     };
 
+    // Modal openers with "context awareness"
+    // If a specific type is passed, we use it. 
+    // If NOT passed, we check `activeMealSection`.
+    // If still null, default to null (force user to choose).
     const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType | null = null) => {
         const typeToUse = type || activeMealSection || null;
         setDefaultMealTypeForModal(typeToUse);
+        
+        // IMPORTANT: Close the section list view when we start a logging action
         setActiveMealSection(null);
+        
         setter(true);
         setIsSpeedDialOpen(false);
     }
 
     const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal);
     const handleSearchText = () => openModalWithType(setShowTextEntryModal);
-    
-    const handleTakePhoto = () => {
-        setCameraMode('log');
-        openModalWithType(setShowCameraModal);
-    };
-    
-    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal, 'dinner');
+    const handleTakePhoto = () => openModalWithType(setShowCameraModal);
+    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal, 'dinner'); // Recipe usually for dinner
 
-    const handleImageCapture = async (rawBase64: string) => {
-        setShowCameraModal(false);
-
-        if (cameraMode === 'ingredient') {
-            const dataUrl = `data:image/jpeg;base64,${rawBase64}`;
-            setIngredientImages(prev => [...prev, dataUrl]);
-            setShowIngredientCaptureModal(true);
-        } else {
-            setAnalyzedImageDataUrl(`data:image/jpeg;base64,${rawBase64}`);
-            setAppStatus('analyzing');
-            try {
-                const result = await analyzeFoodImage(rawBase64);
-                setImageAnalysisResult(result);
-                setShowImageAnalysisResultModal(true);
-            } catch (error: any) {
-                console.error("Analysis error:", error);
-                setToastNotification({ message: "Kunde inte analysera bilden.", type: 'error' });
-            } finally {
-                setAppStatus('idle');
-            }
-        }
-    };
-
-    const handleFindRecipesFromIngredients = async (images: string[]) => {
-        if (images.length === 0) return;
-        setShowIngredientCaptureModal(false);
-        setAppStatus('searching');
-        try {
-            const base64Images = images.map(img => img.split(',')[1]);
-            const response = await getRecipesFromIngredientsImage(base64Images);
-            setIdentifiedIngredients(response.identifiedIngredients);
-            setRecipeSuggestions(response.recipeSuggestions);
-            setShowIngredientRecipeResultsModal(true);
-        } catch (error: any) {
-            console.error("Recipe generation error:", error);
-            setToastNotification({ message: "Kunde inte hitta recept.", type: 'error' });
-        } finally {
-            setAppStatus('idle');
-        }
-    };
-
-    const handleUploadIngredientImages = async (files: FileList) => {
-        const newImages: string[] = [];
-        for (let i = 0; i < files.length; i++) {
-            try {
-                const dataUrl = await resizeImageForLog(files[i], 800);
-                newImages.push(dataUrl);
-            } catch (e) {
-                console.error("Failed to upload image", e);
-            }
-        }
-        setIngredientImages(prev => [...prev, ...newImages].slice(0, 5));
-    };
+    // --- RENDER ---
 
     const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
 
@@ -806,107 +753,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                     </div>
 
-                    {/* Meal Sections */}
+                    {/* Water & Streak/Bank */}
                     <div className="grid grid-cols-2 gap-3">
-                        <MealSectionCard 
-                            title="Frukost" 
-                            icon={<Coffee className="w-6 h-6" />}
-                            meals={mealsBySection.breakfast}
-                            onDeleteMeal={handleDeleteMeal}
-                            onUpdateMeal={handleUpdateMeal}
-                            onSaveCommon={handleSaveCommonMealModalOpen}
-                            isEditable={isEditableView}
-                            isOpen={activeMealSection === 'breakfast'}
-                            onOpen={() => setActiveMealSection('breakfast')}
-                            onClose={() => setActiveMealSection(null)}
-                        />
-                        <MealSectionCard 
-                            title="Lunch" 
-                            icon={<Sandwich className="w-6 h-6" />}
-                            meals={mealsBySection.lunch}
-                            onDeleteMeal={handleDeleteMeal}
-                            onUpdateMeal={handleUpdateMeal}
-                            onSaveCommon={handleSaveCommonMealModalOpen}
-                            isEditable={isEditableView}
-                            isOpen={activeMealSection === 'lunch'}
-                            onOpen={() => setActiveMealSection('lunch')}
-                            onClose={() => setActiveMealSection(null)}
-                        />
-                        <MealSectionCard 
-                            title="Middag" 
-                            icon={<CookingPot className="w-6 h-6" />}
-                            meals={mealsBySection.dinner}
-                            onDeleteMeal={handleDeleteMeal}
-                            onUpdateMeal={handleUpdateMeal}
-                            onSaveCommon={handleSaveCommonMealModalOpen}
-                            isEditable={isEditableView}
-                            isOpen={activeMealSection === 'dinner'}
-                            onOpen={() => setActiveMealSection('dinner')}
-                            onClose={() => setActiveMealSection(null)}
-                        />
-                        <MealSectionCard 
-                            title="Mellis" 
-                            icon={<Apple className="w-6 h-6" />}
-                            meals={mealsBySection.snack}
-                            onDeleteMeal={handleDeleteMeal}
-                            onUpdateMeal={handleUpdateMeal}
-                            onSaveCommon={handleSaveCommonMealModalOpen}
-                            isEditable={isEditableView}
-                            isOpen={activeMealSection === 'snack'}
-                            onOpen={() => setActiveMealSection('snack')}
-                            onClose={() => setActiveMealSection(null)}
-                        />
-                    </div>
-                </div>
-
-                {/* Right Column */}
-                <div className="flex flex-col gap-3">
-                    {/* Activity Chart */}
-                    <WeeklyActivityChart 
-                        pastDaysSummary={pastDaysSummary} 
-                        currentAppDate={currentDate} 
-                        viewingDate={viewingDate}
-                        onDateSelect={onDateSelect}
-                        onPrevWeek={handlePrevWeek}
-                        onNextWeek={handleNextWeek}
-                        onToday={handleJumpToToday}
-                        currentViewStats={{
-                            calories: totalNutrients.calories,
-                            calorieGoal: goals.calorieGoal,
-                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
-                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
-                        }}
-                        isSummarizingYesterday={isSummarizingYesterday}
-                    />
-
-                    {/* Bank & Water Row */}
-                    <div className="grid grid-cols-2 gap-3" ref={bankRef}>
-                        {/* Weekly Bank */}
-                        <div className="bg-white p-5 rounded-3xl shadow-soft-lg border border-neutral-light relative overflow-hidden flex flex-col justify-between h-full min-h-[160px]">
-                            <div className="flex justify-between items-start mb-2 relative z-10">
-                                <h3 className="text-xl font-bold text-neutral-dark">Sparpott</h3>
-                                <div className="bg-primary-100 p-2 rounded-full text-primary-darker">
-                                    <PiggyBank className="w-6 h-6" />
-                                </div>
-                            </div>
-                            
-                            <div className="relative z-10 mt-auto">
-                                <p className="text-4xl font-extrabold text-neutral-dark transition-all duration-300">
-                                    {remainingBankDisplay.toFixed(0)} <span className="text-lg font-medium text-neutral-500">kcal</span>
-                                </p>
-                                <p className="text-xs text-neutral-500 font-medium mt-1">
-                                    Tillgängligt för helgen
-                                </p>
-                            </div>
-                            
-                            {/* Visual effect for coins/bank */}
-                            <div className="absolute -bottom-6 -right-6 opacity-10 text-primary-darker transform rotate-12">
-                                <PiggyBank className="w-32 h-32" />
-                            </div>
-                        </div>
-
-                        {/* Water Logger */}
-                        <div ref={waterLoggerRef}>
+                        <div ref={waterLoggerRef} className="h-full">
                             <WaterLogger
                                 currentWaterMl={waterLoggedMl}
                                 waterGoalMl={DEFAULT_WATER_GOAL_ML}
@@ -915,59 +764,165 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 disabled={!isEditableView}
                             />
                         </div>
+                        <div className="flex flex-col gap-3">
+                            {/* Streak Card */}
+                            <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
+                                    <Flame className="w-6 h-6" />
+                                </div>
+                                <div className="relative z-10 flex-1">
+                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Streak</p>
+                                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
+                                        {streakData.currentStreak} 
+                                        <span className="text-sm font-medium text-neutral ml-1">dagar</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Bank Card */}
+                            <div ref={bankRef} className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10">
+                                    <PiggyBank className="w-6 h-6" />
+                                </div>
+                                <div className="relative z-10 flex-1">
+                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Sparpott</p>
+                                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
+                                        {remainingBankDisplay} 
+                                        <span className="text-sm font-medium text-neutral ml-1">kcal</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Common Meals List */}
-                    <CommonMealsList
+                    {/* Weekly Activity */}
+                    <WeeklyActivityChart 
+                        pastDaysSummary={pastDaysSummary}
+                        currentAppDate={new Date()}
+                        viewingDate={viewingDate}
+                        onDateSelect={onDateSelect}
+                        onPrevWeek={handlePrevWeek}
+                        onNextWeek={handleNextWeek}
+                        onToday={handleJumpToToday}
+                        goalType={userProfile.goalType} // Pass goalType here
+                        currentViewStats={{ // Pass live stats for current day
+                            calories: totalNutrients.calories,
+                            calorieGoal: goals.calorieGoal,
+                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
+                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
+                        }}
+                        isSummarizingYesterday={isSummarizingYesterday}
+                    />
+                </div>
+
+                {/* Right Column */}
+                <div className="flex flex-col gap-3">
+                    
+                    <CommonMealsList 
                         commonMeals={commonMeals}
                         onLogCommonMeal={handleCommonMealLog}
                         onDeleteCommonMeal={handleDeleteCommonMeal}
                         onUpdateCommonMeal={handleUpdateCommonMeal}
                         disabled={!isEditableView}
                     />
+
+                    {/* Meal Sections */}
+                    <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-xl font-bold text-neutral-dark">Kalorifördelning</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <MealSectionCard 
+                                title="Frukost" 
+                                icon={<Coffee className="w-6 h-6" />} 
+                                meals={mealsBySection.breakfast} 
+                                onDeleteMeal={handleDeleteMeal}
+                                onUpdateMeal={handleUpdateMeal}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                isEditable={isEditableView}
+                                isOpen={activeMealSection === 'breakfast'}
+                                onOpen={() => setActiveMealSection('breakfast')}
+                                onClose={() => setActiveMealSection(null)}
+                            />
+                            <MealSectionCard 
+                                title="Lunch" 
+                                icon={<Sandwich className="w-6 h-6" />} 
+                                meals={mealsBySection.lunch} 
+                                onDeleteMeal={handleDeleteMeal}
+                                onUpdateMeal={handleUpdateMeal}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                isEditable={isEditableView}
+                                isOpen={activeMealSection === 'lunch'}
+                                onOpen={() => setActiveMealSection('lunch')}
+                                onClose={() => setActiveMealSection(null)}
+                            />
+                            <MealSectionCard 
+                                title="Middag" 
+                                icon={<CookingPot className="w-6 h-6" />} 
+                                meals={mealsBySection.dinner} 
+                                onDeleteMeal={handleDeleteMeal}
+                                onUpdateMeal={handleUpdateMeal}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                isEditable={isEditableView}
+                                isOpen={activeMealSection === 'dinner'}
+                                onOpen={() => setActiveMealSection('dinner')}
+                                onClose={() => setActiveMealSection(null)}
+                            />
+                            <MealSectionCard 
+                                title="Mellanmål" 
+                                icon={<Apple className="w-6 h-6" />} 
+                                meals={mealsBySection.snack} 
+                                onDeleteMeal={handleDeleteMeal}
+                                onUpdateMeal={handleUpdateMeal}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                isEditable={isEditableView}
+                                isOpen={activeMealSection === 'snack'}
+                                onOpen={() => setActiveMealSection('snack')}
+                                onClose={() => setActiveMealSection(null)}
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Floating Action Button (Speed Dial) */}
+            {/* Backdrop for Speed Dial */}
+            {isEditableView && isSpeedDialOpen && (
+                <div 
+                    className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[100] animate-fade-in"
+                    onClick={() => setIsSpeedDialOpen(false)}
+                />
+            )}
+
+            {/* Floating Action Button (FAB) */}
             {isEditableView && !isAICoachOpen && !isProfileOpen && !isMorningReportOpen && (
-                <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+                <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
-                        <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pb-2">
-                            <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3 group">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">Fråga {coachName}</span>
-                                <div className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors">
-                                    <SparklesIcon className="w-7 h-7" />
-                                </div>
+                        <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
+                            <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga {coachName}</span>
+                                <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
                             </button>
-                            <button onClick={handleFindRecipe} className="flex items-center gap-3 group">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">Hitta recept</span>
-                                <div className="w-14 h-14 bg-accent text-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent-darker transition-colors">
-                                    <RecipeIcon className="w-7 h-7" />
-                                </div>
+                            <button onClick={handleTakePhoto} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fota mat</span>
+                                <div className="w-12 h-12 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-secondary-darker transition-colors"><CameraIcon className="w-6 h-6" /></div>
                             </button>
-                            <button onClick={handleScanBarcode} className="flex items-center gap-3 group">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">Skanna streckkod</span>
-                                <div className="w-14 h-14 bg-green-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-green-700 transition-colors">
-                                    <BarcodeIcon className="w-7 h-7" />
-                                </div>
+                            <button onClick={handleScanBarcode} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Skanna kod</span>
+                                <div className="w-12 h-12 bg-accent text-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent-darker transition-colors"><BarcodeIcon className="w-6 h-6" /></div>
                             </button>
-                            <button onClick={handleTakePhoto} className="flex items-center gap-3 group">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">Fota mat</span>
-                                <div className="w-14 h-14 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-secondary-darker transition-colors">
-                                    <CameraIcon className="w-7 h-7" />
-                                </div>
+                            <button onClick={handleSearchText} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Sök & logga</span>
+                                <div className="w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-colors"><SearchIcon className="w-6 h-6" /></div>
                             </button>
-                            <button onClick={handleSearchText} className="flex items-center gap-3 group">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">Sök text</span>
-                                <div className="w-14 h-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-darker transition-colors">
-                                    <SearchIcon className="w-7 h-7" />
-                                </div>
+                            <button onClick={handleFindRecipe} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Hitta recept</span>
+                                <div className="w-12 h-12 bg-purple-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-purple-600 transition-colors"><RecipeIcon className="w-6 h-6" /></div>
                             </button>
                         </div>
                     )}
                     <button 
                         onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
-                        className={`w-16 h-16 rounded-full shadow-soft-xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 ${isSpeedDialOpen ? 'bg-neutral-dark text-white rotate-45' : 'bg-primary text-white'}`}
+                        className={`pointer-events-auto w-16 h-16 rounded-full shadow-soft-xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 ${isSpeedDialOpen ? 'bg-neutral-dark text-white rotate-45' : 'bg-primary text-white'}`}
                         aria-label="Lägg till"
                     >
                         <PlusIcon className="w-8 h-8" />
@@ -975,218 +930,67 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             )}
 
-            {/* Onboarding Checklist */}
+            {/* Checklist & Spotlight (Onboarding) */}
             {checklistState && !checklistState.dismissed && (
-                <div className="mb-6">
-                    <OnboardingChecklist
+                <div className="mb-4 max-w-lg mx-auto w-full">
+                    <OnboardingChecklist 
                         state={checklistState}
                         onNavigate={onOnboardingNavigate}
-                        onTriggerLog={() => setIsSpeedDialOpen(true)}
-                        onScrollToWater={() => waterLoggerRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                        onTriggerLog={() => { setIsSpeedDialOpen(true); }}
+                        onScrollToWater={() => { waterLoggerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
                     />
                 </div>
             )}
-
-            {/* Modals */}
-            {showCameraModal && (
-                <CameraModal 
-                    show={showCameraModal} 
-                    onClose={() => setShowCameraModal(false)} 
-                    onImageCapture={handleImageCapture}
-                    onCameraError={(msg) => setToastNotification({ message: msg, type: 'error' })}
-                    instructionText={cameraMode === 'ingredient' ? "Fota ingredienser" : undefined}
-                />
-            )}
-
-            {showTextEntryModal && (
-                <TextEntryModal 
-                    show={showTextEntryModal} 
-                    onClose={() => setShowTextEntryModal(false)} 
-                    onLog={handleAddMealToLog} 
-                    defaultMealType={defaultMealTypeForModal}
-                />
-            )}
-
-            {showRecipeChoiceModal && (
-                <RecipeChoiceModal 
-                    show={showRecipeChoiceModal}
-                    onClose={() => setShowRecipeChoiceModal(false)}
-                    onChooseSearch={() => {
-                        setShowRecipeChoiceModal(false);
-                        setShowRecipeModal(true);
-                    }}
-                    onChooseTakePhoto={() => {
-                        setShowRecipeChoiceModal(false);
-                        setCameraMode('ingredient');
-                        setShowCameraModal(true);
-                    }}
-                    onChooseUpload={() => {
-                        setShowRecipeChoiceModal(false);
-                        setShowIngredientCaptureModal(true);
-                    }}
-                />
-            )}
-
-            {showRecipeModal && (
-                <RecipeModal
-                    show={showRecipeModal}
-                    onClose={() => setShowRecipeModal(false)}
-                    onSearch={async (query) => {
-                        setAppStatus('searching');
-                        try {
-                            const recipe = await getRecipeSuggestion(query);
-                            setSearchedRecipe(recipe);
-                        } catch (e: any) {
-                            setToastNotification({ message: e.message, type: 'error' });
-                        } finally {
-                            setAppStatus('idle');
-                        }
-                    }}
-                    onLogRecipe={handleAddMealToLog}
-                    recipe={searchedRecipe}
-                    isLoading={appStatus === 'searching'}
-                    error={null} // Error handled via toast
-                    recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])}
-                    setToastNotification={setToastNotification}
-                    defaultMealType={defaultMealTypeForModal}
-                />
-            )}
-
-            {showIngredientCaptureModal && (
-                <IngredientCaptureModal 
-                    show={showIngredientCaptureModal}
-                    onClose={() => setShowIngredientCaptureModal(false)}
-                    onFindRecipes={handleFindRecipesFromIngredients}
-                    openCameraModal={() => {
-                        setCameraMode('ingredient');
-                        setShowCameraModal(true);
-                    }}
-                    images={ingredientImages}
-                    onRemoveImage={(index) => setIngredientImages(prev => prev.filter((_, i) => i !== index))}
-                    onUploadImages={handleUploadIngredientImages}
-                />
-            )}
-
-            {showIngredientRecipeResultsModal && (
-                <IngredientRecipeResultsModal
-                    show={showIngredientRecipeResultsModal}
-                    onClose={() => setShowIngredientRecipeResultsModal(false)}
-                    identifiedIngredients={identifiedIngredients}
-                    recipeSuggestions={recipeSuggestions || []}
-                    onLogRecipe={handleAddMealToLog}
-                    isLoading={appStatus === 'searching'} // Reusing status
-                    error={null}
-                    defaultMealType={defaultMealTypeForModal}
-                />
-            )}
-
-            {showBarcodeScannerModal && (
-                <BarcodeScannerModal
-                    show={showBarcodeScannerModal}
-                    onClose={() => setShowBarcodeScannerModal(false)}
-                    onBarcodeScanned={async (code) => {
-                        setShowBarcodeScannerModal(false);
-                        setScannedBarcode(code);
-                        setAppStatus('searching');
-                        try {
-                            const info = await getFoodInfoFromBarcode(code);
-                            setScannedFoodInfo(info);
-                            setShowBarcodeSearchResultModal(true);
-                        } catch (e: any) {
-                            setToastNotification({ message: e.message, type: 'error' });
-                        } finally {
-                            setAppStatus('idle');
-                        }
-                    }}
-                    onCameraError={(msg) => setToastNotification({ message: msg, type: 'error' })}
-                    onScanFallback={() => {
-                        setShowBarcodeScannerModal(false);
-                        setCameraMode('log'); // Assume fallback is to log a meal/label
-                        setShowCameraModal(true);
-                    }}
-                />
-            )}
-
-            {showBarcodeSearchResultModal && (
-                <BarcodeSearchResultModal
-                    show={showBarcodeSearchResultModal}
-                    scanResult={scannedFoodInfo}
-                    onLog={handleAddMealToLog}
-                    onClose={() => setShowBarcodeSearchResultModal(false)}
-                    defaultMealType={defaultMealTypeForModal}
-                />
-            )}
-
-            {showImageAnalysisResultModal && (
-                <ImageAnalysisResultModal
-                    show={showImageAnalysisResultModal}
-                    analysisResult={imageAnalysisResult}
-                    imageDataUrl={analyzedImageDataUrl}
-                    onLog={handleAddMealToLog}
-                    onClose={() => setShowImageAnalysisResultModal(false)}
-                    defaultMealType={defaultMealTypeForModal}
-                />
-            )}
-
-            {showCommonMealsPopup && (
-                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowCommonMealsPopup(null)}>
-                    <div className="bg-white p-6 rounded-2xl shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-bold text-neutral-dark mb-4 text-center">Logga "{showCommonMealsPopup.name}" som:</h3>
-                        <div className="grid grid-cols-2 gap-3">
-                            {(['breakfast', 'lunch', 'dinner', 'snack'] as MealType[]).map(type => (
-                                <button
-                                    key={type}
-                                    onClick={() => confirmCommonMealLog(type)}
-                                    className="p-3 bg-neutral-light hover:bg-primary-100 hover:text-primary-darker rounded-xl font-medium transition-colors"
-                                >
-                                    {type === 'breakfast' ? 'Frukost' : type === 'lunch' ? 'Lunch' : type === 'dinner' ? 'Middag' : 'Mellis'}
-                                </button>
-                            ))}
-                        </div>
-                        <button onClick={() => setShowCommonMealsPopup(null)} className="w-full mt-4 py-2 text-neutral hover:underline text-sm">Avbryt</button>
+            
+            {showSpotlight && (
+                <div className="fixed inset-0 bg-black/50 z-[100] pointer-events-none">
+                    <div className="absolute bottom-6 right-6 w-16 h-16 rounded-full ring-4 ring-white animate-pulse pointer-events-auto cursor-pointer" onClick={onDismissSpotlight}></div>
+                    <div className="absolute bottom-28 right-6 bg-white p-4 rounded-xl shadow-lg w-64 pointer-events-auto">
+                        <h4 className="font-bold text-neutral-dark mb-1">Här är magin! ✨</h4>
+                        <p className="text-sm text-neutral">Använd plus-knappen för att logga allt: kameran, sök, recept och streckkod.</p>
+                        <button onClick={onDismissSpotlight} className="mt-3 text-sm font-semibold text-primary hover:underline w-full text-right">Fattar!</button>
                     </div>
                 </div>
             )}
 
-            {/* Helper Modals */}
-            {showSaveCommonMealModal && mealToSaveAsCommon && (
-                <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in" onClick={() => setShowSaveCommonMealModal(false)}>
-                    <SaveCommonMealModal
-                        mealInfo={mealToSaveAsCommon.nutritionalInfo}
-                        initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''}
-                        onSave={async (name) => {
-                            try {
-                                await addCommonMeal(currentUser!.uid, {
-                                    name,
-                                    nutritionalInfo: mealToSaveAsCommon.nutritionalInfo,
-                                    timestamp: Date.now()
-                                });
-                                setCommonMeals(prev => [...prev, { id: 'temp', name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp: Date.now() }]);
-                                setToastNotification({ message: 'Sparad som vanligt val!', type: 'success' });
-                                setShowSaveCommonMealModal(false);
-                            } catch (e) {
-                                setToastNotification({ message: 'Kunde inte spara.', type: 'error' });
-                            }
-                        }}
-                        onClose={() => setShowSaveCommonMealModal(false)}
-                    />
-                </div>
-            )}
-
-            {/* Bonus Coin Animation */}
+            {/* Effects & Modals */}
             {showBonusCoin && bankRef.current && (
                 <CoinFallEffect 
-                    targetX={bankRef.current.getBoundingClientRect().left + bankRef.current.offsetWidth / 2}
-                    targetY={bankRef.current.getBoundingClientRect().top + bankRef.current.offsetHeight / 2}
-                    onComplete={() => setShowBonusCoin(false)}
+                    targetX={bankRef.current.getBoundingClientRect().left + bankRef.current.offsetWidth / 2} 
+                    targetY={bankRef.current.getBoundingClientRect().top + bankRef.current.offsetHeight / 2} 
+                    onComplete={() => setShowBonusCoin(false)} 
                 />
             )}
 
+            {/* All Modals */}
+            {showCommonMealsPopup && (
+                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 flex items-center justify-center z-[90] p-4 animate-fade-in" onClick={() => setShowCommonMealsPopup(null)}>
+                    <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-bold text-neutral-dark mb-4">Välj måltid för "{showCommonMealsPopup.name}"</h3>
+                        <MealTypeSelector selectedType={null} onSelect={(type) => confirmCommonMealLog(type)} className="w-full" />
+                        <button onClick={() => setShowCommonMealsPopup(null)} className="mt-4 w-full py-2 text-neutral text-sm hover:underline">Avbryt</button>
+                    </div>
+                </div>
+            )}
+
+            {showCameraModal && <CameraModal show={showCameraModal} onClose={() => setShowCameraModal(false)} onImageCapture={async (imgData) => { setShowCameraModal(false); setAnalyzedImageDataUrl(`data:image/jpeg;base64,${imgData}`); setAppStatus('analyzing'); try { const result = await analyzeFoodImage(imgData); setImageAnalysisResult(result); setShowImageAnalysisResultModal(true); } catch (e: any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(err) => alert(err)} />}
+            {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => setShowTextEntryModal(false)} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => setShowRecipeChoiceModal(false)} onChooseSearch={() => { setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
+            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => setShowRecipeModal(false)} onSearch={async (q) => { setAppStatus('searching'); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} />}
+            {showIngredientCaptureModal && <IngredientCaptureModal show={showIngredientCaptureModal} onClose={() => setShowIngredientCaptureModal(false)} images={ingredientImages} onRemoveImage={(i) => setIngredientImages(prev => prev.filter((_, idx) => idx !== i))} onUploadImages={async (files) => { for(let i=0; i<files.length; i++) { const base64 = await resizeImageForLog(files[i], 800); setIngredientImages(prev => [...prev, base64]); } }} openCameraModal={() => { setShowIngredientCaptureModal(false); setShowCameraModal(true); /* Logic needs loop back to capture modal */ }} onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} />}
+            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} />}
+            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setShowCameraModal(true); /* Logic needs redirect to NutritionLabel flow */ }} />}
+            {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
+            {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
+            {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp: Date.now() }); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
+            {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => setShowNutritionLabelResultModal(false)} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            
+            {appStatus !== 'idle' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
         </div>
     );
 };
 
-// Simple helper for localStorage to avoid errors in strict mode if window not defined (though in react usually is)
+// Helper for local storage (duplicated to avoid import issues if utils not fully shared yet, or move to utils)
 const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
     try {
       const item = localStorage.getItem(key);
@@ -1194,12 +998,6 @@ const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
     } catch (error) {
       return defaultValue;
     }
-};
-
-// Handlers that need hoisting or defining outside render if not dependent on scope
-const handleSaveCommonMealModalOpen = (meal: LoggedMeal) => {
-    // This needs state setters, so it stays inside component or pass setters.
-    // Logic moved inside component for simplicity with state.
 };
 
 export default Dashboard;
