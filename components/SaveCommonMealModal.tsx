@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { NutritionalInfo } from '../types.ts';
 import { CheckIcon, XMarkIcon } from './icons.tsx';
@@ -26,21 +24,30 @@ const SaveCommonMealModal: React.FC<SaveCommonMealModalProps> = ({ mealInfo, ini
   };
 
   return (
-    // Modal container (handled by App.tsx for backdrop animation)
-      <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg">
+    <div 
+      className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 animate-fade-in"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="save-common-meal-title"
+    >
+      <div 
+        className="bg-white p-6 sm:p-8 rounded-2xl shadow-soft-xl w-full max-w-lg animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center mb-5">
             <span className="text-3xl mr-2.5" role="img" aria-hidden="true">📌</span>
-            <h2 id="save-common-meal-title" className="text-2xl font-semibold text-neutral-dark">Spara som vanligt val</h2>
+            <h2 id="save-common-meal-title" className="text-2xl font-bold text-neutral-dark">Spara som vanligt val</h2>
         </div>
         <p className="text-base text-neutral mb-1.5">
           Ge detta val ett namn så att du enkelt kan logga det igen.
         </p>
-        <p className="text-sm text-neutral-dark mb-5 bg-neutral-light p-2.5 rounded-md">
-          <strong>Ursprunglig måltid:</strong> {mealInfo.foodItem || "Okänd"} ({mealInfo.calories.toFixed(0)} kcal)
-        </p>
+        <div className="text-sm text-neutral-dark mb-5 bg-neutral-light/50 p-3 rounded-xl border border-neutral-light">
+          <strong>Ursprunglig måltid:</strong> {mealInfo.foodItem || "Okänd"} ({Math.round(mealInfo.calories)} kcal)
+        </div>
         <form onSubmit={handleSave}>
           <div>
-            <label htmlFor="commonMealName" className="block text-base font-medium text-neutral-dark">
+            <label htmlFor="commonMealName" className="block text-sm font-bold text-neutral-dark mb-1">
               Namn för vanligt val:
             </label>
             <input
@@ -48,29 +55,31 @@ const SaveCommonMealModal: React.FC<SaveCommonMealModalProps> = ({ mealInfo, ini
               id="commonMealName"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base"
+              className="mt-1.5 block w-full px-4 py-3 bg-white border border-neutral-light rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-base font-medium"
+              placeholder="T.ex. Min standardlunch"
+              autoFocus
               required
             />
           </div>
-          <div className="mt-8 flex flex-col-reverse sm:flex-row sm:justify-end gap-3.5">
+          <div className="mt-8 flex flex-col sm:flex-row sm:justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral focus:ring-opacity-50 active:scale-95 transform"
+              className="px-6 py-3 text-base font-bold text-neutral-dark bg-neutral-light hover:bg-gray-200 rounded-xl active:scale-95 transform transition-all"
             >
-              <XMarkIcon className="w-5 h-5 inline mr-1.5" />
               Avbryt
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform"
+              className="px-6 py-3 text-base font-bold text-white bg-primary hover:bg-primary-darker rounded-xl shadow-lg shadow-primary/20 active:scale-95 transform transition-all flex items-center justify-center"
             >
-              <CheckIcon className="w-5 h-5 inline mr-1.5" />
+              <CheckIcon className="w-5 h-5 mr-2" />
               Spara val
             </button>
           </div>
         </form>
       </div>
+    </div>
   );
 };
 
