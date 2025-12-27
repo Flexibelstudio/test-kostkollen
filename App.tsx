@@ -299,7 +299,7 @@ export const App = () => {
   // Local UI State
   const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
   const [viewMode, setViewMode] = useState<ViewMode>('main');
-  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'>('member');
+  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'member'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -774,8 +774,36 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
 // --- WEEKLY BANK RESET CHECK ---
 const ensureWeeklyBankReset = useCallback(async () => {
-    // ... (existing bank reset logic)
-}, [currentUser, isInitialDataLoaded, currentDate, weeklyBank, setWeeklyBank]);
+    if (!currentUser || !isInitialDataLoaded || userRole === 'coach' || userStatus !== 'approved') return;
+
+    const now = new Date();
+    const currentWeek = getWeekInfo(now);
+
+    // If the stored weekId is different from the actual current week, reset it.
+    if (weeklyBank.weekId !== currentWeek.weekId) {
+        console.log(`Weekly bank reset detected. Old week: ${weeklyBank.weekId}, New week: ${currentWeek.weekId}`);
+
+        const resetBank: WeeklyCalorieBank = {
+            weekId: currentWeek.weekId,
+            bankedCalories: 0,
+            startDate: currentWeek.startDate,
+            endDate: currentWeek.endDate,
+        };
+
+        try {
+            // Update Firestore
+            await updateUserDocument(currentUser.uid, {
+                weeklyBank: resetBank
+            });
+
+            // Update state
+            setWeeklyBank(resetBank);
+            console.log("Weekly bank successfully reset.");
+        } catch (error) {
+            console.error("Failed to reset weekly bank:", error);
+        }
+    }
+}, [currentUser, isInitialDataLoaded, userRole, userStatus, weeklyBank.weekId, setWeeklyBank]);
 
 useEffect(() => {
     ensureWeeklyBankReset();
