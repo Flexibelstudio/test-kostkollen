@@ -73,10 +73,12 @@ const TZ = "Europe/Stockholm";
 const getDateUID_SE = (d: Date = new Date()): string => {
   const z = new Date(d.toLocaleString("en-US", { timeZone: TZ }));
   const y = z.getFullYear();
-  const m = String(z.getMonth() + 1).padStart(2, "0");
+  const m = String(getDateUID_SE_Helper_Month(z)).padStart(2, "0");
   const day = String(z.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
+
+const getDateUID_SE_Helper_Month = (z: Date) => z.getMonth() + 1;
 
 const formatChange = (change: number | undefined): string => {
   if (change === undefined || change === null || isNaN(change)) return '-';
@@ -267,13 +269,10 @@ export async function fetchInitialAppData(userId: string) {
     const userDocData = userDocSnap.data() as FirestoreUserDocument;
 
     // --- SJÄLVLÄKNING AV SPARPOT ---
-    // Om bankedCalories är ett objekt (pga buggen) istället för en siffra, återställ det.
     if (userDocData.weeklyBank && typeof userDocData.weeklyBank.bankedCalories !== 'number') {
       const corruptValue: any = userDocData.weeklyBank.bankedCalories;
-      // Försök hämta värdet från Cc-fältet som Firestore-increment skapar internt, annars 0.
       const healedValue = (corruptValue && typeof corruptValue.Cc === 'number') ? corruptValue.Cc : 0;
       userDocData.weeklyBank.bankedCalories = healedValue;
-      console.warn(`FirestoreService: Korrupt sparpott upptäckt för ${userId}. Återställde till ${healedValue}.`);
     }
 
     const profile: UserProfileData = {
@@ -301,8 +300,8 @@ export async function fetchInitialAppData(userId: string) {
       notificationSettings: userDocData.notificationSettings,
       preferredWeighInDay: userDocData.preferredWeighInDay,
       coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
-      subscriptionStatus: userDocData.subscriptionStatus, // New
-      currentPeriodEnd: userDocData.currentPeriodEnd, // New
+      subscriptionStatus: userDocData.subscriptionStatus,
+      currentPeriodEnd: userDocData.currentPeriodEnd,
     };
     
     const commonMeals = commonMealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as CommonMeal[];
@@ -333,7 +332,6 @@ export async function fetchInitialAppData(userId: string) {
       highestStreak: userDocData.highestStreak,
       highestLevelId: userDocData.highestLevelId,
       weeklyBank: userDocData.weeklyBank,
-      // FIX: Include streakSaver in the returned data.
       streakSaver: userDocData.streakSaver ?? null,
       commonMeals,
       weightLogs,
@@ -360,7 +358,7 @@ export async function addMealLog(userId: string, mealId: string, mealData: Omit<
   
   const batch = writeBatch(db);
   batch.set(mealLogRef, cleanFirestoreData(mealData));
-  batch.update(userDocRef, { lastLogDate: mealData.dateString }); // endast lastLogDate
+  batch.update(userDocRef, { lastLogDate: mealData.dateString });
   await batch.commit();
 }
 
@@ -466,22 +464,19 @@ export async function updateCommonMeal(userId: string, commonMealId: string, upd
 export async function saveProfileAndGoals(userId: string, profile: UserProfileData, goals: GoalSettings) {
   const userDocRef = doc(db, 'users', userId);
 
-  // Hämta aktuell userDoc för att ev. sätta summaryStartDate första gången.
   let maybeSummaryStart: string | undefined;
   try {
     const snap = await getDocSafe(userDocRef);
     if (snap.exists()) {
       const data = snap.data() as FirestoreUserDocument;
       if (!data.summaryStartDate) {
-        // Sätt startdatum första gången profilen/målen sparas
         maybeSummaryStart = getDateUID_SE();
       }
     }
   } catch (e) {
-    console.warn("Could not read userDoc before updating profile/goals (will continue without summaryStartDate set).", e);
+    console.warn("Could not read userDoc before updating profile/goals.", e);
   }
 
-  // Uppdatera endast fält vi tillåter (lämna role/status i fred)
   const dataToUpdate = {
     ...profile,
     goals: goals,
@@ -491,7 +486,6 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
 
-  // --- Create Timeline Event for Goal Update ---
   try {
     let goalDesc = "Nytt mål inställt";
     if (profile.goalType === 'lose_fat') goalDesc = "Fokus: Minska fettmassa";
@@ -515,21 +509,28 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
 
 export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEntry, 'id'>) {
   const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
+  const userDocRef = doc(db, 'users', userId);
+  
+  // 1. Spara loggen i dess kollektion
   const docRef = await addDoc(weightLogsRef, cleanFirestoreData(weightLog));
   const newLogId = docRef.id;
 
-  // --- Automatic Timeline Event for Weight Log ---
+  // 2. Uppdatera även användardokumentets "nuvarande" värden (vikt, muskler, fett)
+  // Detta säkerställer att herokort och progressbars är i synk.
+  const profileUpdates: any = {
+    currentWeightKg: weightLog.weightKg,
+  };
+  if (weightLog.skeletalMuscleMassKg !== undefined) profileUpdates.skeletalMuscleMassKg = weightLog.skeletalMuscleMassKg;
+  if (weightLog.bodyFatMassKg !== undefined) profileUpdates.bodyFatMassKg = weightLog.bodyFatMassKg;
+  
+  await updateDoc(userDocRef, cleanFirestoreData(profileUpdates));
+
+  // --- Automatic Timeline Event ---
   try {
-    // We need the previous log to calculate changes.
     const logsQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(2));
     const logsSnap = await getDocsSafe(logsQuery);
     
-    // docs[0] is the one we just added (or another very recent one), docs[1] is the previous one.
-    // NOTE: Firestore eventual consistency might mean we don't see the new one immediately in a query,
-    // but typically local writes are visible. To be safe, we use the `weightLog` payload for current values.
-    
     let previousLog: WeightLogEntry | null = null;
-    // Iterate to find a log that isn't the one we just created (by ID check or just taking the next one if inconsistent)
     for (const doc of logsSnap.docs) {
       if (doc.id !== newLogId) {
         previousLog = doc.data() as WeightLogEntry;
@@ -560,14 +561,13 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
       type: 'weight',
       timestamp: weightLog.loggedAt,
       title: 'har loggat en ny mätning',
-      description: descriptionParts.join('\n'), // Use newline for better formatting in UI
+      description: descriptionParts.join('\n'),
       icon: '⚖️',
       relatedDocId: newLogId
     });
 
   } catch (err) {
     console.error("Failed to add weight log to timeline:", err);
-    // Suppress error so we don't break the main save flow
   }
 
   return newLogId;
@@ -638,7 +638,6 @@ export async function saveCourseProgress(userId: string, lessonId: string, progr
     status: status,
   });
 
-  // --- Create Timeline Event for Completed Lesson ---
   if (progress.isCompleted) {
     try {
         const allLessons = [...courseLessons, ...menopauseCourseLessons];
@@ -865,7 +864,6 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
 }
 
 export async function fetchCommunityTimeline(currentUserId: string): Promise<TimelineEvent[]> {
-  // Optimization: Only fetch events from the last 3 days to prevent query overload
   const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
 
   const timelineRef = collection(db, 'communityTimeline');
@@ -877,14 +875,11 @@ export async function fetchCommunityTimeline(currentUserId: string): Promise<Tim
   
   const snapshot = await getDocsSafe(q);
 
-  // 1. Extract and sort base events first (Sync)
   const allBaseEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TimelineEvent));
   allBaseEvents.sort((a, b) => b.timestamp - a.timestamp);
 
-  // 2. Slice top 50
   const recentEvents = allBaseEvents.slice(0, 50);
 
-  // 3. Enrich only the top 50 with comments (Async)
   const eventsWithCommentsPromises = recentEvents.map(async (eventData) => {
     const commentsRef = collection(db, 'communityTimeline', eventData.id, 'comments');
     const commentsQuery = query(commentsRef, orderBy('timestamp', 'asc'));
@@ -1094,15 +1089,7 @@ export async function reactivateSubscription(): Promise<string> {
 }
 
 export async function cancelSubscription(userId: string) {
-    // Note: 'userId' parameter is not strictly needed if we rely on Auth context in Cloud Function, 
-    // but useful if we implement admin-cancellation later. 
-    // For now, it's just a placeholder or unused parameter in the callable.
     if (!functions) throw new Error("Functions not initialized");
-    
-    // We assume there is a cloud function 'cancelSubscription' deployed. 
-    // If not, this needs to be implemented in functions/index.js.
-    // Since we can't edit index.js here, we assume it exists or will be added.
-    // If it doesn't exist, this will throw an error caught by the UI.
     const cancelSub = httpsCallable(functions, 'cancelSubscription');
     await cancelSub();
 }

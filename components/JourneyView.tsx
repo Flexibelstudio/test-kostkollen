@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
 import { PencilIcon, TrophyIcon, SparklesIcon, PlusIcon, ScaleIcon, ExclamationTriangleIcon } from './icons';
 import { Dumbbell, PieChart, Target } from 'lucide-react';
@@ -55,7 +55,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
 
   const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
   
-  // State lifted from ProfileAndGoalEditor to control it via FAB
   const [isProfileEditing, setIsProfileEditing] = useState(false);
   const [isFullGoalEdit, setIsFullGoalEdit] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
@@ -69,12 +68,13 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   
   const timeline = useMemo(() => calculateGoalTimeline(userProfile), [userProfile]);
   
+  // Find latest measurements for each metric independently to handle logs with partial data
+  const latestWeightValue = useMemo(() => [...weightLogs].reverse().find(l => l.weightKg != null)?.weightKg ?? userProfile.currentWeightKg, [weightLogs, userProfile.currentWeightKg]);
+  const latestMuscleValue = useMemo(() => [...weightLogs].reverse().find(l => l.skeletalMuscleMassKg != null)?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg, [weightLogs, userProfile.skeletalMuscleMassKg]);
+  const latestFatValue = useMemo(() => [...weightLogs].reverse().find(l => l.bodyFatMassKg != null)?.bodyFatMassKg ?? userProfile.bodyFatMassKg, [weightLogs, userProfile.bodyFatMassKg]);
+
   const latestWeightLog = filteredWeightLogs.length > 0 ? filteredWeightLogs[filteredWeightLogs.length - 1] : null;
   const previousWeightLog = filteredWeightLogs.length > 1 ? filteredWeightLogs[filteredWeightLogs.length - 2] : null;
-
-  const latestWeight = latestWeightLog?.weightKg ?? userProfile.currentWeightKg;
-  const latestMuscle = latestWeightLog?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg;
-  const latestFat = latestWeightLog?.bodyFatMassKg ?? userProfile.bodyFatMassKg;
 
   let weightChangeNum: number | undefined;
   let muscleChangeNum: number | undefined;
@@ -113,25 +113,25 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   
       switch (dataType) {
           case 'muscle':
-              if (change > 0) colorClass = 'text-primary-darker'; // always good
-              else if (change < 0) colorClass = 'text-red-600'; // always bad
+              if (change > 0) colorClass = 'text-primary-darker'; 
+              else if (change < 0) colorClass = 'text-red-600'; 
               break;
           case 'fat':
               if (goalType === 'lose_fat') {
-                  if (change < 0) colorClass = 'text-primary-darker'; // good
-                  else if (change > 0) colorClass = 'text-red-600'; // bad
+                  if (change < 0) colorClass = 'text-primary-darker'; 
+                  else if (change > 0) colorClass = 'text-red-600'; 
               }
               break;
           case 'weight':
               if (measurementMethod === 'inbody') {
                   if (change < 0 && fatChangeForWeight !== undefined && fatChangeForWeight < 0) {
-                      colorClass = 'text-primary-darker'; // good: weight loss from fat
+                      colorClass = 'text-primary-darker'; 
                   } else if (change > 0 && muscleChangeForWeight !== undefined && muscleChangeForWeight > 0) {
-                      colorClass = 'text-primary-darker'; // good: weight gain from muscle
+                      colorClass = 'text-primary-darker'; 
                   } else if (change !== 0) {
-                      colorClass = 'text-red-600'; // bad: weight loss from muscle or gain from fat
+                      colorClass = 'text-red-600'; 
                   }
-              } else { // 'scale'
+              } else { 
                   if (change < 0 && (goalType === 'lose_fat' || userProfile.desiredWeightChangeKg && userProfile.desiredWeightChangeKg < 0)) {
                       colorClass = 'text-primary-darker';
                   } else if (change > 0 && (goalType === 'gain_muscle' || userProfile.desiredWeightChangeKg && userProfile.desiredWeightChangeKg > 0)) {
@@ -151,34 +151,29 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const fatChangeDetails = formatChangeWithColor(fatChangeNum, userProfile.goalType, 'fat', userProfile.measurementMethod, undefined, undefined);
 
   const { goalProgress, goalDisplayString } = useMemo(() => {
-    let startValueKg, currentValueKg, goalChangeKg, goalUnit;
+    let startValueKg, currentValueKg, goalChangeKg;
 
     const isScaleGoal = userProfile.measurementMethod === 'scale' && userProfile.desiredWeightChangeKg;
     const isFatLossGoal = userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
     const isMuscleGainGoal = userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
 
-    // Use userProfile values as primary source for current values to ensure immediate UI update after editing, 
-    // falling back to latest log if needed.
+    // Logic: Favor values from logs (latestValue variables) over static profile values
     if (isFatLossGoal) {
         startValueKg = userProfile.goalStartFatMassKg;
-        currentValueKg = userProfile.bodyFatMassKg ?? latestWeightLog?.bodyFatMassKg;
+        currentValueKg = latestFatValue;
         goalChangeKg = userProfile.desiredFatMassChangeKg;
-        goalUnit = 'kg fett';
     } else if (isMuscleGainGoal) {
         startValueKg = userProfile.goalStartMuscleMassKg;
-        currentValueKg = userProfile.skeletalMuscleMassKg ?? latestWeightLog?.skeletalMuscleMassKg;
+        currentValueKg = latestMuscleValue;
         goalChangeKg = userProfile.desiredMuscleMassChangeKg;
-        goalUnit = 'kg muskler';
     } else if (isScaleGoal) {
         startValueKg = userProfile.goalStartWeight;
-        currentValueKg = userProfile.currentWeightKg ?? latestWeightLog?.weightKg;
+        currentValueKg = latestWeightValue;
         goalChangeKg = userProfile.desiredWeightChangeKg;
-        goalUnit = 'kg vikt';
     } else {
         return { goalProgress: 0, goalDisplayString: 'Inget aktivt mål' };
     }
     
-    // Display String Logic
     const datePart = userProfile.goalCompletionDate ? ` till ${new Date(userProfile.goalCompletionDate+'T00:00:00').toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : '';
     let displayString = "";
     
@@ -200,9 +195,9 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
 
     const totalChangeNeeded = Math.abs(goalChangeKg || 0);
     let changeAchieved;
-    if ((goalChangeKg || 0) > 0) { // Gain goal
+    if ((goalChangeKg || 0) > 0) { 
         changeAchieved = currentValueKg - startValueKg;
-    } else { // Loss goal
+    } else { 
         changeAchieved = startValueKg - currentValueKg;
     }
     
@@ -217,14 +212,12 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         goalProgress: Math.max(0, Math.min(progressRaw, 100)),
         goalDisplayString: displayString
     };
-  }, [latestWeightLog, userProfile]);
+  }, [latestWeightValue, latestMuscleValue, latestFatValue, userProfile]);
 
   const handleStartNewGoal = () => {
       setShowResetConfirmModal(false);
-      // Trigger Edit Mode with full goal editing enabled
       setIsProfileEditing(true);
       setIsFullGoalEdit(true);
-      // Scroll to editor if needed (not strictly necessary with this layout)
   };
 
   const handleEditToggle = (isEditing: boolean) => {
@@ -248,7 +241,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                 {/* Main Metric - Weight */}
                 <div className="text-center mb-6">
                     <span className="text-5xl font-extrabold block text-neutral-dark">
-                        {latestWeight ? `${latestWeight.toFixed(1).replace('.',',')}` : 'N/A'}
+                        {latestWeightValue ? `${latestWeightValue.toFixed(1).replace('.',',')}` : 'N/A'}
                         <span className="text-2xl ml-1 text-neutral">kg</span>
                     </span>
                     <span className={`text-base font-semibold ${weightChangeDetails.colorClass} bg-neutral-light/50 px-3 py-1 rounded-full mt-2 inline-block`}>
@@ -256,16 +249,16 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                     </span>
                 </div>
 
-                {/* Secondary Metrics - UPDATED DESIGN */}
+                {/* Secondary Metrics */}
                 <div className="flex gap-4 w-full justify-center">
-                    {latestMuscle != null && (
+                    {latestMuscleValue != null && (
                         <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
                             <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 mb-2">
                                 <Dumbbell className="w-5 h-5" />
                             </div>
                             <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Muskler</span>
                             <span className="text-xl font-bold text-neutral-dark">
-                                {latestMuscle.toFixed(1).replace('.',',')}
+                                {latestMuscleValue.toFixed(1).replace('.',',')}
                             </span>
                             <span className={`text-xs font-semibold ${muscleChangeDetails.colorClass}`}>
                                 {muscleChangeDetails.text}
@@ -273,14 +266,14 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                         </div>
                     )}
                     
-                    {latestFat != null && (
+                    {latestFatValue != null && (
                         <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
                             <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600 mb-2">
                                 <PieChart className="w-5 h-5" />
                             </div>
                             <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Fett</span>
                             <span className="text-xl font-bold text-neutral-dark">
-                                {latestFat.toFixed(1).replace('.',',')}
+                                {latestFatValue.toFixed(1).replace('.',',')}
                             </span>
                             <span className={`text-xs font-semibold ${fatChangeDetails.colorClass}`}>
                                 {fatChangeDetails.text}
@@ -291,10 +284,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             </div>
         </div>
 
-        {/* CONTENT AREA: TOGGLES BETWEEN EDITING AND VIEWING */}
         {isProfileEditing ? (
-            // --- EDIT MODE ---
-            // Shows only the editor to minimize distraction
             <div className="animate-fade-in">
                 <ProfileAndGoalEditor 
                     initialProfile={userProfile} 
@@ -303,14 +293,12 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                     isEditing={isProfileEditing}
                     setIsEditing={handleEditToggle}
                     isFullGoalEdit={isFullGoalEdit}
-                    latestMeasuredWeight={latestWeight}
-                    latestMeasuredMuscle={latestMuscle}
-                    latestMeasuredFat={latestFat}
+                    latestMeasuredWeight={latestWeightValue}
+                    latestMeasuredMuscle={latestMuscleValue}
+                    latestMeasuredFat={latestFatValue}
                 />
             </div>
         ) : (
-            // --- NORMAL MODE ---
-            // Shows Tabs, Goal Status, Timeline and Summary
             <div className="bg-white p-2 rounded-2xl shadow-soft-lg border border-neutral-light">
                 <div className="flex p-1 bg-neutral-light/50 rounded-xl">
                     <button
@@ -330,7 +318,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                 <div className="mt-4 p-2">
                     {activeTab === 'goals' && (
                         <div className="space-y-3 animate-fade-in">
-                            {/* Current Goal Card */}
                             <div className="bg-neutral-light/30 p-4 rounded-2xl border border-neutral-light">
                                 <div className="flex items-center justify-between mb-2">
                                     <h3 className="font-bold text-neutral-dark flex items-center gap-2">
@@ -368,9 +355,9 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                 isEditing={false}
                                 setIsEditing={handleEditToggle}
                                 isFullGoalEdit={isFullGoalEdit}
-                                latestMeasuredWeight={latestWeight}
-                                latestMeasuredMuscle={latestMuscle}
-                                latestMeasuredFat={latestFat}
+                                latestMeasuredWeight={latestWeightValue}
+                                latestMeasuredMuscle={latestMuscleValue}
+                                latestMeasuredFat={latestFatValue}
                             />
                         </div>
                     )}
@@ -391,7 +378,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         )}
       </div>
       
-      {/* Backdrop for Speed Dial */}
       {isSpeedDialOpen && (
           <div 
               className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[100] animate-fade-in"
@@ -399,7 +385,6 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
           />
       )}
 
-      {/* FAB - Hidden during profile editing or when Coach is open */}
       {!isProfileEditing && !isAICoachOpen && !isProfileOpen && !isMorningReportOpen && (
         <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
             {isSpeedDialOpen && (
