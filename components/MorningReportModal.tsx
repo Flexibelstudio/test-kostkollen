@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { PastDaySummary, UserProfileData } from '../types';
-import { CheckCircleIcon, XCircleIcon, FireIcon, TrophyIcon, SparklesIcon } from './icons';
+import { CheckCircleIcon, XCircleIcon, TrophyIcon, SparklesIcon } from './icons';
 import { getMorningBriefingText, getMorningBriefingAudio } from '../services/geminiService';
 import { COACH_PERSONAS } from '../constants';
-import { Volume2, VolumeX, PiggyBank } from 'lucide-react';
+import { Volume2, VolumeX, PiggyBank, Flame } from 'lucide-react';
 
 interface MorningReportModalProps {
   show: boolean;
@@ -170,7 +169,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
         <div className="grid grid-cols-1 gap-3 mb-6 text-left">
              <div className="bg-white p-4 rounded-2xl shadow-sm border border-neutral-light flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 ${currentStreak > 0 ? 'bg-orange-100 text-orange-600' : 'bg-neutral-light text-neutral-400'}`}>
-                    <FireIcon className="w-7 h-7" />
+                    <Flame className="w-7 h-7" />
                 </div>
                 <div>
                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Streak</p>
