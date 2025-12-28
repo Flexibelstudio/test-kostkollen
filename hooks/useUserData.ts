@@ -33,6 +33,8 @@ export interface UseUserDataReturn {
     setPastDaysSummary: React.Dispatch<React.SetStateAction<PastDaysSummaryCollection>>;
     streakData: { currentStreak: number; lastDateStreakChecked: string | null };
     setStreakData: React.Dispatch<React.SetStateAction<{ currentStreak: number; lastDateStreakChecked: string | null }>>;
+    summaryStartDate: string | null;
+    setSummaryStartDate: React.Dispatch<React.SetStateAction<string | null>>;
     weeklyBank: WeeklyCalorieBank;
     setWeeklyBank: React.Dispatch<React.SetStateAction<WeeklyCalorieBank>>;
     streakSaver: StreakSaver | null;
@@ -81,6 +83,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
     const [weightLogs, setWeightLogs] = useState<WeightLogEntry[]>([]);
     const [pastDaysSummary, setPastDaysSummary] = useState<PastDaysSummaryCollection>({});
     const [streakData, setStreakData] = useState<{ currentStreak: number; lastDateStreakChecked: string | null }>({ currentStreak: 0, lastDateStreakChecked: null });
+    const [summaryStartDate, setSummaryStartDate] = useState<string | null>(null);
     const [weeklyBank, setWeeklyBank] = useState<WeeklyCalorieBank>(() => {
         const { weekId, startDate, endDate } = getWeekInfo(currentDate);
         return { weekId, bankedCalories: 0, startDate, endDate };
@@ -103,6 +106,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
         setDailyLog([]);
         setPastDaysSummary({});
         setStreakData({ currentStreak: 0, lastDateStreakChecked: null });
+        setSummaryStartDate(null);
         setWaterLoggedMl(0);
         setUserCourseProgress({});
         setWeightLogs([]);
@@ -143,6 +147,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
                     currentStreak: appData.currentStreak || 0,
                     lastDateStreakChecked: appData.lastDateStreakChecked || null,
                 });
+                setSummaryStartDate(appData.summaryStartDate || null);
                 setWeeklyBank(appData.weeklyBank || weeklyBank);
                 setStreakSaver(appData.streakSaver || null);
                 setHighestStreak(appData.highestStreak || 0);
@@ -150,6 +155,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
                 setCommonMeals(appData.commonMeals || []);
                 setWeightLogs(appData.weightLogs || []);
                 setMentalWellbeingLogs(appData.mentalWellbeingLogs || []);
+                /* FIX: Använder det korrekta pluralnamnet setPastDaysSummary istället för setPastDaySummary */
                 setPastDaysSummary(appData.pastDaySummaries || {});
                 setUserCourseProgress(appData.courseProgress || {});
                 setUnlockedAchievements(appData.unlockedAchievements || {});
@@ -171,7 +177,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
         } finally {
             setIsDataLoading(false);
         }
-    }, [userId, resetUserData]);
+    }, [userId, resetUserData, weeklyBank]);
 
     // Initial fetch effect
     useEffect(() => {
@@ -192,6 +198,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
         weightLogs, setWeightLogs,
         pastDaysSummary, setPastDaysSummary,
         streakData, setStreakData,
+        summaryStartDate, setSummaryStartDate,
         weeklyBank, setWeeklyBank,
         streakSaver, setStreakSaver,
         highestStreak, setHighestStreak,

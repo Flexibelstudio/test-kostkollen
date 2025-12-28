@@ -279,6 +279,7 @@ export const App = () => {
     weightLogs, setWeightLogs,
     pastDaysSummary, setPastDaysSummary,
     streakData, setStreakData,
+    summaryStartDate, setSummaryStartDate,
     weeklyBank, setWeeklyBank,
     streakSaver, setStreakSaver,
     highestStreak, setHighestStreak,
@@ -742,8 +743,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     setHasCompletedOnboarding(true);
     setShowSpotlight(true);
     
+    const todayUID = dayKeySE(new Date());
+
     const newState: OnboardingChecklistState = {
-        firstSeenDate: new Date().toISOString().split('T')[0],
+        firstSeenDate: todayUID,
         items: { mealLogged: false, waterLogged: false, journeyViewed: false, communityViewed: false },
         dismissed: false,
     };
@@ -753,10 +756,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     try {
         await updateUserDocument(currentUser.uid, { 
           hasCompletedOnboarding: true,
-          summaryStartDate: dayKeySE(new Date()),
+          summaryStartDate: todayUID,
+          lastDateStreakChecked: todayUID, // Markera dagen som kollad för att undvika omedelbar summering
           role: userRole, 
           status: userStatus 
         });
+        setSummaryStartDate(todayUID);
+        setStreakData(prev => ({ ...prev, lastDateStreakChecked: todayUID }));
         playAudio('levelUp');
     } catch (error) {
         handleFirestoreError(error, 'slutföra onboarding');
@@ -815,6 +821,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     const { start: yesterdayStart, end: yesterdayEnd, yKey: yesterdayUID } = yesterdayRangeSE(now);
     
+    // VAKTPOST: Om igår var före användarens startdatum för summering, avbryt.
+    if (summaryStartDate && yesterdayUID < summaryStartDate) {
+        return;
+    }
+
     if (streakData.lastDateStreakChecked === yesterdayUID && !options.force) {
         return;
     }
@@ -923,7 +934,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     } finally {
         setIsSummarizingYesterday(false);
     }
-}, [currentUser?.uid, userRole, userStatus, streakData, goals, userProfile, weeklyBank, highestStreak, setPastDaysSummary, setStreakData, setToastNotification]);
+}, [currentUser?.uid, userRole, userStatus, streakData, goals, userProfile, weeklyBank, highestStreak, setPastDaysSummary, setStreakData, setToastNotification, summaryStartDate]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
@@ -1434,6 +1445,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
               buddyDetails={buddyDetails}
               isLoading={isLoadingCommunityData}
               onDataChanged={loadCommunityData}
+              /* FIX: Använder det korrekta variabelnamnet lastCommunityViewTimestamp för lastViewTimestamp */
               lastViewTimestamp={lastCommunityViewTimestamp}
             />
          )}
