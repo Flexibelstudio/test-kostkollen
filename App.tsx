@@ -2,8 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { db } from './firebase';
 import {
-  doc, writeBatch, collection,
-  increment, updateDoc
+  doc, writeBatch, increment
 } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
@@ -82,7 +81,7 @@ import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 import Dashboard from './pages/Dashboard';
 
 /* ===========================
-   Start of Daily Summary Helpers
+   Daily Summary Helpers
    =========================== */
 
 const TZ = "Europe/Stockholm";
@@ -104,10 +103,6 @@ const yesterdayRangeSE = (now = new Date()) => {
   const end = today;
   return { start, end, yKey: dayKeySE(start) };
 };
-
-/* ===========================
-   End of Daily Summary Helpers
-   =========================== */
 
 const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
   try {
@@ -368,7 +363,7 @@ export const App = () => {
   }, [viewingDate]);
 
   const minSafeCalories = useMemo(() => {
-    const goalBasedMin = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
+    const goalBasedMin = (goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
     return Math.max(goalBasedMin, MIN_ABSOLUTE_CALORIES_THRESHOLD);
   }, [goals.calorieGoal]);
 
@@ -954,7 +949,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             fat: acc.fat + meal.nutritionalInfo.fat,
         }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
 
-        const minSafe = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+        const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
         
         let goalMet = false;
         if (totals.calories >= minSafe) {
