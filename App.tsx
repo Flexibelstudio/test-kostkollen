@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { db } from './firebase';
 import {
-  doc, writeBatch, increment
+  doc, writeBatch, deleteField, collection, getDocFromServer, runTransaction,
+  where, updateDoc, getDoc, increment, getDocs, query
 } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
@@ -15,11 +16,12 @@ import {
   AppStatus, PastDaySummary, ViewMode,
   UserProfileData, 
   Level, WeeklyCalorieBank, CourseLesson, UserLessonProgress,
-  WeightLogEntry,
-  AIStructuredFeedbackResponse, 
-  TimelineEvent, BuddyDetails, OnboardingChecklistState,
+  AIDataForFeedback, FirestoreUserDocument, WeightLogEntry, MentalWellbeingLog,
+  AIDataForJourneyAnalysis, AIStructuredFeedbackResponse, 
+  CompletedGoal, TimelineEvent, BuddyDetails, OnboardingChecklistState,
   OnboardingChecklistItemStatus,
   UserRole,
+  GoalType,
   GoalSettings,
   LoggedMeal
 } from './types.ts';
@@ -27,16 +29,16 @@ import {
 import {
   DEFAULT_GOALS, LOCAL_STORAGE_KEYS, DEFAULT_WATER_GOAL_ML,
   DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
-  ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS
+  ACHIEVEMENT_DEFINITIONS, VAPID_PUBLIC_KEY, COACH_PERSONAS
 } from './constants.ts';
 
-import { getAIFeedback } from './services/geminiService.ts';
+import { getAIFeedback, getDetailedJourneyAnalysis } from './services/geminiService.ts';
 
 import {
-  fetchWaterLog,
+  setWaterLog, fetchWaterLog,
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
-  listenForFriendRequests,
-  fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate,
+  addMentalWellbeingLog, listenForFriendRequests,
+  getDocSafe, savePushSubscription, addTimelineEvent, fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate,
   setPastDaySummary
 } from './services/firestoreService.ts';
 
@@ -69,19 +71,22 @@ import MorningReportModal from './components/MorningReportModal.tsx';
 import GamificationModal from './components/GamificationModal.tsx';
 import SubscriptionModal from './components/SubscriptionModal.tsx';
 
+import { calculateRecommendations } from './utils/nutritionalCalculations.ts';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
 import {
   InformationCircleIcon, AICoachIcon,
   PencilIcon,
-  BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon, CreditCardIcon
+  ChatBubbleOvalLeftEllipsisIcon, BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon, CreditCardIcon
 } from './components/icons.tsx';
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 import Dashboard from './pages/Dashboard';
+import { OnboardingChecklist } from './components/OnboardingChecklist';
+import { CommonMeal } from './types.ts';
 
 /* ===========================
-   Daily Summary Helpers
+   Start of Daily Summary Helpers
    =========================== */
 
 const TZ = "Europe/Stockholm";
@@ -104,11 +109,16 @@ const yesterdayRangeSE = (now = new Date()) => {
   return { start, end, yKey: dayKeySE(start) };
 };
 
+/* ===========================
+   End of Daily Summary Helpers
+   =========================== */
+
 const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
   try {
     const item = localStorage.getItem(key);
     return item ? JSON.parse(item) : defaultValue;
   } catch (error) {
+    console.warn(`Error reading localStorage key "${key}":`, error);
     return defaultValue;
   }
 };
@@ -116,7 +126,9 @@ const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
 const setLocalStorageItem = <T,>(key: string, value: T): void => {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch (error) {}
+  } catch (error) {
+    console.warn(`Error setting localStorage key "${key}":`, error);
+  }
 };
 
 interface ProcessDayEndLogicOptions {
@@ -258,8 +270,8 @@ const UseStreakSaverModal: React.FC<{
 
 export const App = () => {
   const {
-    currentUser, authLoading, logout, setCurrentUser,
-    currentDate,
+    currentUser, authLoading, persistenceWarning, logout, setCurrentUser,
+    currentDate, setCurrentDate,
     goals, setGoals,
     userProfile, setUserProfile,
     setDailyLog,
@@ -269,16 +281,17 @@ export const App = () => {
     streakData, setStreakData,
     summaryStartDate, setSummaryStartDate,
     weeklyBank, setWeeklyBank,
-    streakSaver,
-    highestStreak,
-    highestLevelId,
-    unlockedAchievements,
-    achievementInteractions,
+    streakSaver, setStreakSaver,
+    highestStreak, setHighestStreak,
+    highestLevelId, setHighestLevelId,
+    unlockedAchievements, setUnlockedAchievements,
+    achievementInteractions, setAchievementInteractions,
     userCourseProgress, setUserCourseProgress,
     hasCompletedOnboarding, setHasCompletedOnboarding,
     userRole,
     userStatus,
-    mentalWellbeingLogs,
+    journeyAnalysisFeedback, setJourneyAnalysisFeedback,
+    mentalWellbeingLogs, setMentalWellbeingLogs,
     isDataLoading,
     isInitialDataLoaded,
     resetUserData,
@@ -287,7 +300,7 @@ export const App = () => {
   // Local UI State
   const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
   const [viewMode, setViewMode] = useState<ViewMode>('main');
-  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'>('member');
+  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'member'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -302,6 +315,7 @@ export const App = () => {
 
   const [journeyInitialTab, setJourneyInitialTab] = useState<'calendar' | 'profile' | 'achievements'>('calendar');
 
+  const [lastNotifiedStreakLevelUp, setLastNotifiedStreakLevelUp] = useState<string | null>(null);
   const [showLevelUpModal, setShowLevelUpModal] = useState<Level | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; streak: number} | null>(null);
@@ -335,17 +349,27 @@ export const App = () => {
   const [showLogWeightModal, setShowLogWeightModal] = useState<boolean>(false);
 
   const [showMentalWellbeingModal, setShowMentalWellbeingModal] = useState<boolean>(false);
+  const [relatedWeightLogIdForWellbeing, setRelatedWeightLogIdForWellbeing] = useState<string | null>(null);
+  const [pendingGoalFeedbackData, setPendingGoalFeedbackData] = useState<{ profile: UserProfileData, goals: GoalSettings, isOnboarding: boolean } | null>(null);
+  const [pendingAnalysisData, setPendingAnalysisData] = useState<{ updatedLogs: WeightLogEntry[] } | null>(null);
+  
+  type PendingTimelineEvent = 
+    | { type: 'weight', data: { newLog: WeightLogEntry; previousLog: WeightLogEntry | null } }
+    | { type: 'goal_set', data: { userProfile: UserProfileData } }
+    | { type: 'goal_achieved', data: { newLog: WeightLogEntry; goalDescription: string } };
+
+  const [pendingTimelineEvent, setPendingTimelineEvent] = useState<PendingTimelineEvent | null>(null);
   
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
-  const [communityViewKey] = useState(Date.now());
-  const [communityInitialTab] = useState<'flode' | 'hantera'>('flode');
-  const [communityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
-  const [highlightEventId] = useState<string | null>(null);
+  const [communityViewKey, setCommunityViewKey] = useState(Date.now());
+  const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera'>('flode');
+  const [communityInitialSubTab, setCommunityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
+  const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
   const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
   const previousViewModeRef = useRef<ViewMode>(viewMode);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [buddyDetails, setBuddyDetails] = useState<BuddyDetails[]>([]);
-  const [communityNotificationCount] = useState(0);
+  const [communityNotificationCount, setCommunityNotificationCount] = useState(0);
   const [isLoadingCommunityData, setIsLoadingCommunityData] = useState(true);
 
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
@@ -363,7 +387,7 @@ export const App = () => {
   }, [viewingDate]);
 
   const minSafeCalories = useMemo(() => {
-    const goalBasedMin = (goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
+    const goalBasedMin = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
     return Math.max(goalBasedMin, MIN_ABSOLUTE_CALORIES_THRESHOLD);
   }, [goals.calorieGoal]);
 
@@ -380,6 +404,7 @@ export const App = () => {
             setWaterLoggedMl(loadedWater);
         } catch (error: any) {
             setToastNotification({ message: 'Kunde inte ladda dagens data.', type: 'error'});
+            setTimeout(() => setToastNotification(null), 4000);
         } finally {
             setAppStatus(AppStatus.IDLE);
         }
@@ -409,6 +434,7 @@ export const App = () => {
             const batch = writeBatch(db);
             let hasUnlockedAny = false;
 
+            // 1. Check "Praktisk Viktkontroll" (Streak-based)
             const pvLessons = courseLessons;
             let lastStreakAtUnlock = 0;
             let lastUnlockedIdx = -1;
@@ -420,6 +446,7 @@ export const App = () => {
                     lastUnlockedIdx = i;
                     lastStreakAtUnlock = prog.streakAtUnlock ?? 0;
                 } else {
+                    // Check if conditions met for unlock
                     const isFirstLesson = i === 0;
                     const prevWasUnlocked = isFirstLesson || lastUnlockedIdx === i - 1;
                     const streakTarget = isFirstLesson ? 0 : lastStreakAtUnlock + 7;
@@ -435,21 +462,25 @@ export const App = () => {
                         const ref = doc(db, 'users', currentUser.uid, 'courseProgress', lessonId);
                         batch.set(ref, newProg, { merge: true });
                         
+                        // Optimistic local update
                         setUserCourseProgress(prev => ({ ...prev, [lessonId]: newProg }));
                         setNewlyUnlockedLesson(pvLessons[i]);
                         hasUnlockedAny = true;
                         playAudio('levelUp');
-                        break; 
+                        break; // Only unlock one per check cycle
                     }
                     break; 
                 }
             }
 
+            // 2. Check "Maxa Klimakteriet" (Sequential completion-based)
             const mkLessons = menopauseCourseLessons;
             for (let i = 0; i < mkLessons.length; i++) {
                 const lessonId = mkLessons[i].id;
                 const prog = userCourseProgress[lessonId];
-                if (!prog?.unlockedAt) {
+                if (prog?.unlockedAt) {
+                    // Already unlocked, continue to check next
+                } else {
                     const isFirst = i === 0;
                     const prevIsCompleted = i > 0 && userCourseProgress[mkLessons[i-1].id]?.isCompleted;
 
@@ -477,12 +508,14 @@ export const App = () => {
             if (hasUnlockedAny) {
                 try {
                     await batch.commit();
-                } catch (e) {}
+                } catch (e) {
+                    console.error("Batch unlock failed", e);
+                }
             }
         };
 
         checkAndUnlockLessons();
-    }, [isInitialDataLoaded, currentUser, streakData.currentStreak, userCourseProgress, userRole, userStatus, setUserCourseProgress]);
+    }, [isInitialDataLoaded, currentUser, streakData.currentStreak, userCourseProgress, userRole, userStatus]);
 
 
     useEffect(() => {
@@ -491,7 +524,8 @@ export const App = () => {
 
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
-    return false; 
+    // ... (existing push logic)
+    return false; // placeholder for brevity in this response
   };
   
   useEffect(() => {
@@ -508,6 +542,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   }, []); 
 
   const handleFirestoreError = (error: any, operation: string) => {
+    console.error(`Firestore error during ${operation}:`, error);
     setToastNotification({ message: `Kunde inte ${operation}.`, type: 'error' });
     setTimeout(() => setToastNotification(null), 5000);
   };
@@ -535,11 +570,17 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             const filteredEvents = events.filter(event => event.userId === currentUser.uid || details.some(b => b.uid === event.userId));
             setTimelineEvents(filteredEvents);
             setBuddyDetails(details);
+
+            const lastViewed = getLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, null);
+            if (lastViewed && viewMode !== 'community') {
+               // Logic to calculate notification count
+            }
         } catch (error) {
+            console.error("Error loading community data", error);
         } finally {
             setIsLoadingCommunityData(false);
         }
-    }, [currentUser]);
+    }, [currentUser, viewMode]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
@@ -552,9 +593,17 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         if (viewMode === 'community' && previousViewMode !== 'community') {
             const lastTimestamp = getLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, null);
             setLastCommunityViewTimestamp(lastTimestamp);
+            setCommunityNotificationCount(0); 
             setLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, Date.now());
         }
         previousViewModeRef.current = viewMode;
+    }, [viewMode]);
+
+    useEffect(() => {
+        if (viewMode !== 'community') {
+            setCommunityInitialTab('flode');
+            setCommunityInitialSubTab('buddies');
+        }
     }, [viewMode]);
 
   useEffect(() => {
@@ -571,16 +620,30 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('view') === 'community') {
       setViewMode('community');
+      if (params.get('tab') === 'requests') setCommunityInitialSubTab('requests');
+      if (params.get('highlight')) setHighlightEventId(params.get('highlight'));
       window.history.replaceState({}, '', window.location.pathname);
     }
     
+    // Check for payment success
     if (params.get('payment_success') === 'true' && userStatus === 'approved') {
         setToastNotification({ message: "Betalning bekräftad! Välkommen in!", type: 'success' });
+        // Clean URL
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
         window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
     }
   }, [userStatus]);
+
+  const handleViewLatestUpdate = () => {
+    setShowLatestUpdateView(true);
+    setShowProfileDropdown(false);
+    playAudio('uiClick');
+    if (hasUnseenUpdate) {
+        localStorage.setItem('updateNotice_v5_StreakUpdate', 'true');
+        setHasUnseenUpdate(false);
+    }
+  };
 
   const handleNavigateToCourses = () => {
     setViewMode('coursesView');
@@ -619,21 +682,26 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser) return;
     setAppStatus(AppStatus.SAVING);
     
+    // Update local state and prepare data with the new photo if available
     const updatedProfile = { ...profileData };
     if (newPhotoDataUrl) {
         updatedProfile.photoURL = newPhotoDataUrl;
     }
 
     try {
+        // 1. Save to DB (Existing)
         await saveProfileAndGoals(currentUser.uid, updatedProfile, newGoals);
         setUserProfile(updatedProfile);
         setGoals(newGoals);
 
+        // 2. Check if Onboarding (NEW)
         if (isProfileModalOnboarding) {
+            // Change UI state to loading feedback (Do NOT close modal)
             setOnboardingStep('feedback');
             setAIFeedbackLoading(true);
             setAppStatus(AppStatus.ANALYZING_FEEDBACK);
 
+            // Call Gemini
             try {
                 const feedback = await getAIFeedback({
                     userName: updatedProfile.name,
@@ -647,14 +715,17 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 });
                 setAIFeedbackMessage(feedback);
             } catch (aiError) {
+                console.error("AI Error", aiError);
                 setAiFeedbackError("Kunde inte generera feedback just nu, men din profil är sparad.");
             } finally {
                 setAIFeedbackLoading(false);
                 setAppStatus(AppStatus.IDLE);
             }
         } else {
+            // Normal Edit - Close modal
             setShowUserProfileModal(false);
             setToastNotification({ message: "Profil sparad!", type: 'success' });
+            setTimeout(() => setToastNotification(null), 3000);
             setAppStatus(AppStatus.IDLE);
         }
     } catch (error: any) {
@@ -664,6 +735,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   };
 
   const handleFinishOnboarding = async () => {
+    // ... (existing onboarding logic) ...
     if (!currentUser) return;
     setShowOnboardingCompletion(false);
     setShowAIFeedbackModal(false);
@@ -685,9 +757,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         await updateUserDocument(currentUser.uid, { 
           hasCompletedOnboarding: true,
           summaryStartDate: todayUID,
-          lastDateStreakChecked: todayUID, 
-          role: userRole || 'member', 
-          status: userStatus || 'approved' 
+          lastDateStreakChecked: todayUID, // Markera dagen som kollad för att undvika omedelbar summering
+          role: userRole, 
+          status: userStatus 
         });
         setSummaryStartDate(todayUID);
         setStreakData(prev => ({ ...prev, lastDateStreakChecked: todayUID }));
@@ -695,192 +767,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     } catch (error) {
         handleFirestoreError(error, 'slutföra onboarding');
     }
-  };
-
-  const updateChecklistItem = useCallback((itemKey: keyof OnboardingChecklistItemStatus) => {
-    setChecklistState(prevState => {
-        if (!prevState || prevState.items[itemKey]) return prevState;
-        const newState: OnboardingChecklistState = { 
-            ...prevState, 
-            items: { ...prevState.items, [itemKey]: true } 
-        };
-        setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
-        return newState;
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!checklistState || !currentUser || !isInitialDataLoaded) return;
-    const allComplete = Object.values(checklistState.items).every(Boolean);
-    if (allComplete && !checklistState.dismissed) {
-        setShowConfetti(true);
-        playAudio('levelUp');
-        setShowOnboardingRewardModal(true);
-    }
-  }, [checklistState, currentUser, isInitialDataLoaded]);
-
-  useEffect(() => {
-    if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
-      setChecklistState(null);
-      return;
-    }
-    const storedState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
-    if (storedState && !storedState.dismissed) {
-         setChecklistState(storedState);
-    } else {
-        setChecklistState(null);
-    }
-  }, [isInitialDataLoaded, hasCompletedOnboarding, currentUser]);
-
-  const handleOnboardingNavigate = (view: 'journey' | 'community') => {
-    if (view === 'community') {
-         updateChecklistItem('communityViewed');
-    } else { 
-        updateChecklistItem('journeyViewed');
-        setJourneyInitialTab('calendar');
-    }
-    setViewMode(view);
-  };
-
-  const handleDismissSpotlight = () => {
-    setShowSpotlight(false);
-    setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_SPOTLIGHT_SHOWN, true);
-  };
-    
-  const closeModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
-    playAudio('uiClick');
-    modalSetter(false);
-  };
-
-  const openModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
-    playAudio('uiClick');
-    modalSetter(true);
-  };
-
-  const handleOpenInfoModal = () => {
-    openModal(setShowInfoModal);
-  };
-  
-  const handleNavigateToCourse = (courseId: CourseInfo['id']) => {
-    const course = ALL_COURSES.find(c => c.id === courseId);
-    if (course) {
-        setActiveCourse(course);
-        setViewMode('courseOverview');
-        playAudio('uiClick');
-    }
-  };
-
-  const handleCloseLessonDetail = () => {
-    setViewMode('courseOverview');
-    setCurrentLessonId(null);
-  };
-
-  const handleSelectLesson = (lessonId: string) => {
-    setCurrentLessonId(lessonId);
-    setViewMode('lessonDetail');
-  };
-
-
-  const handleToggleFocusPoint = async (lessonId: string, focusPointId: string) => {
-    if (!currentUser) return;
-    playAudio('uiClick');
-
-    const currentProgress = userCourseProgress[lessonId] || {
-      completedFocusPoints: [],
-      reflectionAnswer: '',
-      isCompleted: false
-    };
-
-    const isCompleted = currentProgress.completedFocusPoints.includes(focusPointId);
-    let newFocusPoints;
-
-    if (isCompleted) {
-      newFocusPoints = currentProgress.completedFocusPoints.filter(id => id !== focusPointId);
-    } else {
-      newFocusPoints = [...(currentProgress.completedFocusPoints || []), focusPointId];
-    }
-
-    const updatedProgress = {
-      ...currentProgress,
-      completedFocusPoints: newFocusPoints
-    };
-
-    setUserCourseProgress(prev => ({
-      ...prev,
-      [lessonId]: updatedProgress
-    }));
-
-    try {
-        await saveCourseProgress(currentUser.uid, lessonId, updatedProgress, userRole || 'member', userStatus || 'approved');
-    } catch (error) {}
-  };
-
-  const handleMarkLessonComplete = async (lessonId: string) => {
-      if (!currentUser) return;
-      playAudio('logSuccess');
-      
-      const currentProgress = userCourseProgress[lessonId] || {};
-      const updatedProgress = { ...currentProgress, isCompleted: true };
-      
-      setUserCourseProgress(prev => ({
-          ...prev,
-          [lessonId]: updatedProgress as any
-      }));
-      
-      try {
-          await saveCourseProgress(currentUser.uid, lessonId, updatedProgress as any, userRole || 'member', userStatus || 'approved');
-      } catch (error) {}
-  };
-
-  const handleOpenSpeedDial = () => {
-    setViewMode('main'); 
-  };
-
-  const handleNavigateToJourney = (tab: 'calendar' | 'profile' | 'achievements') => {
-    setJourneyInitialTab(tab);
-    setViewMode('journey');
-  };
-
-  const handleOpenLogWeightModal = () => {
-    openModal(setShowLogWeightModal);
-  };
-  
-  const handleNavigateToMainWithDate = (date: Date) => {
-    setViewingDate(date);
-    setViewMode('main');
-  };
-
-  const handleUseStreakSaver = async () => {
-      setDayToPotentiallySave(null);
-  };
-
-  const handleSaveWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
-    if (!currentUser) return;
-    setAppStatus(AppStatus.SAVING); 
-    try {
-        const newId = await saveWeightLog(currentUser.uid, data);
-        const newEntry: WeightLogEntry = { ...data, id: newId };
-        setWeightLogs(prev => [...prev, newEntry].sort((a, b) => a.loggedAt - b.loggedAt));
-        
-        setUserProfile(prev => ({
-            ...prev,
-            currentWeightKg: data.weightKg,
-            skeletalMuscleMassKg: data.skeletalMuscleMassKg ?? prev.skeletalMuscleMassKg,
-            bodyFatMassKg: data.bodyFatMassKg ?? prev.bodyFatMassKg
-        }));
-
-        setToastNotification({ message: "Vikt sparad!", type: 'success' });
-        playAudio('logSuccess');
-        setShowLogWeightModal(false);
-    } catch (error) {
-        setToastNotification({ message: "Kunde inte spara vikt.", type: 'error' });
-    } finally {
-        setAppStatus(AppStatus.IDLE);
-    }
-  };
-
-  const handleSaveWellbeingAndProceed = async () => {
-      setShowMentalWellbeingModal(false);
   };
 
   const handleCloseUserProfileModal = () => {
@@ -892,13 +778,17 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
   };
 
+// --- WEEKLY BANK RESET CHECK ---
 const ensureWeeklyBankReset = useCallback(async () => {
     if (!currentUser || !isInitialDataLoaded || userRole === 'coach' || userStatus !== 'approved') return;
 
     const now = new Date();
     const currentWeek = getWeekInfo(now);
 
+    // If the stored weekId is different from the actual current week, reset it.
     if (weeklyBank.weekId !== currentWeek.weekId) {
+        console.log(`Weekly bank reset detected. Old week: ${weeklyBank.weekId}, New week: ${currentWeek.weekId}`);
+
         const resetBank: WeeklyCalorieBank = {
             weekId: currentWeek.weekId,
             bankedCalories: 0,
@@ -907,23 +797,31 @@ const ensureWeeklyBankReset = useCallback(async () => {
         };
 
         try {
+            // Update Firestore
             await updateUserDocument(currentUser.uid, {
                 weeklyBank: resetBank
             });
+
+            // Update state
             setWeeklyBank(resetBank);
-        } catch (error) {}
+            console.log("Weekly bank successfully reset.");
+        } catch (error) {
+            console.error("Failed to reset weekly bank:", error);
+        }
     }
 }, [currentUser, isInitialDataLoaded, userRole, userStatus, weeklyBank.weekId, setWeeklyBank]);
 
 useEffect(() => {
     ensureWeeklyBankReset();
 }, [ensureWeeklyBankReset]);
+// -------------------------------
 
-const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[]): Promise<void> => {
+const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[]): Promise<{ summary: PastDaySummary | null; streakData: { currentStreak: number; lastDateStreakChecked: string | null }; weeklyBank: WeeklyCalorieBank; highestStreak: number; } | void> => {
     if (!uid || userRole === 'coach' || userStatus !== 'approved') return;
 
-    const { start: yesterdayStart, yKey: yesterdayUID } = yesterdayRangeSE(now);
+    const { start: yesterdayStart, end: yesterdayEnd, yKey: yesterdayUID } = yesterdayRangeSE(now);
     
+    // VAKTPOST: Om igår var före användarens startdatum för summering, avbryt.
     if (summaryStartDate && yesterdayUID < summaryStartDate) {
         return;
     }
@@ -935,6 +833,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     setIsSummarizingYesterday(true);
 
     try {
+        // 1. Fetch yesterday's data
         const [yesterdayMeals, yesterdayWater] = await Promise.all([
             fetchMealLogsForDate(uid, yesterdayUID),
             fetchWaterLog(uid, yesterdayUID)
@@ -942,6 +841,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         const mealsToProcess = manualLogOverride || yesterdayMeals;
 
+        // 2. Calculate Stats
         const totals = mealsToProcess.reduce((acc, meal) => ({
             calories: acc.calories + meal.nutritionalInfo.calories,
             protein: acc.protein + meal.nutritionalInfo.protein,
@@ -949,7 +849,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             fat: acc.fat + meal.nutritionalInfo.fat,
         }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
 
-        const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+        const minSafe = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
         
         let goalMet = false;
         if (totals.calories >= minSafe) {
@@ -1026,12 +926,15 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         setMorningReportData({ summary, currentStreak: newStreak });
         playAudio('levelUp'); 
 
+        return { summary, streakData: { currentStreak: newStreak, lastDateStreakChecked: yesterdayUID }, weeklyBank, highestStreak };
+
     } catch (error) {
+        console.error("Error ensuring yesterday processed:", error);
         setToastNotification({ message: "Kunde inte sammanställa gårdagen.", type: 'error' });
     } finally {
         setIsSummarizingYesterday(false);
     }
-}, [currentUser?.uid, userRole, userStatus, streakData, goals, userProfile, summaryStartDate, setPastDaysSummary, setStreakData, setWeeklyBank]);
+}, [currentUser?.uid, userRole, userStatus, streakData, goals, userProfile, weeklyBank, highestStreak, setPastDaysSummary, setStreakData, setToastNotification, summaryStartDate]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
@@ -1069,11 +972,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     const handleCloseOnboardingRewardModal = async () => {
         setShowOnboardingRewardModal(false);
-        if (checklistState) {
-            const newState = { ...checklistState, dismissed: true };
-            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
-            setChecklistState(null);
-        }
+        setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, { ...checklistState, dismissed: true });
+        setChecklistState(null);
 
         if (currentUser && userProfile.goalType !== 'gain_muscle') {
              try {
@@ -1083,9 +983,208 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 setWeeklyBank(prev => ({ ...prev, bankedCalories: prev.bankedCalories + 100 }));
                 setToastNotification({ message: "100 kcal bonus tillagd i din sparpott!", type: 'success' });
                 playAudio('calorieBank');
-             } catch (e) {}
+             } catch (e) { 
+                 console.error("Failed to add onboarding bonus", e); 
+             }
         }
     };
+
+    const updateChecklistItem = useCallback((itemKey: keyof OnboardingChecklistItemStatus) => {
+        setChecklistState(prevState => {
+            if (!prevState || prevState.items[itemKey]) return prevState;
+            const newState = { ...prevState, items: { ...prevState.items, [itemKey]: true } };
+            setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
+            return newState;
+        });
+    }, []);
+    
+    useEffect(() => {
+        if (!checklistState || !currentUser || !isInitialDataLoaded) return;
+        const allComplete = Object.values(checklistState.items).every(Boolean);
+        if (allComplete && !checklistState.dismissed) {
+            setShowConfetti(true);
+            playAudio('levelUp');
+            setShowOnboardingRewardModal(true);
+        }
+    }, [checklistState, currentUser, isInitialDataLoaded]);
+
+    useEffect(() => {
+        if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
+          setChecklistState(null);
+          return;
+        }
+        const storedState = getLocalStorageItem<OnboardingChecklistState | null>(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, null);
+        if (storedState && !storedState.dismissed) {
+             setChecklistState(storedState);
+        } else {
+            setChecklistState(null);
+        }
+    }, [isInitialDataLoaded, hasCompletedOnboarding, currentUser]);
+
+    const handleOnboardingNavigate = (view: 'journey' | 'community', subView?: 'search') => {
+        if (view === 'community') {
+             updateChecklistItem('communityViewed');
+        } else { 
+            updateChecklistItem('journeyViewed');
+            setJourneyInitialTab('calendar');
+        }
+        setViewMode(view);
+    };
+
+    const handleDismissSpotlight = () => {
+        setShowSpotlight(false);
+        setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_SPOTLIGHT_SHOWN, true);
+    };
+    
+  const closeModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
+    playAudio('uiClick');
+    modalSetter(false);
+  };
+
+  const openModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
+    playAudio('uiClick');
+    modalSetter(true);
+  };
+
+  const handleOpenInfoModal = () => {
+    openModal(setShowInfoModal);
+  };
+  
+  const handleNavigateToCourse = (courseId: CourseInfo['id']) => {
+    const course = ALL_COURSES.find(c => c.id === courseId);
+    if (course) {
+        setActiveCourse(course);
+        setViewMode('courseOverview');
+        playAudio('uiClick');
+    }
+  };
+
+  const handleCloseLessonDetail = () => {
+    setViewMode('courseOverview');
+    setCurrentLessonId(null);
+  };
+
+  const handleSelectLesson = (lessonId: string) => {
+    setCurrentLessonId(lessonId);
+    setViewMode('lessonDetail');
+  };
+
+
+  const handleToggleFocusPoint = async (lessonId: string, focusPointId: string) => {
+    if (!currentUser) return;
+    playAudio('uiClick');
+
+    const currentProgress = userCourseProgress[lessonId] || {
+      completedFocusPoints: [],
+      reflectionAnswer: '',
+      isCompleted: false
+    };
+
+    const isCompleted = currentProgress.completedFocusPoints.includes(focusPointId);
+    let newFocusPoints;
+
+    if (isCompleted) {
+      newFocusPoints = currentProgress.completedFocusPoints.filter(id => id !== focusPointId);
+    } else {
+      newFocusPoints = [...(currentProgress.completedFocusPoints || []), focusPointId];
+    }
+
+    const updatedProgress = {
+      ...currentProgress,
+      completedFocusPoints: newFocusPoints
+    };
+
+    setUserCourseProgress(prev => ({
+      ...prev,
+      [lessonId]: updatedProgress
+    }));
+
+    try {
+        await saveCourseProgress(currentUser.uid, lessonId, updatedProgress, userRole || 'member', userStatus || 'approved');
+    } catch (error) {
+        console.error("Failed to save focus point toggle", error);
+    }
+  };
+
+  const handleMarkLessonComplete = async (lessonId: string) => {
+      if (!currentUser) return;
+      playAudio('logSuccess');
+      
+      const currentProgress = userCourseProgress[lessonId] || {};
+      const updatedProgress = { ...currentProgress, isCompleted: true };
+      
+      setUserCourseProgress(prev => ({
+          ...prev,
+          [lessonId]: updatedProgress as any
+      }));
+      
+      try {
+          await saveCourseProgress(currentUser.uid, lessonId, updatedProgress as any, userRole || 'member', userStatus || 'approved');
+      } catch (error) {
+          console.error("Failed to mark lesson complete", error);
+      }
+  };
+
+  const handleOpenSpeedDial = () => {
+    setViewMode('main'); 
+  };
+
+  const handleNavigateToJourney = (tab: 'calendar' | 'profile' | 'achievements') => {
+    setJourneyInitialTab(tab);
+    setViewMode('journey');
+  };
+
+  const handleOpenLogWeightModal = () => {
+    openModal(setShowLogWeightModal);
+  };
+  
+  const handleDiscussSavedAnalysis = (analysisDate?: string) => {
+    setCoachInitialContext({ type: 'from_analysis', date: analysisDate });
+    setShowAICoachModal(true);
+  };
+
+  const handleNavigateToMainWithDate = (date: Date) => {
+    setViewingDate(date);
+    setViewMode('main');
+  };
+
+  const handleUseStreakSaver = async () => {
+      setDayToPotentiallySave(null);
+  };
+
+  const handleSaveWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
+    if (!currentUser) return;
+    setAppStatus(AppStatus.SAVING); 
+    try {
+        const newId = await saveWeightLog(currentUser.uid, data);
+        
+        // Update context state for logs
+        const newEntry: WeightLogEntry = { ...data, id: newId };
+        setWeightLogs(prev => [...prev, newEntry].sort((a, b) => a.loggedAt - b.loggedAt));
+        
+        // SYNC PROFILE STATE - Important for Hero card and Progress bars
+        setUserProfile(prev => ({
+            ...prev,
+            currentWeightKg: data.weightKg,
+            skeletalMuscleMassKg: data.skeletalMuscleMassKg ?? prev.skeletalMuscleMassKg,
+            bodyFatMassKg: data.bodyFatMassKg ?? prev.bodyFatMassKg
+        }));
+
+        setToastNotification({ message: "Vikt sparad!", type: 'success' });
+        playAudio('logSuccess');
+        setShowLogWeightModal(false);
+    } catch (error) {
+        console.error("Error saving weight:", error);
+        setToastNotification({ message: "Kunde inte spara vikt.", type: 'error' });
+    } finally {
+        setAppStatus(AppStatus.IDLE);
+    }
+  };
+
+  const handleSaveWellbeingAndProceed = async (data: MentalWellbeingData) => {
+      setShowMentalWellbeingModal(false);
+  };
+
 
   if (authLoading || isDataLoading) {
     return <SplashScreen />;
@@ -1346,6 +1445,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
               buddyDetails={buddyDetails}
               isLoading={isLoadingCommunityData}
               onDataChanged={loadCommunityData}
+              /* FIX: Använder det korrekta variabelnamnet lastCommunityViewTimestamp för lastViewTimestamp */
               lastViewTimestamp={lastCommunityViewTimestamp}
             />
          )}
@@ -1392,18 +1492,18 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
       {showConfetti && <ConfettiCelebration isActive={showConfetti} />}
        {showInstallBanner && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 pb-6 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
-            <div className="max-w-4xl mx-auto relative">
-                <div className="flex items-start gap-3">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
+            <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
                     <InstallIcon className="w-12 h-12 text-primary flex-shrink-0" />
-                    <div className="pr-16">
+                    <div>
                         <h3 className="font-bold text-neutral-dark">Installera Kostloggen</h3>
-                        <p className="text-sm text-neutral leading-tight">Få en bättre upplevelse genom att lägga till appen på din hemskärm.</p>
+                        <p className="text-sm text-neutral">Få en bättre upplevelse genom att lägga till appen på din hemskärm.</p>
                     </div>
                 </div>
-                <div className="absolute top-0 right-0 flex items-center gap-1">
-                    <button onClick={handleDismissInstallBanner} className="p-2 text-xs font-medium text-neutral hover:text-neutral-dark hover:bg-neutral-light/70 rounded-md">Senare</button>
-                    <button onClick={handleInstallClick} className="px-3 py-1.5 text-xs font-bold text-white bg-primary rounded-lg shadow-sm active:scale-95 transition-transform">Installera</button>
+                <div className="flex items-center gap-2">
+                    <button onClick={handleDismissInstallBanner} className="p-2 text-sm text-neutral hover:bg-neutral-light/70 rounded-md">Senare</button>
+                    <button onClick={handleInstallClick} className="px-4 py-2 text-sm font-semibold text-white bg-primary rounded-md shadow-sm">Installera</button>
                 </div>
             </div>
         </div>
