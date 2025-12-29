@@ -132,8 +132,6 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
 
         setIsDataLoading(true);
         try {
-            // CRITICAL FIX: Ensure the user document exists in Firestore.
-            // If it's a new user (Auth created but no Firestore doc), this will create it with status: 'pending'.
             if (auth.currentUser) {
                 await ensureUserProfileInFirestore(auth.currentUser);
             }
@@ -148,14 +146,17 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
                     lastDateStreakChecked: appData.lastDateStreakChecked || null,
                 });
                 setSummaryStartDate(appData.summaryStartDate || null);
-                setWeeklyBank(appData.weeklyBank || weeklyBank);
+                
+                if (appData.weeklyBank) {
+                    setWeeklyBank(appData.weeklyBank);
+                }
+
                 setStreakSaver(appData.streakSaver || null);
                 setHighestStreak(appData.highestStreak || 0);
                 setHighestLevelId(appData.highestLevelId || null);
                 setCommonMeals(appData.commonMeals || []);
                 setWeightLogs(appData.weightLogs || []);
                 setMentalWellbeingLogs(appData.mentalWellbeingLogs || []);
-                /* FIX: Använder det korrekta pluralnamnet setPastDaysSummary istället för setPastDaySummary */
                 setPastDaysSummary(appData.pastDaySummaries || {});
                 setUserCourseProgress(appData.courseProgress || {});
                 setUnlockedAchievements(appData.unlockedAchievements || {});
@@ -167,17 +168,16 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
                 
                 setIsInitialDataLoaded(true);
             } else {
-                console.error("fetchInitialAppData returned null despite ensureUserProfileInFirestore");
-                // If it's still null, it might be a network lag, but we reset to be safe
                 resetUserData();
             }
         } catch (error) {
             console.error("Error loading user data:", error);
-            // Handle error (maybe expose an error state)
         } finally {
             setIsDataLoading(false);
         }
-    }, [userId, resetUserData, weeklyBank]);
+        // Vi plockar bort weeklyBank från deps för att förhindra oändlig loop vid initial laddning
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId, resetUserData]);
 
     // Initial fetch effect
     useEffect(() => {
