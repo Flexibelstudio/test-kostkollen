@@ -1,4 +1,3 @@
-
 import { GoalSettings, NutritionalInfo, UserProfileData, Level, Achievement } from './types.ts';
 
 export const GEMINI_MODEL_NAME_TEXT = 'gemini-2.5-flash';
@@ -73,6 +72,7 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
 export const COACH_PERSONAS = {
   soft: {
     label: 'Maja',
+    roleTitle: 'din kompis',
     description: 'För dig som vill ha stöd och värme.',
     emoji: '🌸',
     voice: 'Puck',
@@ -80,6 +80,7 @@ export const COACH_PERSONAS = {
   },
   balanced: {
     label: 'Erik',
+    roleTitle: 'din PT',
     description: 'För dig som vill ha fakta och struktur.',
     emoji: '⏱️',
     voice: 'Kore',
@@ -87,6 +88,7 @@ export const COACH_PERSONAS = {
   },
   hard: {
     label: 'Börje',
+    roleTitle: 'generalen',
     description: 'För dig som behöver en spark i baken.',
     emoji: '🪖',
     voice: 'Fenrir',
