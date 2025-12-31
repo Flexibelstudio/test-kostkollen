@@ -117,7 +117,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
   const dateString = dateObj.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const coachStyle = userProfile.coachStyle || 'balanced';
-  const personaLabel = COACH_PERSONAS[coachStyle].label;
+  const persona = COACH_PERSONAS[coachStyle];
   
   let CoachEmoji;
   let avatarColorClass;
@@ -198,7 +198,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
 
         {/* Coach Briefing */}
         <div className="text-left mb-8">
-            <h3 className="text-sm font-bold text-neutral-dark mb-3 uppercase tracking-wide opacity-70">Dagens Briefing</h3>
+            <h3 className="text-sm font-bold text-neutral-dark mb-3 uppercase tracking-wide opacity-70">Hälsning från {persona.label}, {persona.roleTitle}</h3>
             <div className="flex gap-4">
                 <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-sm ${avatarColorClass}`}>
                     <span className="text-2xl">{CoachEmoji}</span>
@@ -210,7 +210,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
                                 <span className="text-lg">{CoachEmoji}</span>
                             </div>
                             <span className="text-neutral-500 text-sm font-medium italic animate-pulse">
-                                {personaLabel} analyserar din gårdag...
+                                {persona.label} analyserar din gårdag...
                             </span>
                         </div>
                     ) : (

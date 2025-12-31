@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle } from '../types.ts';
 import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
@@ -511,7 +510,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
           <h2 id="user-profile-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
             {isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
-             isOnboarding && onboardingStep === 'feedback' ? `Coach: ${persona.label}` :
+             isOnboarding && onboardingStep === 'feedback' ? `Coach: ${persona.label}, ${persona.roleTitle}` :
              'Redigera Profil'}
           </h2>
         </div>
@@ -557,7 +556,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         <span className="text-3xl">{persona.emoji}</span>
                     </div>
                     <div className={`p-5 rounded-2xl rounded-bl-none border shadow-sm ${coachTheme.bg} ${coachTheme.border} ${coachTheme.text}`}>
-                        <h4 className="font-bold text-lg mb-2">Meddelande från {persona.label}</h4>
+                        <h4 className="font-bold text-lg mb-2">Meddelande från {persona.label}, {persona.roleTitle}</h4>
                         {typeof aiFeedbackMessage === 'string' && aiFeedbackMessage.split('\n\n').map((paragraph, index) => (
                             <div key={index} className="text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(paragraph) }} />
                         ))}
@@ -658,7 +657,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
                                     {p.emoji}
                                 </div>
-                                <span className="font-bold text-sm">{p.label}</span>
+                                <span className="font-bold text-sm">{p.label}, {p.roleTitle}</span>
                                 <span className="text-xs opacity-80 mt-1">{p.description}</span>
                             </button>
                         );

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse, Content, Modality } from "@google/genai";
 import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle } from '../types.ts';
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
@@ -22,9 +21,8 @@ export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Pr
   const persona = COACH_PERSONAS[style];
   const name = userProfile.name || 'du';
 
-  const prompt = `Du är en hälsocoach med följande persona:
-Namn: ${persona.label}
-Tonläge: ${persona.promptTone}
+  const prompt = `Du är ${persona.label}, ${persona.roleTitle}.
+Tonläge och instruktioner: ${persona.promptTone}
 
 DEFINITIONER:
 - Streak: Att logga mat. Hålls levande oavsett kalorimängd. Det är beviset på vanan att vara konsekvent.
@@ -259,7 +257,7 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
 4.  Ge ett konkret, litet tips som är kopplat till det nya målet. Exempel (vid muskelökning): "Kom ihåg att protein är extra viktigt nu när du vill bygga muskler. Sikta på att få i dig lite protein vid varje måltid." Exempel (vid fettminskning): "Vatten och fibrer från grönsaker kommer bli dina bästa vänner för att hålla dig mätt och nöjd."
 5.  Avsluta med en kort, peppande fras. Exempel: "Det här klarar du galant!" eller "Jag finns här och stöttar dig hela vägen."`;
 
-  const fullPrompt = `Du är ${persona.label}, en AI-coach från Kostloggen.se.
+  const fullPrompt = `Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.se.
 Din persona: ${persona.promptTone}
 Ge feedback på SVENSKA.
 
@@ -422,7 +420,7 @@ export const getRecipesFromIngredientsImage = async (base64ImageDatas: string[])
 5.  Om inga ingredienser kan identifieras, returnera tomma arrayer.
 6.  Svara i JSON-format. JSON-objektet på toppnivå ska ha två nycklar: 'identifiedIngredients' (en array av strängar) och 'recipeSuggestions' (en array av receptobjekt, var och en som matchar RecipeSuggestion-strukturen).
 7.  För receptingredienser, lista endast varor som antingen är direkt identifierade eller mycket vanliga skafferivaror om det är absolut nödvändigt för receptet.
-8.  Se till att 'foodItem' i totalNutritionalInfo för varje recept alltid är receptets titel.
+8.  Se till att 'foodItem' i totalNutritionalInfo for varje recept alltid är receptets titel.
 
 JSON-struktur för varje recept i 'recipeSuggestions':
 {
@@ -519,17 +517,17 @@ export const getAICoachResponseStream = async (
   const style = userProfile.coachStyle || 'balanced';
   const persona = COACH_PERSONAS[style];
 
-  const systemInstruction = `Du är ${persona.label}, en AI-coach i appen Kostloggen.
+  const systemInstruction = `Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.
 Din persona är: ${persona.promptTone}.
 
 Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att analysera användarens loggade data och svara tydligt och personligt enligt din persona. Svara alltid på SVENSKA.
 
-**VIKTIGA REGLER FÖR TEXT-SVAR:**
+**VIKTIGA REGLER FOR TEXT-SVAR:**
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
 2.  Anpassa din ton efter din persona (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
 3.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
 
-**REGLER FÖR GRAF-SVAR:**
+**REGLER FOR GRAF-SVAR:**
 1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.
 2.  **VÄLJ RÄTT DATAKÄLLA (VIKTIGAST!):**
     *   Om frågan handlar om **vikt, muskler, fettmassa**, använd EXKLUSIVT data från **Viktloggar**.
@@ -571,7 +569,7 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
   "datasets": [ { "label": "Protein (g)", "data": [150, 145, 160, 130, 155] } ]
 }
 
-Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VIKTIGA REGLER FÖR TEXT-SVAR".
+Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VIKTIGA REGLER FOR TEXT-SVAR".
 
 **TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
 - **Profil & Mål:** ${JSON.stringify(userProfile)}
@@ -615,14 +613,14 @@ export const getAIPersonalizedLessonIntro = async (
         .join('\n');
         
       analysisPrompt = `
-**Analyskontext:** Användaren, ${data.userName || 'användaren'}, ska precis börja lektionen "${data.lessonTitle}". Analysera deras matloggar för de senaste 7 dagarna för att hitta mönster i utmaningar.
+**Analyskontext:** Användaren, ${data.userName || 'användaren'}, ska precis börja lektionen "${data.lessonTitle}". Analysera deras matloggar for de senaste 7 dagarna for att hitta mönster i utmaningar.
 **Senaste 7 dagarnas logg:**
 ${last7DaysSummaryText || "Inga loggar de senaste 7 dagarna."}
 
 **Din uppgift:**
 Skriv en kort (1-2 meningar), uppmuntrande och personlig inledning till lektionen. 
-*   Om du ser ett mönster (t.ex. svårare på helger), nämn det på ett positivt och normaliserande sätt. Exempel: "Jag ser att helgerna kan vara lite extra utmanande, vilket är helt normalt. Den här lektionen kommer att ge dig verktyg för just sådana situationer."
-*   Om inget tydligt mönster finns, ge en allmänt peppande inledning som är relevant för lektionens tema om att hantera utmaningar. Exempel: "Alla resor har sina utmaningar. Den här lektionen fokuserar på hur du kan hantera dem på bästa sätt."
+*   Om du ser ett mönster (t.ex. svårare på helger), nämn det på ett positivt och normaliserande sätt. Exempel: "Jag ser att helgerna kan vara lite extra utmanande, vilket är helt normalt. Den här lektionen kommer att ge dig verktyg for just sådana situationer."
+*   Om inget tydligt mönster finns, ge en allmänt peppande inledning som är relevant for lektionens tema om att hantera utmaningar. Exempel: "Alla resor har sina utmaningar. Den här lektionen fokuserar på hur du kan hantera dem på bästa sätt."
 *   Använd en vänlig och stöttande ton. Börja INTE med "Hej".`;
       break;
 
@@ -633,13 +631,13 @@ Skriv en kort (1-2 meningar), uppmuntrande och personlig inledning till lektione
         .join('\n');
         
       analysisPrompt = `
-**Analyskontext:** Användaren, ${data.userName || 'användaren'}, ska precis börja lektionen "${data.lessonTitle}". Analysera hens senaste 5 viktloggar för att se om det finns en platå. En platå kan anses vara om de senaste 2-3 mätningarna har en väldigt liten förändring (mindre än 0.2 kg totalt).
+**Analyskontext:** Användaren, ${data.userName || 'användaren'}, ska precis börja lektionen "${data.lessonTitle}". Analysera hens senaste 5 viktloggar for att se om det finns en platå. En platå kan anses vara om de senaste 2-3 mätningarna har en väldigt liten förändring (mindre än 0.2 kg totalt).
 **Senaste 5 viktloggarna:**
 ${last5WeightLogsText || "Inga viktloggar finns."}
 
 **Din uppgift:**
 Skriv en kort (1-2 meningar), uppmuntrande och personlig inledning till lektionen.
-*   Om du ser tecken på en platå, bekräfta det på ett normaliserande sätt. Exempel: "Det ser ut som att din vikt har stabiliserat sig de senaste mätningarna, vilket är en helt naturlig del av resan. Denna lektion är designad för att ge dig ny fart!"
+*   Om du ser tecken på en platå, bekräfta det på ett normaliserande sätt. Exempel: "Det ser ut som att din vikt har stabiliserat sig de senaste mätningarna, vilket är en helt naturlig del av resan. Denna lektion är designad for att ge dig ny fart!"
 *   Om vikten fortfarande har en tydlig trend (upp eller ner), bekräfta de goda framstegen istället. Exempel: "Vilka fina framsteg du gör! Den här lektionen hjälper dig att fortsätta den positiva trenden och undvika framtida platåer."
 *   Använd en vänlig och stöttande ton. Börja INTE med "Hej".`;
       break;
@@ -712,11 +710,11 @@ export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis)
 Användaren har varit duktig och följt sin plan (hög följsamhet och en streak på ${currentStreak} dagar) men vikten har stagnerat sedan förra mätningen.
 I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coachning.
 1. Börja med att berömma deras ansträngning och normalisera platån (t.ex. "Jag ser att vikten stått stilla trots ditt fantastiska engagemang. Det är helt normalt!").
-2. Ställ försiktigt två frågor för att uppmuntra till självreflektion:
+2. Ställ forsiktigt två frågor for att uppmuntra till självreflektion:
    - Fråga om loggningens noggrannhet (t.ex. "Ibland är det lätt att glömma småsaker som olja eller såser. Känner du att loggen fångar upp precis allt?").
    - Fråga om aktivitetsnivån fortfarande stämmer (t.ex. "En annan vanlig anledning är att aktivitetsnivån ändrats. Känns din inställning '${userProfile.activityLevel}' fortfarande rätt? Du kan enkelt justera den under 'Min Resa' -> 'Mål'.").
-   - **Tillägg för högt BMI:** Om användaren har högt BMI, föreslå att de manuellt sänker sitt kalorimål något om de står stilla trots att de följer det beräknade målet. Standardformler kan överskatta behovet.
-3. Avsluta med att uppmuntra dem att justera om det behövs och att du finns där för att hjälpa.
+   - **Tillägg for högt BMI:** Om användaren har högt BMI, foreslå att de manuellt sänker sitt kalorimål något om de står stilla trots att de foljer det beräknade målet. Standardformler kan overskatta behovet.
+3. Avsluta med att uppmuntra dem att justera om det behovs och att du finns där for att hjälpa.
 `;
                     }
                 }
@@ -741,7 +739,7 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     } else {
         // Fallback for first measurement or if only one exists
         analysisPeriodSummaries = last30DaysSummaries;
-        analysisPeriodDescription = `perioden sedan din första mätning`;
+        analysisPeriodDescription = `perioden sedan din forsta mätning`;
         if (allWeightLogs.length === 1 && userProfile.goalStartWeight) {
             weightChangeSincePrevious = allWeightLogs[0].weightKg - userProfile.goalStartWeight;
         }
@@ -775,7 +773,7 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
         const last = allWeightLogs[allWeightLogs.length - 1].skeletalMuscleMassKg;
         const secondLast = allWeightLogs[allWeightLogs.length - 2].skeletalMuscleMassKg;
         if (last != null && secondLast != null) {
-            if (last > secondLast + 0.1) muskelTrend = 'ökande';
+            if (last > secondLast + 0.1) muskelTrend = 'okande';
             else if (last < secondLast - 0.1) muskelTrend = 'minskande';
         }
     }
@@ -793,7 +791,7 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
         ? mentalWellbeingLogs.sort((a,b) => b.loggedAt - a.loggedAt)[0] 
         : null;
     const mentalWellbeingDataString = senasteVälbefinnande
-        ? `Stress: ${senasteVälbefinnande.stressLevel || 'N/A'}, Energi: ${senasteVälbefinnande.energyLevel || 'N/A'}, Sömn: ${senasteVälbefinnande.sleepQuality || 'N/A'}, Humör: ${senasteVälbefinnande.mood || 'N/A'}`
+        ? `Stress: ${senasteVälbefinnande.stressLevel || 'N/A'}, Energi: ${senasteVälbefinnande.energyLevel || 'N/A'}, Somn: ${senasteVälbefinnande.sleepQuality || 'N/A'}, Humor: ${senasteVälbefinnande.mood || 'N/A'}`
         : 'Ej loggat';
 
     // --- NEW: DYNAMIC PROMPT PARTS BASED ON GOAL ---
@@ -837,7 +835,7 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     const persona = COACH_PERSONAS[style];
 
     const prompt = `
-Du är ${persona.label}, en personlig coach i appen Kostloggen.
+Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.
 Ditt tonläge: ${persona.promptTone}
 
 Du är en INTE en extern coach, du ÄR ${persona.label}. Skriv återkopplingen som att det är du som vägleder användaren. Undvik formuleringar som "prata med din coach" - du ÄR coachen.

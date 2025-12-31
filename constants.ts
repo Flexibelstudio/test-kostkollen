@@ -1,6 +1,6 @@
 import { GoalSettings, NutritionalInfo, UserProfileData, Level, Achievement } from './types.ts';
 
-export const GEMINI_MODEL_NAME_TEXT = 'gemini-2.5-flash';
+export const GEMINI_MODEL_NAME_TEXT = 'gemini-3-flash-preview';
 
 // VAPID public key for web push notifications.
 // IMPORTANT: Replace this with your own generated key pair for production.
