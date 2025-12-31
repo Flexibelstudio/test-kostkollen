@@ -625,6 +625,11 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     if (!currentUser) return;
     setAppStatus(AppStatus.SAVING);
     
+    // Aktivera laddningsläget direkt om vi är i onboarding för att modalens knapp ska reagera
+    if (isProfileModalOnboarding) {
+        setAIFeedbackLoading(true);
+    }
+
     const updatedProfile = { ...profileData };
     if (newPhotoDataUrl) {
         updatedProfile.photoURL = newPhotoDataUrl;
@@ -637,7 +642,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
         if (isProfileModalOnboarding) {
             setOnboardingStep('feedback');
-            setAIFeedbackLoading(true);
             setAppStatus(AppStatus.ANALYZING_FEEDBACK);
 
             try {
@@ -666,6 +670,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     } catch (error: any) {
        handleFirestoreError(error, 'spara profil');
        setAppStatus(AppStatus.IDLE);
+       setAIFeedbackLoading(false);
     }
   };
 
