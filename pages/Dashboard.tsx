@@ -243,43 +243,26 @@ const Dashboard: React.FC<DashboardProps> = ({
     ), [dailyLog]);
 
     // --- DYNAMIC BANK CALCULATION START ---
-    // Instead of relying on saved 'caloriesCoveredByBank' on meals, we calculate it dynamically
-    // based on the daily totals and the available bank.
-    
-    // 1. How much bank is theoretically available? (0 on Mondays, otherwise from DB)
     const availableBank = isViewingMonday ? 0 : weeklyBank.bankedCalories;
-
-    // 2. How much are we over the goal?
     const rawCaloriesOver = Math.max(0, totalNutrients.calories - goals.calorieGoal);
-
-    // 3. How much of that overage is covered by the bank?
-    // We use the bank if we are over the goal.
     const calculatedBankUsage = Math.min(rawCaloriesOver, availableBank);
-
-    // 4. What is the remaining "net" overage after bank use?
     const netCaloriesOver = Math.max(0, rawCaloriesOver - calculatedBankUsage);
-
-    // 5. What does the bank balance look like AFTER this day's usage?
-    // This provides the "Real-time" updated balance effect.
     const remainingBankDisplay = Math.max(0, availableBank - calculatedBankUsage);
-
     const minSafeCalories = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
     const caloriesRemaining = Math.max(0, goals.calorieGoal - totalNutrients.calories);
     
-    // Logic for circular progress
     const isOverBudget = rawCaloriesOver > 0;
     const isFullyCoveredByBank = isOverBudget && netCaloriesOver === 0;
     const isNetOverBudget = netCaloriesOver > 0;
 
     let progressColor = "text-primary";
     
-    // Logic for progress color: Orange until minSafe is met, then Green, then handling overage
     if (totalNutrients.calories < minSafeCalories) {
-        progressColor = "text-secondary"; // Orange until we reach the safe zone
+        progressColor = "text-secondary"; 
     } else if (isNetOverBudget) {
-        progressColor = "text-secondary"; // Orange if net overage
+        progressColor = "text-secondary"; 
     } else if (isFullyCoveredByBank) {
-        progressColor = "text-blue-500"; // Blue if covered by bank
+        progressColor = "text-blue-500"; 
     }
     // --- DYNAMIC BANK CALCULATION END ---
 
@@ -296,9 +279,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             if (existingIndex > -1) {
                 const existing = grouped[existingIndex];
                 existing.count = (existing.count || 1) + 1;
-                // Since this is just for display, we don't need to track all IDs here,
-                // but if we did delete, we'd delete the *latest* matching one from dailyLog.
-                // We'll keep the ID of the latest one so the 'delete' action targets a real doc.
                 if (meal.timestamp > existing.timestamp) {
                     existing.id = meal.id; 
                     existing.timestamp = meal.timestamp;
@@ -344,7 +324,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         const viewingUID = getDateUID(viewingDate);
         const currentUID = getDateUID(currentDate);
 
-        // Always calculate summary for UI consistency, regardless of date
         const totals = currentLogs.reduce((acc, meal) => ({
             calories: acc.calories + meal.nutritionalInfo.calories,
             protein: acc.protein + meal.nutritionalInfo.protein,
@@ -355,15 +334,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         const minSafe = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
         let goalMet = false;
         
-        // Simplified goal check
         if (totals.calories >= minSafe) {
                 if (userProfile.goalType === 'lose_fat') goalMet = totals.calories <= goals.calorieGoal;
-                else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300); // approx floor
+                else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300); 
                 else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
         }
 
-        // Calculate Streak for this specific day based on the DAY BEFORE
-        // This ensures if we fill in a gap day, the streak logic holds
         const dayBefore = new Date(viewingDate);
         dayBefore.setDate(dayBefore.getDate() - 1);
         const dayBeforeUID = getDateUID(dayBefore);
@@ -372,10 +348,8 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         let newStreak = 0;
         if (totals.calories > 0) {
-            // If we have logged meals, streak continues from prev day
             newStreak = prevStreak + 1;
         } else {
-            // No meals = broken streak
             newStreak = 0;
         }
 
@@ -395,22 +369,18 @@ const Dashboard: React.FC<DashboardProps> = ({
             fatGoal: goals.fatGoal,
             goalType: userProfile.goalType,
             waterGoalMet: currentWater >= DEFAULT_WATER_GOAL_ML,
-            streakForThisDay: newStreak, // Updated streak
+            streakForThisDay: newStreak, 
             savedBy: existingSummary?.savedBy,
-            bankedAmount: existingSummary?.bankedAmount, // Keep bank calc simple
+            bankedAmount: existingSummary?.bankedAmount,
         };
 
-        // ALWAYS update local state immediately so UI reflects changes (green/orange/streak)
         setPastDaysSummary(prev => ({ ...prev, [viewingUID]: newSummary }));
         
-        // ONLY save to Firestore if the day is in the past (yesterday or earlier)
-        // We avoid saving "Today" to Firestore here to prevent write conflicts with scheduled jobs or excessive writes.
         if (viewingUID < currentUID) {
             const yesterday = new Date(currentDate);
             yesterday.setDate(yesterday.getDate() - 1);
             const isYesterday = viewingUID === getDateUID(yesterday);
 
-            // If we are editing YESTERDAY, and we recovered a streak, update the User's Main Streak in Firestore
             if (isYesterday) {
                 setStreakData(prev => ({ ...prev, currentStreak: newStreak }));
                 try {
@@ -436,7 +406,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (!currentUser) return;
         
         const timestamp = Date.now();
-        const mealType = options?.mealType || defaultMealTypeForModal || 'breakfast'; // Fallback
+        const mealType = options?.mealType || defaultMealTypeForModal || 'breakfast'; 
         
         setIsSaving(true);
         setAppStatus('saving');
@@ -446,43 +416,43 @@ const Dashboard: React.FC<DashboardProps> = ({
         if ('nutritionalInfo' in data) {
              newMeal = {
                 ...(data as Omit<LoggedMeal, 'id'>),
-                id: 'temp-id-' + timestamp, // Temp ID
+                id: 'temp-id-' + timestamp, 
                 dateString: getDateUID(viewingDate),
                 timestamp: timestamp,
                 mealType: mealType,
-                caloriesCoveredByBank: 0 // Do not save bank coverage on meal anymore
+                caloriesCoveredByBank: 0
             };
         } else {
              newMeal = {
-                id: 'temp-id-' + timestamp, // Temp ID
+                id: 'temp-id-' + timestamp, 
                 dateString: getDateUID(viewingDate),
                 timestamp: timestamp,
                 mealType: mealType,
                 nutritionalInfo: data as NutritionalInfo,
-                caloriesCoveredByBank: 0 // Do not save bank coverage on meal anymore
+                caloriesCoveredByBank: 0
             };
         }
 
         try {
-            // Optimistic update
             const updatedLogs = [newMeal, ...dailyLog];
             setDailyLog(updatedLogs);
-            
-            // Recalculate summary if it's a past day
             recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
             
             if (options?.saveAsCommon) {
-                await addCommonMeal(currentUser.uid, {
+                const newCommonId = await addCommonMeal(currentUser.uid, {
                     name: newMeal.nutritionalInfo.foodItem || 'Måltid',
                     nutritionalInfo: newMeal.nutritionalInfo,
                     timestamp: Date.now()
                 });
-                // Refresh common meals list
-                const updatedCommon = [...commonMeals, { id: 'temp', name: newMeal.nutritionalInfo.foodItem || 'Måltid', nutritionalInfo: newMeal.nutritionalInfo, timestamp: Date.now() }];
-                setCommonMeals(updatedCommon); 
+                // Fix: Use the actual ID from Firestore for the local state
+                setCommonMeals(prev => [...prev, { 
+                    id: newCommonId, 
+                    name: newMeal.nutritionalInfo.foodItem || 'Måltid', 
+                    nutritionalInfo: newMeal.nutritionalInfo, 
+                    timestamp: Date.now() 
+                }]); 
             }
 
-            // Save to Firestore
             await addMealLogFirestore(currentUser.uid, newMeal.id, newMeal); 
             
             setToastNotification({ message: 'Måltid loggad!', type: 'success' });
@@ -495,7 +465,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         } catch (error) {
             console.error("Error adding meal:", error);
             setToastNotification({ message: 'Kunde inte spara måltiden.', type: 'error' });
-            // Revert optimistic update
             setDailyLog(prev => prev.filter(m => m.timestamp !== newMeal.timestamp));
         } finally {
             setIsSaving(false);
@@ -508,11 +477,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         const mealToDelete = dailyLog.find(m => m.id === mealId);
         if (!mealToDelete) return;
 
-        // Optimistic delete
         const updatedLogs = dailyLog.filter(m => m.id !== mealId);
         setDailyLog(updatedLogs);
-        
-        // Recalculate summary if it's a past day
         recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
 
         try {
@@ -521,7 +487,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         } catch (error) {
             console.error("Error deleting meal:", error);
             setToastNotification({ message: 'Kunde inte ta bort måltiden.', type: 'error' });
-            setDailyLog(prev => [...prev, mealToDelete]); // Revert
+            setDailyLog(prev => [...prev, mealToDelete]); 
         }
     };
 
@@ -529,8 +495,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (!currentUser) return;
         const updatedLogs = dailyLog.map(m => m.id === mealId ? { ...m, nutritionalInfo: updatedInfo } : m);
         setDailyLog(updatedLogs);
-        
-        // Recalculate summary if it's a past day
         recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
 
         try {
@@ -546,10 +510,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (!currentUser) return;
         const newAmount = waterLoggedMl + amount;
         setWaterLoggedMl(newAmount);
-        
-        // Recalculate summary if it's a past day (water goal affects summary)
         recalculateAndSaveSummary(dailyLog, newAmount);
-
         playAudio('waterSplash');
         try {
             await setWaterLog(currentUser.uid, getDateUID(viewingDate), newAmount);
@@ -558,17 +519,14 @@ const Dashboard: React.FC<DashboardProps> = ({
             }
         } catch (error) {
             console.error("Error logging water:", error);
-            setWaterLoggedMl(waterLoggedMl); // Revert
+            setWaterLoggedMl(waterLoggedMl); 
         }
     };
 
     const handleResetWater = async () => {
         if (!currentUser) return;
         setWaterLoggedMl(0);
-        
-        // Recalculate summary if it's a past day
         recalculateAndSaveSummary(dailyLog, 0);
-
         try {
             await setWaterLog(currentUser.uid, getDateUID(viewingDate), 0);
         } catch (error) {
@@ -614,17 +572,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     };
 
-    // Modal openers with "context awareness"
-    // If a specific type is passed, we use it. 
-    // If NOT passed, we check `activeMealSection`.
-    // If still null, default to null (force user to choose).
     const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType | null = null) => {
         const typeToUse = type || activeMealSection || null;
         setDefaultMealTypeForModal(typeToUse);
-        
-        // IMPORTANT: Close the section list view when we start a logging action
         setActiveMealSection(null);
-        
         setter(true);
         setIsSpeedDialOpen(false);
     }
@@ -632,12 +583,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal);
     const handleSearchText = () => openModalWithType(setShowTextEntryModal);
     const handleTakePhoto = () => {
-        setCameraMode('mealAnalysis'); // Set normal meal analysis mode
+        setCameraMode('mealAnalysis'); 
         openModalWithType(setShowCameraModal);
     };
-    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal, 'dinner'); // Recipe usually for dinner
-
-    // --- RENDER ---
+    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal, 'dinner'); 
 
     const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
 
@@ -810,8 +759,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                         onPrevWeek={handlePrevWeek}
                         onNextWeek={handleNextWeek}
                         onToday={handleJumpToToday}
-                        goalType={userProfile.goalType} // Pass goalType here
-                        currentViewStats={{ // Pass live stats for current day
+                        goalType={userProfile.goalType} 
+                        currentViewStats={{ 
                             calories: totalNutrients.calories,
                             calorieGoal: goals.calorieGoal,
                             proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
@@ -1016,7 +965,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     onRemoveImage={(i) => setIngredientImages(prev => prev.filter((_, idx) => idx !== i))} 
                     onUploadImages={async (files) => { for(let i=0; i<files.length; i++) { const base64 = await resizeImageForLog(files[i], 800); setIngredientImages(prev => [...prev, base64]); } }} 
                     openCameraModal={() => { 
-                        setCameraMode('ingredientCapture'); // Set correct mode for ingredients
+                        setCameraMode('ingredientCapture'); 
                         setShowIngredientCaptureModal(false); 
                         setShowCameraModal(true); 
                     }} 
@@ -1024,7 +973,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 />
             )}
             {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} />}
-            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setShowCameraModal(true); /* Logic needs redirect to NutritionLabel flow */ }} />}
+            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setShowCameraModal(true); }} />}
             {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp: Date.now() }); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
@@ -1035,7 +984,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     );
 };
 
-// Helper for local storage (duplicated to avoid import issues if utils not fully shared yet, or move to utils)
 const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
     try {
       const item = localStorage.getItem(key);

@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle } from '../types.ts';
 import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
@@ -511,7 +510,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
           <h2 id="user-profile-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
             {isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
-             isOnboarding && onboardingStep === 'feedback' ? `Coach: ${persona.label}` :
+             isOnboarding && onboardingStep === 'feedback' ? `Coach: ${persona.label}, ${persona.roleTitle}` :
              'Redigera Profil'}
           </h2>
         </div>
@@ -557,7 +556,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         <span className="text-3xl">{persona.emoji}</span>
                     </div>
                     <div className={`p-5 rounded-2xl rounded-bl-none border shadow-sm ${coachTheme.bg} ${coachTheme.border} ${coachTheme.text}`}>
-                        <h4 className="font-bold text-lg mb-2">Meddelande från {persona.label}</h4>
+                        <h4 className="font-bold text-lg mb-2">Meddelande från {persona.label}, {persona.roleTitle}</h4>
                         {typeof aiFeedbackMessage === 'string' && aiFeedbackMessage.split('\n\n').map((paragraph, index) => (
                             <div key={index} className="text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(paragraph) }} />
                         ))}
@@ -658,7 +657,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
                                     {p.emoji}
                                 </div>
-                                <span className="font-bold text-sm">{p.label}</span>
+                                <span className="font-bold text-sm">{p.label}, {p.roleTitle}</span>
                                 <span className="text-xs opacity-80 mt-1">{p.description}</span>
                             </button>
                         );
@@ -931,7 +930,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         
                          <div className="space-y-4">
                             <div>
-                                <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-2 px-1">Påminnelser</h5>
+                                <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-2 px-1 border-t border-neutral-light/50 pt-4">Påminnelser</h5>
                                 <div className="space-y-3">
                                     <ToggleSwitch 
                                         id="waterReminder"
@@ -1050,11 +1049,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="mt-8 pt-6 border-t border-neutral-light/70 flex flex-col sm:flex-row justify-end items-center gap-4">
                 <button
                     type="submit"
-                    disabled={!canSave || (isOnboarding && aiFeedbackLoading)}
-                    className="w-full sm:w-auto px-6 py-3 border border-transparent rounded-lg shadow-md text-lg font-semibold text-white bg-primary hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary active:scale-95 transform interactive-transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!canSave || aiFeedbackLoading}
+                    className="w-full sm:w-auto px-6 py-3 border border-transparent rounded-lg shadow-md text-lg font-semibold text-white bg-primary hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary active:scale-95 transform interactive-transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[180px]"
                 >
-                    <CheckIcon className="w-5 h-5 inline mr-2" />
-                    {isOnboarding ? 'Fortsätt till sista steget' : 'Spara profil'}
+                    {aiFeedbackLoading ? (
+                        <div className="flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
+                            <span>{isOnboarding ? 'Analyserar...' : 'Sparar...'}</span>
+                        </div>
+                    ) : (
+                        <>
+                            <CheckIcon className="w-5 h-5 inline mr-2" />
+                            <span>{isOnboarding ? 'Fortsätt till sista steget' : 'Spara profil'}</span>
+                        </>
+                    )}
                 </button>
             </div>
         </form>

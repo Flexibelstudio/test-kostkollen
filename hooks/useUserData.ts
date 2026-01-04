@@ -33,6 +33,8 @@ export interface UseUserDataReturn {
     setPastDaysSummary: React.Dispatch<React.SetStateAction<PastDaysSummaryCollection>>;
     streakData: { currentStreak: number; lastDateStreakChecked: string | null };
     setStreakData: React.Dispatch<React.SetStateAction<{ currentStreak: number; lastDateStreakChecked: string | null }>>;
+    summaryStartDate: string | null;
+    setSummaryStartDate: React.Dispatch<React.SetStateAction<string | null>>;
     weeklyBank: WeeklyCalorieBank;
     setWeeklyBank: React.Dispatch<React.SetStateAction<WeeklyCalorieBank>>;
     streakSaver: StreakSaver | null;
@@ -81,6 +83,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
     const [weightLogs, setWeightLogs] = useState<WeightLogEntry[]>([]);
     const [pastDaysSummary, setPastDaysSummary] = useState<PastDaysSummaryCollection>({});
     const [streakData, setStreakData] = useState<{ currentStreak: number; lastDateStreakChecked: string | null }>({ currentStreak: 0, lastDateStreakChecked: null });
+    const [summaryStartDate, setSummaryStartDate] = useState<string | null>(null);
     const [weeklyBank, setWeeklyBank] = useState<WeeklyCalorieBank>(() => {
         const { weekId, startDate, endDate } = getWeekInfo(currentDate);
         return { weekId, bankedCalories: 0, startDate, endDate };
@@ -103,6 +106,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
         setDailyLog([]);
         setPastDaysSummary({});
         setStreakData({ currentStreak: 0, lastDateStreakChecked: null });
+        setSummaryStartDate(null);
         setWaterLoggedMl(0);
         setUserCourseProgress({});
         setWeightLogs([]);
@@ -128,8 +132,6 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
 
         setIsDataLoading(true);
         try {
-            // CRITICAL FIX: Ensure the user document exists in Firestore.
-            // If it's a new user (Auth created but no Firestore doc), this will create it with status: 'pending'.
             if (auth.currentUser) {
                 await ensureUserProfileInFirestore(auth.currentUser);
             }
@@ -143,7 +145,12 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
                     currentStreak: appData.currentStreak || 0,
                     lastDateStreakChecked: appData.lastDateStreakChecked || null,
                 });
-                setWeeklyBank(appData.weeklyBank || weeklyBank);
+                setSummaryStartDate(appData.summaryStartDate || null);
+                
+                if (appData.weeklyBank) {
+                    setWeeklyBank(appData.weeklyBank);
+                }
+
                 setStreakSaver(appData.streakSaver || null);
                 setHighestStreak(appData.highestStreak || 0);
                 setHighestLevelId(appData.highestLevelId || null);
@@ -161,16 +168,15 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
                 
                 setIsInitialDataLoaded(true);
             } else {
-                console.error("fetchInitialAppData returned null despite ensureUserProfileInFirestore");
-                // If it's still null, it might be a network lag, but we reset to be safe
                 resetUserData();
             }
         } catch (error) {
             console.error("Error loading user data:", error);
-            // Handle error (maybe expose an error state)
         } finally {
             setIsDataLoading(false);
         }
+        // Vi plockar bort weeklyBank från deps för att förhindra oändlig loop vid initial laddning
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId, resetUserData]);
 
     // Initial fetch effect
@@ -192,6 +198,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
         weightLogs, setWeightLogs,
         pastDaysSummary, setPastDaysSummary,
         streakData, setStreakData,
+        summaryStartDate, setSummaryStartDate,
         weeklyBank, setWeeklyBank,
         streakSaver, setStreakSaver,
         highestStreak, setHighestStreak,

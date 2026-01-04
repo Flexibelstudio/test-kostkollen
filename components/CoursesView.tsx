@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { UserProfileData } from '../types';
+import { UserProfileData, UserCourseProgress } from '../types';
 import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon, ArrowRightIcon } from './icons';
 import CourseInfoModal from './course/CourseInfoModal';
 
@@ -34,7 +34,7 @@ export const ALL_COURSES: CourseInfo[] = [
         'Fokus ligger på att bygga en livsstil du trivs med, inte på strikta dieter.',
         'Kursen är integrerad med din logg och dina framsteg i appen.'
     ],
-    howItWorks: 'Vi tror på att lärande och handling går hand i hand. Därför låser du upp nya lektioner genom att bygga din dagliga streak. När du har hållit din streak i 7 nya dagar låses nästa lektion upp. På så sätt blir lärandet en motiverande och integrerad del av din resa.',
+    howItWorks: 'Vi tror på att lärande och handling går hand i hand. därför låser du upp nya lektioner genom att bygga din dagliga streak. När du har hållit din streak in 7 nya dagar låses nästa lektion upp. På så sätt blir lärandet en motiverande och integrerad del av din resa.',
     forWhom: 'Perfekt för dig som är trött på jojobantning och vill förstå din kropp bättre för att skapa en långsiktig hälsa och nå dina mål en gång för alla.',
     reviews: [
       {
@@ -74,6 +74,7 @@ export const ALL_COURSES: CourseInfo[] = [
 
 interface CoursesViewProps {
   userProfile: UserProfileData;
+  userProgress: UserCourseProgress;
   onNavigateToCourse: (courseId: CourseInfo['id']) => void;
 }
 
@@ -131,22 +132,26 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, onNavigateToCourse }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, userProgress, onNavigateToCourse }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
 
   return (
     <>
         <div className="animate-fade-in flex flex-col gap-3 pb-0">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {ALL_COURSES.map(course => (
-                <CourseCard
-                    key={course.id}
-                    course={course}
-                    onActivate={() => onNavigateToCourse(course.id)}
-                    onShowInfo={() => setSelectedCourseForInfo(course)}
-                    hasStarted={true} 
-                />
-            ))}
+            {ALL_COURSES.map(course => {
+                const firstLessonId = course.id === 'praktisk-viktkontroll' ? 'lektion1' : 'm-lektion1';
+                const hasStarted = !!userProgress[firstLessonId]?.unlockedAt;
+                return (
+                    <CourseCard
+                        key={course.id}
+                        course={course}
+                        onActivate={() => onNavigateToCourse(course.id)}
+                        onShowInfo={() => setSelectedCourseForInfo(course)}
+                        hasStarted={hasStarted} 
+                    />
+                );
+            })}
             </div>
         </div>
         {selectedCourseForInfo && (

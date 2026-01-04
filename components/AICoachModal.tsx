@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { SparklesIcon, XMarkIcon } from './icons';
 import { getAICoachResponseStream } from '../services/geminiService';
@@ -54,7 +53,8 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   };
 
   const { emoji: CoachEmoji, colorClass } = getCoachVisuals(coachStyle);
-  const personaName = COACH_PERSONAS[coachStyle].label;
+  const persona = COACH_PERSONAS[coachStyle];
+  const personaName = persona.label;
 
   const initialMessage: Message = useMemo(() => {
     // Customize initial message based on persona
@@ -208,9 +208,12 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorClass}`}>
                         <span className="text-2xl">{CoachEmoji}</span>
                     </div>
-                    <h2 id="ai-coach-modal-title" className="text-xl font-semibold text-neutral-dark">
-                        Fråga {personaName}
-                    </h2>
+                    <div>
+                      <h2 id="ai-coach-modal-title" className="text-xl font-semibold text-neutral-dark leading-tight">
+                          Prata med {persona.label}
+                      </h2>
+                      <p className="text-xs text-neutral font-medium">{persona.roleTitle}</p>
+                    </div>
                 </div>
                  <button onClick={onClose} className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90 interactive-transition" aria-label="Stäng">
                     <XMarkIcon className="w-6 h-6" />
