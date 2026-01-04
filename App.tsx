@@ -27,7 +27,7 @@ import {
 import {
   DEFAULT_GOALS, LOCAL_STORAGE_KEYS, DEFAULT_WATER_GOAL_ML,
   DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
-  ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS
+  ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS, VAPID_PUBLIC_KEY
 } from './constants.ts';
 
 import { getAIFeedback } from './services/geminiService.ts';
@@ -37,7 +37,7 @@ import {
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   listenForFriendRequests,
   fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate,
-  setPastDaySummary
+  setPastDaySummary, savePushSubscription
 } from './services/firestoreService.ts';
 
 // Context
@@ -118,6 +118,22 @@ const setLocalStorageItem = <T,>(key: string, value: T): void => {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {}
 };
+
+// Hjälpfunktion för att konvertera VAPID-nyckel
+function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+  
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+  
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
 
 interface ProcessDayEndLogicOptions {
   force?: boolean;
@@ -497,7 +513,40 @@ export const App = () => {
 
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
-    return false; 
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.warn('Push notiser stöds inte i denna webbläsare.');
+        return false;
+    }
+
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            return false;
+        }
+
+        const registration = await navigator.serviceWorker.ready;
+        
+        // Kontrollera om en existerande subscription finns
+        let subscription = await registration.pushManager.getSubscription();
+        
+        if (!subscription) {
+            const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+            subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: applicationServerKey
+            });
+        }
+
+        if (currentUser && subscription) {
+            // Spara till Firestore
+            await savePushSubscription(currentUser.uid, subscription.toJSON());
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Kunde inte aktivera push-notiser:', error);
+        return false;
+    }
   };
   
   useEffect(() => {
