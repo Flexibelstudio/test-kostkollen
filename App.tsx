@@ -1494,7 +1494,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
       {showConfetti && <ConfettiCelebration isActive={showConfetti} />}
        {showInstallBanner && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 pb-6 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
+        <div className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 pt-6 shadow-[0_2px_10px_rgba(0,0,0,0.1)] z-[60] animate-slide-down-fade-in">
             <div className="max-w-4xl mx-auto relative">
                 <div className="flex items-start gap-3">
                     <InstallIcon className="w-12 h-12 text-primary flex-shrink-0" />

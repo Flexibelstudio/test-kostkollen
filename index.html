@@ -181,6 +181,14 @@
       .animate-slide-up-fade-in {
         animation: slide-up-fade-in 0.3s ease-out forwards;
       }
+
+      @keyframes slide-down-fade-in {
+        from { transform: translateY(-100%); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      .animate-slide-down-fade-in {
+        animation: slide-down-fade-in 0.3s ease-out forwards;
+      }
       
        @keyframes fade-out {
         from { opacity: 1; }
@@ -274,7 +282,8 @@
     "@zxing/browser": "https://esm.sh/@zxing/browser@^0.1.5",
     "react/": "https://aistudiocdn.com/react@^19.1.1/",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.2.1/"
+    "firebase/": "https://aistudiocdn.com/firebase@^12.2.1/",
+    "react-hot-toast": "https://esm.sh/react-hot-toast@^2.6.0"
   }
 }
 </script>
