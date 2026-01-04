@@ -1127,14 +1127,24 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         }
     };
 
-  if (authLoading || isDataLoading) {
+  // --- RENDERING LOGIC START ---
+  
+  // 1. Show splash if checking auth
+  if (authLoading) {
     return <SplashScreen />;
   }
 
+  // 2. Show auth form if not logged in
   if (!currentUser) {
     return <AuthForm onAuthStateChange={setCurrentUser} />;
   }
 
+  // 3. Show splash if logged in BUT user data isn't ready yet
+  if (!isInitialDataLoaded) {
+    return <SplashScreen />;
+  }
+
+  // 4. Handle other user statuses
   if (userStatus === 'pending') {
     return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} userId={currentUser.uid} />;
   }
@@ -1151,6 +1161,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
               onToggleInterface={toggleInterfaceView}
             />;
   }
+
+  // --- RENDERING LOGIC END ---
 
   const DropdownMenuItem: React.FC<{
     onClick: () => void;
