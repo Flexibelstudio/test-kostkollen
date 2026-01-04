@@ -27,7 +27,7 @@ import {
 import {
   DEFAULT_GOALS, LOCAL_STORAGE_KEYS, DEFAULT_WATER_GOAL_ML,
   DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
-  ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS
+  ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS, VAPID_PUBLIC_KEY
 } from './constants.ts';
 
 import { getAIFeedback } from './services/geminiService.ts';
@@ -37,7 +37,7 @@ import {
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   listenForFriendRequests,
   fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate,
-  setPastDaySummary
+  setPastDaySummary, savePushSubscription
 } from './services/firestoreService.ts';
 
 // Context
@@ -118,6 +118,22 @@ const setLocalStorageItem = <T,>(key: string, value: T): void => {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {}
 };
+
+// Hjälpfunktion för att konvertera VAPID-nyckel
+function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+  
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+  
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
 
 interface ProcessDayEndLogicOptions {
   force?: boolean;
@@ -497,7 +513,40 @@ export const App = () => {
 
 
 const handleSubscribeToPush = async (): Promise<boolean> => {
-    return false; 
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.warn('Push notiser stöds inte i denna webbläsare.');
+        return false;
+    }
+
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            return false;
+        }
+
+        const registration = await navigator.serviceWorker.ready;
+        
+        // Kontrollera om en existerande subscription finns
+        let subscription = await registration.pushManager.getSubscription();
+        
+        if (!subscription) {
+            const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+            subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: applicationServerKey
+            });
+        }
+
+        if (currentUser && subscription) {
+            // Spara till Firestore
+            await savePushSubscription(currentUser.uid, subscription.toJSON());
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Kunde inte aktivera push-notiser:', error);
+        return false;
+    }
   };
   
   useEffect(() => {
@@ -1127,14 +1176,24 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         }
     };
 
-  if (authLoading || isDataLoading) {
+  // --- RENDERING LOGIC START ---
+  
+  // 1. Show splash if checking auth
+  if (authLoading) {
     return <SplashScreen />;
   }
 
+  // 2. Show auth form if not logged in
   if (!currentUser) {
     return <AuthForm onAuthStateChange={setCurrentUser} />;
   }
 
+  // 3. Show splash if logged in BUT user data isn't ready yet
+  if (!isInitialDataLoaded) {
+    return <SplashScreen />;
+  }
+
+  // 4. Handle other user statuses
   if (userStatus === 'pending') {
     return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} userId={currentUser.uid} />;
   }
@@ -1151,6 +1210,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
               onToggleInterface={toggleInterfaceView}
             />;
   }
+
+  // --- RENDERING LOGIC END ---
 
   const DropdownMenuItem: React.FC<{
     onClick: () => void;
@@ -1433,7 +1494,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
       {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
       {showConfetti && <ConfettiCelebration isActive={showConfetti} />}
        {showInstallBanner && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 pb-6 shadow-[0_-2px_10px_rgba(0,0,0,0.1)] z-50 animate-slide-up-fade-in">
+        <div className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 pt-6 shadow-[0_2px_10px_rgba(0,0,0,0.1)] z-[60] animate-slide-down-fade-in">
             <div className="max-w-4xl mx-auto relative">
                 <div className="flex items-start gap-3">
                     <InstallIcon className="w-12 h-12 text-primary flex-shrink-0" />

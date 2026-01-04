@@ -71,7 +71,7 @@ export interface UseUserDataReturn {
 }
 
 export const useUserData = (userId: string | undefined, currentDate: Date): UseUserDataReturn => {
-    const [isDataLoading, setIsDataLoading] = useState(false);
+    const [isDataLoading, setIsDataLoading] = useState(true); // Start as true to avoid flicker
     const [isInitialDataLoaded, setIsInitialDataLoaded] = useState(false);
 
     // Data State
@@ -127,6 +127,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
     const refreshUserData = useCallback(async () => {
         if (!userId) {
             resetUserData();
+            setIsDataLoading(false);
             return;
         }
 
