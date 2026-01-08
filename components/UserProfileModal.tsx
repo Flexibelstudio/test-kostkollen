@@ -363,9 +363,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         // Enforce one goal at a time for 'inbody'
         if (name === 'desiredFatMassChangeKg' && value !== '' && parseFloat(value) !== 0) {
-            updatedProfile.desiredMuscleMassChangeKg = undefined;
+            updatedProfile.desiredMuscleMassChangeKg = null;
         } else if (name === 'desiredMuscleMassChangeKg' && value !== '' && parseFloat(value) !== 0) {
-            updatedProfile.desiredFatMassChangeKg = undefined;
+            updatedProfile.desiredFatMassChangeKg = null;
         }
 
         return updatedProfile;
@@ -431,9 +431,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       // Enforce one goal at a time for 'inbody'
       if (field === 'desiredFatMassChangeKg' && newValue !== 0) {
-        updatedProfile.desiredMuscleMassChangeKg = undefined;
+        updatedProfile.desiredMuscleMassChangeKg = null;
       } else if (field === 'desiredMuscleMassChangeKg' && newValue !== 0) {
-        updatedProfile.desiredFatMassChangeKg = undefined;
+        updatedProfile.desiredFatMassChangeKg = null;
       }
       
       return updatedProfile;
@@ -465,9 +465,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         ageYears: Number(profile.ageYears) || null,
         skeletalMuscleMassKg: Number(profile.skeletalMuscleMassKg) || null,
         bodyFatMassKg: Number(profile.bodyFatMassKg) || null,
-        desiredWeightChangeKg: Number(profile.desiredWeightChangeKg) || null,
-        desiredFatMassChangeKg: Number(profile.desiredFatMassChangeKg) || null,
-        desiredMuscleMassChangeKg: Number(profile.desiredMuscleMassChangeKg) || null,
+        desiredWeightChangeKg: profile.measurementMethod === 'scale' ? (Number(profile.desiredWeightChangeKg) || null) : null,
+        desiredFatMassChangeKg: profile.measurementMethod === 'inbody' ? (Number(profile.desiredFatMassChangeKg) || null) : null,
+        desiredMuscleMassChangeKg: profile.measurementMethod === 'inbody' ? (Number(profile.desiredMuscleMassChangeKg) || null) : null,
     };
 
     onSave(validatedProfile, newGoals, newPhotoDataUrl);

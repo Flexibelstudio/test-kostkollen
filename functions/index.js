@@ -147,7 +147,7 @@ exports.onFriendRequestCreated = functions.firestore
     await sendNotificationToUser(request.toUid, payload, "friendRequests");
   });
 
-// 2. Händelse i flödet skapad
+// 2. Händelse i flödet skapad (Skickar push-notiser)
 exports.onTimelineEventCreated = functions.firestore
   .document("communityTimeline/{eventId}")
   .onCreate(async (snapshot) => {
@@ -213,6 +213,53 @@ exports.onCommentCreated = functions.firestore
     };
 
     await sendNotificationToUser(eventOwnerId, payload, "comments");
+  });
+
+// 4. Streak-uppdatering (Skapar inlägg i flödet)
+exports.onUserStreakUpdated = functions.firestore
+  .document("users/{userId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const userId = context.params.userId;
+
+    const newStreak = after.currentStreak || 0;
+    const oldStreak = before.currentStreak || 0;
+
+    // Om streaken har ökat och är över 0
+    if (newStreak > oldStreak && newStreak > 0) {
+      logger.log(`Streak increased for user ${userId}: ${oldStreak} -> ${newStreak}. Creating timeline event.`);
+
+      // Hämta kompisar för att sätta synlighet
+      const buddiesSnap = await db.collection("users").doc(userId).collection("buddies").get();
+      const buddyUids = buddiesSnap.docs.map(d => d.id);
+      const visibleTo = [userId, ...buddyUids];
+
+      const eventId = `streak_${userId}_${newStreak}_${new Date().toISOString().split('T')[0]}`;
+      const timelineDocRef = db.collection("communityTimeline").doc(eventId);
+
+      const eventData = {
+        type: 'streak',
+        timestamp: Date.now(),
+        title: 'håller i sin streak! 🔥',
+        description: `Har nu loggat ${newStreak} ${newStreak === 1 ? 'dag' : 'dagar'} i rad!`,
+        icon: '🔥',
+        userId: userId,
+        userName: after.displayName || 'En användare',
+        userPhotoURL: after.photoURL || null,
+        gender: after.gender || 'female',
+        visibleTo: visibleTo,
+        reactions: {},
+        comments: [],
+        relatedDocPath: `users/${userId}`,
+      };
+
+      try {
+        await timelineDocRef.set(eventData, { merge: true });
+      } catch (error) {
+        logger.error("Failed to create streak timeline event:", error);
+      }
+    }
   });
 
 // ---- Kompis-hanteringsfunktioner ----

@@ -63,16 +63,20 @@ export const deriveEffectiveGoalType = (
   const { measurementMethod, desiredWeightChangeKg, desiredFatMassChangeKg, desiredMuscleMassChangeKg } = profile;
 
   if (measurementMethod === 'scale') {
-    if (desiredWeightChangeKg !== undefined && desiredWeightChangeKg < 0) {
+    if (desiredWeightChangeKg != null && desiredWeightChangeKg < 0) {
       return 'lose_fat';
-    } else if (desiredWeightChangeKg !== undefined && desiredWeightChangeKg > 0) {
-      return 'gain_muscle'; // Assume weight gain is for muscle
+    } else if (desiredWeightChangeKg != null && desiredWeightChangeKg > 0) {
+      return 'gain_muscle'; 
     }
-  } else { // Default to 'inbody' for legacy users or if explicitly set
-    if (desiredFatMassChangeKg !== undefined && desiredFatMassChangeKg < 0) {
+  } else { 
+    // InBody mode: Prioritize fat loss as a goal type if it exists, otherwise muscle gain
+    if (desiredFatMassChangeKg != null && desiredFatMassChangeKg < 0) {
       return 'lose_fat';
-    } else if (desiredMuscleMassChangeKg !== undefined && desiredMuscleMassChangeKg > 0) {
+    } else if (desiredMuscleMassChangeKg != null && desiredMuscleMassChangeKg > 0) {
       return 'gain_muscle';
+    } else if (desiredFatMassChangeKg != null && desiredFatMassChangeKg > 0) {
+        // Technically weight gain, but categorizing as gain_muscle for macro targets
+        return 'gain_muscle';
     }
   }
   
