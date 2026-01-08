@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, GoalSettings, ActivityLevel, GoalType } from '../types';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations';
@@ -111,11 +110,11 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
             // When full goal edit starts, we reset the goal-related fields to allow new input
             setProfile(prev => ({
                 ...prev,
-                mainGoalCompleted: true, // Mark previous goal as essentially done/archived contextually
-                desiredFatMassChangeKg: undefined,
-                desiredMuscleMassChangeKg: undefined,
-                desiredWeightChangeKg: undefined,
-                goalCompletionDate: undefined
+                mainGoalCompleted: true, 
+                desiredFatMassChangeKg: null,
+                desiredMuscleMassChangeKg: null,
+                desiredWeightChangeKg: null,
+                goalCompletionDate: null
             }));
         }
     }, [initialProfile, initialGoals, isEditing, isFullGoalEdit]);
@@ -168,9 +167,9 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
 
         // Enforce one goal at a time for 'inbody'
         if (name === 'desiredFatMassChangeKg' && value !== '' && parseFloat(value) !== 0) {
-            updatedProfile.desiredMuscleMassChangeKg = undefined;
+            updatedProfile.desiredMuscleMassChangeKg = null;
         } else if (name === 'desiredMuscleMassChangeKg' && value !== '' && parseFloat(value) !== 0) {
-            updatedProfile.desiredFatMassChangeKg = undefined;
+            updatedProfile.desiredFatMassChangeKg = null;
         }
         
         setProfile(updatedProfile);
@@ -193,13 +192,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                 let cRatio = 0.40;
                 let fRatio = 0.30;
 
-                // VIKTIGT: Om vi utgår från ett väldigt lågt tal (t.ex. användaren raderade fältet och det blev 0),
-                // så har makros sannolikt avrundats ner till 0. Då tappar vi fördelningen (0/0 = NaN).
-                // Därför: Om gamla kalorier är < 200 (eller makros är 0), använd en standardfördelning.
-                // Detta fixar buggen där "1000 kcal" resulterade i 0 fett om man skrivit in det från noll.
                 if (oldCalories >= 200 && totalCurrentMacroEnergy > 0) {
-                     // Behåll användarens nuvarande fördelning
-                     // Vi använder totalCurrentMacroEnergy som bas för att få exakta % av makrosarna
                      pRatio = (prev.proteinGoal * 4) / totalCurrentMacroEnergy;
                      cRatio = (prev.carbohydrateGoal * 4) / totalCurrentMacroEnergy;
                      fRatio = (prev.fatGoal * 9) / totalCurrentMacroEnergy;
@@ -217,8 +210,6 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
             // SCENARIO 2: Ändrar en Makro (P/K/F) -> Räkna om totala kalorier
             const nextGoals = { ...prev, [name]: numValue };
 
-            // Räkna ut summan: (P * 4) + (K * 4) + (F * 9)
-            // Vi använder de uppdaterade värdena i `nextGoals`
             const newTotalCalories =
                 (nextGoals.proteinGoal * 4) +
                 (nextGoals.carbohydrateGoal * 4) +
@@ -242,9 +233,9 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
         
         // Enforce one goal at a time for 'inbody'
         if (field === 'desiredFatMassChangeKg' && newValue !== 0) {
-            updatedProfile.desiredMuscleMassChangeKg = undefined;
+            updatedProfile.desiredMuscleMassChangeKg = null;
         } else if (field === 'desiredMuscleMassChangeKg' && newValue !== 0) {
-            updatedProfile.desiredFatMassChangeKg = undefined;
+            updatedProfile.desiredFatMassChangeKg = null;
         }
 
         return updatedProfile;
@@ -269,15 +260,16 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
             newGoals = initialGoals;
         }
         
-        // Create a copy to modify before saving
-        let profileToSave = { ...profile };
+        // Ensure isolation between measurement methods and definitve clearing
+        let profileToSave = { 
+            ...profile,
+            desiredWeightChangeKg: profile.measurementMethod === 'scale' ? (profile.desiredWeightChangeKg ?? null) : null,
+            desiredFatMassChangeKg: profile.measurementMethod === 'inbody' ? (profile.desiredFatMassChangeKg ?? null) : null,
+            desiredMuscleMassChangeKg: profile.measurementMethod === 'inbody' ? (profile.desiredMuscleMassChangeKg ?? null) : null,
+        };
 
-        // If this is a full goal edit (New Goal flow), we must reset the starting points
-        // to the LATEST LOGGED values to ensure the progress bar starts at 0%.
         if (isFullGoalEdit) {
             profileToSave.mainGoalCompleted = false;
-            // Use the latest measured values passed from JourneyView (which come from logs)
-            // fallback to profile values if logs are missing.
             profileToSave.goalStartWeight = latestMeasuredWeight ?? profile.currentWeightKg;
             profileToSave.goalStartFatMassKg = latestMeasuredFat ?? profile.bodyFatMassKg; 
             profileToSave.goalStartMuscleMassKg = latestMeasuredMuscle ?? profile.skeletalMuscleMassKg;
