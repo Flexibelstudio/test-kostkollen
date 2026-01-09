@@ -829,9 +829,12 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     
     // Manual activation check
     if (!userCourseProgress[firstLessonId]?.unlockedAt) {
+        // För Praktisk Viktkontroll nollställer vi streakAtUnlock så användaren får credit för sin befintliga streak
+        const initialStreakBaseline = courseId === 'praktisk-viktkontroll' ? 0 : streakData.currentStreak;
+
         const newProg: UserLessonProgress = {
             unlockedAt: Date.now(),
-            streakAtUnlock: streakData.currentStreak,
+            streakAtUnlock: initialStreakBaseline,
             completedFocusPoints: [],
             isCompleted: false,
             reflectionAnswer: ''
