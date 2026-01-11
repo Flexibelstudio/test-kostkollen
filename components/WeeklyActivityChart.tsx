@@ -24,6 +24,7 @@ interface WeeklyActivityChartProps {
   onToday: () => void;
   goalType?: string;
   isSummarizingYesterday?: boolean;
+  bankedCalories?: number; // Tillagt för att kunna räkna ut färg live
 }
 
 const getLocalISODateString = (date: Date): string => {
@@ -43,13 +44,12 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   onNextWeek,
   onToday,
   isSummarizingYesterday = false,
+  bankedCalories = 0
 }) => {
-  // Use viewingDate to determine which week to show
   const referenceDate = new Date(viewingDate);
   referenceDate.setHours(0, 0, 0, 0);
 
-  // Calculate the Monday of the *viewed* week
-  const dayOfWeek = referenceDate.getDay(); // 0 (Sun) to 6 (Sat)
+  const dayOfWeek = referenceDate.getDay(); 
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(referenceDate);
   monday.setDate(referenceDate.getDate() + mondayOffset);
@@ -65,7 +65,6 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   today.setHours(0, 0, 0, 0);
   const viewingDateISO = getLocalISODateString(viewingDate);
   
-  // Calculate Yesterday ISO
   const yesterday = new Date(currentAppDate);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayISO = getLocalISODateString(yesterday);
@@ -120,7 +119,6 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             const isYesterday = dayISO === yesterdayISO;
             const showSpinner = isSummarizingYesterday && isYesterday;
             
-            // --- DATA RETRIEVAL ---
             let calories = 0;
             let calorieGoal = 2000;
             let proteinGoalMet = false;
@@ -129,21 +127,24 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
 
             const summary = pastDaysSummary[dayISO];
 
-            // FIX: If this is the day currently being viewed/edited, use the live stats passed from Dashboard.
-            // Otherwise, fallback to the stored summary.
             if (isViewing && currentViewStats) {
-                // Live data for the selected day
                 calories = currentViewStats.calories;
                 calorieGoal = currentViewStats.calorieGoal;
                 proteinGoalMet = currentViewStats.proteinGoalMet;
                 waterGoalMet = currentViewStats.waterGoalMet;
                 
                 const minSafe = Math.max(calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-                if (calories >= minSafe && calories <= calorieGoal) {
-                    goalMet = true;
+                const overage = Math.max(0, calories - calorieGoal);
+                
+                // Live check: Nådd mål ELLER räddad av sparpott
+                if (calories >= minSafe) {
+                    if (calories <= calorieGoal) {
+                        goalMet = true;
+                    } else if (overage <= bankedCalories) {
+                        goalMet = true;
+                    }
                 }
             } else if (summary) {
-                // Historical data for other days
                 calories = summary.consumedCalories;
                 calorieGoal = summary.calorieGoal;
                 proteinGoalMet = summary.proteinGoalMet;
@@ -153,27 +154,23 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             
             const dayLabel = day.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '').charAt(0).toUpperCase();
             const hasLog = calories > 0;
-            const isOverConsumed = calories > calorieGoal;
             
-            // --- COLOR LOGIC ---
-            let barColor = 'bg-neutral-100'; // Default Empty/Gray
+            let barColor = 'bg-neutral-100'; 
             
             if (hasLog) {
-                // Strikt logik: Om intaget är högre än målet -> Orange, annars om målet nåddes -> Grön
-                if (goalMet && !isOverConsumed) {
-                    barColor = 'bg-primary'; // Green
+                // Nu använder vi den uppdaterade goalMet som inkluderar sparpott-räddning
+                if (goalMet) {
+                    barColor = 'bg-primary'; 
                 } else {
-                    barColor = 'bg-secondary'; // Orange (Under or Over)
+                    barColor = 'bg-secondary'; 
                 }
             }
 
-            // Height calculation: Cap visual at 100%
             let heightPercentage = 0;
             if (calorieGoal > 0) {
                 heightPercentage = Math.min((calories / calorieGoal) * 100, 100);
             }
 
-            // Surplus text if over goal
             const surplus = Math.max(0, calories - calorieGoal);
             const isOverGoal = calories > calorieGoal;
 
@@ -187,26 +184,22 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                     className={`group flex flex-col items-center justify-end w-full h-full relative focus:outline-none transition-transform active:scale-95 ${isFutureDay ? 'cursor-default opacity-50' : 'cursor-pointer'}`}
                 >
                     <div className="relative w-full flex flex-col items-center justify-end h-full pb-6">
-                        {/* Surplus Text */}
                         {isOverGoal && !showSpinner && (
                             <span className="absolute -top-6 text-[10px] sm:text-xs font-bold text-secondary animate-fade-in">
                                 +{surplus.toFixed(0)}
                             </span>
                         )}
 
-                        {/* Bar Track */}
                         <div className={`w-full max-w-[24px] sm:max-w-[32px] h-full bg-neutral-light/40 rounded-full relative overflow-hidden flex flex-col-reverse justify-start ${isViewing ? 'ring-2 ring-offset-2 ring-primary/30' : ''}`}>
                             {showSpinner ? (
                                 <div className="w-full h-full flex items-end justify-center pb-2 animate-fade-in">
                                      <div className="w-5 h-5 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
                                 </div>
                             ) : (
-                                /* Filled Bar */
                                 <div 
                                     className={`w-full ${barColor} rounded-full transition-all duration-500 ease-out relative`} 
                                     style={{ height: `${heightPercentage}%` }}
                                 >
-                                    {/* Protein Icon inside bar (only if logged and protein met) */}
                                     {proteinGoalMet && hasLog && (
                                         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-full flex justify-center">
                                             <Dumbbell className="w-3 h-3 sm:w-4 sm:h-4 text-white drop-shadow-sm" />
@@ -217,7 +210,6 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                         </div>
                     </div>
                     
-                    {/* Day Label */}
                     <div className="absolute bottom-0 text-center w-full">
                         <span className={`block text-xs sm:text-sm ${dayLabelColor} transition-colors`}>
                             {dayLabel}

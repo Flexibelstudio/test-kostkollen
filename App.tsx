@@ -303,7 +303,7 @@ export const App = () => {
   // Local UI State
   const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
   const [viewMode, setViewMode] = useState<ViewMode>('main');
-  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'>('member');
+  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'admin'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -1009,7 +1009,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     const { start: yesterdayStart, yKey: yesterdayUID } = yesterdayRangeSE(now);
     
-    // Guard: Only process summaries from summaryStartDate and onwards
     if (!summaryStartDate || yesterdayUID < summaryStartDate) {
         return;
     }
@@ -1033,15 +1032,32 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
         
+        // --- NY LOGIK FÖR SPARPOTTRÄDDNING ---
         let goalMet = false;
+        let usedFromBank = 0;
+        let savedBy: "sparpott" | undefined = undefined;
+
         if (totals.calories >= minSafe) {
-             if (userProfile.goalType === 'lose_fat') goalMet = totals.calories <= goals.calorieGoal;
-             else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300);
-             else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
+            if (userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') {
+                if (totals.calories <= goals.calorieGoal) {
+                    goalMet = true;
+                } else {
+                    // Vi ligger över målet, kolla om banken räcker
+                    const excess = totals.calories - goals.calorieGoal;
+                    if (weeklyBank.bankedCalories >= excess) {
+                        goalMet = true;
+                        usedFromBank = Math.round(excess);
+                        savedBy = 'sparpott';
+                    }
+                }
+            } else if (userProfile.goalType === 'gain_muscle') {
+                // För gain_muscle räknas det som lyckat om man är över TDEE-floor
+                goalMet = totals.calories >= (goals.calorieGoal - 300);
+            }
         }
 
         let bankedAmount = 0;
-        if (userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') {
+        if ((userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') && !savedBy) {
             if (totals.calories >= minSafe && totals.calories < goals.calorieGoal) {
                 bankedAmount = Math.round(goals.calorieGoal - totals.calories);
             }
@@ -1063,8 +1079,9 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             fatGoal: goals.fatGoal,
             goalType: userProfile.goalType,
             waterGoalMet: yesterdayWater >= DEFAULT_WATER_GOAL_ML,
-            streakForThisDay: 0, // Sätts nedan i functional update
-            bankedAmount: bankedAmount 
+            streakForThisDay: 0, 
+            bankedAmount: bankedAmount,
+            savedBy: savedBy
         };
 
         let finalNewStreak = 0;
@@ -1104,6 +1121,12 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 ...prev,
                 bankedCalories: prev.bankedCalories + bankedAmount
             }));
+        } else if (usedFromBank > 0) {
+            userUpdates["weeklyBank.bankedCalories"] = increment(-usedFromBank);
+            setWeeklyBank(prev => ({
+                ...prev,
+                bankedCalories: Math.max(0, prev.bankedCalories - usedFromBank)
+            }));
         }
 
         await updateUserDocument(uid, userUpdates);
@@ -1117,8 +1140,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     } finally {
         setIsSummarizingYesterday(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification]);
+}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
@@ -1128,7 +1150,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 ensureYesterdayProcessed(currentUser.uid, new Date());
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding]);
 
   
@@ -1181,22 +1202,10 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
   // --- RENDERING LOGIC START ---
   
-  // 1. Show splash if checking auth
-  if (authLoading) {
-    return <SplashScreen />;
-  }
+  if (authLoading) return <SplashScreen />;
+  if (!currentUser) return <AuthForm onAuthStateChange={setCurrentUser} />;
+  if (!isInitialDataLoaded) return <SplashScreen />;
 
-  // 2. Show auth form if not logged in
-  if (!currentUser) {
-    return <AuthForm onAuthStateChange={setCurrentUser} />;
-  }
-
-  // 3. Show splash if logged in BUT user data isn't ready yet
-  if (!isInitialDataLoaded) {
-    return <SplashScreen />;
-  }
-
-  // 4. Handle other user statuses
   if (userStatus === 'pending') {
     return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} userId={currentUser.uid} />;
   }
@@ -1213,8 +1222,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
               onToggleInterface={toggleInterfaceView}
             />;
   }
-
-  // --- RENDERING LOGIC END ---
 
   const DropdownMenuItem: React.FC<{
     onClick: () => void;

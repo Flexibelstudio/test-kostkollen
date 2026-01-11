@@ -767,6 +767,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
                         }}
                         isSummarizingYesterday={isSummarizingYesterday}
+                        bankedCalories={weeklyBank.bankedCalories}
                     />
                 </div>
 
