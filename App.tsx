@@ -425,6 +425,7 @@ export const App = () => {
             const batch = writeBatch(db);
             let hasUnlockedAny = false;
 
+            // 1. Praktisk Viktkontroll (Streak-baserad)
             const pvLessons = courseLessons;
             let lastStreakAtUnlock = 0;
             let lastUnlockedIdx = -1;
@@ -437,7 +438,7 @@ export const App = () => {
                     lastStreakAtUnlock = prog.streakAtUnlock ?? 0;
                 } else {
                     const isFirstLesson = i === 0;
-                    if (isFirstLesson) break; // NO BACKGROUND AUTO-UNLOCK FOR FIRST LESSON
+                    if (isFirstLesson) break; 
 
                     const prevWasUnlocked = lastUnlockedIdx === i - 1;
                     const streakTarget = lastStreakAtUnlock + 7;
@@ -463,36 +464,45 @@ export const App = () => {
                 }
             }
 
+            // 2. Maxa Klimakteriet (Tidsbaserad - Veckovis)
             const mkLessons = menopauseCourseLessons;
-            for (let i = 0; i < mkLessons.length; i++) {
-                const lessonId = mkLessons[i].id;
-                const prog = userCourseProgress[lessonId];
-                if (prog?.unlockedAt) {
-                    // Skip if already unlocked
-                } else {
-                    const isFirst = i === 0;
-                    if (isFirst) break; // NO BACKGROUND AUTO-UNLOCK FOR FIRST LESSON
+            const firstMkLessonProg = userCourseProgress[mkLessons[0].id];
+            
+            // Vi behöver veta när kursen startade (unlockedAt för första lektionen)
+            if (firstMkLessonProg?.unlockedAt) {
+                const activatedAt = firstMkLessonProg.unlockedAt;
+                const now = Date.now();
+                const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
 
-                    const prevIsCompleted = i > 0 && userCourseProgress[mkLessons[i-1].id]?.isCompleted;
+                for (let i = 1; i < mkLessons.length; i++) {
+                    const lessonId = mkLessons[i].id;
+                    const prog = userCourseProgress[lessonId];
+                    
+                    if (!prog?.unlockedAt) {
+                        // Denna lektion är låst. Kolla om det gått tillräckligt många veckor.
+                        const weeksRequired = i; // Lektion 2 (index 1) kräver 1 vecka osv.
+                        const timeElapsed = now - activatedAt;
 
-                    if (prevIsCompleted) {
-                        const newProg: UserLessonProgress = {
-                            unlockedAt: Date.now(),
-                            streakAtUnlock: streakData.currentStreak,
-                            completedFocusPoints: [],
-                            isCompleted: false,
-                            reflectionAnswer: ''
-                        };
-                        const ref = doc(db, 'users', currentUser.uid, 'courseProgress', lessonId);
-                        batch.set(ref, newProg, { merge: true });
-                        
-                        setUserCourseProgress(prev => ({ ...prev, [lessonId]: newProg }));
-                        setNewlyUnlockedLesson(mkLessons[i]);
-                        hasUnlockedAny = true;
-                        playAudio('levelUp');
+                        if (timeElapsed >= (weeksRequired * oneWeekMs)) {
+                            const newProg: UserLessonProgress = {
+                                unlockedAt: now,
+                                completedFocusPoints: [],
+                                isCompleted: false,
+                                reflectionAnswer: ''
+                            };
+                            const ref = doc(db, 'users', currentUser.uid, 'courseProgress', lessonId);
+                            batch.set(ref, newProg, { merge: true });
+                            
+                            setUserCourseProgress(prev => ({ ...prev, [lessonId]: newProg }));
+                            setNewlyUnlockedLesson(mkLessons[i]);
+                            hasUnlockedAny = true;
+                            playAudio('levelUp');
+                            // Fortsätt inte loopen i samma körning för att inte låsa upp allt på en gång om de varit borta länge
+                            break;
+                        }
+                        // Om vi når en låst lektion som inte är redo, stanna.
                         break;
                     }
-                    break;
                 }
             }
 
