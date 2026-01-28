@@ -10,7 +10,7 @@
 
 # ========= ENV: SAMMA Firebase i alla contexts =========
 
-# Production deploys (main)
+# Production deploys (main) - Behåll dessa för din riktiga sajt
 [context.production.environment]
   VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
   VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
@@ -20,36 +20,23 @@
   VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
   VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
 
-# Alla branch deploys (gäller t.ex. staging)
+# Staging - Här klistrar du in de nya staging-nycklarna
 [context.branch-deploy.environment]
-  VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
-  VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
-  VITE_FB_PROJECT_ID          = "flexibel-kostkollen"
-  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.appspot.com"
-  VITE_FB_MESSAGING_SENDER_ID = "1095144779871"
-  VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
-  VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
+  VITE_FB_API_KEY             = "AIzaSyB6PNXePXPXYYZmpoSeuTQWkYmifertLTI"
+  VITE_FB_AUTH_DOMAIN         = "flexibel-kostloggen-staging.firebaseapp.com"
+  VITE_FB_PROJECT_ID          = "flexibel-kostloggen-staging"
+  VITE_FB_STORAGE_BUCKET      = "flexibel-kostloggen-staging.firebasestorage.app"
+  VITE_FB_MESSAGING_SENDER_ID = "612209993317"
+  VITE_FB_APP_ID              = "1:612209993317:web:8c019a9443a37cc694488c"
 
-# (valfritt men bra) explicit för grenen "staging"
 [context."branch:staging".environment]
-  VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
-  VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
-  VITE_FB_PROJECT_ID          = "flexibel-kostkollen"
-  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.appspot.com"
-  VITE_FB_MESSAGING_SENDER_ID = "1095144779871"
-  VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
-  VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
-
-# Deploy previews (PR-bygg)
-[context.deploy-preview.environment]
-  VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
-  VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
-  VITE_FB_PROJECT_ID          = "flexibel-kostkollen"
-  VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.appspot.com"
-  VITE_FB_MESSAGING_SENDER_ID = "1095144779871"
-  VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
-  VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
-
+  VITE_FB_API_KEY             = "AIzaSyB6PNXePXPXYYZmpoSeuTQWkYmifertLTI"
+  VITE_FB_AUTH_DOMAIN         = "flexibel-kostloggen-staging.firebaseapp.com"
+  VITE_FB_PROJECT_ID          = "flexibel-kostloggen-staging"
+  VITE_FB_STORAGE_BUCKET      = "flexibel-kostloggen-staging.firebasestorage.app"
+  VITE_FB_MESSAGING_SENDER_ID = "612209993317"
+  VITE_FB_APP_ID              = "1:612209993317:web:8c019a9443a37cc694488c"
+  
 # ========= SW & cache-headrar =========
 
 # säkerställ att /sw.js aldrig fångas av SPA-redirect
