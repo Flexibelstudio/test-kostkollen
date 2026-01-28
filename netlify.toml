@@ -1,21 +1,12 @@
-# netlify.toml – EN källa för alla miljöer (prod & staging samma DB)
+# netlify.toml – Separata miljöer (Staging som default)
 
 [build]
   command = "npm run build"
   publish = "dist"
 
-# Lås node för stabila builds
-[build.environment]
-  NODE_VERSION = "20"
-
-# ========= ENV: SAMMA Firebase i alla contexts =========
-
-[build]
-  command = "npm run build"
-  publish = "dist"
-
-# 1. DEFAULT: Här lägger du STAGING-nycklarna. 
-# Dessa används alltid om inget annat anges specifikt.
+# 1. DEFAULT: Här ligger STAGING-nycklarna.
+# Eftersom din staging-sajt har "staging" som production branch,
+# kommer den att använda dessa som standard.
 [build.environment]
   NODE_VERSION = "20"
   VITE_FB_API_KEY             = "AIzaSyB6PNXePXPXYYZmpoSeuTQWkYmifertLTI"
@@ -25,8 +16,7 @@
   VITE_FB_MESSAGING_SENDER_ID = "612209993317"
   VITE_FB_APP_ID              = "1:612209993317:web:8c019a9443a37cc694488c"
 
-# 2. PROD OVERRIDE: Dessa nycklar används ENDAST när branchen heter 'main'.
-# (Detta kommer endast ske på din skarpa prod-sajt)
+# 2. PROD OVERRIDE: Används endast på din riktiga prod-sajt (branch main)
 [context.main.environment]
   VITE_FB_API_KEY             = "AIzaSyBtJJhdRistJEOaaDeOosSn0RiDT39y-EY"
   VITE_FB_AUTH_DOMAIN         = "flexibel-kostkollen.firebaseapp.com"
@@ -34,82 +24,39 @@
   VITE_FB_STORAGE_BUCKET      = "flexibel-kostkollen.appspot.com"
   VITE_FB_MESSAGING_SENDER_ID = "1095144779871"
   VITE_FB_APP_ID              = "1:1095144779871:web:fa55c8bb3c2be1f7276bea"
-  
+  VITE_FB_MEASUREMENT_ID      = "G-ZBVLF4N3LS"
+
 # ========= SW & cache-headrar =========
 
-# säkerställ att /sw.js aldrig fångas av SPA-redirect
 [[redirects]]
   from = "/sw.js"
   to   = "/sw.js"
   status = 200
   force = true
 
-# skydd om någon kod ropar på /service-worker.js
 [[redirects]]
   from = "/service-worker.js"
   to   = "/sw.js"
   status = 200
   force = true
 
-# SW-filer ska ej cacheas
 [[headers]]
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
-    Pragma        = "no-cache"
-    Expires       = "0"
+    Pragma = "no-cache"
+    Expires = "0"
 
-[[headers]]
-  for = "/service-worker.js"
-  [headers.values]
-    Cache-Control = "no-cache, no-store, must-revalidate"
-    Pragma        = "no-cache"
-    Expires       = "0"
-
-# index.html & root = färskt
 [[headers]]
   for = "/index.html"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
-    Pragma        = "no-cache"
-    Expires       = "0"
 
-[[headers]]
-  for = "/"
-  [headers.values]
-    Cache-Control = "no-cache, no-store, must-revalidate"
-    Pragma        = "no-cache"
-    Expires       = "0"
-
-# hashade assets cacheas länge
 [[headers]]
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# fallback för rotfiler
-[[headers]]
-  for = "/*.js"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-[[headers]]
-  for = "/*.css"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-[[headers]]
-  for = "/*.woff2"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-[[headers]]
-  for = "/*.svg"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-[[headers]]
-  for = "/*.png"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-# SPA-redirect (lägg sist)
 [[redirects]]
   from = "/*"
   to   = "/index.html"
