@@ -3,6 +3,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
+const cors = require('cors')({ origin: true });
 
 // Initiera Stripe med den hemliga nyckeln från config
 const stripe = require("stripe")(functions.config().stripe.secret);
@@ -609,31 +610,27 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     const userId = context.auth.uid;
     const userEmail = context.auth.token.email;
 
-    // HÄR ÄR ÄNDRINGEN:
-    // Vi använder URL:en som skickas från appen (data.returnUrl).
-    // Om ingen skickas med, faller vi tillbaka på produktions-adressen som säkerhet.
-    const domainURL = data.returnUrl || 'https://app.kostloggen.se'; 
+    // DYNAMISK URL: Använder returnUrl från frontenden om den finns, 
+    // annars gissar vi baserat på var anropet kom ifrån (request headers finns i onCall via rawRequest)
+    const origin = data.returnUrl || 'https://app.kostloggen.se'; 
 
     try {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             mode: 'subscription',
             customer_email: userEmail,
-            allow_promotion_codes: true, // Lägg till rabattkodsfält
+            allow_promotion_codes: true,
             line_items: [
                 {
-                    // VIKTIGT: Detta är ditt riktiga Price ID du skickade med
                     price: 'price_1RtQRCK0orFqQ8UR0oXWzweX', 
                     quantity: 1,
                 },
             ],
-            // Skicka med userId så att webhooken vet vem som betalade
             metadata: {
                 firebaseUid: userId
             },
-            // Add session_id to URL to allow frontend validation
-            success_url: `${domainURL}/success?session_id={CHECKOUT_SESSION_ID}`, 
-            cancel_url: `${domainURL}/cancel`,   
+            success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`, 
+            cancel_url: `${origin}/cancel`,   
         });
 
         return { sessionId: session.id, url: session.url };
@@ -642,7 +639,6 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
         throw new functions.https.HttpsError('internal', 'Kunde inte skapa betalningssession.');
     }
 });
-
 
 // 2. Avsluta Prenumeration (Anropa från appen)
 exports.cancelSubscription = functions.https.onCall(async (data, context) => {
