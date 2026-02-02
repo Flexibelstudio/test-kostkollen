@@ -602,41 +602,35 @@ exports.manualSummarizeYesterday = functions
 
 // 1. Skapa en Checkout Session (Anropa denna från Appen!)
 exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
-    // Endast inloggade användare får köpa
+    // onCall ska hantera CORS, men vid konfigurationsfel i Firebase 
+    // kan den ibland kasta ett dolt fel som webbläsaren tolkar som CORS.
+    
     if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Du måste vara inloggad för att starta ett köp.');
+        throw new functions.https.HttpsError('unauthenticated', 'Logga in först.');
     }
 
-    const userId = context.auth.uid;
-    const userEmail = context.auth.token.email;
+    // Dubbelkoll: Använder koden rätt price-id? 
+    // I din config har du "price_1Rr0W4...", men i koden står "price_1RtQRC..."
+    // Använd värdet från config istället:
+    const priceId = functions.config().stripe.price || 'price_1RtQRCK0orFqQ8UR0oXWzweX';
 
-    // DYNAMISK URL: Använder returnUrl från frontenden om den finns, 
-    // annars gissar vi baserat på var anropet kom ifrån (request headers finns i onCall via rawRequest)
-    const origin = data.returnUrl || 'https://app.kostloggen.se'; 
+    const origin = data.returnUrl || 'https://staging-kostloggen.netlify.app';
 
     try {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             mode: 'subscription',
-            customer_email: userEmail,
-            allow_promotion_codes: true,
-            line_items: [
-                {
-                    price: 'price_1RtQRCK0orFqQ8UR0oXWzweX', 
-                    quantity: 1,
-                },
-            ],
-            metadata: {
-                firebaseUid: userId
-            },
-            success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`, 
-            cancel_url: `${origin}/cancel`,   
+            customer_email: context.auth.token.email,
+            line_items: [{ price: priceId, quantity: 1 }],
+            metadata: { firebaseUid: context.auth.uid },
+            success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${origin}/cancel`,
         });
-
         return { sessionId: session.id, url: session.url };
     } catch (error) {
-        logger.error("Stripe Checkout Error:", error);
-        throw new functions.https.HttpsError('internal', 'Kunde inte skapa betalningssession.');
+        logger.error("Stripe Error:", error);
+        // Här skickas felet som blir "internal" i din popup
+        throw new functions.https.HttpsError('internal', error.message);
     }
 });
 
