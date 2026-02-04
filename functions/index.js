@@ -602,7 +602,6 @@ exports.manualSummarizeYesterday = functions
 
 // 1. Skapa en Checkout Session (Anropa denna från Appen!)
 // Se till att denna rad är med högst upp
-const cors = require('cors')({ origin: true });
 
 exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
     // Logga direkt för att se om vi ens når hit
