@@ -602,18 +602,14 @@ exports.manualSummarizeYesterday = functions
 
 // 1. Skapa en Checkout Session (Anropa denna från Appen!)
 exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
-    // onCall ska hantera CORS, men vid konfigurationsfel i Firebase 
-    // kan den ibland kasta ett dolt fel som webbläsaren tolkar som CORS.
-    
+    // Logga för att se i Firebase Console att anropet når fram
+    logger.log("Startar createCheckoutSession", { userId: context.auth?.uid, origin: data.returnUrl });
+
     if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Logga in först.');
+        throw new functions.https.HttpsError('unauthenticated', 'Du måste vara inloggad.');
     }
 
-    // Dubbelkoll: Använder koden rätt price-id? 
-    // I din config har du "price_1Rr0W4...", men i koden står "price_1RtQRC..."
-    // Använd värdet från config istället:
-    const priceId = functions.config().stripe.price || 'price_1RtQRCK0orFqQ8UR0oXWzweX';
-
+    // DYNAMISK URL: Se till att den använder staging-adressen från din frontend
     const origin = data.returnUrl || 'https://staging-kostloggen.netlify.app';
 
     try {
@@ -621,15 +617,20 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
             payment_method_types: ['card'],
             mode: 'subscription',
             customer_email: context.auth.token.email,
-            line_items: [{ price: priceId, quantity: 1 }],
+            line_items: [{
+                // Dubbelkolla att detta Price ID finns i ditt Stripe TEST-läge
+                price: 'price_1RtQRCK0orFqQ8UR0oXWzweX', 
+                quantity: 1,
+            }],
             metadata: { firebaseUid: context.auth.uid },
             success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/cancel`,
         });
+
         return { sessionId: session.id, url: session.url };
     } catch (error) {
-        logger.error("Stripe Error:", error);
-        // Här skickas felet som blir "internal" i din popup
+        logger.error("Stripe Checkout Error:", error);
+        // Detta fel orsakar din "internal" popup
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
