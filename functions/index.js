@@ -601,15 +601,22 @@ exports.manualSummarizeYesterday = functions
 // ==========================================
 
 // 1. Skapa en Checkout Session (Anropa denna från Appen!)
+// Se till att denna rad är med högst upp
+const cors = require('cors')({ origin: true });
+
 exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
-    // Logga för att se i Firebase Console att anropet når fram
-    logger.log("Startar createCheckoutSession", { userId: context.auth?.uid, origin: data.returnUrl });
+    // Logga direkt för att se om vi ens når hit
+    console.log("Anrop mottaget till createCheckoutSession", { 
+        uid: context.auth ? context.auth.uid : 'ej inloggad',
+        data: data 
+    });
 
     if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Du måste vara inloggad.');
+        throw new functions.https.HttpsError('unauthenticated', 'Användaren är inte inloggad.');
     }
 
-    // DYNAMISK URL: Se till att den använder staging-adressen från din frontend
+    // Hämta priceId dynamiskt från config eller frontend
+    const priceId = functions.config().stripe.price || data.priceId;
     const origin = data.returnUrl || 'https://staging-kostloggen.netlify.app';
 
     try {
@@ -617,20 +624,16 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
             payment_method_types: ['card'],
             mode: 'subscription',
             customer_email: context.auth.token.email,
-            line_items: [{
-                // Dubbelkolla att detta Price ID finns i ditt Stripe TEST-läge
-                price: 'price_1RtQRCK0orFqQ8UR0oXWzweX', 
-                quantity: 1,
-            }],
+            line_items: [{ price: priceId, quantity: 1 }],
             metadata: { firebaseUid: context.auth.uid },
             success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/cancel`,
         });
-
+        
         return { sessionId: session.id, url: session.url };
     } catch (error) {
-        logger.error("Stripe Checkout Error:", error);
-        // Detta fel orsakar din "internal" popup
+        console.error("Stripe fel:", error);
+        // Genom att kasta ett specifikt fel här undviker vi "internal"
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
