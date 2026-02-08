@@ -227,8 +227,11 @@ const FriendManagementView: FC<{
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const invitePeppPart = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?`;
+    const inviteLinkIntro = `Ladda ner den och lägg till mig som kompis här:`;
     const inviteUrlPart = `https://app.kostloggen.se`;
-    const inviteFullText = `${invitePeppPart}\n\nLadda ner den och lägg till mig som kompis här: ${inviteUrlPart}`;
+    
+    // Hela texten för urklipp
+    const inviteFullText = `${invitePeppPart}\n\n${inviteLinkIntro} ${inviteUrlPart}`;
 
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
@@ -236,9 +239,11 @@ const FriendManagementView: FC<{
         
         if (navigator.share) {
             try {
-                // Fix: Genom att dela upp text och url så undviker vi att Messenger dubblar texten.
+                // Vi skickar med hela texten inklusive "Ladda ner"-meningen i 'text' fältet
+                // men lämnar själva länken till 'url' fältet. Detta är det säkraste sättet
+                // för att undvika dubblering i Messenger och behålla formatering.
                 await navigator.share({
-                    text: invitePeppPart,
+                    text: `${invitePeppPart}\n\n${inviteLinkIntro}`,
                     url: inviteUrlPart
                 });
             } catch (error) {
