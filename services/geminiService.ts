@@ -247,7 +247,7 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
 2.  Bekräfta deras startpunkt (vikt, längd, ålder) och säg att det är en utmärkt grund.
 3.  **VIKTIGT OM KALORIER:** Om användaren har ett väldigt högt BMI (fetma), nämn ödmjukt att standardformler bara är gissningar och att man kan behöva justera manuellt.
 4.  **VIKTIGT OM VÄLBEFINNANDE (STRESS/SÖMN/ENERGI):** Om välbefinnande står som "Ej angivet", KOMMENTERA INTE detta som ett misslyckande eller slarv. Användaren har precis skapat kontot och hunnit inte logga än. Istället, förklara sakligt att mätning av sömn och stress kommer bli ett av deras viktigaste verktyg framöver i ditt program. Om de faktiskt angett värden, kommentera dem positivt.
-5.  Analysera deras mål utifrån 'Önskad fettförändring' och 'Önskad muskelförändring'.
+5.  Analysera deras mål. Om data för fett/muskler saknas, fokusera på 'Önskad viktförändring' och använd 'Måltyp' för att förstå intentionen (t.ex. viktnedgång). Bekräfta att målet är tydligt även vid "Vanlig våg".
 6.  Bedöm tidsplanen. En hållbar takt för fettminskning är ca 0.5-1% av kroppsvikten per vecka.
 7.  Inkludera en kommentar om proteinintaget (ca 1.5-2.0g per kg kroppsvikt).
 8.  Avsluta med en fråga om de är redo att logga sin första måltid.`
@@ -267,6 +267,8 @@ Ge feedback på SVENSKA.
 - Startvikt: ${userProfile.currentWeightKg} kg
 - Längd: ${userProfile.heightCm} cm
 - Ålder: ${userProfile.ageYears} år
+- Måltyp: ${userProfile.goalType}
+- Önskad viktförändring (total): ${userProfile.desiredWeightChangeKg || 0} kg
 - Önskad fettförändring: ${userProfile.desiredFatMassChangeKg || 0} kg
 - Önskad muskelförändring: ${userProfile.desiredMuscleMassChangeKg || 0} kg
 - Måldatum: ${userProfile.goalCompletionDate || 'Ej specificerat'}
@@ -573,7 +575,7 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 
 Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VIKTIGA REGLER FOR TEXT-SVAR".
 
-**TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
+**TILLGÄNÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
 - **Profil & Mål:** ${JSON.stringify(userProfile)}
 - **Streak:** ${currentStreak} dagar
 - **Viktloggar (ENDAST för vikt, muskler, fett):** ${JSON.stringify(formattedWeightLogsForAI)}
