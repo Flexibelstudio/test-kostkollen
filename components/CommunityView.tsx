@@ -236,8 +236,8 @@ const FriendManagementView: FC<{
         
         if (navigator.share) {
             try {
-                // Vi skickar ENBART 'text' fältet med hela meddelandet. 
-                // Erfarenheten visar att om man inkluderar både 'text' och 'url' så dubblerar Messenger ofta innehållet.
+                // Vi skickar meddelandet som en sammanslagen textsträng.
+                // Genom att INTE skicka en separat URL-parameter minskar vi risken för att Messenger dubblerar innehållet.
                 await navigator.share({
                     text: inviteFullText,
                 });
@@ -483,13 +483,9 @@ const FriendManagementView: FC<{
                             </button>
                         </div>
 
-                        {/* Preview Box */}
-                        <div className="mb-6 p-4 bg-neutral-light/50 rounded-xl border border-neutral-light text-left">
-                            <p className="text-xs font-bold text-neutral-400 uppercase mb-2 tracking-wide">Förhandsvisning av meddelande:</p>
-                            <p className="text-sm text-neutral-dark whitespace-pre-wrap leading-relaxed">
-                                {inviteFullText}
-                            </p>
-                        </div>
+                        <p className="text-sm text-neutral mb-6">
+                            Skicka en inbjudan till dina vänner så att ni kan peppa varandra i appen!
+                        </p>
 
                         <button 
                             onClick={handleShareViaApp} 
@@ -499,7 +495,7 @@ const FriendManagementView: FC<{
                         </button>
                         
                         <p className="text-[10px] text-neutral text-center mt-4">
-                            Obs: Vissa appar som Messenger kan ignorera radbrytningar eller lägga till länken i efterhand.
+                            Tips: Om delning inte fungerar som förväntat i vissa appar, prova att kopiera länken direkt från din webbläsare.
                         </p>
                     </div>
                 </div>
