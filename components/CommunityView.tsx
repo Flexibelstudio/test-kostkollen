@@ -19,7 +19,7 @@ import {
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ChevronDownIcon, ArrowRightIcon,
     ShareIcon, PencilIcon,
 } from './icons';
-import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Link, Copy } from 'lucide-react';
+import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart, MoreHorizontal } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 
@@ -203,7 +203,6 @@ const FriendManagementView: FC<{
     const [activeTab, setActiveTab] = useState<'buddies' | 'search' | 'requests'>(initialTab);
     const [buddyToRemove, setBuddyToRemove] = useState<Peppkompis | null>(null);
     const [showInviteOptionsModal, setShowInviteOptionsModal] = useState(false);
-    const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
 
     const fetchData = useCallback(async () => {
@@ -237,8 +236,8 @@ const FriendManagementView: FC<{
         
         if (navigator.share) {
             try {
-                // VIKTIGT: Vi skickar ENBART text-fältet för att undvika att Messenger dubblerar meddelandet.
-                // Länken är redan inbakad i texten.
+                // Vi skickar ENBART 'text' fältet med hela meddelandet. 
+                // Erfarenheten visar att om man inkluderar både 'text' och 'url' så dubblerar Messenger ofta innehållet.
                 await navigator.share({
                     text: inviteFullText,
                 });
@@ -249,21 +248,14 @@ const FriendManagementView: FC<{
                 }
             }
         } else {
-            handleCopyToClipboard('text');
+             // Fallback för desktop
+             navigator.clipboard.writeText(inviteFullText).then(() => {
+                setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
+            }, () => {
+                setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
+            });
         }
     };
-    
-    const handleCopyToClipboard = (key: 'text' | 'link') => {
-        const textToCopy = key === 'text' ? inviteFullText : inviteUrl;
-        playAudio('uiClick');
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            setCopiedKey(key);
-            setTimeout(() => setCopiedKey(null), 2000);
-        }, () => {
-            setToastNotification({ message: 'Kunde inte kopiera.', type: 'error' });
-        });
-    };
-
 
     const searchResults = useMemo(() => {
         const buddyUids = new Set(buddyDetails.map(b => b.uid));
@@ -493,38 +485,21 @@ const FriendManagementView: FC<{
 
                         {/* Preview Box */}
                         <div className="mb-6 p-4 bg-neutral-light/50 rounded-xl border border-neutral-light text-left">
-                            <p className="text-xs font-bold text-neutral-400 uppercase mb-2 tracking-wide">Förhandsvisning:</p>
+                            <p className="text-xs font-bold text-neutral-400 uppercase mb-2 tracking-wide">Förhandsvisning av meddelande:</p>
                             <p className="text-sm text-neutral-dark whitespace-pre-wrap leading-relaxed">
                                 {inviteFullText}
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 mb-4">
-                            <button 
-                                onClick={() => handleCopyToClipboard('text')} 
-                                className={`flex items-center justify-center px-4 py-3 text-sm font-bold rounded-xl border transition-all active:scale-95 ${copiedKey === 'text' ? 'bg-green-100 border-green-300 text-green-700' : 'bg-white border-neutral-light text-neutral-dark hover:bg-neutral-light'}`}
-                            >
-                                <Copy className="w-4 h-4 mr-2" />
-                                {copiedKey === 'text' ? 'Kopierad!' : 'Kopiera text'}
-                            </button>
-                            <button 
-                                onClick={() => handleCopyToClipboard('link')} 
-                                className={`flex items-center justify-center px-4 py-3 text-sm font-bold rounded-xl border transition-all active:scale-95 ${copiedKey === 'link' ? 'bg-green-100 border-green-300 text-green-700' : 'bg-white border-neutral-light text-neutral-dark hover:bg-neutral-light'}`}
-                            >
-                                <Link className="w-4 h-4 mr-2" />
-                                {copiedKey === 'link' ? 'Kopierad!' : 'Kopiera länk'}
-                            </button>
-                        </div>
-
                         <button 
                             onClick={handleShareViaApp} 
-                            className="w-full flex items-center justify-center px-6 py-4 text-lg font-bold text-white bg-primary hover:bg-primary-darker rounded-2xl shadow-lg shadow-primary/20 active:scale-95 interactive-transition"
+                            className="w-full flex items-center justify-center px-6 py-4 text-xl font-bold text-white bg-primary hover:bg-primary-darker rounded-2xl shadow-lg shadow-primary/20 active:scale-95 interactive-transition"
                         >
                             <ShareIcon className="w-6 h-6 mr-2" /> Dela inbjudan
                         </button>
                         
                         <p className="text-[10px] text-neutral text-center mt-4">
-                            Tips: Om du delar via Messenger och texten saknas, välj istället "Kopiera text" ovan och klistra in den manuellt i chatten.
+                            Obs: Vissa appar som Messenger kan ignorera radbrytningar eller lägga till länken i efterhand.
                         </p>
                     </div>
                 </div>
