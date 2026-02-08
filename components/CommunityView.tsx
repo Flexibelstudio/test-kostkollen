@@ -228,13 +228,17 @@ const FriendManagementView: FC<{
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
         playAudio('uiClick');
+
+        // Det personliga meddelandet inkl. länk i en enda sträng
+        const inviteFullMessage = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
         
         if (navigator.share) {
             try {
-                // Vi skickar ENBART URL:en. Inget annat. 
-                // Detta tvingar Messenger att skapa sin egen, rena förhandsvisning utan dubblerad text.
+                // Vi skickar meddelandet ENBART som 'text'. 
+                // Om vi skickar en separat 'url' tenderar Messenger att klistra in länken en extra gång.
                 await navigator.share({
-                    url: 'https://app.kostloggen.se',
+                    title: 'Kostloggen',
+                    text: inviteFullMessage,
                 });
             } catch (error) {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -244,10 +248,10 @@ const FriendManagementView: FC<{
             }
         } else {
              // Fallback för desktop: Kopiera bara länken
-             navigator.clipboard.writeText('https://app.kostloggen.se').then(() => {
-                setToastNotification({ message: 'Länk kopierad!', type: 'success' });
+             navigator.clipboard.writeText(inviteFullMessage).then(() => {
+                setToastNotification({ message: 'Inbjudan kopierad till urklipp!', type: 'success' });
             }, () => {
-                setToastNotification({ message: 'Kunde inte kopiera länken.', type: 'error' });
+                setToastNotification({ message: 'Kunde inte kopiera inbjudan.', type: 'error' });
             });
         }
     };
