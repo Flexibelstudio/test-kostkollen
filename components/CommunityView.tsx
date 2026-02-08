@@ -230,12 +230,14 @@ const FriendManagementView: FC<{
         setShowInviteOptionsModal(false);
         playAudio('uiClick');
         
+        const fullTitle = 'Kostloggen - Din app för kostkontroll, inkl. programmen Maxa Klimakteriet & Praktisk Viktkontroll. Börja din hälsoresa idag! 1 mån gratis (Kod: A0AJFXTJ)';
+
         if (navigator.share) {
             try {
-                // Vi använder ?v=3 för att tvinga Messenger att läsa om våra metadata-taggar
+                // Vi använder ?invite=v5 för att tvinga Messenger att läsa om våra metadata-taggar helt fräscht
                 await navigator.share({
-                    title: '1 mån gratis (Kod: A0AJFXTJ) - Kostloggen',
-                    url: 'https://app.kostloggen.se/?v=3',
+                    title: fullTitle,
+                    url: 'https://app.kostloggen.se/?invite=v5',
                 });
             } catch (error) {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -245,7 +247,7 @@ const FriendManagementView: FC<{
             }
         } else {
              // Fallback för desktop
-             navigator.clipboard.writeText('https://app.kostloggen.se/?v=3').then(() => {
+             navigator.clipboard.writeText('https://app.kostloggen.se/?invite=v5').then(() => {
                 setToastNotification({ message: 'Länk kopierad!', type: 'success' });
             }, () => {
                 setToastNotification({ message: 'Kunde inte kopiera länken.', type: 'error' });
