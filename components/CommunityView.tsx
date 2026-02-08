@@ -19,7 +19,7 @@ import {
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ChevronDownIcon, ArrowRightIcon,
     ShareIcon, PencilIcon,
 } from './icons';
-import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart, MoreHorizontal } from 'lucide-react';
+import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Link, Copy } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 
@@ -203,7 +203,7 @@ const FriendManagementView: FC<{
     const [activeTab, setActiveTab] = useState<'buddies' | 'search' | 'requests'>(initialTab);
     const [buddyToRemove, setBuddyToRemove] = useState<Peppkompis | null>(null);
     const [showInviteOptionsModal, setShowInviteOptionsModal] = useState(false);
-    const [isCopied, setIsCopied] = useState(false);
+    const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
 
     const fetchData = useCallback(async () => {
@@ -228,10 +228,8 @@ const FriendManagementView: FC<{
 
     const invitePeppPart = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?`;
     const inviteLinkIntro = `Ladda ner den och lägg till mig som kompis här:`;
-    const inviteUrlPart = `https://app.kostloggen.se`;
-    
-    // Hela texten för urklipp
-    const inviteFullText = `${invitePeppPart}\n\n${inviteLinkIntro} ${inviteUrlPart}`;
+    const inviteUrl = `https://app.kostloggen.se`;
+    const inviteFullText = `${invitePeppPart}\n\n${inviteLinkIntro} ${inviteUrl}`;
 
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
@@ -239,12 +237,10 @@ const FriendManagementView: FC<{
         
         if (navigator.share) {
             try {
-                // Vi skickar med hela texten inklusive "Ladda ner"-meningen i 'text' fältet
-                // men lämnar själva länken till 'url' fältet. Detta är det säkraste sättet
-                // för att undvika dubblering i Messenger och behålla formatering.
+                // VIKTIGT: Vi skickar ENBART text-fältet för att undvika att Messenger dubblerar meddelandet.
+                // Länken är redan inbakad i texten.
                 await navigator.share({
-                    text: `${invitePeppPart}\n\n${inviteLinkIntro}`,
-                    url: inviteUrlPart
+                    text: inviteFullText,
                 });
             } catch (error) {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -253,22 +249,18 @@ const FriendManagementView: FC<{
                 }
             }
         } else {
-            // Fallback for desktop - kopiera hela texten
-            navigator.clipboard.writeText(inviteFullText).then(() => {
-                setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
-            }, () => {
-                setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
-            });
+            handleCopyToClipboard('text');
         }
     };
     
-    const handleCopyToClipboard = () => {
+    const handleCopyToClipboard = (key: 'text' | 'link') => {
+        const textToCopy = key === 'text' ? inviteFullText : inviteUrl;
         playAudio('uiClick');
-        navigator.clipboard.writeText(inviteFullText).then(() => {
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 2000); // Reset feedback after 2s
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            setCopiedKey(key);
+            setTimeout(() => setCopiedKey(null), 2000);
         }, () => {
-            setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
+            setToastNotification({ message: 'Kunde inte kopiera.', type: 'error' });
         });
     };
 
@@ -491,24 +483,49 @@ const FriendManagementView: FC<{
                     className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fade-in"
                     onClick={() => setShowInviteOptionsModal(false)}
                 >
-                    <div className="bg-white p-6 rounded-3xl shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                        <h3 className="text-lg font-semibold text-neutral-dark mb-4">Bjud in en vän</h3>
-                        <div className="space-y-3">
-                            <button onClick={handleShareViaApp} className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-xl shadow-sm active:scale-95 interactive-transition">
-                                <ShareIcon className="w-5 h-5 mr-2" /> Dela via app
-                            </button>
-                             <p className="text-xs text-neutral text-center">Obs: Vissa appar som Messenger kan ignorera texten.</p>
-                            <button
-                                onClick={handleCopyToClipboard}
-                                disabled={isCopied}
-                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-xl shadow-sm disabled:bg-green-100 disabled:text-green-700 active:scale-95 interactive-transition"
-                            >
-                                <PencilIcon className="w-5 h-5 mr-2" /> {isCopied ? 'Kopierad!' : 'Kopiera inbjudningstext'}
+                    <div className="bg-white p-6 rounded-3xl shadow-soft-xl w-full max-w-md animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-neutral-dark">Bjud in en vän</h3>
+                            <button onClick={() => setShowInviteOptionsModal(false)} className="p-1 text-neutral hover:text-red-500 rounded-full">
+                                <XMarkIcon className="w-6 h-6" />
                             </button>
                         </div>
-                         <button onClick={() => setShowInviteOptionsModal(false)} className="mt-4 w-full py-2 text-sm text-neutral hover:underline">
-                            Stäng
+
+                        {/* Preview Box */}
+                        <div className="mb-6 p-4 bg-neutral-light/50 rounded-xl border border-neutral-light text-left">
+                            <p className="text-xs font-bold text-neutral-400 uppercase mb-2 tracking-wide">Förhandsvisning:</p>
+                            <p className="text-sm text-neutral-dark whitespace-pre-wrap leading-relaxed">
+                                {inviteFullText}
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                            <button 
+                                onClick={() => handleCopyToClipboard('text')} 
+                                className={`flex items-center justify-center px-4 py-3 text-sm font-bold rounded-xl border transition-all active:scale-95 ${copiedKey === 'text' ? 'bg-green-100 border-green-300 text-green-700' : 'bg-white border-neutral-light text-neutral-dark hover:bg-neutral-light'}`}
+                            >
+                                <Copy className="w-4 h-4 mr-2" />
+                                {copiedKey === 'text' ? 'Kopierad!' : 'Kopiera text'}
+                            </button>
+                            <button 
+                                onClick={() => handleCopyToClipboard('link')} 
+                                className={`flex items-center justify-center px-4 py-3 text-sm font-bold rounded-xl border transition-all active:scale-95 ${copiedKey === 'link' ? 'bg-green-100 border-green-300 text-green-700' : 'bg-white border-neutral-light text-neutral-dark hover:bg-neutral-light'}`}
+                            >
+                                <Link className="w-4 h-4 mr-2" />
+                                {copiedKey === 'link' ? 'Kopierad!' : 'Kopiera länk'}
+                            </button>
+                        </div>
+
+                        <button 
+                            onClick={handleShareViaApp} 
+                            className="w-full flex items-center justify-center px-6 py-4 text-lg font-bold text-white bg-primary hover:bg-primary-darker rounded-2xl shadow-lg shadow-primary/20 active:scale-95 interactive-transition"
+                        >
+                            <ShareIcon className="w-6 h-6 mr-2" /> Dela inbjudan
                         </button>
+                        
+                        <p className="text-[10px] text-neutral text-center mt-4">
+                            Tips: Om du delar via Messenger och texten saknas, välj istället "Kopiera text" ovan och klistra in den manuellt i chatten.
+                        </p>
                     </div>
                 </div>
             )}
