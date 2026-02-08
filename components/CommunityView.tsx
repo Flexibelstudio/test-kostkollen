@@ -232,11 +232,10 @@ const FriendManagementView: FC<{
         
         if (navigator.share) {
             try {
-                // Vi delar ENBART URL:en. Detta triggar appar (som Messenger) att hämta 
-                // rubrik, beskrivning och bild direkt från våra Open Graph-taggar i index.html.
-                // Vi lägger till ?ref=invite för att tvinga fram en omladdning av cachen.
+                // Vi använder ?v=3 för att tvinga Messenger att läsa om våra metadata-taggar
                 await navigator.share({
-                    url: 'https://app.kostloggen.se/?ref=invite',
+                    title: '1 mån gratis (Kod: A0AJFXTJ) - Kostloggen',
+                    url: 'https://app.kostloggen.se/?v=3',
                 });
             } catch (error) {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -245,8 +244,8 @@ const FriendManagementView: FC<{
                 }
             }
         } else {
-             // Fallback för desktop: Kopiera bara länken
-             navigator.clipboard.writeText('https://app.kostloggen.se/?ref=invite').then(() => {
+             // Fallback för desktop
+             navigator.clipboard.writeText('https://app.kostloggen.se/?v=3').then(() => {
                 setToastNotification({ message: 'Länk kopierad!', type: 'success' });
             }, () => {
                 setToastNotification({ message: 'Kunde inte kopiera länken.', type: 'error' });
@@ -256,7 +255,7 @@ const FriendManagementView: FC<{
 
     const handleCopyToClipboard = () => {
         playAudio('uiClick');
-        const fullInviteText = `Hej! Jag använder appen Kostloggen för att få koll på min hälsa, inkl. programmen Maxa Klimakteriet och Praktisk Viktkontroll. Det är riktigt bra! Just nu får du 1 mån gratis med koden "A0AJFXTJ".\n\nLadda ner den här: https://app.kostloggen.se`;
+        const fullInviteText = `Kostloggen - Din app för kostkontroll, inkl. programmen Maxa Klimakteriet & Praktisk Viktkontroll. Börja din hälsoresa idag! 1 mån gratis med koden "A0AJFXTJ".\n\nLadda ner här: https://app.kostloggen.se`;
         
         navigator.clipboard.writeText(fullInviteText).then(() => {
             setIsCopied(true);
