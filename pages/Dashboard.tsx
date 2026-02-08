@@ -23,7 +23,7 @@ import {
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
-import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, FireIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, RotateCcwIcon, LifebuoyIcon, TrophyIcon, SparklesIcon } from '../components/icons';
+import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, FireIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, RotateCcwIcon, LifebuoyIcon, TrophyIcon, SparklesIcon, XMarkIcon } from '../components/icons';
 import { PiggyBank, Flame, Coffee, Sandwich, CookingPot, Apple } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
@@ -182,6 +182,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [showSaveCommonMealModal, setShowSaveCommonMealModal] = useState(false);
     const [showNutritionLabelResultModal, setShowNutritionLabelResultModal] = useState(false);
     const [showCommonMealsPopup, setShowCommonMealsPopup] = useState<CommonMeal | null>(null);
+    const [selectedCommonMealType, setSelectedCommonMealType] = useState<MealType | null>(null);
 
     // Data states for modals
     const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
@@ -535,6 +536,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     };
 
     const handleCommonMealLog = (commonMeal: CommonMeal) => {
+        setSelectedCommonMealType(getSuggestedMealType());
         setShowCommonMealsPopup(commonMeal);
     };
 
@@ -545,6 +547,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 { mealType: type }
             );
             setShowCommonMealsPopup(null);
+            setSelectedCommonMealType(null);
         }
     }
 
@@ -868,7 +871,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </button>
                             <button onClick={handleSearchText} className="flex items-center gap-3">
                                 <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Sök & logga</span>
-                                <div className="w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-colors"><SearchIcon className="w-6 h-6" /></div>
+                                <div className="w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-colors"><SearchIcon className="w-5 h-6" /></div>
                             </button>
                             <button onClick={handleFindRecipe} className="flex items-center gap-3">
                                 <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Hitta recept</span>
@@ -920,11 +923,38 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             {/* All Modals */}
             {showCommonMealsPopup && (
-                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 flex items-center justify-center z-[90] p-4 animate-fade-in" onClick={() => setShowCommonMealsPopup(null)}>
-                    <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm animate-scale-in" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-bold text-neutral-dark mb-4">Välj måltid för "{showCommonMealsPopup.name}"</h3>
-                        <MealTypeSelector selectedType={null} onSelect={(type) => confirmCommonMealLog(type)} className="w-full" />
-                        <button onClick={() => setShowCommonMealsPopup(null)} className="mt-4 w-full py-2 text-neutral text-sm hover:underline">Avbryt</button>
+                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in" onClick={() => setShowCommonMealsPopup(null)}>
+                    <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-neutral-dark">Logga {showCommonMealsPopup.name}</h3>
+                            <button onClick={() => setShowCommonMealsPopup(null)} className="p-1 text-neutral hover:text-red-500 rounded-full transition-colors">
+                                <XMarkIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="mb-8">
+                            <label className="block text-sm font-bold text-neutral-500 mb-3 uppercase tracking-wider">Välj måltidstyp:</label>
+                            <MealTypeSelector 
+                                selectedType={selectedCommonMealType} 
+                                onSelect={(type) => setSelectedCommonMealType(type)} 
+                                className="w-full" 
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                            <button 
+                                onClick={() => selectedCommonMealType && confirmCommonMealLog(selectedCommonMealType)}
+                                disabled={!selectedCommonMealType}
+                                className="w-full py-4 bg-primary text-white font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                            >
+                                <CheckIcon className="w-6 h-6" /> Logga som {
+                                    selectedCommonMealType === 'breakfast' ? 'frukost' :
+                                    selectedCommonMealType === 'lunch' ? 'lunch' :
+                                    selectedCommonMealType === 'dinner' ? 'middag' : 'mellis'
+                                }
+                            </button>
+                            <button onClick={() => setShowCommonMealsPopup(null)} className="w-full py-2 text-neutral text-sm font-medium hover:text-neutral-dark transition-colors">Avbryt</button>
+                        </div>
                     </div>
                 </div>
             )}
