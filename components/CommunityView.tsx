@@ -203,6 +203,7 @@ const FriendManagementView: FC<{
     const [activeTab, setActiveTab] = useState<'buddies' | 'search' | 'requests'>(initialTab);
     const [buddyToRemove, setBuddyToRemove] = useState<Peppkompis | null>(null);
     const [showInviteOptionsModal, setShowInviteOptionsModal] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
 
 
     const fetchData = useCallback(async () => {
@@ -228,17 +229,14 @@ const FriendManagementView: FC<{
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
         playAudio('uiClick');
-
-        // Det personliga meddelandet inkl. länk i en enda sträng
-        const inviteFullMessage = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
         
         if (navigator.share) {
             try {
-                // Vi skickar meddelandet ENBART som 'text'. 
-                // Om vi skickar en separat 'url' tenderar Messenger att klistra in länken en extra gång.
+                // Vi delar ENBART URL:en. Detta triggar appar (som Messenger) att hämta 
+                // rubrik, beskrivning och bild direkt från våra Open Graph-taggar i index.html.
+                // Vi lägger till ?ref=invite för att tvinga fram en omladdning av cachen.
                 await navigator.share({
-                    title: 'Kostloggen',
-                    text: inviteFullMessage,
+                    url: 'https://app.kostloggen.se/?ref=invite',
                 });
             } catch (error) {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -248,12 +246,24 @@ const FriendManagementView: FC<{
             }
         } else {
              // Fallback för desktop: Kopiera bara länken
-             navigator.clipboard.writeText(inviteFullMessage).then(() => {
-                setToastNotification({ message: 'Inbjudan kopierad till urklipp!', type: 'success' });
+             navigator.clipboard.writeText('https://app.kostloggen.se/?ref=invite').then(() => {
+                setToastNotification({ message: 'Länk kopierad!', type: 'success' });
             }, () => {
-                setToastNotification({ message: 'Kunde inte kopiera inbjudan.', type: 'error' });
+                setToastNotification({ message: 'Kunde inte kopiera länken.', type: 'error' });
             });
         }
+    };
+
+    const handleCopyToClipboard = () => {
+        playAudio('uiClick');
+        const fullInviteText = `Hej! Jag använder appen Kostloggen för att få koll på min hälsa, inkl. programmen Maxa Klimakteriet och Praktisk Viktkontroll. Det är riktigt bra! Just nu får du 1 mån gratis med koden "A0AJFXTJ".\n\nLadda ner den här: https://app.kostloggen.se`;
+        
+        navigator.clipboard.writeText(fullInviteText).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2500);
+        }, () => {
+            setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
+        });
     };
 
     const searchResults = useMemo(() => {
@@ -475,19 +485,32 @@ const FriendManagementView: FC<{
                     onClick={() => setShowInviteOptionsModal(false)}
                 >
                     <div className="bg-white p-6 rounded-3xl shadow-soft-xl w-full max-w-md animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center justify-between mb-6">
                             <h3 className="text-lg font-semibold text-neutral-dark">Bjud in en vän</h3>
                             <button onClick={() => setShowInviteOptionsModal(false)} className="p-1 text-neutral hover:text-red-500 rounded-full">
                                 <XMarkIcon className="w-6 h-6" />
                             </button>
                         </div>
 
-                        <div className="py-6">
+                        <div className="space-y-4">
                             <button 
                                 onClick={handleShareViaApp} 
                                 className="w-full flex items-center justify-center px-6 py-4 text-xl font-bold text-white bg-primary hover:bg-primary-darker rounded-2xl shadow-lg shadow-primary/20 active:scale-95 interactive-transition"
                             >
                                 <ShareIcon className="w-6 h-6 mr-2" /> Dela inbjudan
+                            </button>
+                            
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-neutral-light"></span></div>
+                                <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-neutral">Eller kopiera text</span></div>
+                            </div>
+
+                            <button 
+                                onClick={handleCopyToClipboard} 
+                                className={`w-full flex items-center justify-center px-6 py-3 text-base font-bold rounded-2xl border-2 transition-all active:scale-95 ${isCopied ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-neutral-light text-neutral-dark hover:bg-neutral-light'}`}
+                            >
+                                {isCopied ? <CheckIcon className="w-5 h-5 mr-2" /> : <PencilIcon className="w-5 h-5 mr-2" />}
+                                {isCopied ? 'Kopierad till urklipp!' : 'Kopiera inbjudan & rabattkod'}
                             </button>
                         </div>
                     </div>
