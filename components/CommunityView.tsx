@@ -226,7 +226,9 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const inviteText = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
+    const invitePeppPart = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?`;
+    const inviteUrlPart = `https://app.kostloggen.se`;
+    const inviteFullText = `${invitePeppPart}\n\nLadda ner den och lägg till mig som kompis här: ${inviteUrlPart}`;
 
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
@@ -234,8 +236,10 @@ const FriendManagementView: FC<{
         
         if (navigator.share) {
             try {
+                // Fix: Genom att dela upp text och url så undviker vi att Messenger dubblar texten.
                 await navigator.share({
-                    text: inviteText,
+                    text: invitePeppPart,
+                    url: inviteUrlPart
                 });
             } catch (error) {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -244,8 +248,8 @@ const FriendManagementView: FC<{
                 }
             }
         } else {
-            // Fallback for desktop
-            navigator.clipboard.writeText(inviteText).then(() => {
+            // Fallback for desktop - kopiera hela texten
+            navigator.clipboard.writeText(inviteFullText).then(() => {
                 setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
             }, () => {
                 setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
@@ -255,7 +259,7 @@ const FriendManagementView: FC<{
     
     const handleCopyToClipboard = () => {
         playAudio('uiClick');
-        navigator.clipboard.writeText(inviteText).then(() => {
+        navigator.clipboard.writeText(inviteFullText).then(() => {
             setIsCopied(true);
             setTimeout(() => setIsCopied(false), 2000); // Reset feedback after 2s
         }, () => {
