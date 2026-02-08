@@ -44,3 +44,23 @@ export const getISOWeekNumber = (date: Date): number => {
   const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   return weekNumber;
 };
+
+/**
+ * Returnerar föreslagen måltidstyp baserat på aktuell tid.
+ * 05:00 - 10:30: Frukost
+ * 10:30 - 14:00: Lunch
+ * 14:00 - 17:30: Mellanmål
+ * 17:30 - 21:00: Middag
+ * 21:00 - 05:00: Mellanmål
+ */
+export const getSuggestedMealType = (date: Date = new Date()): MealType => {
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+    const time = hour + minute / 60;
+
+    if (time >= 5 && time < 10.5) return 'breakfast';
+    if (time >= 10.5 && time < 14) return 'lunch';
+    if (time >= 14 && time < 17.5) return 'snack';
+    if (time >= 17.5 && time < 21) return 'dinner';
+    return 'snack';
+};

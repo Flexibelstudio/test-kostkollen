@@ -27,7 +27,7 @@ import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, FireIcon, Ch
 import { PiggyBank, Flame, Coffee, Sandwich, CookingPot, Apple } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
-import { getDateUID } from '../utils/dateUtils';
+import { getDateUID, getSuggestedMealType } from '../utils/dateUtils';
 import { 
     addMealLog as addMealLogFirestore, 
     setWaterLog, 
@@ -573,7 +573,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     };
 
     const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType | null = null) => {
-        const typeToUse = type || activeMealSection || null;
+        const typeToUse = type || activeMealSection || getSuggestedMealType();
         setDefaultMealTypeForModal(typeToUse);
         setActiveMealSection(null);
         setter(true);
@@ -586,7 +586,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         setCameraMode('mealAnalysis'); 
         openModalWithType(setShowCameraModal);
     };
-    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal, 'dinner'); 
+    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal); 
 
     const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
 
