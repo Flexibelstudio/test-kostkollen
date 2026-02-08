@@ -225,21 +225,16 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const invitePeppPart = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?`;
-    const inviteLinkIntro = `Ladda ner den och lägg till mig som kompis här:`;
-    const inviteUrl = `https://app.kostloggen.se`;
-    const inviteFullText = `${invitePeppPart}\n\n${inviteLinkIntro} ${inviteUrl}`;
-
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
         playAudio('uiClick');
         
         if (navigator.share) {
             try {
-                // Vi skickar meddelandet som en sammanslagen textsträng.
-                // Genom att INTE skicka en separat URL-parameter minskar vi risken för att Messenger dubblerar innehållet.
+                // Vi skickar ENBART URL:en. Inget annat. 
+                // Detta tvingar Messenger att skapa sin egen, rena förhandsvisning utan dubblerad text.
                 await navigator.share({
-                    text: inviteFullText,
+                    url: 'https://app.kostloggen.se',
                 });
             } catch (error) {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -248,11 +243,11 @@ const FriendManagementView: FC<{
                 }
             }
         } else {
-             // Fallback för desktop
-             navigator.clipboard.writeText(inviteFullText).then(() => {
-                setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
+             // Fallback för desktop: Kopiera bara länken
+             navigator.clipboard.writeText('https://app.kostloggen.se').then(() => {
+                setToastNotification({ message: 'Länk kopierad!', type: 'success' });
             }, () => {
-                setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
+                setToastNotification({ message: 'Kunde inte kopiera länken.', type: 'error' });
             });
         }
     };
@@ -377,7 +372,7 @@ const FriendManagementView: FC<{
                     <div className="animate-fade-in space-y-4">
                         <button
                             onClick={() => setShowInviteOptionsModal(true)}
-                            className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-xl shadow-sm active:scale-95 interactive-transition"
+                            className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
                         >
                             Bjud in en vän
                         </button>
@@ -483,20 +478,14 @@ const FriendManagementView: FC<{
                             </button>
                         </div>
 
-                        <p className="text-sm text-neutral mb-6">
-                            Skicka en inbjudan till dina vänner så att ni kan peppa varandra i appen!
-                        </p>
-
-                        <button 
-                            onClick={handleShareViaApp} 
-                            className="w-full flex items-center justify-center px-6 py-4 text-xl font-bold text-white bg-primary hover:bg-primary-darker rounded-2xl shadow-lg shadow-primary/20 active:scale-95 interactive-transition"
-                        >
-                            <ShareIcon className="w-6 h-6 mr-2" /> Dela inbjudan
-                        </button>
-                        
-                        <p className="text-[10px] text-neutral text-center mt-4">
-                            Tips: Om delning inte fungerar som förväntat i vissa appar, prova att kopiera länken direkt från din webbläsare.
-                        </p>
+                        <div className="py-6">
+                            <button 
+                                onClick={handleShareViaApp} 
+                                className="w-full flex items-center justify-center px-6 py-4 text-xl font-bold text-white bg-primary hover:bg-primary-darker rounded-2xl shadow-lg shadow-primary/20 active:scale-95 interactive-transition"
+                            >
+                                <ShareIcon className="w-6 h-6 mr-2" /> Dela inbjudan
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
