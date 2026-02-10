@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from 'react';
-import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { onAuthStateChanged, signOut, type User } from "@firebase/auth";
 import { auth, authPersistencePromise } from '../firebase';
 import { playAudio } from '../services/audioService';
 

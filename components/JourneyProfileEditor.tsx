@@ -108,9 +108,13 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
             setManualGoals(initialGoals);
             setIsManualGoalMode(false);
         } else if (isFullGoalEdit) {
-            // When full goal edit starts, we reset the goal-related fields to allow new input
+            // When full goal edit starts, reset the goal-related fields to allow new input
+            // Pre-fill "current" values with latest measurements if available, so user can edit if needed
             setProfile(prev => ({
                 ...prev,
+                currentWeightKg: latestMeasuredWeight ?? prev.currentWeightKg,
+                skeletalMuscleMassKg: latestMeasuredMuscle ?? prev.skeletalMuscleMassKg,
+                bodyFatMassKg: latestMeasuredFat ?? prev.bodyFatMassKg,
                 mainGoalCompleted: true, 
                 desiredFatMassChangeKg: null,
                 desiredMuscleMassChangeKg: null,
@@ -118,7 +122,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                 goalCompletionDate: null
             }));
         }
-    }, [initialProfile, initialGoals, isEditing, isFullGoalEdit]);
+    }, [initialProfile, initialGoals, isEditing, isFullGoalEdit, latestMeasuredWeight, latestMeasuredMuscle, latestMeasuredFat]);
     
     useEffect(() => {
         const newGoalType = deriveEffectiveGoalType(profile);
@@ -271,12 +275,14 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
 
         if (isFullGoalEdit) {
             profileToSave.mainGoalCompleted = false;
-            profileToSave.goalStartWeight = latestMeasuredWeight ?? profile.currentWeightKg;
+            // The "Start Weight/Muscle/Fat" for the goal becomes what is currently in the inputs.
+            // This handles cases where user switches mode and fills in new baseline data.
+            profileToSave.goalStartWeight = profile.currentWeightKg;
             
             // Set start mass values based on measurement method
             if (profile.measurementMethod === 'inbody') {
-                profileToSave.goalStartFatMassKg = latestMeasuredFat ?? profile.bodyFatMassKg; 
-                profileToSave.goalStartMuscleMassKg = latestMeasuredMuscle ?? profile.skeletalMuscleMassKg;
+                profileToSave.goalStartFatMassKg = profile.bodyFatMassKg; 
+                profileToSave.goalStartMuscleMassKg = profile.skeletalMuscleMassKg;
             } else {
                 profileToSave.goalStartFatMassKg = null; 
                 profileToSave.goalStartMuscleMassKg = null;
@@ -440,6 +446,24 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                                     </button>
                                 </div>
                             </section>
+
+                            {/* Current stats input - CRITICAL: Visible when InBody selected so user can set start point */}
+                            {profile.measurementMethod === 'inbody' && (
+                                <section aria-labelledby="current-stats-heading" className="mt-4 animate-fade-in">
+                                    <h5 id="current-stats-heading" className="text-sm font-semibold text-neutral-dark mb-2">Din startpunkt (Nuvarande status)</h5>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label htmlFor="skeletalMuscleMassKg" className="block text-xs font-medium text-neutral-dark mb-1">Muskelmassa (kg)</label>
+                                            <input type="number" name="skeletalMuscleMassKg" id="skeletalMuscleMassKg" value={profile.skeletalMuscleMassKg == null ? '' : profile.skeletalMuscleMassKg} onChange={handleProfileChange} className={compactInputClass + " w-full"} step="0.1" placeholder="Valfritt"/>
+                                        </div>
+                                        <div>
+                                            <label htmlFor="bodyFatMassKg" className="block text-xs font-medium text-neutral-dark mb-1">Fettmassa (kg)</label>
+                                            <input type="number" name="bodyFatMassKg" id="bodyFatMassKg" value={profile.bodyFatMassKg == null ? '' : profile.bodyFatMassKg} onChange={handleProfileChange} className={compactInputClass + " w-full"} step="0.1" placeholder="Valfritt"/>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-neutral mt-1">Fyll i detta för att sätta en korrekt startpunkt för ditt nya mål.</p>
+                                </section>
+                            )}
 
                             {/* Body Comp Goals */}
                             <section aria-labelledby="body-composition-goals-heading" className="mt-4">

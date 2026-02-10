@@ -99,7 +99,7 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
             </div>
 
             {measurementMethod === 'inbody' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 group-disabled:opacity-60 transition-opacity">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 group-disabled:opacity-60 transition-opacity animate-fade-in">
                     <div>
                         <label htmlFor="skeletalMuscleMassKg" className={labelClass}>Muskelmassa (kg)</label>
                         <input 

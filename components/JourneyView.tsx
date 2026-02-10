@@ -59,28 +59,22 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const [isFullGoalEdit, setIsFullGoalEdit] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
-  // FIX: Removed hardcoded June 1st filter that was hiding logs early in the year.
+  // Filter logs to only show those AFTER the goalStartDate
   const filteredWeightLogs = useMemo(() => {
-    return weightLogs;
-  }, [weightLogs]);
+    if (!userProfile.goalStartDate) return weightLogs;
+    const startDate = new Date(userProfile.goalStartDate).getTime();
+    return weightLogs.filter(log => log.loggedAt >= startDate);
+  }, [weightLogs, userProfile.goalStartDate]);
   
-  // FIX: If userProfile doesn't have a goalStartDate (legacy), infer it from the first log.
-  // This prevents the timeline from "sliding" to today every time the app opens.
   const timeline = useMemo(() => {
-      const effectiveProfile = { ...userProfile };
-      if (!effectiveProfile.goalStartDate && weightLogs.length > 0) {
-          // Sort to be safe (though usually sorted by parent)
-          const sortedLogs = [...weightLogs].sort((a, b) => a.loggedAt - b.loggedAt);
-          const firstLogDate = new Date(sortedLogs[0].loggedAt);
-          effectiveProfile.goalStartDate = firstLogDate.toISOString().split('T')[0];
-      }
-      return calculateGoalTimeline(effectiveProfile, weightLogs);
-  }, [userProfile, weightLogs]);
+      // Calculate timeline using the filtered logs (relevant to current goal)
+      return calculateGoalTimeline(userProfile, filteredWeightLogs);
+  }, [userProfile, filteredWeightLogs]);
   
-  // Find latest measurements for each metric independently to handle logs with partial data
-  const latestWeightValue = useMemo(() => [...weightLogs].reverse().find(l => l.weightKg != null)?.weightKg ?? userProfile.currentWeightKg, [weightLogs, userProfile.currentWeightKg]);
-  const latestMuscleValue = useMemo(() => [...weightLogs].reverse().find(l => l.skeletalMuscleMassKg != null)?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg, [weightLogs, userProfile.skeletalMuscleMassKg]);
-  const latestFatValue = useMemo(() => [...weightLogs].reverse().find(l => l.bodyFatMassKg != null)?.bodyFatMassKg ?? userProfile.bodyFatMassKg, [weightLogs, userProfile.bodyFatMassKg]);
+  // Find latest measurements
+  const latestWeightValue = useMemo(() => [...filteredWeightLogs].reverse().find(l => l.weightKg != null)?.weightKg ?? userProfile.currentWeightKg, [filteredWeightLogs, userProfile.currentWeightKg]);
+  const latestMuscleValue = useMemo(() => [...filteredWeightLogs].reverse().find(l => l.skeletalMuscleMassKg != null)?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg, [filteredWeightLogs, userProfile.skeletalMuscleMassKg]);
+  const latestFatValue = useMemo(() => [...filteredWeightLogs].reverse().find(l => l.bodyFatMassKg != null)?.bodyFatMassKg ?? userProfile.bodyFatMassKg, [filteredWeightLogs, userProfile.bodyFatMassKg]);
 
   const latestWeightLog = filteredWeightLogs.length > 0 ? filteredWeightLogs[filteredWeightLogs.length - 1] : null;
   const previousWeightLog = filteredWeightLogs.length > 1 ? filteredWeightLogs[filteredWeightLogs.length - 2] : null;
