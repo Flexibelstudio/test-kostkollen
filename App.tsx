@@ -597,14 +597,17 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 fetchCommunityTimeline(currentUser.uid),
                 fetchBuddyDetailsList(currentUser.uid),
             ]);
-            const filteredEvents = events.filter(event => event.userId === currentUser.uid || details.some(b => b.uid === event.userId));
-            setTimelineEvents(filteredEvents);
+            // FIX: Removed redundant filtering. The Firestore query already filters by 'visibleTo'.
+            // Filtering here again risks hiding events if buddyDetails fails to load or sync perfectly.
+            setTimelineEvents(events);
             setBuddyDetails(details);
         } catch (error) {
+            console.error("Failed to load community data:", error);
+            setToastNotification({ message: "Kunde inte ladda flödet. Kontrollera din anslutning.", type: 'error' });
         } finally {
             setIsLoadingCommunityData(false);
         }
-    }, [currentUser]);
+    }, [currentUser, setToastNotification]); // Added setToastNotification to deps
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
