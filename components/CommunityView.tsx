@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, FC, useCallback } from 'react';
 import type { User } from '@firebase/auth';
 import { Peppkompis, TimelineEvent, Achievement, Gender, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions } from '../types';
@@ -226,18 +227,16 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    const inviteText = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
+
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
         playAudio('uiClick');
         
-        const fullTitle = 'Kostloggen - Din app för kostkontroll, inkl. programmen Maxa Klimakteriet & Praktisk Viktkontroll. Börja din hälsoresa idag! 1 mån gratis (Kod: A0AJFXTJ)';
-
         if (navigator.share) {
             try {
-                // Vi använder ?invite=v5 för att tvinga Messenger att läsa om våra metadata-taggar helt fräscht
                 await navigator.share({
-                    title: fullTitle,
-                    url: 'https://app.kostloggen.se/?invite=v5',
+                    text: inviteText,
                 });
             } catch (error) {
                 if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -246,26 +245,25 @@ const FriendManagementView: FC<{
                 }
             }
         } else {
-             // Fallback för desktop
-             navigator.clipboard.writeText('https://app.kostloggen.se/?invite=v5').then(() => {
-                setToastNotification({ message: 'Länk kopierad!', type: 'success' });
+            // Fallback for desktop
+            navigator.clipboard.writeText(inviteText).then(() => {
+                setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
             }, () => {
-                setToastNotification({ message: 'Kunde inte kopiera länken.', type: 'error' });
+                setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
             });
         }
     };
-
+    
     const handleCopyToClipboard = () => {
         playAudio('uiClick');
-        const fullInviteText = `Kostloggen - Din app för kostkontroll, inkl. programmen Maxa Klimakteriet & Praktisk Viktkontroll. Börja din hälsoresa idag! 1 mån gratis med koden "A0AJFXTJ".\n\nLadda ner här: https://app.kostloggen.se`;
-        
-        navigator.clipboard.writeText(fullInviteText).then(() => {
+        navigator.clipboard.writeText(inviteText).then(() => {
             setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 2500);
+            setTimeout(() => setIsCopied(false), 2000); // Reset feedback after 2s
         }, () => {
             setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
         });
     };
+
 
     const searchResults = useMemo(() => {
         const buddyUids = new Set(buddyDetails.map(b => b.uid));
@@ -387,7 +385,7 @@ const FriendManagementView: FC<{
                     <div className="animate-fade-in space-y-4">
                         <button
                             onClick={() => setShowInviteOptionsModal(true)}
-                            className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
+                            className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-xl shadow-sm active:scale-95 interactive-transition"
                         >
                             Bjud in en vän
                         </button>
@@ -485,35 +483,24 @@ const FriendManagementView: FC<{
                     className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fade-in"
                     onClick={() => setShowInviteOptionsModal(false)}
                 >
-                    <div className="bg-white p-6 rounded-3xl shadow-soft-xl w-full max-w-md animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg font-semibold text-neutral-dark">Bjud in en vän</h3>
-                            <button onClick={() => setShowInviteOptionsModal(false)} className="p-1 text-neutral hover:text-red-500 rounded-full">
-                                <XMarkIcon className="w-6 h-6" />
+                    <div className="bg-white p-6 rounded-3xl shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="text-lg font-semibold text-neutral-dark mb-4">Bjud in en vän</h3>
+                        <div className="space-y-3">
+                            <button onClick={handleShareViaApp} className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-xl shadow-sm active:scale-95 interactive-transition">
+                                <ShareIcon className="w-5 h-5 mr-2" /> Dela via app
+                            </button>
+                             <p className="text-xs text-neutral text-center">Obs: Vissa appar som Messenger kan ignorera texten.</p>
+                            <button
+                                onClick={handleCopyToClipboard}
+                                disabled={isCopied}
+                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-xl shadow-sm disabled:bg-green-100 disabled:text-green-700 active:scale-95 interactive-transition"
+                            >
+                                <PencilIcon className="w-5 h-5 mr-2" /> {isCopied ? 'Kopierad!' : 'Kopiera inbjudningstext'}
                             </button>
                         </div>
-
-                        <div className="space-y-4">
-                            <button 
-                                onClick={handleShareViaApp} 
-                                className="w-full flex items-center justify-center px-6 py-4 text-xl font-bold text-white bg-primary hover:bg-primary-darker rounded-2xl shadow-lg shadow-primary/20 active:scale-95 interactive-transition"
-                            >
-                                <ShareIcon className="w-6 h-6 mr-2" /> Dela inbjudan
-                            </button>
-                            
-                            <div className="relative">
-                                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-neutral-light"></span></div>
-                                <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-neutral">Eller kopiera text</span></div>
-                            </div>
-
-                            <button 
-                                onClick={handleCopyToClipboard} 
-                                className={`w-full flex items-center justify-center px-6 py-3 text-base font-bold rounded-2xl border-2 transition-all active:scale-95 ${isCopied ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-neutral-light text-neutral-dark hover:bg-neutral-light'}`}
-                            >
-                                {isCopied ? <CheckIcon className="w-5 h-5 mr-2" /> : <PencilIcon className="w-5 h-5 mr-2" />}
-                                {isCopied ? 'Kopierad till urklipp!' : 'Kopiera inbjudan & rabattkod'}
-                            </button>
-                        </div>
+                         <button onClick={() => setShowInviteOptionsModal(false)} className="mt-4 w-full py-2 text-sm text-neutral hover:underline">
+                            Stäng
+                        </button>
                     </div>
                 </div>
             )}

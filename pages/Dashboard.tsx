@@ -1,11 +1,10 @@
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
     LoggedMeal, 
     NutritionalInfo,
     SearchedFoodInfo,
     BarcodeScannedFoodInfo,
-    IngredientRecipeResponse,
     RecipeSuggestion,
     OnboardingChecklistState,
     CommonMeal,
@@ -23,8 +22,8 @@ import {
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
-import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, FireIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, RotateCcwIcon, LifebuoyIcon, TrophyIcon, SparklesIcon, XMarkIcon } from '../components/icons';
-import { PiggyBank, Flame, Coffee, Sandwich, CookingPot, Apple } from 'lucide-react';
+import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon } from '../components/icons';
+import { PiggyBank, Coffee, Sandwich, CookingPot, Apple, Flame } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
 import { getDateUID, getSuggestedMealType } from '../utils/dateUtils';
@@ -43,7 +42,6 @@ import {
     analyzeFoodImage, 
     getRecipeSuggestion, 
     getRecipesFromIngredientsImage, 
-    analyzeNutritionLabelImage 
 } from '../services/geminiService';
 import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
 
@@ -138,7 +136,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     viewingDate,
     onDateSelect,
     formattedViewingDate,
-    ensureYesterdayProcessed,
     setToastNotification,
     onOpenAICoach,
     isSummarizingYesterday,
@@ -161,9 +158,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         streakData,
         setStreakData,
         weeklyBank,
-        setWeeklyBank,
-        streakSaver,
-        currentDate
+        currentDate,
+        isInitialDataLoaded
     } = useUserContext();
 
     const [isSaving, setIsSaving] = useState(false);
@@ -341,12 +337,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                 else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
         }
 
+        // --- STREAK LOGIC: Check previous day to determine new streak ---
         const dayBefore = new Date(viewingDate);
         dayBefore.setDate(dayBefore.getDate() - 1);
         const dayBeforeUID = getDateUID(dayBefore);
         const prevDaySummary = pastDaysSummary[dayBeforeUID];
         const prevStreak = prevDaySummary?.streakForThisDay || 0;
 
+        // FIXED LOGIC: Strict check for activity. Any calories > 0 means the day is active.
         let newStreak = 0;
         if (totals.calories > 0) {
             newStreak = prevStreak + 1;
@@ -377,6 +375,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         setPastDaysSummary(prev => ({ ...prev, [viewingUID]: newSummary }));
         
+        // Always attempt to save if we're recalculating (even if in past)
+        try {
+            await setPastDaySummaryFirestore(currentUser.uid, viewingUID, newSummary);
+        } catch(e) {
+            console.error("Failed to update past day summary", e);
+        }
+
         if (viewingUID < currentUID) {
             const yesterday = new Date(currentDate);
             yesterday.setDate(yesterday.getDate() - 1);
@@ -390,14 +395,29 @@ const Dashboard: React.FC<DashboardProps> = ({
                     console.error("Failed to update user currentStreak", e);
                 }
             }
-            
-            try {
-                await setPastDaySummaryFirestore(currentUser.uid, viewingUID, newSummary);
-            } catch(e) {
-                console.error("Failed to update past day summary", e);
-            }
         }
     };
+
+    // SELF-HEALING EFFECT
+    // If dailyLog is loaded (user clicked a date), but summary says 0 or undefined, force a recalculation.
+    // This fixes "Missing bar" issue when navigating history.
+    useEffect(() => {
+        if (!isInitialDataLoaded || !dailyLog || !currentUser) return;
+        
+        const viewingUID = getDateUID(viewingDate);
+        const summary = pastDaysSummary[viewingUID];
+        
+        // Calculate totals from the loaded log
+        const actualCalories = dailyLog.reduce((acc, m) => acc + m.nutritionalInfo.calories, 0);
+        
+        // If we have logs but the summary is missing or says 0 calories, force a sync.
+        // This effectively "heals" broken historical data when the user visits that day.
+        if (actualCalories > 0 && (!summary || summary.consumedCalories === 0)) {
+            console.log("Healing summary for", viewingUID, "- logs found but summary missing/empty.");
+            recalculateAndSaveSummary(dailyLog, waterLoggedMl);
+        }
+    }, [dailyLog, viewingDate, isInitialDataLoaded, currentUser, pastDaysSummary, waterLoggedMl]);
+
 
     // Handlers
     const handleAddMealToLog = async (
