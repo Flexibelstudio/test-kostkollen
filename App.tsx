@@ -37,7 +37,7 @@ import {
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   listenForFriendRequests,
   fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate,
-  setPastDaySummary, savePushSubscription
+  setPastDaySummary, savePushSubscription, unlockAchievement
 } from './services/firestoreService.ts';
 
 // Context
@@ -970,8 +970,34 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setToastNotification({ message: "Vikt sparad!", type: 'success' });
         playAudio('logSuccess');
         setShowLogWeightModal(false);
+
+        // Check if goal reached
+        if (!userProfile.mainGoalCompleted && userProfile.goalStartWeight && userProfile.desiredWeightChangeKg) {
+             const isWeightLoss = userProfile.goalType === 'lose_fat';
+             const isMuscleGain = userProfile.goalType === 'gain_muscle';
+             let goalMet = false;
+             const targetWeight = userProfile.goalStartWeight + userProfile.desiredWeightChangeKg;
+
+             if (isWeightLoss && data.weightKg <= targetWeight) goalMet = true;
+             if (isMuscleGain && data.weightKg >= targetWeight) goalMet = true;
+
+             if (goalMet) {
+                const ach = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'main_goal_reached');
+                if (ach) {
+                    const unlocked = await unlockAchievement(currentUser.uid, ach.id, ach.name, ach.icon, ach.description);
+                    if (unlocked) {
+                        setShowConfetti(true);
+                        setShowGoalMetModalData({ date: new Date().toISOString().split('T')[0], streak: streakData.currentStreak });
+                        playAudio('levelUp');
+                        setUserProfile(prev => ({ ...prev, mainGoalCompleted: true }));
+                        await updateUserDocument(currentUser.uid, { mainGoalCompleted: true });
+                    }
+                }
+             }
+        }
+
     } catch (error) {
-        setToastNotification({ message: "Kunde inte spara vikt.", type: 'error' });
+        setToastNotification({ message: "Kunde inte spara mätningen.", type: 'error' });
     } finally {
         setAppStatus(AppStatus.IDLE);
     }
@@ -1147,6 +1173,15 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
         setMorningReportData({ summary, currentStreak: finalNewStreak });
         playAudio('levelUp'); 
+
+        // Streak Achievement Check
+        const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
+        if (streakAch) {
+             const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
+             if (unlocked) {
+                 setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
+             }
+        }
 
     } catch (error) {
         setToastNotification({ message: "Kunde inte sammanställa gårdagen.", type: 'error' });

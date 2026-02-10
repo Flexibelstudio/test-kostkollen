@@ -1,4 +1,3 @@
-
 import { db, functions } from "../firebase"; // Import functions
 import type { User } from '@firebase/auth';
 import { 
@@ -503,6 +502,38 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   } catch (e) {
     console.error("Failed to create goal timeline event", e);
   }
+}
+
+/* ===== Gamification: Achievements ===== */
+
+export async function unlockAchievement(userId: string, achievementId: string, achievementName: string, achievementIcon: string, description: string): Promise<boolean> {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDocSafe(userRef);
+
+    if (userSnap.exists()) {
+        const data = userSnap.data() as FirestoreUserDocument;
+        // Check if already unlocked to prevent duplicates
+        if (data.unlockedAchievements && data.unlockedAchievements[achievementId]) {
+            return false; 
+        }
+    }
+
+    // Unlock in Firestore
+    await updateDoc(userRef, {
+        [`unlockedAchievements.${achievementId}`]: new Date().toISOString()
+    });
+
+    // Create a timeline event for the achievement
+    await addTimelineEvent(userId, {
+        type: 'achievement',
+        timestamp: Date.now(),
+        title: 'har låst upp en bragd!',
+        description: `${achievementName} - ${description}`,
+        icon: achievementIcon,
+        relatedDocId: `ach_${achievementId}` // Ensure unique per achievement
+    });
+
+    return true;
 }
 
 /* ===== Weight ===== */
