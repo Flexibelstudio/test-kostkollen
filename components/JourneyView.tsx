@@ -157,20 +157,36 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     const isFatLossGoal = userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
     const isMuscleGainGoal = userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
 
-    // Logic: Favor values from logs (latestValue variables) over static profile values
+    // Logic: Favor specific values if available, otherwise fallback to weight for progress tracking
     if (isFatLossGoal) {
-        startValueKg = userProfile.goalStartFatMassKg;
-        currentValueKg = latestFatValue;
-        goalChangeKg = userProfile.desiredFatMassChangeKg;
+        if (latestFatValue != null && userProfile.goalStartFatMassKg != null) {
+            startValueKg = userProfile.goalStartFatMassKg;
+            currentValueKg = latestFatValue;
+            goalChangeKg = userProfile.desiredFatMassChangeKg;
+        } else {
+            // FALLBACK: User has Fat Loss Goal but logs only Weight
+            startValueKg = userProfile.goalStartWeight;
+            currentValueKg = latestWeightValue;
+            // We assume the desired fat loss amount is the desired weight loss amount in this context
+            goalChangeKg = userProfile.desiredFatMassChangeKg; 
+        }
     } else if (isMuscleGainGoal) {
-        startValueKg = userProfile.goalStartMuscleMassKg;
-        currentValueKg = latestMuscleValue;
-        goalChangeKg = userProfile.desiredMuscleMassChangeKg;
+        if (latestMuscleValue != null && userProfile.goalStartMuscleMassKg != null) {
+            startValueKg = userProfile.goalStartMuscleMassKg;
+            currentValueKg = latestMuscleValue;
+            goalChangeKg = userProfile.desiredMuscleMassChangeKg;
+        } else {
+            // FALLBACK: User has Muscle Gain Goal but logs only Weight
+            startValueKg = userProfile.goalStartWeight;
+            currentValueKg = latestWeightValue;
+            goalChangeKg = userProfile.desiredMuscleMassChangeKg;
+        }
     } else if (isScaleGoal) {
         startValueKg = userProfile.goalStartWeight;
         currentValueKg = latestWeightValue;
         goalChangeKg = userProfile.desiredWeightChangeKg;
     } else {
+        // Fallback for maintain or undefined
         return { goalProgress: 0, goalDisplayString: 'Inget aktivt mål' };
     }
     
@@ -185,7 +201,9 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         const changes = [];
         if (userProfile.desiredFatMassChangeKg) changes.push(`${userProfile.desiredFatMassChangeKg > 0 ? '+' : ''}${userProfile.desiredFatMassChangeKg.toFixed(1).replace('.',',')} kg fett`);
         if (userProfile.desiredMuscleMassChangeKg) changes.push(`${userProfile.desiredMuscleMassChangeKg > 0 ? '+' : ''}${userProfile.desiredMuscleMassChangeKg.toFixed(1).replace('.',',')} kg muskler`);
+        
         if (changes.length > 0) displayString = `Nå en förändring på ${changes.join(' och ')}${datePart}`;
+        else if (userProfile.desiredWeightChangeKg) displayString = `Nå en viktförändring på ${userProfile.desiredWeightChangeKg > 0 ? '+' : ''}${userProfile.desiredWeightChangeKg.toFixed(1).replace('.',',')} kg${datePart}`; // Fallback description
         else displayString = 'Bibehålla nuvarande form';
     }
 

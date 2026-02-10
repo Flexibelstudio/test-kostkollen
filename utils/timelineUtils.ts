@@ -1,3 +1,4 @@
+
 import { UserProfileData } from '../types.ts';
 import { CALORIE_ADJUSTMENT } from '../constants.ts';
 
@@ -23,12 +24,21 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
         goalChange = desiredWeightChangeKg;
         goalTypeLabel = 'Vikt';
     } else { // 'inbody' or legacy
-        // Prioritize fat change for timeline calculation as it's more directly related to weight pace.
-        goalChange = desiredFatMassChangeKg ?? desiredMuscleMassChangeKg;
-        goalTypeLabel = desiredFatMassChangeKg !== undefined && desiredFatMassChangeKg !== 0 ? 'Fettmassa' : (desiredMuscleMassChangeKg !== undefined && desiredMuscleMassChangeKg !== 0 ? 'Muskelmassa' : null);
+        // Prioritize fat/muscle change, but FALLBACK to weight change if unavailable.
+        if (desiredFatMassChangeKg !== undefined && desiredFatMassChangeKg !== 0 && desiredFatMassChangeKg !== null) {
+             goalChange = desiredFatMassChangeKg;
+             goalTypeLabel = 'Fettmassa';
+        } else if (desiredMuscleMassChangeKg !== undefined && desiredMuscleMassChangeKg !== 0 && desiredMuscleMassChangeKg !== null) {
+             goalChange = desiredMuscleMassChangeKg;
+             goalTypeLabel = 'Muskelmassa';
+        } else {
+             // FALLBACK: User has InBody selected but might have only set a general weight goal (or simple setup)
+             goalChange = desiredWeightChangeKg;
+             goalTypeLabel = 'Vikt (Estimerat)';
+        }
     }
     
-    if (goalChange === undefined || goalChange === 0 || !currentWeightKg) {
+    if (goalChange === undefined || goalChange === null || goalChange === 0 || !currentWeightKg) {
       return { milestones: [], paceFeedback: null };
     }
     
