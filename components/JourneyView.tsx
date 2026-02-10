@@ -64,7 +64,18 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     return weightLogs;
   }, [weightLogs]);
   
-  const timeline = useMemo(() => calculateGoalTimeline(userProfile), [userProfile]);
+  // FIX: If userProfile doesn't have a goalStartDate (legacy), infer it from the first log.
+  // This prevents the timeline from "sliding" to today every time the app opens.
+  const timeline = useMemo(() => {
+      const effectiveProfile = { ...userProfile };
+      if (!effectiveProfile.goalStartDate && weightLogs.length > 0) {
+          // Sort to be safe (though usually sorted by parent)
+          const sortedLogs = [...weightLogs].sort((a, b) => a.loggedAt - b.loggedAt);
+          const firstLogDate = new Date(sortedLogs[0].loggedAt);
+          effectiveProfile.goalStartDate = firstLogDate.toISOString().split('T')[0];
+      }
+      return calculateGoalTimeline(effectiveProfile);
+  }, [userProfile, weightLogs]);
   
   // Find latest measurements for each metric independently to handle logs with partial data
   const latestWeightValue = useMemo(() => [...weightLogs].reverse().find(l => l.weightKg != null)?.weightKg ?? userProfile.currentWeightKg, [weightLogs, userProfile.currentWeightKg]);

@@ -15,7 +15,7 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
   milestones: TimelineMilestone[];
   paceFeedback: { type: 'warning' | 'info' | 'error'; text: string } | null;
 } => {
-    const { desiredFatMassChangeKg, desiredMuscleMassChangeKg, currentWeightKg, goalCompletionDate, measurementMethod, desiredWeightChangeKg } = profile;
+    const { desiredFatMassChangeKg, desiredMuscleMassChangeKg, currentWeightKg, goalCompletionDate, measurementMethod, desiredWeightChangeKg, goalStartDate } = profile;
 
     let goalChange: number | undefined;
     let goalTypeLabel: string | null = null;
@@ -42,8 +42,10 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
       return { milestones: [], paceFeedback: null };
     }
     
-    const startDate = new Date();
+    // FIX: Use persisted goalStartDate if available to prevent timeline sliding
+    const startDate = goalStartDate ? new Date(goalStartDate) : new Date();
     startDate.setHours(0, 0, 0, 0);
+    
     let endDate: Date;
     let paceFeedback: { type: 'warning' | 'info' | 'error', text: string } | null = null;
 

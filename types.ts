@@ -212,6 +212,7 @@ export interface UserProfileData {
   desiredFatMassChangeKg?: number;
   desiredMuscleMassChangeKg?: number;
   goalCompletionDate?: string;
+  goalStartDate?: string; // New field to lock the timeline start date
   isSearchable?: boolean;
   goalStartWeight?: number;
   goalStartMuscleMassKg?: number;

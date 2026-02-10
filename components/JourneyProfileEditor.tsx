@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, GoalSettings, ActivityLevel, GoalType } from '../types';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations';
@@ -273,6 +274,8 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
             profileToSave.goalStartWeight = latestMeasuredWeight ?? profile.currentWeightKg;
             profileToSave.goalStartFatMassKg = latestMeasuredFat ?? profile.bodyFatMassKg; 
             profileToSave.goalStartMuscleMassKg = latestMeasuredMuscle ?? profile.skeletalMuscleMassKg;
+            // FIX: Set start date to today when saving a new full goal
+            profileToSave.goalStartDate = new Date().toISOString().split('T')[0];
         }
 
         onSave(profileToSave, newGoals);
