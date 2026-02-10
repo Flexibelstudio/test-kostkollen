@@ -59,12 +59,10 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const [isFullGoalEdit, setIsFullGoalEdit] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
-  const currentYear = useMemo(() => new Date().getFullYear(), []);
-  const juneFirst = useMemo(() => new Date(currentYear, 5, 1), [currentYear]); 
-
+  // FIX: Removed hardcoded June 1st filter that was hiding logs early in the year.
   const filteredWeightLogs = useMemo(() => {
-    return weightLogs.filter(log => new Date(log.loggedAt) >= juneFirst);
-  }, [weightLogs, juneFirst]);
+    return weightLogs;
+  }, [weightLogs]);
   
   const timeline = useMemo(() => calculateGoalTimeline(userProfile), [userProfile]);
   
