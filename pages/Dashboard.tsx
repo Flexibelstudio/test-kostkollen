@@ -159,7 +159,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         setStreakData,
         weeklyBank,
         currentDate,
-        isInitialDataLoaded
+        isInitialDataLoaded,
+        isDataLoading // Hämta denna för att veta om vi laddar data
     } = useUserContext();
 
     const [isSaving, setIsSaving] = useState(false);
@@ -398,25 +399,37 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     };
 
-    // SELF-HEALING EFFECT
-    // If dailyLog is loaded (user clicked a date), but summary says 0 or undefined, force a recalculation.
-    // This fixes "Missing bar" issue when navigating history.
+    // SELF-HEALING EFFECT (Fixad för att undvika spökdata)
     useEffect(() => {
-        if (!isInitialDataLoaded || !dailyLog || !currentUser) return;
+        // 1. Kör inte om data laddas eller användaren saknas
+        if (!isInitialDataLoaded || !currentUser || isDataLoading) return;
         
         const viewingUID = getDateUID(viewingDate);
-        const summary = pastDaysSummary[viewingUID];
         
-        // Calculate totals from the loaded log
+        // 2. ID-KONTROLL: Är maten i loggen verkligen för den här dagen?
+        // Om vi precis bytt datum men dailyLog inte uppdaterats än -> AVBRYT.
+        if (dailyLog.length > 0) {
+            const logDate = dailyLog[0].dateString;
+            if (logDate !== viewingUID) {
+                return; // Matloggen matchar inte visningsdatumet. Rör ingenting.
+            }
+        }
+
+        // 3. Räkna ut "Sanningen" från loggen
         const actualCalories = dailyLog.reduce((acc, m) => acc + m.nutritionalInfo.calories, 0);
         
-        // If we have logs but the summary is missing or says 0 calories, force a sync.
-        // This effectively "heals" broken historical data when the user visits that day.
-        if (actualCalories > 0 && (!summary || summary.consumedCalories === 0)) {
-            console.log("Healing summary for", viewingUID, "- logs found but summary missing/empty.");
+        // 4. Hämta nuvarande status
+        const summary = pastDaysSummary[viewingUID];
+        const summaryCalories = summary?.consumedCalories || 0;
+        
+        // 5. STÄDPATRULLEN: Hitta felmatchningar
+        // Fall A: Loggen har mat (>0), men summeringen säger 0 (det ursprungliga felet).
+        // Fall B: Loggen är tom (0), men summeringen säger att vi ätit (spökdata).
+        if (Math.abs(actualCalories - summaryCalories) > 1) { // 1 kcal tolerans
+            console.log(`Self-healing triggered for ${viewingUID}. Log: ${actualCalories}, Summary: ${summaryCalories}`);
             recalculateAndSaveSummary(dailyLog, waterLoggedMl);
         }
-    }, [dailyLog, viewingDate, isInitialDataLoaded, currentUser, pastDaysSummary, waterLoggedMl]);
+    }, [dailyLog, viewingDate, isInitialDataLoaded, currentUser, pastDaysSummary, waterLoggedMl, isDataLoading]);
 
 
     // Handlers
