@@ -74,7 +74,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
           const firstLogDate = new Date(sortedLogs[0].loggedAt);
           effectiveProfile.goalStartDate = firstLogDate.toISOString().split('T')[0];
       }
-      return calculateGoalTimeline(effectiveProfile);
+      return calculateGoalTimeline(effectiveProfile, weightLogs);
   }, [userProfile, weightLogs]);
   
   // Find latest measurements for each metric independently to handle logs with partial data
@@ -162,9 +162,10 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const { goalProgress, goalDisplayString } = useMemo(() => {
     let startValueKg, currentValueKg, goalChangeKg;
 
-    const isScaleGoal = userProfile.measurementMethod === 'scale' && userProfile.desiredWeightChangeKg;
-    const isFatLossGoal = userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
-    const isMuscleGainGoal = userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
+    const isScaleGoal = userProfile.measurementMethod === 'scale';
+    // For InBody, check if specific composition goals are set
+    const isFatLossGoal = !isScaleGoal && userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
+    const isMuscleGainGoal = !isScaleGoal && userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
 
     // Logic: Favor specific values if available, otherwise fallback to weight for progress tracking
     if (isFatLossGoal) {
@@ -190,13 +191,11 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             currentValueKg = latestWeightValue;
             goalChangeKg = userProfile.desiredMuscleMassChangeKg;
         }
-    } else if (isScaleGoal) {
+    } else {
+        // Scale Mode or Fallback for InBody without specific comp goal (uses weight)
         startValueKg = userProfile.goalStartWeight;
         currentValueKg = latestWeightValue;
         goalChangeKg = userProfile.desiredWeightChangeKg;
-    } else {
-        // Fallback for maintain or undefined
-        return { goalProgress: 0, goalDisplayString: 'Inget aktivt mål' };
     }
     
     const datePart = userProfile.goalCompletionDate ? ` till ${new Date(userProfile.goalCompletionDate+'T00:00:00').toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : '';
@@ -216,18 +215,23 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         else displayString = 'Bibehålla nuvarande form';
     }
 
-    if (startValueKg == null || currentValueKg == null || userProfile.mainGoalCompleted) {
+    if (startValueKg == null || currentValueKg == null || userProfile.mainGoalCompleted || goalChangeKg == null) {
         return { goalProgress: 0, goalDisplayString: displayString };
     }
 
-    const totalChangeNeeded = Math.abs(goalChangeKg || 0);
+    const totalChangeNeeded = Math.abs(goalChangeKg);
     let changeAchieved;
-    if ((goalChangeKg || 0) > 0) { 
+    
+    // Strict logic: Progress is only movement in the desired direction
+    if (goalChangeKg > 0) { 
+        // Goal: Gain weight/muscle. Progress = Current - Start
         changeAchieved = currentValueKg - startValueKg;
     } else { 
+        // Goal: Lose weight/fat. Progress = Start - Current
         changeAchieved = startValueKg - currentValueKg;
     }
     
+    // If changeAchieved is negative, it means we went the wrong way. Clamp to 0.
     changeAchieved = Math.max(0, changeAchieved);
 
     if (totalChangeNeeded < 0.01) {
@@ -276,38 +280,36 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                     </span>
                 </div>
 
-                {/* Secondary Metrics */}
-                <div className="flex gap-4 w-full justify-center">
-                    {latestMuscleValue != null && (
+                {/* Secondary Metrics - Only Show if InBody is selected */}
+                {userProfile.measurementMethod === 'inbody' && (
+                    <div className="flex gap-4 w-full justify-center">
                         <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
                             <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 mb-2">
                                 <Dumbbell className="w-5 h-5" />
                             </div>
                             <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Muskler</span>
                             <span className="text-xl font-bold text-neutral-dark">
-                                {latestMuscleValue.toFixed(1).replace('.',',')}
+                                {latestMuscleValue != null ? latestMuscleValue.toFixed(1).replace('.',',') : '-'}
                             </span>
                             <span className={`text-xs font-semibold ${muscleChangeDetails.colorClass}`}>
                                 {muscleChangeDetails.text}
                             </span>
                         </div>
-                    )}
-                    
-                    {latestFatValue != null && (
+                        
                         <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
                             <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600 mb-2">
                                 <PieChart className="w-5 h-5" />
                             </div>
                             <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Fett</span>
                             <span className="text-xl font-bold text-neutral-dark">
-                                {latestFatValue.toFixed(1).replace('.',',')}
+                                {latestFatValue != null ? latestFatValue.toFixed(1).replace('.',',') : '-'}
                             </span>
                             <span className={`text-xs font-semibold ${fatChangeDetails.colorClass}`}>
                                 {fatChangeDetails.text}
                             </span>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
         </div>
 

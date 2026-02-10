@@ -149,7 +149,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
     const timeline = useMemo(() => {
         // Only calculate and show the projected timeline when actively setting a new goal
         if (isEditing && isFullGoalEdit) {
-            return calculateGoalTimeline(profile);
+            return calculateGoalTimeline(profile, []); // Pass empty logs to simulate new timeline
         }
         // Return empty state otherwise to avoid showing it in non-edit mode or simple activity edit
         return { milestones: [], paceFeedback: null };
@@ -272,8 +272,16 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
         if (isFullGoalEdit) {
             profileToSave.mainGoalCompleted = false;
             profileToSave.goalStartWeight = latestMeasuredWeight ?? profile.currentWeightKg;
-            profileToSave.goalStartFatMassKg = latestMeasuredFat ?? profile.bodyFatMassKg; 
-            profileToSave.goalStartMuscleMassKg = latestMeasuredMuscle ?? profile.skeletalMuscleMassKg;
+            
+            // Set start mass values based on measurement method
+            if (profile.measurementMethod === 'inbody') {
+                profileToSave.goalStartFatMassKg = latestMeasuredFat ?? profile.bodyFatMassKg; 
+                profileToSave.goalStartMuscleMassKg = latestMeasuredMuscle ?? profile.skeletalMuscleMassKg;
+            } else {
+                profileToSave.goalStartFatMassKg = null; 
+                profileToSave.goalStartMuscleMassKg = null;
+            }
+            
             // FIX: Set start date to today when saving a new full goal
             profileToSave.goalStartDate = new Date().toISOString().split('T')[0];
         }
