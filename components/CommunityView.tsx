@@ -235,33 +235,12 @@ const CreatePostWidget: FC<{
     );
 };
 
-const StatCard: FC<{
-    icon: React.ReactNode;
-    label: string;
-    value: string;
-    change: { text: string; colorClass: string };
-    bgColor: string;
-}> = ({ icon, label, value, change, bgColor }) => (
-    <div className="bg-white p-3 rounded-lg shadow-md border border-neutral-light/50 flex-1 min-w-[100px]">
-        <div className="flex items-center gap-2 mb-1">
-            <div className={`p-1.5 rounded-full ${bgColor}`}>
-                {icon}
-            </div>
-            <span className="text-xs font-semibold text-neutral">{label}</span>
-        </div>
-        <p className="text-2xl font-bold text-neutral-dark">{value}</p>
-        <p className={`text-sm font-semibold ${change.colorClass}`}>{change.text}</p>
-    </div>
-);
-
 const BuddyCard: FC<{ 
     buddy: BuddyDetails; 
     achievements: Achievement[]; 
     onRemove: () => void; 
     currentUser: User;
 }> = ({ buddy, achievements, onRemove, currentUser }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [poppedAchievement, setPoppedAchievement] = useState<string | null>(null);
     const [showMenu, setShowMenu] = useState(false);
 
     
@@ -376,65 +355,6 @@ const BuddyCard: FC<{
                 </div>
                 <p className="text-right text-sm font-semibold text-primary-darker mt-1">{progressPercentage.toFixed(0)}%</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-                <StatCard 
-                    icon={<UserIcon size={16} className="text-green-700" />}
-                    label="Vikt"
-                    value={buddy.currentWeight ? `${buddy.currentWeight.toFixed(1).replace('.',',')}kg` : '-'}
-                    change={formatChange(buddy.totalWeightChange, buddy.totalWeightChange === undefined, true)}
-                    bgColor="bg-green-100"
-                />
-                 <StatCard 
-                    icon={<Dumbbell size={16} className="text-orange-700" />}
-                    label="Muskler"
-                    value={buddy.currentMuscleMass ? `${buddy.currentMuscleMass.toFixed(1).replace('.',',')}kg` : '-'}
-                    change={formatChange(buddy.muscleMassChange, buddy.muscleMassChange === undefined, false)}
-                    bgColor="bg-orange-100"
-                />
-                 <StatCard 
-                    icon={<PieChart size={16} className="text-yellow-700" />}
-                    label="Fett"
-                    value={buddy.currentFatMass ? `${buddy.currentFatMass.toFixed(1).replace('.',',')}kg` : '-'}
-                    change={formatChange(buddy.fatMassChange, buddy.fatMassChange === undefined, true)}
-                    bgColor="bg-yellow-100"
-                />
-            </div>
-            <div className="text-center">
-                <button onClick={() => setIsExpanded(!isExpanded)} className="p-1 text-neutral hover:text-primary">
-                    <ChevronDownIcon className={`w-6 h-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                </button>
-            </div>
-            {isExpanded && (
-                <div className="grid grid-cols-5 gap-2 animate-fade-in">
-                    {achievements.map(ach => {
-                        const isUnlocked = !!buddy.unlockedAchievements[ach.id];
-                        const pepps = buddy.achievementInteractions?.[ach.id]?.reactions?.['❤️'] || {};
-                        const peppCount = Object.keys(pepps).length;
-                        const currentUserPepped = !!pepps[currentUser.uid];
-
-                        return (
-                             <div 
-                                key={ach.id} 
-                                className={`relative group p-2 rounded-lg flex flex-col items-center justify-center text-center aspect-square transition-all ${isUnlocked ? 'bg-amber-100/50' : 'bg-neutral-light filter grayscale cursor-not-allowed'}`}
-                                title={ach.name}
-                            >
-                                <div className="text-3xl">{ach.icon}</div>
-                                {isUnlocked && peppCount > 0 && (
-                                    <div className="absolute bottom-1 right-1 flex items-center gap-1 bg-white/80 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-xs shadow">
-                                        <HeartIcon className={`w-3 h-3 ${currentUserPepped ? 'text-red-500' : 'text-gray-500'}`} />
-                                        <span className={`font-bold text-xs ${currentUserPepped ? 'text-red-600' : 'text-gray-600'}`}>{peppCount}</span>
-                                    </div>
-                                )}
-                                {poppedAchievement === ach.id && (
-                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                        <HeartIcon className="w-12 h-12 text-red-500 animate-heart-pop" />
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
         </div>
     );
 };
