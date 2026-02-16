@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle } from '../types.ts';
 import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS } from '../constants.ts';
@@ -999,6 +1000,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         description="På dina inlägg"
                                         checked={profile.notificationSettings?.comments ?? true}
                                         onChange={() => handleNotificationSettingChange('comments')}
+                                    />
+                                    <ToggleSwitch 
+                                        id="likes"
+                                        label="Gilla-markeringar"
+                                        description="När någon gillar dina inlägg/kommentarer"
+                                        checked={profile.notificationSettings?.likes ?? true}
+                                        onChange={() => handleNotificationSettingChange('likes')}
                                     />
                                 </div>
                             </div>

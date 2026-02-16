@@ -186,6 +186,7 @@ export interface NotificationSettings {
   friendRequests: boolean;
   newEvents: boolean;
   comments: boolean;
+  likes: boolean; // Add this
   // Reminder notifications
   waterReminder: boolean;
   foodReminder: boolean;

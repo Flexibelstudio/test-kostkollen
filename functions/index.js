@@ -263,6 +263,87 @@ exports.onUserStreakUpdated = functions.firestore
     }
   });
 
+// 5. Reaktion på inlägg (Dilla)
+exports.onReactionAdded = functions.firestore
+  .document("communityTimeline/{eventId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const eventId = context.params.eventId;
+
+    // Check if reactions changed
+    const beforeReactions = before.reactions || {};
+    const afterReactions = after.reactions || {};
+
+    // Simple equality check to avoid processing if no reaction change
+    if (JSON.stringify(beforeReactions) === JSON.stringify(afterReactions)) return;
+
+    const eventOwnerId = after.userId;
+
+    // Iterate through emojis to find new reactions
+    for (const emoji in afterReactions) {
+        const usersAfter = afterReactions[emoji] || {};
+        const usersBefore = beforeReactions[emoji] || {};
+
+        // Find UIDs present in 'after' but not 'before'
+        const newUids = Object.keys(usersAfter).filter(uid => !usersBefore[uid]);
+
+        for (const newUid of newUids) {
+            // Don't notify if user reacts to their own post
+            if (newUid === eventOwnerId) continue;
+
+            const likerName = usersAfter[newUid];
+
+            const payload = {
+                notification: {
+                    title: `Ny reaktion! ${emoji}`,
+                    body: `${likerName} reagerade på ditt inlägg.`,
+                    icon: "/icons/icon-192x192.png",
+                    badge: "/icons/badge-96x96.png",
+                    data: {
+                        url: `/?view=community&highlight=${eventId}`
+                    }
+                }
+            };
+
+            await sendNotificationToUser(eventOwnerId, payload, "likes");
+        }
+    }
+  });
+
+// 6. Gilla på kommentar (Dilla kommentar)
+exports.onCommentLikeCreated = functions.firestore
+  .document("communityTimeline/{eventId}/comments/{commentId}/likes/{likeId}")
+  .onCreate(async (snapshot, context) => {
+    const likeData = snapshot.data();
+    const { eventId, commentId } = context.params;
+
+    // Get comment author
+    const commentRef = db.collection("communityTimeline").doc(eventId).collection("comments").doc(commentId);
+    const commentDoc = await commentRef.get();
+
+    if (!commentDoc.exists) return;
+    const commentData = commentDoc.data();
+    const commentAuthorId = commentData.authorUid;
+
+    // Don't notify if user likes their own comment
+    if (likeData.userId === commentAuthorId) return;
+
+    const payload = {
+      notification: {
+        title: "Gilla på kommentar ❤️",
+        body: `${likeData.userName} gillade din kommentar.`,
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        data: {
+          url: `/?view=community&highlight=${eventId}`
+        }
+      }
+    };
+
+    await sendNotificationToUser(commentAuthorId, payload, "likes");
+  });
+
 // ---- Kompis-hanteringsfunktioner ----
 
 exports.addMutualFriends = functions.firestore
