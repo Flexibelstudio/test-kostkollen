@@ -96,6 +96,7 @@ const CreatePostWidget: FC<{
     onPostCreated: (post: TimelineEvent) => void;
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
 }> = ({ currentUser, userProfile, onPostCreated, setToastNotification }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
     const [text, setText] = useState('');
     const [image, setImage] = useState<string | null>(null);
     const [category, setCategory] = useState<PostCategory>('general');
@@ -108,6 +109,7 @@ const CreatePostWidget: FC<{
             try {
                 const resized = await resizeImage(file, 1024);
                 setImage(resized);
+                setIsExpanded(true); // Ensure expanded if image is selected via other means if added
             } catch (error) {
                 setToastNotification({ message: 'Kunde inte ladda upp bild.', type: 'error' });
             }
@@ -147,6 +149,7 @@ const CreatePostWidget: FC<{
             setCategory('general');
             setToastNotification({ message: 'Inlägg publicerat!', type: 'success' });
             playAudio('logSuccess');
+            setIsExpanded(false); // Collapse after successful post
         } catch (error) {
             console.error(error);
             setToastNotification({ message: 'Kunde inte skapa inlägg.', type: 'error' });
@@ -163,16 +166,43 @@ const CreatePostWidget: FC<{
         { id: 'question', label: 'Fråga', icon: '❓' },
     ];
 
+    if (!isExpanded) {
+        return (
+            <div 
+                onClick={() => setIsExpanded(true)}
+                className="bg-white rounded-2xl shadow-sm border border-neutral-light p-3 mb-6 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors active:scale-[0.99] select-none"
+            >
+                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
+                <div className="flex-grow bg-neutral-light/50 rounded-full px-4 py-2.5 text-neutral-500 text-sm font-medium border border-transparent">
+                    Vad tänker du på? Dela med dig...
+                </div>
+                <div className="p-2 text-neutral-400 hover:text-primary transition-colors">
+                    <ImageIcon className="w-6 h-6" />
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-neutral-light p-4 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-neutral-light p-4 mb-6 relative animate-fade-in">
+            {/* Close Button */}
+            <button 
+                onClick={() => setIsExpanded(false)}
+                className="absolute top-2 right-2 p-2 text-neutral-400 hover:text-neutral-dark rounded-full hover:bg-neutral-light transition-colors z-10"
+                title="Stäng"
+            >
+                <XMarkIcon className="w-5 h-5" />
+            </button>
+
             <div className="flex gap-3">
                 <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={48} className="flex-shrink-0" />
                 <div className="flex-grow">
                     <textarea
+                        autoFocus
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         placeholder="Vad tänker du på? Dela med dig till dina kompisar..."
-                        className="w-full bg-neutral-light/50 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[80px] resize-none"
+                        className="w-full bg-neutral-light/50 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[100px] resize-none pr-8"
                     />
                     {image && (
                         <div className="relative mt-2 inline-block">
