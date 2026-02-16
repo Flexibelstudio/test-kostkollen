@@ -288,8 +288,9 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                 profileToSave.goalStartMuscleMassKg = null;
             }
             
-            // FIX: Set start date to today when saving a new full goal
-            profileToSave.goalStartDate = new Date().toISOString().split('T')[0];
+            // FIX: Set start date to FULL ISO STRING to include time.
+            // This ensures logs created *before* this moment on the same day are filtered out.
+            profileToSave.goalStartDate = new Date().toISOString();
         }
 
         onSave(profileToSave, newGoals);
