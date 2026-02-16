@@ -473,17 +473,18 @@ const Dashboard: React.FC<DashboardProps> = ({
             recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
             
             if (options?.saveAsCommon) {
+                const timestamp = Date.now();
                 const newCommonId = await addCommonMeal(currentUser.uid, {
                     name: newMeal.nutritionalInfo.foodItem || 'Måltid',
                     nutritionalInfo: newMeal.nutritionalInfo,
-                    timestamp: Date.now()
+                    timestamp
                 });
-                // Fix: Use the actual ID from Firestore for the local state
+                // Fix: Use the actual ID from Firestore for the local state immediately
                 setCommonMeals(prev => [...prev, { 
                     id: newCommonId, 
                     name: newMeal.nutritionalInfo.foodItem || 'Måltid', 
                     nutritionalInfo: newMeal.nutritionalInfo, 
-                    timestamp: Date.now() 
+                    timestamp
                 }]); 
             }
 
@@ -1040,7 +1041,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setShowCameraModal(true); }} />}
             {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
-            {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp: Date.now() }); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
+            {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
             {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => setShowNutritionLabelResultModal(false)} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
             
             {appStatus !== 'idle' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
