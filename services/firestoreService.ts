@@ -26,7 +26,8 @@ import {
     increment,
     runTransaction,
     arrayUnion,
-    startAfter
+    startAfter,
+    QuerySnapshot
 } from "@firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import type { 
@@ -50,7 +51,6 @@ import type {
     PeppkompisRequest,
     BuddyDetails,
     TimelineEvent,
-    Achievement,
     TimelineComment,
     Reactions,
     PostCategory
@@ -379,35 +379,19 @@ export async function fetchMealLogsForDate(userId: string, dateUID: string): Pro
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoggedMeal[];
 }
 
-/* ===== Timeline ===== */
+/* ===== Timeline Helper ===== */
 
-// New Paginated Fetch
-export async function fetchCommunityTimeline(
-  currentUserId: string, 
-  lastSnapshot: any = null, 
-  limitCount: number = 10
-): Promise<{ events: TimelineEvent[], lastDoc: any }> {
-  
-  const timelineRef = collection(db, 'communityTimeline');
-  
-  let q = query(
-    timelineRef,
-    where('visibleTo', 'array-contains', currentUserId),
-    orderBy('timestamp', 'desc'),
-    limit(limitCount)
-  );
-
-  if (lastSnapshot) {
-      q = query(q, startAfter(lastSnapshot));
-  }
-  
-  try {
-    const snapshot = await getDocsSafe(q);
+// Helper to fetch sub-collections (comments/likes) for events
+const enrichTimelineEvents = async (snapshot: QuerySnapshot): Promise<{ events: TimelineEvent[], lastDoc: any }> => {
+    if (snapshot.empty) {
+        return { events: [], lastDoc: null };
+    }
     const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-
+    
     const eventsPromises = snapshot.docs.map(async (doc) => {
         const eventData = { id: doc.id, ...doc.data() } as TimelineEvent;
         
+        // Fetch comments subcollection
         const commentsRef = collection(db, 'communityTimeline', eventData.id, 'comments');
         const commentsQuery = query(commentsRef, orderBy('timestamp', 'asc'));
         const commentsSnapshot = await getDocsSafe(commentsQuery);
@@ -415,6 +399,7 @@ export async function fetchCommunityTimeline(
         const commentsWithLikesPromises = commentsSnapshot.docs.map(async (commentDoc) => {
             const commentData = { id: commentDoc.id, ...commentDoc.data() } as TimelineComment;
             
+            // Fetch likes subcollection for each comment
             const likesRef = collection(db, 'communityTimeline', eventData.id, 'comments', commentDoc.id, 'likes');
             const likesSnapshot = await getDocsSafe(likesRef);
             
@@ -433,7 +418,54 @@ export async function fetchCommunityTimeline(
 
     const events = await Promise.all(eventsPromises);
     return { events, lastDoc };
+};
 
+/* ===== Timeline ===== */
+
+// 1. Listen for NEW events (Real-time)
+export function listenToCommunityTimeline(
+  userId: string, 
+  callback: (data: { events: TimelineEvent[], lastDoc: any }) => void,
+  limitCount: number = 20
+) {
+  const q = query(
+    collection(db, 'communityTimeline'),
+    where('visibleTo', 'array-contains', userId),
+    orderBy('timestamp', 'desc'),
+    limit(limitCount)
+  );
+
+  return onSnapshot(q, async (snapshot) => {
+    // Note: async inside onSnapshot callback works, but data might lag slightly behind the sync snapshot emission.
+    // This is generally acceptable for this use case.
+    const { events, lastDoc } = await enrichTimelineEvents(snapshot);
+    callback({ events, lastDoc });
+  }, (error) => {
+    console.error("Error listening to timeline:", error);
+  });
+}
+
+// 2. Fetch OLDER events (Pagination)
+export async function fetchCommunityTimeline(
+  currentUserId: string, 
+  lastSnapshot: any = null, 
+  limitCount: number = 10
+): Promise<{ events: TimelineEvent[], lastDoc: any }> {
+  
+  let q = query(
+    collection(db, 'communityTimeline'),
+    where('visibleTo', 'array-contains', currentUserId),
+    orderBy('timestamp', 'desc'),
+    limit(limitCount)
+  );
+
+  if (lastSnapshot) {
+      q = query(q, startAfter(lastSnapshot));
+  }
+  
+  try {
+    const snapshot = await getDocsSafe(q);
+    return enrichTimelineEvents(snapshot);
   } catch (error: any) {
       console.error("Error fetching community timeline:", error);
       if (error.code === 'failed-precondition') {

@@ -13,6 +13,7 @@ import {
     addCommentToTimelineEvent,
     toggleLikeOnComment,
     fetchCommunityTimeline,
+    listenToCommunityTimeline,
     createUserPost,
     cancelFriendRequest
 } from '../services/firestoreService';
@@ -997,41 +998,53 @@ export const CommunityView: React.FC<{
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera'>(initialTab);
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
   
-  // Pagination State
-  const [visibleEvents, setVisibleEvents] = useState<TimelineEvent[]>([]);
+  // Real-time & Pagination State
+  const [realtimeEvents, setRealtimeEvents] = useState<TimelineEvent[]>([]);
+  const [historicalEvents, setHistoricalEvents] = useState<TimelineEvent[]>([]);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  // Initial fetch for pagination
+  // Combine and deduplicate
+  const visibleEvents = useMemo(() => {
+      const all = [...realtimeEvents, ...historicalEvents];
+      const seen = new Set();
+      return all.filter(e => {
+          if (seen.has(e.id)) return false;
+          seen.add(e.id);
+          return true;
+      }).sort((a,b) => b.timestamp - a.timestamp);
+  }, [realtimeEvents, historicalEvents]);
+
+  // Initial Real-time Listener
   useEffect(() => {
-      const loadInitial = async () => {
-          if (timelineEvents.length > 0) {
-              // If we already have events (e.g. passed from parent or optimistic update), use them first
-              // But we should really fetch fresh paginated data here to ensure sync
-              // For now, let's reset and fetch fresh
-          }
-          
-          try {
-             const { events, lastDoc: newLastDoc } = await fetchCommunityTimeline(currentUser.uid, null, 10);
-             setVisibleEvents(events);
-             setLastDoc(newLastDoc);
-             setHasMore(events.length === 10);
-          } catch (e) {
-              console.error("Failed to load initial timeline", e);
+      let unsubscribe: () => void;
+      
+      const setupListener = async () => {
+          if (activeTab === 'flode' && currentUser) {
+              unsubscribe = listenToCommunityTimeline(currentUser.uid, ({ events, lastDoc: newLastDoc }) => {
+                  setRealtimeEvents(events);
+                  // If we haven't loaded any history yet, this snapshot's last doc is our cursor for pagination
+                  if (historicalEvents.length === 0) {
+                      setLastDoc(newLastDoc);
+                      setHasMore(events.length >= 20); // Assuming listener limit is 20
+                  }
+              });
           }
       };
-      if (activeTab === 'flode') {
-          loadInitial();
-      }
-  }, [currentUser.uid, activeTab]);
+      
+      setupListener();
+      return () => {
+          if (unsubscribe) unsubscribe();
+      };
+  }, [currentUser.uid, activeTab]); // Dependencies: only re-run if user or tab changes
 
   const loadMoreEvents = async () => {
       if (isLoadingMore || !lastDoc) return;
       setIsLoadingMore(true);
       try {
           const { events, lastDoc: newLastDoc } = await fetchCommunityTimeline(currentUser.uid, lastDoc, 10);
-          setVisibleEvents(prev => [...prev, ...events]);
+          setHistoricalEvents(prev => [...prev, ...events]);
           setLastDoc(newLastDoc);
           setHasMore(events.length === 10);
       } catch (e) {
@@ -1042,7 +1055,8 @@ export const CommunityView: React.FC<{
   };
 
     const handlePostCreated = (newPost: TimelineEvent) => {
-        setVisibleEvents(prev => [newPost, ...prev]);
+        // Optimistic update handled by listener usually, but for instant feedback:
+        setRealtimeEvents(prev => [newPost, ...prev]);
     };
     
     const handleTogglePepp = async (event: TimelineEvent, newEmoji: string) => {
@@ -1050,8 +1064,8 @@ export const CommunityView: React.FC<{
         playAudio('uiClick', 0.6);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
-        // Optimistic update on visible events
-        setVisibleEvents(prevEvents => prevEvents.map(e => {
+        // Helper to update reaction in a list of events
+        const updateEventList = (list: TimelineEvent[]) => list.map(e => {
             if (e.id === event.id) {
                 const newReactions: Reactions = JSON.parse(JSON.stringify(e.reactions || {}));
                 let previousReactionEmoji: string | null = null;
@@ -1074,13 +1088,17 @@ export const CommunityView: React.FC<{
                 return { ...e, reactions: newReactions };
             }
             return e;
-        }));
+        });
+
+        // Optimistically update both lists
+        setRealtimeEvents(prev => updateEventList(prev));
+        setHistoricalEvents(prev => updateEventList(prev));
 
         try { 
             await togglePeppOnTimelineEvent(fromUser, event, newEmoji); 
         } catch (error) {
             setToastNotification({ message: 'Kunde inte skicka reaktion.', type: 'error' });
-            // Revert would go here ideally
+            // Revert logic omitted for brevity
         }
     };
     
@@ -1088,7 +1106,7 @@ export const CommunityView: React.FC<{
         playAudio('uiClick', 0.5);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
-        setVisibleEvents(prevEvents => prevEvents.map(e => {
+        const updateEventList = (list: TimelineEvent[]) => list.map(e => {
             if (e.id === event.id) {
                 const newComments = (e.comments || []).map(c => {
                     if (c.id === commentId) {
@@ -1102,7 +1120,10 @@ export const CommunityView: React.FC<{
                 return { ...e, comments: newComments };
             }
             return e;
-        }));
+        });
+
+        setRealtimeEvents(prev => updateEventList(prev));
+        setHistoricalEvents(prev => updateEventList(prev));
         
         try { await toggleLikeOnComment(fromUser, event, commentId); } catch (error) {
             setToastNotification({ message: 'Kunde inte gilla kommentar.', type: 'error' });
@@ -1123,9 +1144,12 @@ export const CommunityView: React.FC<{
             likes: {} 
         };
         
-        setVisibleEvents(prevEvents => prevEvents.map(e => 
+        const updateEventList = (list: TimelineEvent[]) => list.map(e => 
             e.id === event.id ? { ...e, comments: [...(e.comments || []), optimisticComment] } : e
-        ));
+        );
+
+        setRealtimeEvents(prev => updateEventList(prev));
+        setHistoricalEvents(prev => updateEventList(prev));
 
         try {
             const commentDataForFirestore = { 
@@ -1136,13 +1160,8 @@ export const CommunityView: React.FC<{
                 timestamp: optimisticComment.timestamp,
                 likes: optimisticComment.likes,
             };
-            const newCommentId = await addCommentToTimelineEvent(event.id, commentDataForFirestore);
-            setVisibleEvents(prevEvents => prevEvents.map(e => {
-                if (e.id === event.id) {
-                    return { ...e, comments: (e.comments || []).map(c => c.id === optimisticComment.id ? { ...c, id: newCommentId } : c) };
-                }
-                return e;
-            }));
+            await addCommentToTimelineEvent(event.id, commentDataForFirestore);
+            // Real update comes via snapshot or next fetch
         } catch (error) {
             setToastNotification({ message: 'Kunde inte lägga till kommentar.', type: 'error' });
         }
