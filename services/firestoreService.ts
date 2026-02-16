@@ -1,4 +1,5 @@
-import { db, functions } from "../firebase"; // Import functions
+
+import { db, functions } from "../firebase";
 import type { User } from '@firebase/auth';
 import { 
     collection, 
@@ -25,9 +26,9 @@ import {
     increment,
     runTransaction,
     arrayUnion,
-    Transaction,
+    startAfter
 } from "@firebase/firestore";
-import { httpsCallable } from "firebase/functions"; // Import httpsCallable
+import { httpsCallable } from "firebase/functions";
 import type { 
     LoggedMeal, 
     UserProfileData, 
@@ -52,9 +53,9 @@ import type {
     Achievement,
     TimelineComment,
     Reactions,
-    CompletedGoal,
+    PostCategory
 } from '../types';
-import { DEFAULT_GOALS, LEVEL_DEFINITIONS, DEFAULT_USER_PROFILE } from '../constants';
+import { DEFAULT_GOALS, DEFAULT_USER_PROFILE } from '../constants';
 import { courseLessons, menopauseCourseLessons } from '../courseData.ts';
 import { getWeekInfo } from "../utils/dateUtils.ts";
 
@@ -379,6 +380,109 @@ export async function fetchMealLogsForDate(userId: string, dateUID: string): Pro
 }
 
 /* ===== Timeline ===== */
+
+// New Paginated Fetch
+export async function fetchCommunityTimeline(
+  currentUserId: string, 
+  lastSnapshot: any = null, 
+  limitCount: number = 10
+): Promise<{ events: TimelineEvent[], lastDoc: any }> {
+  
+  const timelineRef = collection(db, 'communityTimeline');
+  
+  let q = query(
+    timelineRef,
+    where('visibleTo', 'array-contains', currentUserId),
+    orderBy('timestamp', 'desc'),
+    limit(limitCount)
+  );
+
+  if (lastSnapshot) {
+      q = query(q, startAfter(lastSnapshot));
+  }
+  
+  try {
+    const snapshot = await getDocsSafe(q);
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+
+    const eventsPromises = snapshot.docs.map(async (doc) => {
+        const eventData = { id: doc.id, ...doc.data() } as TimelineEvent;
+        
+        const commentsRef = collection(db, 'communityTimeline', eventData.id, 'comments');
+        const commentsQuery = query(commentsRef, orderBy('timestamp', 'asc'));
+        const commentsSnapshot = await getDocsSafe(commentsQuery);
+        
+        const commentsWithLikesPromises = commentsSnapshot.docs.map(async (commentDoc) => {
+            const commentData = { id: commentDoc.id, ...commentDoc.data() } as TimelineComment;
+            
+            const likesRef = collection(db, 'communityTimeline', eventData.id, 'comments', commentDoc.id, 'likes');
+            const likesSnapshot = await getDocsSafe(likesRef);
+            
+            const likesMap: { [uid: string]: string } = {};
+            likesSnapshot.forEach(likeDoc => {
+                likesMap[likeDoc.id] = likeDoc.data().userName; 
+            });
+            
+            commentData.likes = likesMap;
+            return commentData;
+        });
+        
+        eventData.comments = await Promise.all(commentsWithLikesPromises);
+        return eventData;
+    });
+
+    const events = await Promise.all(eventsPromises);
+    return { events, lastDoc };
+
+  } catch (error: any) {
+      console.error("Error fetching community timeline:", error);
+      if (error.code === 'failed-precondition') {
+          console.error("Firestore Index Missing! Please check the Firebase Console link in the error object above to create it.");
+      }
+      throw error;
+  }
+}
+
+export async function createUserPost(
+  userId: string,
+  text: string,
+  category: PostCategory,
+  imageBase64?: string
+) {
+    const userDocRef = doc(db, 'users', userId);
+    const userDocSnap = await getDocSafe(userDocRef);
+    if (!userDocSnap.exists()) throw new Error("User not found");
+    const userData = userDocSnap.data() as FirestoreUserDocument;
+
+    const buddies = await fetchBuddies(userId);
+    const buddyUids = buddies.map(b => b.uid);
+    const visibleTo = [userId, ...buddyUids];
+
+    const eventId = `post_${userId}_${Date.now()}`;
+    const timelineDocRef = doc(db, "communityTimeline", eventId);
+
+    const postEvent: Omit<TimelineEvent, 'id'> = {
+        type: 'user_post',
+        timestamp: Date.now(),
+        title: 'skapade ett inlägg',
+        description: text,
+        icon: category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
+        userId: userId,
+        userName: userData.displayName,
+        userPhotoURL: userData.photoURL ?? null,
+        gender: userData.gender,
+        visibleTo: visibleTo,
+        reactions: {},
+        comments: [],
+        relatedDocPath: `users/${userId}/posts/${eventId}`,
+        category: category,
+        imageUrl: imageBase64 // Note: Saving base64 directly to Firestore doc. Keep images small (<500kb).
+    };
+
+    await setDoc(timelineDocRef, cleanFirestoreData(postEvent));
+    return { id: eventId, ...postEvent };
+}
+
 
 export async function addTimelineEvent(
   userId: string,
@@ -892,58 +996,6 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
   const buddiesRef = collection(db, 'users', userId, 'buddies');
   const snapshot = await getDocsSafe(buddiesRef);
   return snapshot.docs.map(doc => doc.data() as Peppkompis);
-}
-
-export async function fetchCommunityTimeline(currentUserId: string): Promise<TimelineEvent[]> {
-  const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
-
-  const timelineRef = collection(db, 'communityTimeline');
-  const q = query(
-    timelineRef,
-    where('visibleTo', 'array-contains', currentUserId),
-    where('timestamp', '>=', threeDaysAgo)
-  );
-  
-  try {
-    const snapshot = await getDocsSafe(q);
-
-    const allBaseEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TimelineEvent));
-    allBaseEvents.sort((a, b) => b.timestamp - a.timestamp);
-
-    const recentEvents = allBaseEvents.slice(0, 50);
-
-    const eventsWithCommentsPromises = recentEvents.map(async (eventData) => {
-        const commentsRef = collection(db, 'communityTimeline', eventData.id, 'comments');
-        const commentsQuery = query(commentsRef, orderBy('timestamp', 'asc'));
-        const commentsSnapshot = await getDocsSafe(commentsQuery);
-        
-        const commentsWithLikesPromises = commentsSnapshot.docs.map(async (commentDoc) => {
-        const commentData = { id: commentDoc.id, ...commentDoc.data() } as TimelineComment;
-        
-        const likesRef = collection(db, 'communityTimeline', eventData.id, 'comments', commentDoc.id, 'likes');
-        const likesSnapshot = await getDocsSafe(likesRef);
-        
-        const likesMap: { [uid: string]: string } = {};
-        likesSnapshot.forEach(likeDoc => {
-            likesMap[likeDoc.id] = likeDoc.data().userName; 
-        });
-        
-        commentData.likes = likesMap;
-        return commentData;
-        });
-        
-        eventData.comments = await Promise.all(commentsWithLikesPromises);
-        return eventData;
-    });
-
-    return await Promise.all(eventsWithCommentsPromises);
-  } catch (error: any) {
-      console.error("Error fetching community timeline:", error);
-      if (error.code === 'failed-precondition') {
-          console.error("Firestore Index Missing! Please check the Firebase Console link in the error object above to create it.");
-      }
-      throw error;
-  }
 }
 
 export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetails[]> {

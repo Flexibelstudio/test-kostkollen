@@ -542,7 +542,10 @@ export type TimelineEventType =
   | "level"
   | "goal"
   | "goal_achieved"
-  | "goal_set";
+  | "goal_set"
+  | "user_post"; // Added user_post
+
+export type PostCategory = 'general' | 'food' | 'workout' | 'question' | 'pepp';
 
 export interface Reactions {
   [emoji: string]: {
@@ -570,6 +573,10 @@ export interface TimelineEvent {
   title: string;
   description: string;
   icon: string;
+
+  // New fields for User Posts
+  imageUrl?: string; // Optional image (Base64 or URL)
+  category?: PostCategory; // For filtering/styling
 
   // New reaction and comment structure
   reactions: Reactions;
