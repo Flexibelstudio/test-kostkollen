@@ -83,13 +83,29 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   let muscleChangeNum: number | undefined;
   let fatChangeNum: number | undefined;
 
-  if (latestWeightLog && previousWeightLog) {
-      weightChangeNum = latestWeightLog.weightKg - previousWeightLog.weightKg;
-      if (latestWeightLog.skeletalMuscleMassKg != null && previousWeightLog.skeletalMuscleMassKg != null) {
-          muscleChangeNum = latestWeightLog.skeletalMuscleMassKg - previousWeightLog.skeletalMuscleMassKg;
-      }
-      if (latestWeightLog.bodyFatMassKg != null && previousWeightLog.bodyFatMassKg != null) {
-          fatChangeNum = latestWeightLog.bodyFatMassKg - previousWeightLog.bodyFatMassKg;
+  if (latestWeightLog) {
+      if (previousWeightLog) {
+          // Case 1: We have at least two logs in the current period -> Compare latest vs previous
+          weightChangeNum = latestWeightLog.weightKg - previousWeightLog.weightKg;
+          if (latestWeightLog.skeletalMuscleMassKg != null && previousWeightLog.skeletalMuscleMassKg != null) {
+              muscleChangeNum = latestWeightLog.skeletalMuscleMassKg - previousWeightLog.skeletalMuscleMassKg;
+          }
+          if (latestWeightLog.bodyFatMassKg != null && previousWeightLog.bodyFatMassKg != null) {
+              fatChangeNum = latestWeightLog.bodyFatMassKg - previousWeightLog.bodyFatMassKg;
+          }
+      } else {
+          // Case 2: We only have ONE log in the current period (fresh start) -> Compare latest vs Start Values
+          if (userProfile.goalStartWeight != null) {
+             weightChangeNum = latestWeightLog.weightKg - userProfile.goalStartWeight;
+          }
+          
+          if (latestWeightLog.skeletalMuscleMassKg != null && userProfile.goalStartMuscleMassKg != null) {
+             muscleChangeNum = latestWeightLog.skeletalMuscleMassKg - userProfile.goalStartMuscleMassKg;
+          }
+          
+          if (latestWeightLog.bodyFatMassKg != null && userProfile.goalStartFatMassKg != null) {
+             fatChangeNum = latestWeightLog.bodyFatMassKg - userProfile.goalStartFatMassKg;
+          }
       }
   }
 

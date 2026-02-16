@@ -1003,8 +1003,18 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
   };
 
-  const handleSaveWellbeingAndProceed = async () => {
-      setShowMentalWellbeingModal(false);
+  const handleSaveWellbeingAndProceed = async (data: MentalWellbeingData) => {
+      if(!currentUser) return;
+      try {
+          // You might want to save this to Firestore here as well, 
+          // but based on App.tsx, the saving logic seems to be missing or implied.
+          // Assuming `addMentalWellbeingLog` is available or similar.
+          // For now, just close modal and open weight log as requested.
+          setShowMentalWellbeingModal(false);
+          setShowLogWeightModal(true); // Chain to weight log
+      } catch(e) {
+          console.error(e);
+      }
   };
 
   const handleCloseUserProfileModal = () => {
@@ -1523,7 +1533,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
         {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
         {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
-        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} /></div>}
+        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} /></div>}
         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
         <AICoachModal show={showAICoachModal} onClose={() => { setShowAICoachModal(false); setCoachInitialContext(null); }} analysisContext={{ userProfile, goals, allWeightLogs: weightLogs, last30DaysSummaries: Object.values(pastDaysSummary), mentalWellbeingLogs, goalTimeline: calculateGoalTimeline(userProfile), currentStreak: streakData.currentStreak }} initialContext={coachInitialContext} />
         {showGamificationModal && (
