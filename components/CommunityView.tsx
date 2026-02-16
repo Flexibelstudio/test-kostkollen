@@ -102,6 +102,7 @@ const CreatePostWidget: FC<{
     const [category, setCategory] = useState<PostCategory>('general');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -159,12 +160,15 @@ const CreatePostWidget: FC<{
     };
 
     const categories: { id: PostCategory, label: string, icon: string }[] = [
-        { id: 'general', label: 'Allmänt', icon: '📝' },
         { id: 'pepp', label: 'Pepp', icon: '💖' },
         { id: 'workout', label: 'Träning', icon: '💪' },
         { id: 'food', label: 'Mat', icon: '🥗' },
         { id: 'question', label: 'Fråga', icon: '❓' },
     ];
+
+    const toggleCategory = (catId: PostCategory) => {
+        setCategory(prev => prev === catId ? 'general' : catId);
+    };
 
     if (!isExpanded) {
         return (
@@ -175,9 +179,6 @@ const CreatePostWidget: FC<{
                 <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
                 <div className="flex-grow bg-neutral-light/50 rounded-full px-4 py-2.5 text-neutral-500 text-sm font-medium border border-transparent">
                     Vad tänker du på? Dela med dig...
-                </div>
-                <div className="p-2 text-neutral-400 hover:text-primary transition-colors">
-                    <ImageIcon className="w-6 h-6" />
                 </div>
             </div>
         );
@@ -223,7 +224,7 @@ const CreatePostWidget: FC<{
                     {categories.map(cat => (
                         <button
                             key={cat.id}
-                            onClick={() => setCategory(cat.id)}
+                            onClick={() => toggleCategory(cat.id)}
                             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap border ${
                                 category === cat.id 
                                     ? 'bg-primary-100 border-primary text-primary-darker' 
@@ -235,7 +236,7 @@ const CreatePostWidget: FC<{
                     ))}
                 </div>
 
-                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                     <input 
                         type="file" 
                         ref={fileInputRef} 
@@ -243,10 +244,27 @@ const CreatePostWidget: FC<{
                         accept="image/*" 
                         onChange={handleImageSelect} 
                     />
+                    <input 
+                        type="file" 
+                        ref={cameraInputRef} 
+                        className="hidden" 
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleImageSelect} 
+                    />
+                    
+                    <button 
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors"
+                        title="Ta bild"
+                    >
+                        <CameraIcon className="w-5 h-5" />
+                    </button>
+
                     <button 
                         onClick={() => fileInputRef.current?.click()}
                         className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors"
-                        title="Lägg till bild"
+                        title="Ladda upp bild"
                     >
                         <ImageIcon className="w-5 h-5" />
                     </button>
@@ -254,7 +272,7 @@ const CreatePostWidget: FC<{
                     <button 
                         onClick={handleSubmit}
                         disabled={(!text.trim() && !image) || isSubmitting}
-                        className="px-5 py-2 bg-primary text-white text-sm font-bold rounded-full shadow-md hover:bg-primary-darker active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-5 py-2 bg-primary text-white text-sm font-bold rounded-full shadow-md hover:bg-primary-darker active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-2"
                     >
                         {isSubmitting ? <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent" /> : <Send className="w-4 h-4" />}
                         Publicera
