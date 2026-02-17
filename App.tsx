@@ -395,7 +395,7 @@ export const App = () => {
             setDailyLog(loadedLog);
             setWaterLoggedMl(loadedWater);
         } catch (error: any) {
-            setToastNotification({ message: 'Kunde inte ladda dagens data.', type: 'error'});
+            setToastNotification({ message: 'Kunde inte ladda dagens data.', type: 'error' });
         } finally {
             setAppStatus(AppStatus.IDLE);
         }
@@ -598,7 +598,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 fetchBuddyDetailsList(currentUser.uid),
             ]);
             // FIX: Removed redundant filtering. The Firestore query already filters by 'visibleTo'.
-            // Filtering here again risks hiding events if buddyDetails fails to load or sync perfectly.
             setTimelineEvents(events);
             setBuddyDetails(details);
         } catch (error) {
@@ -1517,6 +1516,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
               isLoading={isLoadingCommunityData}
               onDataChanged={loadCommunityData}
               lastViewTimestamp={lastCommunityViewTimestamp}
+              currentStreak={streakData.currentStreak}
             />
          )}
         </main>

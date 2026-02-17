@@ -19,39 +19,15 @@ import {
 } from '../services/firestoreService';
 import { 
     HeartIcon, 
-    TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ChevronDownIcon, ArrowRightIcon,
-    ShareIcon, PencilIcon, CameraIcon, UploadIcon
+    TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
+    ShareIcon, PencilIcon, CameraIcon
 } from './icons';
-import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, MessageCircle, RefreshCw } from 'lucide-react';
+import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 import Lightbox from './Lightbox';
 
-// --- HELPER FUNCTION ---
-const formatChange = (change: number | undefined, isFirstEntry: boolean, invertColors: boolean = false): { text: string; colorClass: string } => {
-    if (isFirstEntry) {
-        return { text: '-', colorClass: 'text-neutral' };
-    }
-    if (change === undefined || change === null || isNaN(change)) {
-        return { text: '-', colorClass: 'text-neutral' };
-    }
-
-    if (Math.abs(change) < 0.05) {
-        return { text: '±0,0 kg', colorClass: 'text-accent' };
-    }
-
-    const sign = change > 0 ? '+' : '';
-    const formattedValue = `${sign}${change.toFixed(1).replace('.', ',')} kg`;
-
-    let colorClass = 'text-neutral';
-    if (change > 0) {
-        colorClass = invertColors ? 'text-red-600' : 'text-primary-darker';
-    } else if (change < 0) {
-        colorClass = invertColors ? 'text-primary-darker' : 'text-red-600';
-    }
-    
-    return { text: formattedValue, colorClass };
-};
+// --- HELPER FUNCTIONS ---
 
 const resizeImage = (file: File, maxSize: number): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -87,6 +63,64 @@ const resizeImage = (file: File, maxSize: number): Promise<string> => {
     });
 };
 
+const calculateProgressPercentage = (
+    method: 'scale' | 'inbody' | undefined,
+    startWeight?: number, currentWeight?: number, desiredWeightChange?: number,
+    startFat?: number, currentFat?: number, desiredFatChange?: number,
+    startMuscle?: number, currentMuscle?: number, desiredMuscleChange?: number,
+    isGoalCompleted?: boolean
+): number => {
+    if (isGoalCompleted) return 100;
+
+    let start, current, goalChange;
+
+    if (method === 'scale') {
+        start = startWeight;
+        current = currentWeight;
+        goalChange = desiredWeightChange || 0;
+    } else { // inbody
+        if (desiredFatChange && desiredFatChange < 0) {
+            start = startFat;
+            current = currentFat;
+            goalChange = desiredFatChange;
+        } else if (desiredMuscleChange && desiredMuscleChange > 0) {
+            start = startMuscle;
+            current = currentMuscle;
+            goalChange = desiredMuscleChange;
+        } else { // Fallback to weight
+             start = startWeight;
+             current = currentWeight;
+             goalChange = 0;
+        }
+    }
+    
+    if (start == null || current == null || !goalChange) return 0;
+    
+    const totalChangeNeeded = Math.abs(goalChange);
+    // Calc achieved change based on direction
+    const changeAchieved = goalChange > 0 ? (current - start) : (start - current);
+    
+    if (totalChangeNeeded < 0.1) return 100;
+
+    const progressRaw = (Math.max(0, changeAchieved) / totalChangeNeeded) * 100;
+    return Math.max(0, Math.min(progressRaw, 100));
+};
+
+const getGoalShortDescription = (
+    method: 'scale' | 'inbody' | undefined,
+    desiredWeightChange?: number,
+    desiredFatChange?: number,
+    desiredMuscleChange?: number
+): string => {
+    if (method === 'scale' && desiredWeightChange) {
+        return `Mål: ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange} kg`;
+    } else {
+        if (desiredFatChange) return `Mål: ${desiredFatChange} kg fett`;
+        if (desiredMuscleChange) return `Mål: +${desiredMuscleChange} kg muskler`;
+    }
+    return 'Mål: Bibehålla';
+};
+
 
 // --- SUB-COMPONENTS ---
 
@@ -110,7 +144,7 @@ const CreatePostWidget: FC<{
             try {
                 const resized = await resizeImage(file, 1024);
                 setImage(resized);
-                setIsExpanded(true); // Ensure expanded if image is selected via other means if added
+                setIsExpanded(true); 
             } catch (error) {
                 setToastNotification({ message: 'Kunde inte ladda upp bild.', type: 'error' });
             }
@@ -125,7 +159,6 @@ const CreatePostWidget: FC<{
         try {
             const newPost = await createUserPost(currentUser.uid, text, category, image || undefined);
             
-            // Optimistic update
             const optimisticEvent: TimelineEvent = {
                 id: newPost.id,
                 type: 'user_post',
@@ -141,7 +174,8 @@ const CreatePostWidget: FC<{
                 comments: [],
                 relatedDocPath: `users/${currentUser.uid}/posts/${newPost.id}`,
                 category: category,
-                imageUrl: image || undefined
+                imageUrl: image || undefined,
+                visibleTo: newPost.visibleTo
             };
             
             onPostCreated(optimisticEvent);
@@ -150,7 +184,7 @@ const CreatePostWidget: FC<{
             setCategory('general');
             setToastNotification({ message: 'Inlägg publicerat!', type: 'success' });
             playAudio('logSuccess');
-            setIsExpanded(false); // Collapse after successful post
+            setIsExpanded(false);
         } catch (error) {
             console.error(error);
             setToastNotification({ message: 'Kunde inte skapa inlägg.', type: 'error' });
@@ -186,7 +220,6 @@ const CreatePostWidget: FC<{
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-neutral-light p-4 mb-6 relative animate-fade-in">
-            {/* Close Button */}
             <button 
                 onClick={() => setIsExpanded(false)}
                 className="absolute top-2 right-2 p-2 text-neutral-400 hover:text-neutral-dark rounded-full hover:bg-neutral-light transition-colors z-10"
@@ -237,35 +270,14 @@ const CreatePostWidget: FC<{
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        accept="image/*" 
-                        onChange={handleImageSelect} 
-                    />
-                    <input 
-                        type="file" 
-                        ref={cameraInputRef} 
-                        className="hidden" 
-                        accept="image/*"
-                        capture="environment"
-                        onChange={handleImageSelect} 
-                    />
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
+                    <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
                     
-                    <button 
-                        onClick={() => cameraInputRef.current?.click()}
-                        className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors"
-                        title="Ta bild"
-                    >
+                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ta bild">
                         <CameraIcon className="w-5 h-5" />
                     </button>
 
-                    <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors"
-                        title="Ladda upp bild"
-                    >
+                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ladda upp bild">
                         <ImageIcon className="w-5 h-5" />
                     </button>
                     
@@ -291,69 +303,20 @@ const BuddyCard: FC<{
 }> = ({ buddy, achievements, onRemove, currentUser }) => {
     const [showMenu, setShowMenu] = useState(false);
 
-    
     const progressPercentage = useMemo(() => {
-        if (buddy.mainGoalCompleted) return 100;
-
-        let start, current, goalChange;
-
-        if (buddy.measurementMethod === 'scale') {
-            start = buddy.goalStartWeight;
-            current = buddy.currentWeight;
-            goalChange = buddy.desiredWeightChangeKg || 0;
-        } else { // inbody
-            if (buddy.desiredFatMassChangeKg && buddy.desiredFatMassChangeKg < 0) {
-                start = buddy.goalStartFatMassKg;
-                current = buddy.currentFatMass;
-                goalChange = buddy.desiredFatMassChangeKg;
-            } else if (buddy.desiredMuscleMassChangeKg && buddy.desiredMuscleMassChangeKg > 0) {
-                start = buddy.goalStartMuscleMassKg;
-                current = buddy.currentMuscleMass;
-                goalChange = buddy.desiredMuscleMassChangeKg;
-            } else { // Fallback to weight if no specific fat/muscle goal is set
-                 start = buddy.goalStartWeight;
-                 current = buddy.currentWeight;
-                 goalChange = 0;
-            }
-        }
-        
-        if (start == null || current == null || goalChange === 0) {
-            return 0;
-        }
-        
-        const target = start + goalChange;
-        const totalChangeNeeded = start - target;
-        const changeAchieved = start - current;
-
-        if (totalChangeNeeded === 0) {
-            return 100;
-        }
-
-        const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
-        return Math.max(0, Math.min(progressRaw, 100));
+        return calculateProgressPercentage(
+            buddy.measurementMethod,
+            buddy.goalStartWeight, buddy.currentWeight, buddy.desiredWeightChangeKg,
+            buddy.goalStartFatMassKg, buddy.currentFatMass, buddy.desiredFatMassChangeKg,
+            buddy.goalStartMuscleMassKg, buddy.currentMuscleMass, buddy.desiredMuscleMassChangeKg,
+            buddy.mainGoalCompleted
+        );
     }, [buddy]);
     
     const goalDescription = useMemo(() => {
-        const { mainGoalCompleted, measurementMethod, desiredWeightChangeKg, desiredFatMassChangeKg, desiredMuscleMassChangeKg, goalSummary } = buddy;
-        if (mainGoalCompleted) return "Mål uppnått!";
-
-        const changes = [];
-        if (measurementMethod === 'scale' && desiredWeightChangeKg) {
-            changes.push(`${desiredWeightChangeKg > 0 ? '+' : ''}${desiredWeightChangeKg.toFixed(1).replace('.',',')} kg vikt`);
-        } else {
-            if (desiredFatMassChangeKg) {
-                changes.push(`${desiredFatMassChangeKg > 0 ? '+' : ''}${desiredFatMassChangeKg.toFixed(1).replace('.',',')} kg fett`);
-            }
-            if (desiredMuscleMassChangeKg) {
-                changes.push(`${desiredMuscleMassChangeKg > 0 ? '+' : ''}${desiredMuscleMassChangeKg.toFixed(1).replace('.',',')} kg muskler`);
-            }
-        }
-
-        if (changes.length > 0) {
-            return `Mål: ${changes.join(' & ')}`;
-        }
-        
-        return goalSummary || 'Inget specifikt mål';
+        if (buddy.mainGoalCompleted) return "Mål uppnått!";
+        const desc = getGoalShortDescription(buddy.measurementMethod, buddy.desiredWeightChangeKg, buddy.desiredFatMassChangeKg, buddy.desiredMuscleMassChangeKg);
+        return desc !== 'Mål: Bibehålla' ? desc : (buddy.goalSummary || 'Inget specifikt mål');
     }, [buddy]);
 
     return (
@@ -371,7 +334,6 @@ const BuddyCard: FC<{
                     </div>
                 </div>
                 
-                {/* Menu Trigger */}
                 <div className="relative">
                     <button 
                         onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
@@ -379,7 +341,6 @@ const BuddyCard: FC<{
                     >
                         <MoreHorizontal className="w-5 h-5" />
                     </button>
-                    
                     {showMenu && (
                         <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
                             <button 
@@ -392,7 +353,6 @@ const BuddyCard: FC<{
                     )}
                 </div>
             </div>
-             {/* Overlay click to close menu */}
             {showMenu && (
                 <div className="fixed inset-0 z-20 cursor-default" onClick={() => setShowMenu(false)}></div>
             )}
@@ -407,6 +367,254 @@ const BuddyCard: FC<{
     );
 };
 
+const renderWeightDescription = (description: string) => {
+    const parts = description.split('\n'); 
+    return (
+        <div className="space-y-1 mt-2">
+            {parts.map(part => {
+                const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
+                if (!match) {
+                    return <p key={part} className="text-base text-neutral-dark">{part}</p>;
+                }
+                
+                const label = match[1];
+                const value = match[2];
+                const changeStr = match[3];
+                const changeNum = parseFloat(changeStr.replace(',', '.'));
+
+                let colorClass = 'text-accent'; 
+                if (changeNum > 0) {
+                    if (label === 'Muskler') colorClass = 'text-primary'; 
+                    else colorClass = 'text-red-600'; 
+                } else if (changeNum < 0) {
+                    if (label === 'Muskler') colorClass = 'text-red-600'; 
+                    else colorClass = 'text-primary'; 
+                }
+
+                return (
+                    <p key={label} className="text-base text-neutral-dark">
+                        <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
+                    </p>
+                );
+            })}
+        </div>
+    );
+};
+
+const TimelineEventCard: FC<{
+    event: TimelineEvent;
+    currentUser: User;
+    userProfile: UserProfileData;
+    onTogglePepp: (event: TimelineEvent, emoji: string) => void;
+    onAddComment: (event: TimelineEvent, text: string) => Promise<void>;
+    onToggleLike: (event: TimelineEvent, commentId: string) => void;
+    onImageClick: (src: string, alt: string) => void;
+    lastViewTimestamp: number | null;
+    buddyDetails: BuddyDetails[]; // Passed for stats lookup
+    currentStreak: number; // Current user's streak
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onImageClick, lastViewTimestamp, buddyDetails, currentStreak }) => {
+    const [newComment, setNewComment] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleCommentSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newComment.trim() || isSubmitting) return;
+        setIsSubmitting(true);
+        await onAddComment(event, newComment);
+        setNewComment('');
+        setIsSubmitting(false);
+    };
+    
+    const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
+    const isNewEvent = lastViewTimestamp !== null && event.timestamp > lastViewTimestamp && event.userId !== currentUser.uid;
+
+    // --- COMPACT STATS LOGIC ---
+    const isCurrentUser = event.userId === currentUser.uid;
+    
+    const stats = useMemo(() => {
+        let s = { streak: 0, progress: 0, goalText: '' };
+        
+        if (isCurrentUser) {
+            s.streak = currentStreak;
+            s.progress = calculateProgressPercentage(
+                userProfile.measurementMethod,
+                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                userProfile.mainGoalCompleted
+            );
+            s.goalText = getGoalShortDescription(userProfile.measurementMethod, userProfile.desiredWeightChangeKg, userProfile.desiredFatMassChangeKg, userProfile.desiredMuscleMassChangeKg);
+        } else {
+            const buddy = buddyDetails.find(b => b.uid === event.userId);
+            if (buddy) {
+                s.streak = buddy.currentStreak || 0;
+                s.progress = calculateProgressPercentage(
+                    buddy.measurementMethod,
+                    buddy.goalStartWeight, buddy.currentWeight, buddy.desiredWeightChangeKg,
+                    buddy.goalStartFatMassKg, buddy.currentFatMass, buddy.desiredFatMassChangeKg,
+                    buddy.goalStartMuscleMassKg, buddy.currentMuscleMass, buddy.desiredMuscleMassChangeKg,
+                    buddy.mainGoalCompleted
+                );
+                s.goalText = getGoalShortDescription(buddy.measurementMethod, buddy.desiredWeightChangeKg, buddy.desiredFatMassChangeKg, buddy.desiredMuscleMassChangeKg);
+            } else {
+                return null; // Not a buddy, don't show stats
+            }
+        }
+        return s;
+    }, [isCurrentUser, currentStreak, userProfile, buddyDetails, event.userId]);
+
+
+    return (
+    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${isNewEvent ? 'bg-green-50/50 border-green-200' : 'bg-white border-neutral-light'}`}>
+        <div className="flex items-start gap-3">
+            <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={42} />
+            <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-start">
+                    <div className="flex flex-col">
+                        <p className="text-sm text-neutral-dark font-medium leading-tight">
+                            <span className="font-bold">{isCurrentUser ? 'Du' : event.userName}</span>
+                            {event.type === 'user_post' ? '' : ` ${event.title}`}
+                        </p>
+                        
+                        {/* --- COMPACT STATS ROW --- */}
+                        {stats && (
+                            <div className="mt-1 mb-2 w-full max-w-[200px]">
+                                <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
+                                    <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {stats.streak}</span>
+                                    <span className="text-neutral-300">|</span>
+                                    <span className="truncate">{stats.goalText}</span>
+                                </div>
+                                <div className="h-1 w-full bg-neutral-light rounded-full overflow-hidden">
+                                    <div className="h-full bg-primary" style={{width: `${stats.progress}%`}} />
+                                </div>
+                            </div>
+                        )}
+                        {/* ------------------------- */}
+                    </div>
+
+                    <span className="text-xs text-neutral whitespace-nowrap ml-2 mt-0.5">
+                        {new Date(event.timestamp).toLocaleString('sv-SE', {
+                            ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
+                                ? { hour: '2-digit', minute: '2-digit' } 
+                                : { month: 'short', day: 'numeric' })
+                        })}
+                    </span>
+                </div>
+                
+                {event.category && event.type === 'user_post' && (
+                    <span className="inline-block px-2 py-0.5 mt-1 rounded text-[10px] font-semibold bg-neutral-light text-neutral-600 uppercase tracking-wide">
+                        {event.icon} {event.category === 'workout' ? 'Träning' : event.category === 'food' ? 'Mat' : event.category === 'pepp' ? 'Pepp' : event.category === 'question' ? 'Fråga' : 'Allmänt'}
+                    </span>
+                )}
+
+                {/* Content Area */}
+                <div className="mt-1">
+                    {event.type === 'weight' ? (
+                        renderWeightDescription(event.description)
+                    ) : (
+                        <p className="text-base text-neutral-dark whitespace-pre-wrap leading-relaxed break-words">{event.description}</p>
+                    )}
+                    
+                    {event.imageUrl && (
+                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px]">
+                             <img 
+                                src={event.imageUrl} 
+                                alt="Inläggsbild" 
+                                className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                                onClick={() => onImageClick(event.imageUrl!, `Bild från ${event.userName}`)}
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+
+        {/* Action Bar */}
+        <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-neutral-light/50 ml-[50px]">
+            {reactions.map(emoji => {
+                const usersWhoReacted = (event.reactions || {})[emoji] || {};
+                const count = Object.keys(usersWhoReacted).length;
+                const hasReacted = !!usersWhoReacted[currentUser.uid];
+
+                return (
+                    <button 
+                        key={emoji} 
+                        onClick={() => onTogglePepp(event, emoji)} 
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all active:scale-95 border
+                            ${hasReacted 
+                                ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
+                                : 'bg-transparent border-transparent hover:bg-neutral-light text-neutral-500 hover:text-neutral-dark'
+                            }`}
+                    >
+                        <span className={`text-lg transition-transform ${hasReacted ? 'scale-110' : ''}`}>{emoji}</span>
+                        {count > 0 && <span className="font-semibold text-xs">{count}</span>}
+                    </button>
+                )
+            })}
+        </div>
+        
+        {/* Comments Section */}
+        {((event.comments && event.comments.length > 0) || newComment) && (
+             <div className="space-y-3 mt-4 ml-[50px]">
+                {(event.comments || []).map(comment => {
+                    const likes = comment.likes || {};
+                    const likeCount = Object.keys(likes).length;
+                    const userHasLiked = !!likes[currentUser.uid];
+                    const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
+
+                    return (
+                        <div key={comment.id} className="flex items-start gap-2 group">
+                            <Avatar photoURL={comment.authorPhotoURL} size={28} />
+                            <div className="flex-1">
+                                <div 
+                                    onDoubleClick={() => onToggleLike(event, comment.id)} 
+                                    className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50' : 'bg-neutral-light/60'}`}
+                                >
+                                    <p className="font-bold text-neutral-dark text-xs mb-0.5">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
+                                    <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>
+                                </div>
+                                <div className="flex items-center gap-3 mt-1 ml-1">
+                                    <span className="text-[10px] text-neutral-400">
+                                        {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
+                                    </span>
+                                    <button 
+                                        onClick={() => onToggleLike(event, comment.id)}
+                                        className={`text-xs font-semibold flex items-center gap-1 transition-colors ${userHasLiked ? 'text-red-500' : 'text-neutral-400 hover:text-red-500'}`}
+                                    >
+                                        {userHasLiked ? 'Gillat' : 'Gilla'}
+                                        {likeCount > 0 && <span className="bg-white px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">{likeCount} ❤️</span>}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        )}
+
+        <form onSubmit={handleCommentSubmit} className="flex items-center gap-3 mt-4 ml-[50px]">
+                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
+                <div className="flex-1 relative">
+                    <input
+                        value={newComment}
+                        onChange={e => setNewComment(e.target.value)}
+                        className="w-full pl-4 pr-10 py-2 text-sm bg-neutral-light/50 rounded-full border border-transparent focus:bg-white focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-neutral-400"
+                        placeholder="Skriv en kommentar..."
+                    />
+                    <button 
+                        type="submit" 
+                        disabled={isSubmitting || !newComment.trim()} 
+                        className={`absolute right-1 top-1 p-1.5 rounded-full transition-all ${newComment.trim() ? 'text-primary hover:bg-primary-50' : 'text-neutral-300'}`}
+                    >
+                        <Send className="w-4 h-4" />
+                    </button>
+                </div>
+        </form>
+    </div>
+    );
+};
+
+// --- Friend Management Component ---
 const FriendManagementView: FC<{
     currentUser: User;
     userProfile: UserProfileData;
@@ -739,197 +947,7 @@ const FriendManagementView: FC<{
     );
 };
 
-const renderWeightDescription = (description: string) => {
-    const parts = description.split('\n'); // Split by newline
-    return (
-        <div className="space-y-1 mt-2">
-            {parts.map(part => {
-                const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
-                if (!match) {
-                    return <p key={part} className="text-base text-neutral-dark">{part}</p>;
-                }
-                
-                const label = match[1];
-                const value = match[2];
-                const changeStr = match[3];
-                const changeNum = parseFloat(changeStr.replace(',', '.'));
-
-                let colorClass = 'text-accent'; // Neutral/yellow for ±0,0
-                if (changeNum > 0) {
-                    if (label === 'Muskler') colorClass = 'text-primary'; // Green for muscle increase
-                    else colorClass = 'text-red-600'; // Red for weight/fat increase
-                } else if (changeNum < 0) {
-                    if (label === 'Muskler') colorClass = 'text-red-600'; // Red for muscle decrease
-                    else colorClass = 'text-primary'; // Green for weight/fat decrease
-                }
-
-                return (
-                    <p key={label} className="text-base text-neutral-dark">
-                        <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
-                    </p>
-                );
-            })}
-        </div>
-    );
-};
-
-const TimelineEventCard: FC<{
-    event: TimelineEvent;
-    currentUser: User;
-    userProfile: UserProfileData;
-    onTogglePepp: (event: TimelineEvent, emoji: string) => void;
-    onAddComment: (event: TimelineEvent, text: string) => Promise<void>;
-    onToggleLike: (event: TimelineEvent, commentId: string) => void;
-    onImageClick: (src: string, alt: string) => void;
-    lastViewTimestamp: number | null;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onImageClick, lastViewTimestamp }) => {
-    const [newComment, setNewComment] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const handleCommentSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newComment.trim() || isSubmitting) return;
-        setIsSubmitting(true);
-        await onAddComment(event, newComment);
-        setNewComment('');
-        setIsSubmitting(false);
-    };
-    
-    const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
-    const isNewEvent = lastViewTimestamp !== null && event.timestamp > lastViewTimestamp && event.userId !== currentUser.uid;
-
-    return (
-    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${isNewEvent ? 'bg-green-50/50 border-green-200' : 'bg-white border-neutral-light'}`}>
-        <div className="flex items-start gap-3">
-            <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={42} />
-            <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                    <p className="text-sm text-neutral-dark font-medium leading-tight">
-                        <span className="font-bold">{event.userId === currentUser.uid ? 'Du' : event.userName}</span>
-                        {event.type === 'user_post' ? '' : ` ${event.title}`}
-                    </p>
-                    <span className="text-xs text-neutral whitespace-nowrap ml-2">
-                        {new Date(event.timestamp).toLocaleString('sv-SE', {
-                            ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
-                                ? { hour: '2-digit', minute: '2-digit' } 
-                                : { month: 'short', day: 'numeric' })
-                        })}
-                    </span>
-                </div>
-                
-                {event.category && event.type === 'user_post' && (
-                    <span className="inline-block px-2 py-0.5 mt-1 rounded text-[10px] font-semibold bg-neutral-light text-neutral-600 uppercase tracking-wide">
-                        {event.icon} {event.category === 'workout' ? 'Träning' : event.category === 'food' ? 'Mat' : event.category === 'pepp' ? 'Pepp' : event.category === 'question' ? 'Fråga' : 'Allmänt'}
-                    </span>
-                )}
-
-                {/* Content Area */}
-                <div className="mt-2">
-                    {event.type === 'weight' ? (
-                        renderWeightDescription(event.description)
-                    ) : (
-                        <p className="text-base text-neutral-dark whitespace-pre-wrap leading-relaxed break-words">{event.description}</p>
-                    )}
-                    
-                    {event.imageUrl && (
-                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px]">
-                             <img 
-                                src={event.imageUrl} 
-                                alt="Inläggsbild" 
-                                className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                                onClick={() => onImageClick(event.imageUrl!, `Bild från ${event.userName}`)}
-                            />
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-
-        {/* Action Bar */}
-        <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-neutral-light/50 ml-[50px]">
-            {reactions.map(emoji => {
-                const usersWhoReacted = (event.reactions || {})[emoji] || {};
-                const count = Object.keys(usersWhoReacted).length;
-                const hasReacted = !!usersWhoReacted[currentUser.uid];
-
-                return (
-                    <button 
-                        key={emoji} 
-                        onClick={() => onTogglePepp(event, emoji)} 
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all active:scale-95 border
-                            ${hasReacted 
-                                ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
-                                : 'bg-transparent border-transparent hover:bg-neutral-light text-neutral-500 hover:text-neutral-dark'
-                            }`}
-                    >
-                        <span className={`text-lg transition-transform ${hasReacted ? 'scale-110' : ''}`}>{emoji}</span>
-                        {count > 0 && <span className="font-semibold text-xs">{count}</span>}
-                    </button>
-                )
-            })}
-        </div>
-        
-        {/* Comments Section */}
-        {((event.comments && event.comments.length > 0) || newComment) && (
-             <div className="space-y-3 mt-4 ml-[50px]">
-                {(event.comments || []).map(comment => {
-                    const likes = comment.likes || {};
-                    const likeCount = Object.keys(likes).length;
-                    const userHasLiked = !!likes[currentUser.uid];
-                    const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
-
-                    return (
-                        <div key={comment.id} className="flex items-start gap-2 group">
-                            <Avatar photoURL={comment.authorPhotoURL} size={28} />
-                            <div className="flex-1">
-                                <div 
-                                    onDoubleClick={() => onToggleLike(event, comment.id)} 
-                                    className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50' : 'bg-neutral-light/60'}`}
-                                >
-                                    <p className="font-bold text-neutral-dark text-xs mb-0.5">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
-                                    <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>
-                                </div>
-                                <div className="flex items-center gap-3 mt-1 ml-1">
-                                    <span className="text-[10px] text-neutral-400">
-                                        {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
-                                    </span>
-                                    <button 
-                                        onClick={() => onToggleLike(event, comment.id)}
-                                        className={`text-xs font-semibold flex items-center gap-1 transition-colors ${userHasLiked ? 'text-red-500' : 'text-neutral-400 hover:text-red-500'}`}
-                                    >
-                                        {userHasLiked ? 'Gillat' : 'Gilla'}
-                                        {likeCount > 0 && <span className="bg-white px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">{likeCount} ❤️</span>}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        )}
-
-        <form onSubmit={handleCommentSubmit} className="flex items-center gap-3 mt-4 ml-[50px]">
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
-                <div className="flex-1 relative">
-                    <input
-                        value={newComment}
-                        onChange={e => setNewComment(e.target.value)}
-                        className="w-full pl-4 pr-10 py-2 text-sm bg-neutral-light/50 rounded-full border border-transparent focus:bg-white focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-neutral-400"
-                        placeholder="Skriv en kommentar..."
-                    />
-                    <button 
-                        type="submit" 
-                        disabled={isSubmitting || !newComment.trim()} 
-                        className={`absolute right-1 top-1 p-1.5 rounded-full transition-all ${newComment.trim() ? 'text-primary hover:bg-primary-50' : 'text-neutral-300'}`}
-                    >
-                        <Send className="w-4 h-4" />
-                    </button>
-                </div>
-        </form>
-    </div>
-    );
-};
-
+// --- MAIN COMPONENT ---
 
 export const CommunityView: React.FC<{ 
   key: number;
@@ -947,6 +965,7 @@ export const CommunityView: React.FC<{
   isLoading: boolean;
   onDataChanged: () => void;
   lastViewTimestamp: number | null;
+  currentStreak: number;
 }> = ({ 
   currentUser,
   userProfile,
@@ -961,7 +980,8 @@ export const CommunityView: React.FC<{
   buddyDetails,
   isLoading,
   onDataChanged,
-  lastViewTimestamp
+  lastViewTimestamp,
+  currentStreak
 }) => {
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera'>(initialTab);
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
@@ -1005,7 +1025,7 @@ export const CommunityView: React.FC<{
       return () => {
           if (unsubscribe) unsubscribe();
       };
-  }, [currentUser.uid, activeTab]); // Dependencies: only re-run if user or tab changes
+  }, [currentUser.uid, activeTab]);
 
   const loadMoreEvents = async () => {
       if (isLoadingMore || !lastDoc) return;
@@ -1066,7 +1086,6 @@ export const CommunityView: React.FC<{
             await togglePeppOnTimelineEvent(fromUser, event, newEmoji); 
         } catch (error) {
             setToastNotification({ message: 'Kunde inte skicka reaktion.', type: 'error' });
-            // Revert logic omitted for brevity
         }
     };
     
@@ -1129,7 +1148,6 @@ export const CommunityView: React.FC<{
                 likes: optimisticComment.likes,
             };
             await addCommentToTimelineEvent(event.id, commentDataForFirestore);
-            // Real update comes via snapshot or next fetch
         } catch (error) {
             setToastNotification({ message: 'Kunde inte lägga till kommentar.', type: 'error' });
         }
@@ -1187,6 +1205,8 @@ export const CommunityView: React.FC<{
                                     onToggleLike={handleToggleLike}
                                     onImageClick={(src, alt) => setLightboxImage({ src, alt })}
                                     lastViewTimestamp={lastViewTimestamp}
+                                    buddyDetails={buddyDetails}
+                                    currentStreak={currentStreak}
                                 />
                             ))}
                         </div>
@@ -1244,3 +1264,5 @@ export const CommunityView: React.FC<{
         </div>
     );
 };
+
+export default CommunityView;
