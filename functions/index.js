@@ -580,7 +580,7 @@ const wasCalorieGoalMetForSummary = (consumed, goal, goalType) => {
     switch (goalType) {
         case "lose_fat": return consumed <= goal;
         case "maintain": return Math.abs(consumed - goal) <= goal * 0.10;
-        case "gain_muscle": return consumed >= goal;
+        case "gain_muscle": return consumed >= (goal - 300); // FIX: Floor check instead of strict goal
         default: return Math.abs(consumed - goal) <= goal * 0.10;
     }
 };

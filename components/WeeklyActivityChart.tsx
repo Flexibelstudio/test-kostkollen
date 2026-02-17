@@ -44,7 +44,8 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   onNextWeek,
   onToday,
   isSummarizingYesterday = false,
-  bankedCalories = 0
+  bankedCalories = 0,
+  goalType = 'lose_fat'
 }) => {
   const referenceDate = new Date(viewingDate);
   referenceDate.setHours(0, 0, 0, 0);
@@ -136,12 +137,15 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 const minSafe = Math.max(calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
                 const overage = Math.max(0, calories - calorieGoal);
                 
-                // Live check: Nådd mål ELLER räddad av sparpott
-                if (calories >= minSafe) {
-                    if (calories <= calorieGoal) {
-                        goalMet = true;
-                    } else if (overage <= bankedCalories) {
-                        goalMet = true;
+                if (goalType === 'gain_muscle') {
+                     // FIX: Gain muscle logic for live view: Green if >= (Goal - 300)
+                     const floor = Math.max(0, calorieGoal - 300);
+                     if (calories >= floor) goalMet = true;
+                } else {
+                    // Lose/Maintain logic (existing)
+                    if (calories >= minSafe) {
+                        if (calories <= calorieGoal) goalMet = true;
+                        else if (overage <= bankedCalories) goalMet = true;
                     }
                 }
             } else if (summary) {
@@ -158,7 +162,6 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             let barColor = 'bg-neutral-100'; 
             
             if (hasLog) {
-                // Nu använder vi den uppdaterade goalMet som inkluderar sparpott-räddning
                 if (goalMet) {
                     barColor = 'bg-primary'; 
                 } else {

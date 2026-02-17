@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { GoalType } from '../types'; // Import GoalType
 import { CALORIE_ADJUSTMENT } from '../constants';
@@ -30,9 +31,33 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
   const [justMetGoal, setJustMetGoal] = useState(false);
   const prevCurrentRef = useRef(current);
 
+  const currentRounded = Math.round(current);
+  const goalRounded = Math.round(goal);
+  const minSafeThresholdRounded = Math.round(minSafeThreshold);
+  const amountCoveredByBankTodayRounded = Math.round(amountCoveredByBankToday || 0);
+
+  const isCalorieBar = label === 'Kalorier';
+  const isGainMuscleGoal = goalType === 'gain_muscle';
+
+  // FIX: Updated logic to trigger success checkmark at TDEE floor for muscle gain
   useEffect(() => {
-    const goalReached = current >= goal && goal > 0;
-    const prevGoalReached = prevCurrentRef.current >= goal && goal > 0;
+    let goalReached = false;
+    if (isCalorieBar && isGainMuscleGoal) {
+        const surplus = CALORIE_ADJUSTMENT.gain_muscle;
+        const tdeeFloor = goalRounded > surplus ? goalRounded - surplus : 0;
+        goalReached = current >= tdeeFloor && tdeeFloor > 0;
+    } else {
+        goalReached = current >= goal && goal > 0;
+    }
+
+    let prevGoalReached = false;
+    if (isCalorieBar && isGainMuscleGoal) {
+        const surplus = CALORIE_ADJUSTMENT.gain_muscle;
+        const tdeeFloor = goalRounded > surplus ? goalRounded - surplus : 0;
+        prevGoalReached = prevCurrentRef.current >= tdeeFloor && tdeeFloor > 0;
+    } else {
+        prevGoalReached = prevCurrentRef.current >= goal && goal > 0;
+    }
 
     if (goalReached && !prevGoalReached) {
       setJustMetGoal(true);
@@ -42,15 +67,8 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
     }
 
     prevCurrentRef.current = current;
-  }, [current, goal]);
+  }, [current, goal, isCalorieBar, isGainMuscleGoal, goalRounded]);
 
-  const currentRounded = Math.round(current);
-  const goalRounded = Math.round(goal);
-  const minSafeThresholdRounded = Math.round(minSafeThreshold);
-  const amountCoveredByBankTodayRounded = Math.round(amountCoveredByBankToday || 0);
-
-  const isCalorieBar = label === 'Kalorier';
-  const isGainMuscleGoal = goalType === 'gain_muscle';
 
   // UI state
   let statusText = `${currentRounded} / ${goalRounded > 0 ? goalRounded : '∞'} ${unit}`;
@@ -100,9 +118,9 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
         greenSegmentWidth = ((optimalCeiling - tdeeFloor) / (displayMax - tdeeFloor)) * 100;
         const surplusOverGold = currentRounded - optimalCeiling;
         orangeSegmentWidth = (surplusOverGold / displayMax) * 100;
-        statusColorClass = 'text-orange-600 font-semibold';
-        descriptiveMessage = `Du har ett stort kaloriöverskott, vilket kan leda till ökad fettinlagring.`;
-        descriptiveMessageColorClass = 'text-orange-600';
+        statusColorClass = 'text-orange-600 font-semibold'; // Still indicates high surplus, but logic is "Floor met"
+        descriptiveMessage = `Bra jobbat! Du har ätit tillräckligt för att bygga muskler.`;
+        descriptiveMessageColorClass = 'text-primary-darker';
         orangeTitle = `Stort överskott över ${optimalCeiling} ${unit}`;
       }
     }
