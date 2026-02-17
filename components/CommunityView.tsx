@@ -15,7 +15,8 @@ import {
     fetchCommunityTimeline,
     listenToCommunityTimeline,
     createUserPost,
-    cancelFriendRequest
+    cancelFriendRequest,
+    deleteTimelineEvent
 } from '../services/firestoreService';
 import { 
     HeartIcon, 
@@ -408,11 +409,12 @@ const TimelineEventCard: FC<{
     onTogglePepp: (event: TimelineEvent, emoji: string) => void;
     onAddComment: (event: TimelineEvent, text: string) => Promise<void>;
     onToggleLike: (event: TimelineEvent, commentId: string) => void;
+    onDelete: (eventId: string) => void;
     onImageClick: (src: string, alt: string) => void;
     lastViewTimestamp: number | null;
     buddyDetails: BuddyDetails[]; // Passed for stats lookup
     currentStreak: number; // Current user's streak
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onImageClick, lastViewTimestamp, buddyDetails, currentStreak }) => {
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, lastViewTimestamp, buddyDetails, currentStreak }) => {
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -423,6 +425,12 @@ const TimelineEventCard: FC<{
         await onAddComment(event, newComment);
         setNewComment('');
         setIsSubmitting(false);
+    };
+
+    const handleDelete = async () => {
+        if (window.confirm("Är du säker på att du vill ta bort det här inlägget? Det går inte att ångra.")) {
+            onDelete(event.id);
+        }
     };
     
     const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
@@ -492,13 +500,24 @@ const TimelineEventCard: FC<{
                         {/* ------------------------- */}
                     </div>
 
-                    <span className="text-xs text-neutral whitespace-nowrap ml-2 mt-0.5">
-                        {new Date(event.timestamp).toLocaleString('sv-SE', {
-                            ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
-                                ? { hour: '2-digit', minute: '2-digit' } 
-                                : { month: 'short', day: 'numeric' })
-                        })}
-                    </span>
+                    <div className="flex items-start gap-2 ml-2">
+                        <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
+                            {new Date(event.timestamp).toLocaleString('sv-SE', {
+                                ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
+                                    ? { hour: '2-digit', minute: '2-digit' } 
+                                    : { month: 'short', day: 'numeric' })
+                            })}
+                        </span>
+                        {isCurrentUser && (
+                            <button 
+                                onClick={handleDelete}
+                                className="text-neutral-400 hover:text-red-500 transition-colors p-0.5"
+                                title="Ta bort inlägg"
+                            >
+                                <TrashIcon className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
                 </div>
                 
                 {event.category && event.type === 'user_post' && (
@@ -1152,6 +1171,22 @@ export const CommunityView: React.FC<{
             setToastNotification({ message: 'Kunde inte lägga till kommentar.', type: 'error' });
         }
     };
+
+    const handleDeleteEvent = async (eventId: string) => {
+        // Optimistic update
+        setRealtimeEvents(prev => prev.filter(e => e.id !== eventId));
+        setHistoricalEvents(prev => prev.filter(e => e.id !== eventId));
+        
+        try {
+            await deleteTimelineEvent(eventId);
+            setToastNotification({ message: "Inlägget raderat.", type: 'success' });
+            playAudio('uiClick');
+        } catch (error) {
+            console.error(error);
+            setToastNotification({ message: "Kunde inte radera inlägget.", type: 'error' });
+            // Note: Rollback logic is omitted for simplicity in this optimistic UI pattern, relying on reload if fetch fails.
+        }
+    };
     
     const newEventsCount = useMemo(() => {
         if (!lastViewTimestamp) return 0;
@@ -1203,6 +1238,7 @@ export const CommunityView: React.FC<{
                                     onTogglePepp={handleTogglePepp}
                                     onAddComment={handleAddComment}
                                     onToggleLike={handleToggleLike}
+                                    onDelete={handleDeleteEvent}
                                     onImageClick={(src, alt) => setLightboxImage({ src, alt })}
                                     lastViewTimestamp={lastViewTimestamp}
                                     buddyDetails={buddyDetails}

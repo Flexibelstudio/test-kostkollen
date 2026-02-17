@@ -515,6 +515,10 @@ export async function createUserPost(
     return { id: eventId, ...postEvent };
 }
 
+export async function deleteTimelineEvent(eventId: string): Promise<void> {
+  const eventRef = doc(db, 'communityTimeline', eventId);
+  await deleteDoc(eventRef);
+}
 
 export async function addTimelineEvent(
   userId: string,
