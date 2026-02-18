@@ -1006,14 +1006,14 @@ export const CommunityView: React.FC<{
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
   
   // Real-time & Pagination State
-  // FIX: Initialize with timelineEvents or empty array if null/undefined
+  // Initialize with timelineEvents to show cached data immediately if available
   const [realtimeEvents, setRealtimeEvents] = useState<TimelineEvent[]>(Array.isArray(timelineEvents) ? timelineEvents : []);
   const [historicalEvents, setHistoricalEvents] = useState<TimelineEvent[]>([]);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  // Sync prop to state when it changes (e.g. initial load finishes)
+  // Sync prop to state when it changes (e.g. initial load finishes in App.tsx)
   // But only if we don't have events yet, to avoid overwriting newer realtime updates
   useEffect(() => {
       if (Array.isArray(timelineEvents) && timelineEvents.length > 0) {
@@ -1023,7 +1023,6 @@ export const CommunityView: React.FC<{
 
   // Combine and deduplicate
   const visibleEvents = useMemo(() => {
-      // Safety check: ensure arrays
       const rt = Array.isArray(realtimeEvents) ? realtimeEvents : [];
       const hist = Array.isArray(historicalEvents) ? historicalEvents : [];
       
@@ -1043,11 +1042,10 @@ export const CommunityView: React.FC<{
       const setupListener = async () => {
           if (activeTab === 'flode' && currentUser) {
               unsubscribe = listenToCommunityTimeline(currentUser.uid, ({ events, lastDoc: newLastDoc }) => {
-                  setRealtimeEvents(events || []); // Safety check
-                  // If we haven't loaded any history yet, this snapshot's last doc is our cursor for pagination
+                  setRealtimeEvents(events || []); 
                   if (historicalEvents.length === 0) {
                       setLastDoc(newLastDoc);
-                      setHasMore(events.length >= 20); // Assuming listener limit is 20
+                      setHasMore(events.length >= 20); 
                   }
               });
           }
@@ -1075,7 +1073,6 @@ export const CommunityView: React.FC<{
   };
 
     const handlePostCreated = (newPost: TimelineEvent) => {
-        // Optimistic update handled by listener usually, but for instant feedback:
         setRealtimeEvents(prev => [newPost, ...prev]);
     };
     
@@ -1084,7 +1081,6 @@ export const CommunityView: React.FC<{
         playAudio('uiClick', 0.6);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
-        // Helper to update reaction in a list of events
         const updateEventList = (list: TimelineEvent[]) => list.map(e => {
             if (e.id === event.id) {
                 const newReactions: Reactions = JSON.parse(JSON.stringify(e.reactions || {}));
@@ -1110,7 +1106,6 @@ export const CommunityView: React.FC<{
             return e;
         });
 
-        // Optimistically update both lists
         setRealtimeEvents(prev => updateEventList(prev));
         setHistoricalEvents(prev => updateEventList(prev));
 
@@ -1186,7 +1181,6 @@ export const CommunityView: React.FC<{
     };
 
     const handleDeleteEvent = async (eventId: string) => {
-        // Optimistic update
         setRealtimeEvents(prev => prev.filter(e => e.id !== eventId));
         setHistoricalEvents(prev => prev.filter(e => e.id !== eventId));
         
@@ -1197,7 +1191,6 @@ export const CommunityView: React.FC<{
         } catch (error) {
             console.error(error);
             setToastNotification({ message: "Kunde inte radera inlägget.", type: 'error' });
-            // Note: Rollback logic is omitted for simplicity in this optimistic UI pattern, relying on reload if fetch fails.
         }
     };
     
@@ -1241,48 +1234,48 @@ export const CommunityView: React.FC<{
                             setToastNotification={setToastNotification} 
                         />
                         
-                        <div className="space-y-4">
-                            {visibleEvents.map(event => (
-                                <TimelineEventCard 
-                                    key={`${event.id}-${event.timestamp}`}
-                                    event={event}
-                                    currentUser={currentUser}
-                                    userProfile={userProfile}
-                                    onTogglePepp={handleTogglePepp}
-                                    onAddComment={handleAddComment}
-                                    onToggleLike={handleToggleLike}
-                                    onDelete={handleDeleteEvent}
-                                    onImageClick={(src, alt) => setLightboxImage({ src, alt })}
-                                    lastViewTimestamp={lastViewTimestamp}
-                                    buddyDetails={buddyDetails}
-                                    currentStreak={currentStreak}
-                                />
-                            ))}
-                        </div>
-
                         {visibleEvents.length > 0 ? (
-                            <div className="py-6 text-center">
-                                {hasMore ? (
-                                    <button 
-                                        onClick={loadMoreEvents} 
-                                        disabled={isLoadingMore}
-                                        className="px-6 py-2 bg-white border border-neutral-light text-neutral-dark font-semibold rounded-full shadow-sm hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 mx-auto"
-                                    >
-                                        {isLoadingMore ? <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /> : <RefreshCw className="w-4 h-4" />}
-                                        Ladda fler
-                                    </button>
-                                ) : (
-                                    <p className="text-sm text-neutral">Du har nått slutet på flödet.</p>
-                                )}
-                            </div>
-                        ) : !isLoading && (
+                            <>
+                                <div className="space-y-4">
+                                    {visibleEvents.map(event => (
+                                        <TimelineEventCard 
+                                            key={`${event.id}-${event.timestamp}`}
+                                            event={event}
+                                            currentUser={currentUser}
+                                            userProfile={userProfile}
+                                            onTogglePepp={handleTogglePepp}
+                                            onAddComment={handleAddComment}
+                                            onToggleLike={handleToggleLike}
+                                            onDelete={handleDeleteEvent}
+                                            onImageClick={(src, alt) => setLightboxImage({ src, alt })}
+                                            lastViewTimestamp={lastViewTimestamp}
+                                            buddyDetails={buddyDetails}
+                                            currentStreak={currentStreak}
+                                        />
+                                    ))}
+                                </div>
+
+                                <div className="py-6 text-center">
+                                    {hasMore ? (
+                                        <button 
+                                            onClick={loadMoreEvents} 
+                                            disabled={isLoadingMore}
+                                            className="px-6 py-2 bg-white border border-neutral-light text-neutral-dark font-semibold rounded-full shadow-sm hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 mx-auto"
+                                        >
+                                            {isLoadingMore ? <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /> : <RefreshCw className="w-4 h-4" />}
+                                            Ladda fler
+                                        </button>
+                                    ) : (
+                                        <p className="text-sm text-neutral">Du har nått slutet på flödet.</p>
+                                    )}
+                                </div>
+                            </>
+                        ) : !isLoading && timelineEvents.length === 0 ? (
                              <div className="text-center py-16 px-4">
                                 <h3 className="text-xl font-semibold text-neutral-dark">Ditt flöde är tomt!</h3>
                                 <p className="text-neutral mt-2">Bli den första att skriva något eller lägg till fler kompisar!</p>
                             </div>
-                        )}
-                        
-                         {isLoading && visibleEvents.length === 0 && (
+                        ) : (
                             <div className="flex justify-center items-center py-16">
                                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
                             </div>
