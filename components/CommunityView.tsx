@@ -1006,7 +1006,8 @@ export const CommunityView: React.FC<{
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
   
   // Real-time & Pagination State
-  const [realtimeEvents, setRealtimeEvents] = useState<TimelineEvent[]>([]);
+  // FIX: Initialize with timelineEvents to prevent empty feed flash
+  const [realtimeEvents, setRealtimeEvents] = useState<TimelineEvent[]>(timelineEvents);
   const [historicalEvents, setHistoricalEvents] = useState<TimelineEvent[]>([]);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
