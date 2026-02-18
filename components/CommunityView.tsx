@@ -1006,16 +1006,28 @@ export const CommunityView: React.FC<{
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
   
   // Real-time & Pagination State
-  // FIX: Initialize with timelineEvents to prevent empty feed flash
-  const [realtimeEvents, setRealtimeEvents] = useState<TimelineEvent[]>(timelineEvents);
+  // FIX: Initialize with timelineEvents or empty array if null/undefined
+  const [realtimeEvents, setRealtimeEvents] = useState<TimelineEvent[]>(Array.isArray(timelineEvents) ? timelineEvents : []);
   const [historicalEvents, setHistoricalEvents] = useState<TimelineEvent[]>([]);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
+  // Sync prop to state when it changes (e.g. initial load finishes)
+  // But only if we don't have events yet, to avoid overwriting newer realtime updates
+  useEffect(() => {
+      if (Array.isArray(timelineEvents) && timelineEvents.length > 0) {
+          setRealtimeEvents(prev => (prev.length === 0 ? timelineEvents : prev));
+      }
+  }, [timelineEvents]);
+
   // Combine and deduplicate
   const visibleEvents = useMemo(() => {
-      const all = [...realtimeEvents, ...historicalEvents];
+      // Safety check: ensure arrays
+      const rt = Array.isArray(realtimeEvents) ? realtimeEvents : [];
+      const hist = Array.isArray(historicalEvents) ? historicalEvents : [];
+      
+      const all = [...rt, ...hist];
       const seen = new Set();
       return all.filter(e => {
           if (seen.has(e.id)) return false;
@@ -1031,7 +1043,7 @@ export const CommunityView: React.FC<{
       const setupListener = async () => {
           if (activeTab === 'flode' && currentUser) {
               unsubscribe = listenToCommunityTimeline(currentUser.uid, ({ events, lastDoc: newLastDoc }) => {
-                  setRealtimeEvents(events);
+                  setRealtimeEvents(events || []); // Safety check
                   // If we haven't loaded any history yet, this snapshot's last doc is our cursor for pagination
                   if (historicalEvents.length === 0) {
                       setLastDoc(newLastDoc);
