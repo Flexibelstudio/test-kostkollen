@@ -168,8 +168,8 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
     const labelClass = "block text-sm font-medium text-neutral-dark";
 
     return (
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleClose}>
-            <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-start justify-center z-[70] p-4 pt-20 animate-fade-in" onClick={handleClose}>
+            <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-5 flex-shrink-0">
                     <div className="flex items-center">
                         <SearchIcon className="w-7 h-7 text-primary mr-2.5" />
