@@ -631,11 +631,17 @@ exports.manualSummarizeYesterday = functions
             }, {calories: 0, protein: 0, carbohydrates: 0, fat: 0});
 
             const minSafeCalories = Math.max(user.goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+            
+            // Goal Logic (Success/Fail)
             const wasDaySuccessful = dailyLogForDate.length > 0 &&
                 totalNutrients.calories >= minSafeCalories &&
                 wasCalorieGoalMetForSummary(totalNutrients.calories, user.goals.calorieGoal, user.goalType);
 
-            const newStreak = wasDaySuccessful ? (user.currentStreak || 0) + 1 : 0;
+            // Streak Logic (Activity based)
+            // FIX: Streak should increment if ANY food was logged (activity), not just if goal was met.
+            const hasActivity = dailyLogForDate.length > 0 && totalNutrients.calories > 0;
+            const newStreak = hasActivity ? (user.currentStreak || 0) + 1 : 0;
+            
             const newHighestStreak = Math.max(user.highestStreak || 0, newStreak);
             const bankedAmountThisDay = wasDaySuccessful && totalNutrients.calories < user.goals.calorieGoal ?
                 user.goals.calorieGoal - totalNutrients.calories : 0;
