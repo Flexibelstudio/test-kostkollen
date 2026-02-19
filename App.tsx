@@ -1057,7 +1057,13 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     const { start: yesterdayStart, yKey: yesterdayUID } = yesterdayRangeSE(now);
     
-    if (!summaryStartDate || yesterdayUID < summaryStartDate) {
+    // Check if streak is already updated for this day
+    const isAlreadyChecked = streakData.lastDateStreakChecked === yesterdayUID;
+
+    // Guard: Only skip if yesterday is BEFORE the summary start date.
+    // If summaryStartDate is missing (legacy users), we allow processing.
+    // If we are in "repair mode" (isAlreadyChecked is true), we allow processing regardless of dates to fix missing summaries.
+    if (summaryStartDate && yesterdayUID < summaryStartDate && !isAlreadyChecked) {
         return;
     }
     
@@ -1110,8 +1116,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         const hasLogs = mealsToProcess.length > 0;
         
-        // CHECK: Is streak already updated for this day?
-        const isAlreadyChecked = streakData.lastDateStreakChecked === yesterdayUID;
+        // Calculate Streak (if not already checked)
         let finalNewStreak = 0;
 
         if (isAlreadyChecked) {
@@ -1119,25 +1124,23 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             finalNewStreak = streakData.currentStreak;
         } else {
             // Not checked yet, proceed with standard calculation
-            setStreakData(prev => {
-                let newStreak = prev.currentStreak;
-                const dayBeforeYesterday = new Date(yesterdayStart);
-                dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
-                const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
+            const dayBeforeYesterday = new Date(yesterdayStart);
+            dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+            const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
+            
+            let baseStreak = streakData.currentStreak;
+            
+            // If the last checked date was NOT the day before yesterday (and not yesterday itself), 
+            // it means we skipped a day. Streak resets to 0 before we even consider yesterday.
+            if (streakData.lastDateStreakChecked !== dayBeforeYesterdayUID && streakData.lastDateStreakChecked !== yesterdayUID) {
+                 baseStreak = 0;
+            }
 
-                if (prev.lastDateStreakChecked !== dayBeforeYesterdayUID && prev.lastDateStreakChecked !== yesterdayUID) {
-                     newStreak = 0;
-                }
-
-                if (hasLogs) {
-                    newStreak += 1;
-                } else {
-                    newStreak = 0;
-                }
-                
-                finalNewStreak = newStreak;
-                return { currentStreak: newStreak, lastDateStreakChecked: yesterdayUID };
-            });
+            if (hasLogs) {
+                finalNewStreak = baseStreak + 1;
+            } else {
+                finalNewStreak = 0;
+            }
         }
         
         const summary: PastDaySummary = {
@@ -1184,6 +1187,9 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 }));
             }
 
+            // Update local streak state immediately
+            setStreakData({ currentStreak: finalNewStreak, lastDateStreakChecked: yesterdayUID });
+            
             await updateUserDocument(uid, userUpdates);
             
             // Streak Achievement Check (Only on fresh update)
