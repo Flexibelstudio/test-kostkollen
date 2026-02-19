@@ -1080,7 +1080,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
         
-        // --- NY LOGIK FÖR SPARPOTTRÄDDNING ---
         let goalMet = false;
         let usedFromBank = 0;
         let savedBy: "sparpott" | undefined = undefined;
@@ -1090,7 +1089,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 if (totals.calories <= goals.calorieGoal) {
                     goalMet = true;
                 } else {
-                    // Vi ligger över målet, kolla om banken räcker
                     const excess = totals.calories - goals.calorieGoal;
                     if (weeklyBank.bankedCalories >= excess) {
                         goalMet = true;
@@ -1099,7 +1097,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                     }
                 }
             } else if (userProfile.goalType === 'gain_muscle') {
-                // För gain_muscle räknas det som lyckat om man är över TDEE-floor
                 goalMet = totals.calories >= (goals.calorieGoal - 300);
             }
         }
@@ -1112,6 +1109,36 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         }
 
         const hasLogs = mealsToProcess.length > 0;
+        
+        // CHECK: Is streak already updated for this day?
+        const isAlreadyChecked = streakData.lastDateStreakChecked === yesterdayUID;
+        let finalNewStreak = 0;
+
+        if (isAlreadyChecked) {
+            // Use current streak directly, do not recalculate or reset
+            finalNewStreak = streakData.currentStreak;
+        } else {
+            // Not checked yet, proceed with standard calculation
+            setStreakData(prev => {
+                let newStreak = prev.currentStreak;
+                const dayBeforeYesterday = new Date(yesterdayStart);
+                dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+                const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
+
+                if (prev.lastDateStreakChecked !== dayBeforeYesterdayUID && prev.lastDateStreakChecked !== yesterdayUID) {
+                     newStreak = 0;
+                }
+
+                if (hasLogs) {
+                    newStreak += 1;
+                } else {
+                    newStreak = 0;
+                }
+                
+                finalNewStreak = newStreak;
+                return { currentStreak: newStreak, lastDateStreakChecked: yesterdayUID };
+            });
+        }
         
         const summary: PastDaySummary = {
             date: yesterdayUID,
@@ -1127,87 +1154,73 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             fatGoal: goals.fatGoal,
             goalType: userProfile.goalType,
             waterGoalMet: yesterdayWater >= DEFAULT_WATER_GOAL_ML,
-            streakForThisDay: 0, 
+            streakForThisDay: finalNewStreak, 
             bankedAmount: bankedAmount,
             savedBy: savedBy
         };
 
-        let finalNewStreak = 0;
-
-        setStreakData(prev => {
-            let newStreak = prev.currentStreak;
-            const dayBeforeYesterday = new Date(yesterdayStart);
-            dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
-            const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
-
-            if (prev.lastDateStreakChecked !== dayBeforeYesterdayUID && prev.lastDateStreakChecked !== yesterdayUID) {
-                 newStreak = 0;
-            }
-
-            if (hasLogs) {
-                newStreak += 1;
-            } else {
-                newStreak = 0;
-            }
-            
-            finalNewStreak = newStreak;
-            return { currentStreak: newStreak, lastDateStreakChecked: yesterdayUID };
-        });
-
-        summary.streakForThisDay = finalNewStreak;
-
+        // Always save summary document
         await setPastDaySummary(uid, yesterdayUID, summary);
+        setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
         
-        const userUpdates: any = {
-            currentStreak: finalNewStreak,
-            lastDateStreakChecked: yesterdayUID
-        };
+        // Only update user doc (streak/bank) if NOT already checked
+        if (!isAlreadyChecked) {
+            const userUpdates: any = {
+                currentStreak: finalNewStreak,
+                lastDateStreakChecked: yesterdayUID
+            };
 
-        if (bankedAmount > 0) {
-            userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
-            setWeeklyBank(prev => ({
-                ...prev,
-                bankedCalories: prev.bankedCalories + bankedAmount
-            }));
-        } else if (usedFromBank > 0) {
-            userUpdates["weeklyBank.bankedCalories"] = increment(-usedFromBank);
-            setWeeklyBank(prev => ({
-                ...prev,
-                bankedCalories: Math.max(0, prev.bankedCalories - usedFromBank)
-            }));
+            if (bankedAmount > 0) {
+                userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
+                setWeeklyBank(prev => ({
+                    ...prev,
+                    bankedCalories: prev.bankedCalories + bankedAmount
+                }));
+            } else if (usedFromBank > 0) {
+                userUpdates["weeklyBank.bankedCalories"] = increment(-usedFromBank);
+                setWeeklyBank(prev => ({
+                    ...prev,
+                    bankedCalories: Math.max(0, prev.bankedCalories - usedFromBank)
+                }));
+            }
+
+            await updateUserDocument(uid, userUpdates);
+            
+            // Streak Achievement Check (Only on fresh update)
+            const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
+            if (streakAch) {
+                 const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
+                 if (unlocked) {
+                     setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
+                 }
+            }
         }
 
-        await updateUserDocument(uid, userUpdates);
-
-        setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
         setMorningReportData({ summary, currentStreak: finalNewStreak });
         playAudio('levelUp'); 
-
-        // Streak Achievement Check
-        const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
-        if (streakAch) {
-             const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
-             if (unlocked) {
-                 setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
-             }
-        }
 
     } catch (error) {
         setToastNotification({ message: "Kunde inte sammanställa gårdagen.", type: 'error' });
     } finally {
         setIsSummarizingYesterday(false);
     }
-}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories]);
+}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories, streakData.lastDateStreakChecked, streakData.currentStreak, pastDaysSummary]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
-            // Körs bara om igår INTE redan är kollad
             const yesterdayUID = dayKeySE(new Date(Date.now() - 86400000));
-            if (streakData.lastDateStreakChecked !== yesterdayUID) {
+            
+            // Trigger if:
+            // 1. Streak NOT updated for yesterday
+            // 2. OR Summary for yesterday is MISSING in local state (self-healing)
+            const isStreakUpdated = streakData.lastDateStreakChecked === yesterdayUID;
+            const hasSummary = !!pastDaysSummary[yesterdayUID];
+
+            if (!isStreakUpdated || !hasSummary) {
                 ensureYesterdayProcessed(currentUser.uid, new Date());
             }
         }
-    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding]);
+    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, streakData.lastDateStreakChecked, pastDaysSummary, ensureYesterdayProcessed]);
 
   
   useEffect(() => {
