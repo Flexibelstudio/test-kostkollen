@@ -1057,12 +1057,10 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     const { start: yesterdayStart, yKey: yesterdayUID } = yesterdayRangeSE(now);
     
-    // Check if streak is already updated for this day
     const isAlreadyChecked = streakData.lastDateStreakChecked === yesterdayUID;
 
     // Guard: Only skip if yesterday is BEFORE the summary start date.
     // If summaryStartDate is missing (legacy users), we allow processing.
-    // If we are in "repair mode" (isAlreadyChecked is true), we allow processing regardless of dates to fix missing summaries.
     if (summaryStartDate && yesterdayUID < summaryStartDate && !isAlreadyChecked) {
         return;
     }
@@ -1070,69 +1068,73 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     setIsSummarizingYesterday(true);
 
     try {
-        const [yesterdayMeals, yesterdayWater] = await Promise.all([
-            fetchMealLogsForDate(uid, yesterdayUID),
-            fetchWaterLog(uid, yesterdayUID)
-        ]);
+        // STRATEGI: Kolla först om rapporten redan finns (t.ex. skapad av backend eller tidigare session)
+        // Om den finns, använd den direkt för att laga streak och visa modal, istället för att räkna om allt.
+        let summary: PastDaySummary | undefined = pastDaysSummary[yesterdayUID];
+        let totals = { calories: 0, protein: 0, carbohydrates: 0, fat: 0 };
+        let waterAmount = 0;
 
-        const mealsToProcess = manualLogOverride || yesterdayMeals;
+        if (!summary) {
+            // Ingen rapport finns, gör full beräkning
+            const [yesterdayMeals, yesterdayWater] = await Promise.all([
+                fetchMealLogsForDate(uid, yesterdayUID),
+                fetchWaterLog(uid, yesterdayUID)
+            ]);
+            waterAmount = yesterdayWater;
 
-        const totals = mealsToProcess.reduce((acc, meal) => ({
-            calories: acc.calories + meal.nutritionalInfo.calories,
-            protein: acc.protein + meal.nutritionalInfo.protein,
-            carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
-            fat: acc.fat + meal.nutritionalInfo.fat,
-        }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+            const mealsToProcess = manualLogOverride || yesterdayMeals;
 
-        const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-        
-        let goalMet = false;
-        let usedFromBank = 0;
-        let savedBy: "sparpott" | undefined = undefined;
+            totals = mealsToProcess.reduce((acc, meal) => ({
+                calories: acc.calories + meal.nutritionalInfo.calories,
+                protein: acc.protein + meal.nutritionalInfo.protein,
+                carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
+                fat: acc.fat + meal.nutritionalInfo.fat,
+            }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
 
-        if (totals.calories >= minSafe) {
-            if (userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') {
-                if (totals.calories <= goals.calorieGoal) {
-                    goalMet = true;
-                } else {
-                    const excess = totals.calories - goals.calorieGoal;
-                    if (weeklyBank.bankedCalories >= excess) {
+            const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+            
+            let goalMet = false;
+            let usedFromBank = 0;
+            let savedBy: "sparpott" | undefined = undefined;
+
+            if (totals.calories >= minSafe) {
+                if (userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') {
+                    if (totals.calories <= goals.calorieGoal) {
                         goalMet = true;
-                        usedFromBank = Math.round(excess);
-                        savedBy = 'sparpott';
+                    } else {
+                        const excess = totals.calories - goals.calorieGoal;
+                        if (weeklyBank.bankedCalories >= excess) {
+                            goalMet = true;
+                            usedFromBank = Math.round(excess);
+                            savedBy = 'sparpott';
+                        }
                     }
+                } else if (userProfile.goalType === 'gain_muscle') {
+                    goalMet = totals.calories >= (goals.calorieGoal - 300);
                 }
-            } else if (userProfile.goalType === 'gain_muscle') {
-                goalMet = totals.calories >= (goals.calorieGoal - 300);
             }
-        }
 
-        let bankedAmount = 0;
-        if ((userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') && !savedBy) {
-            if (totals.calories >= minSafe && totals.calories < goals.calorieGoal) {
-                bankedAmount = Math.round(goals.calorieGoal - totals.calories);
+            let bankedAmount = 0;
+            if ((userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') && !savedBy) {
+                if (totals.calories >= minSafe && totals.calories < goals.calorieGoal) {
+                    bankedAmount = Math.round(goals.calorieGoal - totals.calories);
+                }
             }
-        }
 
-        const hasLogs = mealsToProcess.length > 0;
-        
-        // Calculate Streak (if not already checked)
-        let finalNewStreak = 0;
-
-        if (isAlreadyChecked) {
-            // Use current streak directly, do not recalculate or reset
-            finalNewStreak = streakData.currentStreak;
-        } else {
-            // Not checked yet, proceed with standard calculation
+            // Skapa nytt summary-objekt
+            const hasLogs = mealsToProcess.length > 0;
+            
+            // Streak-logik för ny beräkning
+            let finalNewStreak = 0;
             const dayBeforeYesterday = new Date(yesterdayStart);
             dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
             const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
             
+            // Om vi missat en dag emellan, nollställs basen. Annars är basen nuvarande streak.
+            // Men om streaken redan ÄR uppdaterad (isAlreadyChecked), rör vi den inte här nere.
             let baseStreak = streakData.currentStreak;
             
-            // If the last checked date was NOT the day before yesterday (and not yesterday itself), 
-            // it means we skipped a day. Streak resets to 0 before we even consider yesterday.
-            if (streakData.lastDateStreakChecked !== dayBeforeYesterdayUID && streakData.lastDateStreakChecked !== yesterdayUID) {
+            if (!isAlreadyChecked && streakData.lastDateStreakChecked !== dayBeforeYesterdayUID && streakData.lastDateStreakChecked !== yesterdayUID) {
                  baseStreak = 0;
             }
 
@@ -1141,71 +1143,112 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             } else {
                 finalNewStreak = 0;
             }
-        }
-        
-        const summary: PastDaySummary = {
-            date: yesterdayUID,
-            goalMet,
-            consumedCalories: totals.calories,
-            calorieGoal: goals.calorieGoal,
-            proteinGoalMet: totals.protein >= goals.proteinGoal,
-            consumedProtein: totals.protein,
-            proteinGoal: goals.proteinGoal,
-            consumedCarbohydrates: totals.carbohydrates,
-            carbohydrateGoal: goals.carbohydrateGoal,
-            consumedFat: totals.fat,
-            fatGoal: goals.fatGoal,
-            goalType: userProfile.goalType,
-            waterGoalMet: yesterdayWater >= DEFAULT_WATER_GOAL_ML,
-            streakForThisDay: finalNewStreak, 
-            bankedAmount: bankedAmount,
-            savedBy: savedBy
-        };
 
-        // Always save summary document
-        await setPastDaySummary(uid, yesterdayUID, summary);
-        setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
-        
-        // Only update user doc (streak/bank) if NOT already checked
-        if (!isAlreadyChecked) {
-            const userUpdates: any = {
-                currentStreak: finalNewStreak,
-                lastDateStreakChecked: yesterdayUID
+            summary = {
+                date: yesterdayUID,
+                goalMet,
+                consumedCalories: totals.calories,
+                calorieGoal: goals.calorieGoal,
+                proteinGoalMet: totals.protein >= goals.proteinGoal,
+                consumedProtein: totals.protein,
+                proteinGoal: goals.proteinGoal,
+                consumedCarbohydrates: totals.carbohydrates,
+                carbohydrateGoal: goals.carbohydrateGoal,
+                consumedFat: totals.fat,
+                fatGoal: goals.fatGoal,
+                goalType: userProfile.goalType,
+                waterGoalMet: waterAmount >= DEFAULT_WATER_GOAL_ML,
+                streakForThisDay: finalNewStreak, 
+                bankedAmount: bankedAmount,
+                savedBy: savedBy
             };
 
-            if (bankedAmount > 0) {
-                userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
-                setWeeklyBank(prev => ({
-                    ...prev,
-                    bankedCalories: prev.bankedCalories + bankedAmount
-                }));
-            } else if (usedFromBank > 0) {
-                userUpdates["weeklyBank.bankedCalories"] = increment(-usedFromBank);
-                setWeeklyBank(prev => ({
-                    ...prev,
-                    bankedCalories: Math.max(0, prev.bankedCalories - usedFromBank)
-                }));
-            }
+            // Spara till Firestore (bara om vi skapade en ny)
+            await setPastDaySummary(uid, yesterdayUID, summary);
+            setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary! }));
 
-            // Update local streak state immediately
-            setStreakData({ currentStreak: finalNewStreak, lastDateStreakChecked: yesterdayUID });
-            
-            await updateUserDocument(uid, userUpdates);
-            
-            // Streak Achievement Check (Only on fresh update)
-            const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
-            if (streakAch) {
-                 const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
-                 if (unlocked) {
-                     setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
-                 }
+            // Uppdatera bank om det behövs (bara vid ny beräkning)
+            if (!isAlreadyChecked) {
+                const userUpdates: any = {};
+                if (bankedAmount > 0) {
+                    userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
+                    setWeeklyBank(prev => ({
+                        ...prev,
+                        bankedCalories: prev.bankedCalories + bankedAmount
+                    }));
+                } else if (usedFromBank > 0) {
+                    userUpdates["weeklyBank.bankedCalories"] = increment(-usedFromBank);
+                    setWeeklyBank(prev => ({
+                        ...prev,
+                        bankedCalories: Math.max(0, prev.bankedCalories - usedFromBank)
+                    }));
+                }
+                if (Object.keys(userUpdates).length > 0) {
+                    await updateUserDocument(uid, userUpdates);
+                }
+            }
+        } 
+
+        // --- HÄR KOMMER REPARATIONS- OCH VISNINGSLOGIKEN ---
+        // Oavsett om vi hämtade en befintlig rapport eller skapade en ny:
+        // Se till att streaken är korrekt och visa modalen.
+
+        if (summary) {
+            // Om streaken inte är uppdaterad än, gör det nu baserat på rapporten
+            if (!isAlreadyChecked) {
+                // Beräkna streak baserat på om det fanns aktivitet i rapporten
+                // (Vi antar att consumedCalories > 0 betyder aktivitet)
+                let calculatedStreak = streakData.currentStreak;
+                
+                const dayBeforeYesterday = new Date(yesterdayStart);
+                dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+                const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
+
+                // Reset om vi missat dagar
+                if (streakData.lastDateStreakChecked !== dayBeforeYesterdayUID) {
+                    calculatedStreak = 0;
+                }
+
+                if (summary.consumedCalories > 0) {
+                    calculatedStreak += 1;
+                } else {
+                    calculatedStreak = 0;
+                }
+
+                // Uppdatera state och DB
+                setStreakData({ currentStreak: calculatedStreak, lastDateStreakChecked: yesterdayUID });
+                
+                // Uppdatera själva rapporten med streaken om den saknades (för bakåtkompatibilitet)
+                if (summary.streakForThisDay !== calculatedStreak) {
+                     summary.streakForThisDay = calculatedStreak;
+                }
+
+                await updateUserDocument(uid, {
+                    currentStreak: calculatedStreak,
+                    lastDateStreakChecked: yesterdayUID
+                });
+
+                // Kolla achievements
+                const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === calculatedStreak);
+                if (streakAch) {
+                    const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
+                    if (unlocked) {
+                        setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
+                    }
+                }
+                
+                // Visa modalen eftersom detta är "nyheten" för användaren idag
+                setMorningReportData({ summary, currentStreak: calculatedStreak });
+                playAudio('levelUp');
+            } else {
+                // Om streaken redan VAR checkad (backend hann före), men vi är här (för att modalen inte visats?)
+                // Visa modalen ändå om vi anropades manuellt eller via self-healing
+                setMorningReportData({ summary, currentStreak: streakData.currentStreak });
             }
         }
 
-        setMorningReportData({ summary, currentStreak: finalNewStreak });
-        playAudio('levelUp'); 
-
     } catch (error) {
+        console.error("Error summarizing yesterday:", error);
         setToastNotification({ message: "Kunde inte sammanställa gårdagen.", type: 'error' });
     } finally {
         setIsSummarizingYesterday(false);
