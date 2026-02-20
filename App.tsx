@@ -593,12 +593,12 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         if (!currentUser) return;
         setIsLoadingCommunityData(true);
         try {
-            const [events, details] = await Promise.all([
+            const [timelineData, details] = await Promise.all([
                 fetchCommunityTimeline(currentUser.uid),
                 fetchBuddyDetailsList(currentUser.uid),
             ]);
             // FIX: Removed redundant filtering. The Firestore query already filters by 'visibleTo'.
-            setTimelineEvents(events);
+            setTimelineEvents(timelineData.events);
             setBuddyDetails(details);
         } catch (error) {
             console.error("Failed to load community data:", error);
@@ -1066,8 +1066,15 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         return;
     }
 
-    // If everything is already correct (Summary exists AND Streak matches today/yesterday), we are good.
-    if (existingSummary && isStreakUpdated && !options.force) {
+    // --- CRITICAL FIX FOR UI VISIBILITY ---
+    // Check local storage to see if we have SHOWN the report for this specific date yet.
+    // This decouples the "Logic/DB Update" (which backend might have done) from "User Seeing It".
+    const LAST_REPORT_KEY = 'lastMorningReportDate_v1';
+    const lastReportDate = localStorage.getItem(LAST_REPORT_KEY);
+    const alreadyShown = lastReportDate === yesterdayUID;
+
+    // Only return early if data is correct AND we have already shown the UI.
+    if (existingSummary && isStreakUpdated && alreadyShown && !options.force) {
         return;
     }
 
@@ -1078,10 +1085,9 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         let isNewCalculation = false;
 
         // --- SCENARIO 1: REPAIR / SYNC ---
-        // The summary document exists (e.g. from backend or other session), but the local app state 
-        // regarding streak/checks is out of sync. We trust the document.
+        // The summary document exists (e.g. from backend or other session).
         if (existingSummary) {
-            console.log("ensureYesterdayProcessed: Found existing summary for yesterday, using it for repair.");
+            console.log("ensureYesterdayProcessed: Found existing summary for yesterday, using it.");
             summaryToUse = existingSummary;
         } 
         // --- SCENARIO 2: CALCULATE ---
@@ -1181,64 +1187,69 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             }
         } 
 
-        // --- STREAK UPDATE & UI ---
-        // This block runs for BOTH Case 1 (Repair) and Case 2 (New)
-        // If streak isn't updated OR it was a new calculation, we proceed to update streak state/DB and show modal.
-        
-        if (!isStreakUpdated || isNewCalculation) {
-            // Determine activity from the summary we have/created
+        // --- STREAK CALCULATION ---
+        // We need to know the correct streak to show, whether we just calculated it or it was already there.
+        let finalNewStreak = streakData.currentStreak;
+
+        // If local state says we haven't checked streak for yesterday, we need to calculate/validate it.
+        // OR if we just performed a new calculation (no existing summary), we definitely need to calc streak.
+        const needsStreakUpdate = !isStreakUpdated || isNewCalculation;
+
+        if (needsStreakUpdate) {
             const hasActivity = summaryToUse.consumedCalories > 0;
-            
-            // Calculate proper streak based on timeline
-            // Check day before yesterday
             const dayBeforeYesterday = new Date(yesterdayStart);
             dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
             const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
             
             let baseStreak = streakData.currentStreak;
             
-            // Break streak if missed days (unless repair logic overrides)
-            // If the last checked date wasn't day-before-yesterday AND wasn't yesterday, we missed a day.
+            // If the last check wasn't yesterday AND wasn't day before yesterday, streak is broken.
+            // Reset base to 0.
             if (streakData.lastDateStreakChecked !== dayBeforeYesterdayUID && streakData.lastDateStreakChecked !== yesterdayUID) {
                  baseStreak = 0;
             }
 
-            let finalNewStreak = 0;
             if (hasActivity) {
                 finalNewStreak = baseStreak + 1;
             } else {
                 finalNewStreak = 0;
             }
-
-            // Update local state
-            setStreakData({ currentStreak: finalNewStreak, lastDateStreakChecked: yesterdayUID });
             
-            // Sync summary object streak if needed
+            // Sync summary object streak 
             if (summaryToUse.streakForThisDay !== finalNewStreak) {
                  summaryToUse.streakForThisDay = finalNewStreak;
             }
+        } else {
+            // Streak is already updated (e.g. by backend), just use what we have in state or summary
+            finalNewStreak = streakData.currentStreak;
+        }
 
-            // Update User DB
+        // --- DB UPDATES ---
+        if (needsStreakUpdate) {
+            setStreakData({ currentStreak: finalNewStreak, lastDateStreakChecked: yesterdayUID });
             await updateUserDocument(uid, {
                 currentStreak: finalNewStreak,
                 lastDateStreakChecked: yesterdayUID
             });
-
-            // Unlock Achievement?
-            const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
+            // Achievements check...
+             const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
             if (streakAch) {
                 const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
                 if (unlocked) {
                     setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
                 }
             }
-            
-            // SHOW THE MODAL
-            // This is critical - it informs the user of the result (whether retrieved or calculated)
+        }
+        
+        // --- UI VISUALIZATION ---
+        // If we haven't shown the report for today yet, show it now.
+        if (!alreadyShown || options.force) {
             setMorningReportData({ summary: summaryToUse, currentStreak: finalNewStreak });
-            if (hasActivity) {
+            if (summaryToUse.consumedCalories > 0) {
                 playAudio('levelUp');
             }
+            // Mark as shown so we don't spam the user on refresh
+            localStorage.setItem(LAST_REPORT_KEY, yesterdayUID);
         }
 
     } catch (error) {
@@ -1253,6 +1264,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
             const { yKey: yesterdayUID } = yesterdayRangeSE(new Date());
             
+            // Check Local Storage
+            const LAST_REPORT_KEY = 'lastMorningReportDate_v1';
+            const lastReportDate = localStorage.getItem(LAST_REPORT_KEY);
+            const alreadyShown = lastReportDate === yesterdayUID;
+
             const isStreakUpdated = streakData.lastDateStreakChecked === yesterdayUID;
             // Check if we already have the summary locally (loaded from DB)
             const hasSummary = !!pastDaysSummary[yesterdayUID];
@@ -1260,7 +1276,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             // Trigger if:
             // 1. We haven't stamped the streak for yesterday yet.
             // 2. OR We are missing the summary entirely (standard logic).
-            if (!isStreakUpdated || !hasSummary) {
+            // 3. OR We haven't shown the UI yet (even if DB is fine).
+            if (!isStreakUpdated || !hasSummary || !alreadyShown) {
                 ensureYesterdayProcessed(currentUser.uid, new Date());
             }
         }
