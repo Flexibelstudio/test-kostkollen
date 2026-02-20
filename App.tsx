@@ -1057,42 +1057,58 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     const { start: yesterdayStart, yKey: yesterdayUID } = yesterdayRangeSE(now);
     
-    const isAlreadyChecked = streakData.lastDateStreakChecked === yesterdayUID;
+    // Check if we have the summary in our loaded data (source of truth from DB via initial fetch)
+    const existingSummary = pastDaysSummary[yesterdayUID];
+    const isStreakUpdated = streakData.lastDateStreakChecked === yesterdayUID;
 
-    // Guard: Only skip if yesterday is BEFORE the summary start date.
-    // If summaryStartDate is missing (legacy users), we allow processing.
-    if (summaryStartDate && yesterdayUID < summaryStartDate && !isAlreadyChecked) {
+    // Legacy safety guard
+    if (summaryStartDate && yesterdayUID < summaryStartDate && !isStreakUpdated) {
         return;
     }
-    
+
+    // If everything is already correct (Summary exists AND Streak matches today/yesterday), we are good.
+    if (existingSummary && isStreakUpdated && !options.force) {
+        return;
+    }
+
     setIsSummarizingYesterday(true);
 
     try {
-        // STRATEGI: Kolla först om rapporten redan finns (t.ex. skapad av backend eller tidigare session)
-        // Om den finns, använd den direkt för att laga streak och visa modal, istället för att räkna om allt.
-        let summary: PastDaySummary | undefined = pastDaysSummary[yesterdayUID];
-        let totals = { calories: 0, protein: 0, carbohydrates: 0, fat: 0 };
-        let waterAmount = 0;
+        let summaryToUse: PastDaySummary;
+        let isNewCalculation = false;
 
-        if (!summary) {
-            // Ingen rapport finns, gör full beräkning
+        // --- SCENARIO 1: REPAIR / SYNC ---
+        // The summary document exists (e.g. from backend or other session), but the local app state 
+        // regarding streak/checks is out of sync. We trust the document.
+        if (existingSummary) {
+            console.log("ensureYesterdayProcessed: Found existing summary for yesterday, using it for repair.");
+            summaryToUse = existingSummary;
+        } 
+        // --- SCENARIO 2: CALCULATE ---
+        // No summary exists. We need to create it from logs.
+        else {
+            console.log("ensureYesterdayProcessed: No summary found, calculating...");
+            isNewCalculation = true;
+            
             const [yesterdayMeals, yesterdayWater] = await Promise.all([
                 fetchMealLogsForDate(uid, yesterdayUID),
                 fetchWaterLog(uid, yesterdayUID)
             ]);
-            waterAmount = yesterdayWater;
-
+            
             const mealsToProcess = manualLogOverride || yesterdayMeals;
-
-            totals = mealsToProcess.reduce((acc, meal) => ({
+            
+            // Calculate totals
+            const totals = mealsToProcess.reduce((acc, meal) => ({
                 calories: acc.calories + meal.nutritionalInfo.calories,
                 protein: acc.protein + meal.nutritionalInfo.protein,
                 carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
                 fat: acc.fat + meal.nutritionalInfo.fat,
             }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
 
+            const waterAmount = yesterdayWater;
             const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
             
+            // Goal logic
             let goalMet = false;
             let usedFromBank = 0;
             let savedBy: "sparpott" | undefined = undefined;
@@ -1114,6 +1130,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 }
             }
 
+            // Bank logic
             let bankedAmount = 0;
             if ((userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') && !savedBy) {
                 if (totals.calories >= minSafe && totals.calories < goals.calorieGoal) {
@@ -1121,30 +1138,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 }
             }
 
-            // Skapa nytt summary-objekt
-            const hasLogs = mealsToProcess.length > 0;
-            
-            // Streak-logik för ny beräkning
-            let finalNewStreak = 0;
-            const dayBeforeYesterday = new Date(yesterdayStart);
-            dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
-            const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
-            
-            // Om vi missat en dag emellan, nollställs basen. Annars är basen nuvarande streak.
-            // Men om streaken redan ÄR uppdaterad (isAlreadyChecked), rör vi den inte här nere.
-            let baseStreak = streakData.currentStreak;
-            
-            if (!isAlreadyChecked && streakData.lastDateStreakChecked !== dayBeforeYesterdayUID && streakData.lastDateStreakChecked !== yesterdayUID) {
-                 baseStreak = 0;
-            }
+            // Temp streak logic for summary object (will be finalized below)
+            const hasActivity = mealsToProcess.length > 0 && totals.calories > 0;
+            const tempStreak = hasActivity ? (streakData.currentStreak + 1) : 0; // Optimistic
 
-            if (hasLogs) {
-                finalNewStreak = baseStreak + 1;
-            } else {
-                finalNewStreak = 0;
-            }
-
-            summary = {
+            summaryToUse = {
                 date: yesterdayUID,
                 goalMet,
                 consumedCalories: totals.calories,
@@ -1158,30 +1156,24 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 fatGoal: goals.fatGoal,
                 goalType: userProfile.goalType,
                 waterGoalMet: waterAmount >= DEFAULT_WATER_GOAL_ML,
-                streakForThisDay: finalNewStreak, 
+                streakForThisDay: tempStreak, 
                 bankedAmount: bankedAmount,
                 savedBy: savedBy
             };
 
-            // Spara till Firestore (bara om vi skapade en ny)
-            await setPastDaySummary(uid, yesterdayUID, summary);
-            setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary! }));
+            // Save new summary
+            await setPastDaySummary(uid, yesterdayUID, summaryToUse);
+            setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summaryToUse }));
 
-            // Uppdatera bank om det behövs (bara vid ny beräkning)
-            if (!isAlreadyChecked) {
+            // Update bank in DB if needed (only for new calculations)
+            if (bankedAmount > 0 || usedFromBank > 0) {
                 const userUpdates: any = {};
                 if (bankedAmount > 0) {
                     userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
-                    setWeeklyBank(prev => ({
-                        ...prev,
-                        bankedCalories: prev.bankedCalories + bankedAmount
-                    }));
+                    setWeeklyBank(prev => ({ ...prev, bankedCalories: prev.bankedCalories + bankedAmount }));
                 } else if (usedFromBank > 0) {
                     userUpdates["weeklyBank.bankedCalories"] = increment(-usedFromBank);
-                    setWeeklyBank(prev => ({
-                        ...prev,
-                        bankedCalories: Math.max(0, prev.bankedCalories - usedFromBank)
-                    }));
+                    setWeeklyBank(prev => ({ ...prev, bankedCalories: Math.max(0, prev.bankedCalories - usedFromBank) }));
                 }
                 if (Object.keys(userUpdates).length > 0) {
                     await updateUserDocument(uid, userUpdates);
@@ -1189,61 +1181,63 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             }
         } 
 
-        // --- HÄR KOMMER REPARATIONS- OCH VISNINGSLOGIKEN ---
-        // Oavsett om vi hämtade en befintlig rapport eller skapade en ny:
-        // Se till att streaken är korrekt och visa modalen.
+        // --- STREAK UPDATE & UI ---
+        // This block runs for BOTH Case 1 (Repair) and Case 2 (New)
+        // If streak isn't updated OR it was a new calculation, we proceed to update streak state/DB and show modal.
+        
+        if (!isStreakUpdated || isNewCalculation) {
+            // Determine activity from the summary we have/created
+            const hasActivity = summaryToUse.consumedCalories > 0;
+            
+            // Calculate proper streak based on timeline
+            // Check day before yesterday
+            const dayBeforeYesterday = new Date(yesterdayStart);
+            dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+            const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
+            
+            let baseStreak = streakData.currentStreak;
+            
+            // Break streak if missed days (unless repair logic overrides)
+            // If the last checked date wasn't day-before-yesterday AND wasn't yesterday, we missed a day.
+            if (streakData.lastDateStreakChecked !== dayBeforeYesterdayUID && streakData.lastDateStreakChecked !== yesterdayUID) {
+                 baseStreak = 0;
+            }
 
-        if (summary) {
-            // Om streaken inte är uppdaterad än, gör det nu baserat på rapporten
-            if (!isAlreadyChecked) {
-                // Beräkna streak baserat på om det fanns aktivitet i rapporten
-                // (Vi antar att consumedCalories > 0 betyder aktivitet)
-                let calculatedStreak = streakData.currentStreak;
-                
-                const dayBeforeYesterday = new Date(yesterdayStart);
-                dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
-                const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
-
-                // Reset om vi missat dagar
-                if (streakData.lastDateStreakChecked !== dayBeforeYesterdayUID) {
-                    calculatedStreak = 0;
-                }
-
-                if (summary.consumedCalories > 0) {
-                    calculatedStreak += 1;
-                } else {
-                    calculatedStreak = 0;
-                }
-
-                // Uppdatera state och DB
-                setStreakData({ currentStreak: calculatedStreak, lastDateStreakChecked: yesterdayUID });
-                
-                // Uppdatera själva rapporten med streaken om den saknades (för bakåtkompatibilitet)
-                if (summary.streakForThisDay !== calculatedStreak) {
-                     summary.streakForThisDay = calculatedStreak;
-                }
-
-                await updateUserDocument(uid, {
-                    currentStreak: calculatedStreak,
-                    lastDateStreakChecked: yesterdayUID
-                });
-
-                // Kolla achievements
-                const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === calculatedStreak);
-                if (streakAch) {
-                    const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
-                    if (unlocked) {
-                        setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
-                    }
-                }
-                
-                // Visa modalen eftersom detta är "nyheten" för användaren idag
-                setMorningReportData({ summary, currentStreak: calculatedStreak });
-                playAudio('levelUp');
+            let finalNewStreak = 0;
+            if (hasActivity) {
+                finalNewStreak = baseStreak + 1;
             } else {
-                // Om streaken redan VAR checkad (backend hann före), men vi är här (för att modalen inte visats?)
-                // Visa modalen ändå om vi anropades manuellt eller via self-healing
-                setMorningReportData({ summary, currentStreak: streakData.currentStreak });
+                finalNewStreak = 0;
+            }
+
+            // Update local state
+            setStreakData({ currentStreak: finalNewStreak, lastDateStreakChecked: yesterdayUID });
+            
+            // Sync summary object streak if needed
+            if (summaryToUse.streakForThisDay !== finalNewStreak) {
+                 summaryToUse.streakForThisDay = finalNewStreak;
+            }
+
+            // Update User DB
+            await updateUserDocument(uid, {
+                currentStreak: finalNewStreak,
+                lastDateStreakChecked: yesterdayUID
+            });
+
+            // Unlock Achievement?
+            const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
+            if (streakAch) {
+                const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
+                if (unlocked) {
+                    setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
+                }
+            }
+            
+            // SHOW THE MODAL
+            // This is critical - it informs the user of the result (whether retrieved or calculated)
+            setMorningReportData({ summary: summaryToUse, currentStreak: finalNewStreak });
+            if (hasActivity) {
+                playAudio('levelUp');
             }
         }
 
@@ -1257,14 +1251,15 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
-            const yesterdayUID = dayKeySE(new Date(Date.now() - 86400000));
+            const { yKey: yesterdayUID } = yesterdayRangeSE(new Date());
             
-            // Trigger if:
-            // 1. Streak NOT updated for yesterday
-            // 2. OR Summary for yesterday is MISSING in local state (self-healing)
             const isStreakUpdated = streakData.lastDateStreakChecked === yesterdayUID;
+            // Check if we already have the summary locally (loaded from DB)
             const hasSummary = !!pastDaysSummary[yesterdayUID];
 
+            // Trigger if:
+            // 1. We haven't stamped the streak for yesterday yet.
+            // 2. OR We are missing the summary entirely (standard logic).
             if (!isStreakUpdated || !hasSummary) {
                 ensureYesterdayProcessed(currentUser.uid, new Date());
             }
