@@ -1,5 +1,6 @@
 
 const functions = require("firebase-functions");
+const auth = require("firebase-functions/v1/auth");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
@@ -95,7 +96,7 @@ async function sendNotificationToUser(userId, payload, notificationType) {
 // ---- Notis-funktioner ----
 
 // 0. Notiser till Coach
-exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
+exports.onNewUserRegistered = functions.auth.user().onCreate(async (user, context) => {
     const { email, displayName } = user;
     const name = displayName || email || "En ny användare";
 
@@ -129,7 +130,7 @@ exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
 // 1. Peppkompisförfrågan skapad
 exports.onFriendRequestCreated = functions.firestore
   .document("peppkompisRequests/{requestId}")
-  .onCreate(async (snapshot) => {
+  .onCreate(async (snapshot, context) => {
     const request = snapshot.data();
     if (!request) return;
 
@@ -580,7 +581,7 @@ const wasCalorieGoalMetForSummary = (consumed, goal, goalType) => {
     switch (goalType) {
         case "lose_fat": return consumed <= goal;
         case "maintain": return Math.abs(consumed - goal) <= goal * 0.10;
-        case "gain_muscle": return consumed >= (goal - 300); // FIX: Floor check instead of strict goal
+        case "gain_muscle": return consumed >= goal;
         default: return Math.abs(consumed - goal) <= goal * 0.10;
     }
 };
@@ -631,17 +632,11 @@ exports.manualSummarizeYesterday = functions
             }, {calories: 0, protein: 0, carbohydrates: 0, fat: 0});
 
             const minSafeCalories = Math.max(user.goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-            
-            // Goal Logic (Success/Fail)
             const wasDaySuccessful = dailyLogForDate.length > 0 &&
                 totalNutrients.calories >= minSafeCalories &&
                 wasCalorieGoalMetForSummary(totalNutrients.calories, user.goals.calorieGoal, user.goalType);
 
-            // Streak Logic (Activity based)
-            // FIX: Streak should increment if ANY food was logged (activity), not just if goal was met.
-            const hasActivity = dailyLogForDate.length > 0 && totalNutrients.calories > 0;
-            const newStreak = hasActivity ? (user.currentStreak || 0) + 1 : 0;
-            
+            const newStreak = wasDaySuccessful ? (user.currentStreak || 0) + 1 : 0;
             const newHighestStreak = Math.max(user.highestStreak || 0, newStreak);
             const bankedAmountThisDay = wasDaySuccessful && totalNutrients.calories < user.goals.calorieGoal ?
                 user.goals.calorieGoal - totalNutrients.calories : 0;
