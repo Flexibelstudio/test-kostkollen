@@ -419,7 +419,8 @@ export const App = () => {
 
     // Lesson Unlock Logic
     useEffect(() => {
-        if (!currentUser || !isInitialDataLoaded || userRole === 'coach' || userStatus !== 'approved') return;
+        // FIX: Removed userRole === 'coach' check to allow coaches to test course progression
+        if (!currentUser || !isInitialDataLoaded || userStatus !== 'approved') return;
 
         const checkAndUnlockLessons = async () => {
             const batch = writeBatch(db);
@@ -430,16 +431,20 @@ export const App = () => {
             let lastStreakAtUnlock = 0;
             let lastUnlockedIdx = -1;
 
-            for (let i = 0; i < pvLessons.length; i++) {
+            // Initialize baseline from Lesson 1 (which must be unlocked to start)
+            if (userCourseProgress[pvLessons[0].id]?.unlockedAt) {
+                lastUnlockedIdx = 0;
+                lastStreakAtUnlock = userCourseProgress[pvLessons[0].id].streakAtUnlock ?? 0;
+            }
+
+            // Start checking from Lesson 2 (index 1)
+            for (let i = 1; i < pvLessons.length; i++) {
                 const lessonId = pvLessons[i].id;
                 const prog = userCourseProgress[lessonId];
                 if (prog?.unlockedAt) {
                     lastUnlockedIdx = i;
                     lastStreakAtUnlock = prog.streakAtUnlock ?? 0;
                 } else {
-                    const isFirstLesson = i === 0;
-                    if (isFirstLesson) break; 
-
                     const prevWasUnlocked = lastUnlockedIdx === i - 1;
                     const streakTarget = lastStreakAtUnlock + 7;
 
@@ -593,12 +598,12 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         if (!currentUser) return;
         setIsLoadingCommunityData(true);
         try {
-            const [events, details] = await Promise.all([
+            const [timelineResult, details] = await Promise.all([
                 fetchCommunityTimeline(currentUser.uid),
                 fetchBuddyDetailsList(currentUser.uid),
             ]);
             // FIX: Removed redundant filtering. The Firestore query already filters by 'visibleTo'.
-            setTimelineEvents(events);
+            setTimelineEvents(timelineResult.events);
             setBuddyDetails(details);
         } catch (error) {
             console.error("Failed to load community data:", error);
