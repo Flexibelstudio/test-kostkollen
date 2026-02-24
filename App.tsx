@@ -639,6 +639,27 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
   }, [isInitialDataLoaded, currentUser]);
 
+  // --- NEW EFFECT: Ensure Morning Report is shown if not seen today ---
+  useEffect(() => {
+      if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) return;
+
+      // Don't show if currently processing or already showing
+      if (isSummarizingYesterday || morningReportData) return;
+
+      const todayUID = dayKeySE(new Date());
+      const lastSeen = localStorage.getItem('lastSeenMorningReport');
+
+      if (lastSeen === todayUID) return;
+
+      // Check if we have summary for yesterday
+      const yesterdayUID = dayKeySE(new Date(Date.now() - 86400000));
+      const summary = pastDaysSummary[yesterdayUID];
+
+      if (summary) {
+           setMorningReportData({ summary, currentStreak: streakData.currentStreak });
+      }
+  }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('view') === 'community') {
@@ -1530,7 +1551,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         {showOnboardingRewardModal && <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} goalType={userProfile.goalType} />}
         {dayToPotentiallySave && <UseStreakSaverModal show={!!dayToPotentiallySave} onClose={() => setDayToPotentiallySave(null)} onConfirm={handleUseStreakSaver} daySummary={dayToPotentiallySave} />}
         {showMotivationModal && <MotivationModal show={!!showMotivationModal} onClose={() => setShowMotivationModal(null)} daySummary={showMotivationModal} />}
-        {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => setMorningReportData(null)} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} />}
+        {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => {
+            setMorningReportData(null);
+            const todayUID = dayKeySE(new Date());
+            localStorage.setItem('lastSeenMorningReport', todayUID);
+        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} />}
         {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
         {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
