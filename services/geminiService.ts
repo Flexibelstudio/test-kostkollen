@@ -1,7 +1,8 @@
+
 // services/geminiService.ts
 import { GoogleGenAI, GenerateContentResponse, Content, Modality } from "@google/genai";
 import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle } from '../types.ts';
-import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
+import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS, CALORIE_ADJUSTMENT } from '../constants.ts';
 
 // Ensure API_KEY is available.
 if (!process.env.API_KEY) {
@@ -22,6 +23,20 @@ export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Pr
   const persona = COACH_PERSONAS[style];
   const name = userProfile.name || 'du';
 
+  // --- SMART LOGIC FOR GAIN MUSCLE ---
+  // För gain_muscle räknar vi det som lyckat om man ligger över underhåll (Mål - 300), 
+  // även om databasen säger goalMet: false (för att man inte nådde taket).
+  let goalStatusString = summary.goalMet ? 'JA' : 'NEJ';
+  let specificInstruction = "";
+
+  if (userProfile.goalType === 'gain_muscle') {
+      const maintenanceFloor = summary.calorieGoal - CALORIE_ADJUSTMENT.gain_muscle; // T.ex. 2500 - 300 = 2200
+      if (!summary.goalMet && summary.consumedCalories >= maintenanceFloor) {
+          goalStatusString = 'JA (Godkänt överskott)';
+          specificInstruction = "OBS: Användaren har målet att bygga muskler. Hen nådde inte det aggressiva målet, men låg över sitt underhållsbehov ('Godkänt överskott'). Beröm detta! Det är tillräckligt för att bygga.";
+      }
+  }
+
   const prompt = `Du är ${persona.label}, ${persona.roleTitle}.
 Tonläge och instruktioner: ${persona.promptTone}
 
@@ -33,17 +48,18 @@ Din uppgift är att ge en kort "morgonbriefing" baserat på gårdagens resultat.
 Användaren heter ${name}.
 
 SITUATION IGÅR:
-- Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
+- Mål uppfyllt: ${goalStatusString} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
 - Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
 - Streak-status: ${currentStreak > 0 ? `AKTIV (${currentStreak} dagar i rad). Användaren loggade igår!` : 'BRUTEN (0 dagar). Användaren loggade inte igår.'}
 
 INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
 2. VIKTIGT: Om 'Mål uppfyllt' är NEJ men 'Streak-status' är AKTIV: Beröm användaren tydligt för att hen ändå loggade och höll sin streak vid liv (det är det viktigaste beteendet!). Döm inte det missade målet, utan peppa mjukt att sikta på det idag istället.
-3. Om både mål och streak är positiva, ge stort beröm enligt din persona.
-4. Om streak är bruten, var uppmuntrande kring nystart idag.
-5. Avsluta med en kort uppmaning för idag.
-6. Svara på SVENSKA.`;
+3. ${specificInstruction}
+4. Om både mål och streak är positiva, ge stort beröm enligt din persona.
+5. Om streak är bruten, var uppmuntrande kring nystart idag.
+6. Avsluta med en kort uppmaning för idag.
+7. Svara på SVENSKA.`;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
@@ -521,6 +537,17 @@ export const getAICoachResponseStream = async (
   const style = userProfile.coachStyle || 'balanced';
   const persona = COACH_PERSONAS[style];
 
+  // --- NEW: Extract relevant lesson data (Why/SMART goals) ---
+  const courseData = context.userCourseProgress || {};
+  const lesson1 = courseData['lektion1'];
+  
+  let userMotivationContext = "";
+  if (lesson1) {
+      if (lesson1.whyAnswer) userMotivationContext += `\n- Användarens "Varför" (från Lektion 1): "${lesson1.whyAnswer}"`;
+      if (lesson1.smartGoalAnswer) userMotivationContext += `\n- Användarens SMART-mål (från Lektion 1): "${lesson1.smartGoalAnswer}"`;
+  }
+  // ---------------------------------------------------------
+
   const systemInstruction = `Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.
 Din persona är: ${persona.promptTone}.
 
@@ -530,6 +557,7 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
 2.  Anpassa din ton efter din persona (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
 3.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
+4.  **PERSONLIG DRIVKRAFT:** Om du märker att användaren tappar motivationen, använd deras egna ord från kursen (deras "Varför" och SMART-mål, se data nedan) för att påminna dem om varför de började.
 
 **REGLER FOR GRAF-SVAR:**
 1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.
@@ -581,6 +609,7 @@ Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VI
 - **Viktloggar (ENDAST för vikt, muskler, fett):** ${JSON.stringify(formattedWeightLogsForAI)}
 - **Dagliga Summeringar (ENDAST för protein, kalorier, etc.):** ${JSON.stringify(formattedDailySummariesForAI)}
 - **Välbefinnandeloggar:** ${JSON.stringify(mentalWellbeingLogs)}
+${userMotivationContext}
 `;
 
   const contents = [

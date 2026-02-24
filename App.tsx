@@ -1283,6 +1283,35 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         }
     };
 
+    // IMPLEMENTED SAVING LOGIC HERE
+    const handleSaveLessonData = async (lessonId: string, data: Partial<UserLessonProgress>) => {
+        if (!currentUser) return;
+
+        // Optimistic update
+        setUserCourseProgress(prev => {
+            const current = prev[lessonId] || { completedFocusPoints: [], isCompleted: false, reflectionAnswer: '' };
+            const updated = {
+                ...current,
+                ...data
+            };
+            return {
+                ...prev,
+                [lessonId]: updated
+            };
+        });
+
+        // Firestore update
+        try {
+            const currentProgress = userCourseProgress[lessonId] || { completedFocusPoints: [], isCompleted: false, reflectionAnswer: '' };
+            const updatedProgress = { ...currentProgress, ...data };
+            await saveCourseProgress(currentUser.uid, lessonId, updatedProgress, userRole || 'member', userStatus || 'approved');
+            setToastNotification({ message: 'Sparat!', type: 'success' });
+        } catch (error) {
+            console.error("Failed to save lesson data", error);
+            setToastNotification({ message: 'Kunde inte spara.', type: 'error' });
+        }
+    };
+
   // --- RENDERING LOGIC START ---
   
   if (authLoading) return <SplashScreen />;
@@ -1512,13 +1541,13 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 lesson={currentLesson}
                 progress={userCourseProgress[currentLessonId]}
                 onToggleFocusPoint={handleToggleFocusPoint} 
-                onSaveReflection={async () => {}}
+                onSaveReflection={async (id, ans) => handleSaveLessonData(id, { reflectionAnswer: ans })}
                 onMarkComplete={handleMarkLessonComplete} 
                 onClose={handleCloseLessonDetail}
                 onOpenSpeedDial={handleOpenSpeedDial}
                 onNavigateToJourney={handleNavigateToJourney}
-                onSaveWhyAnswer={async () => {}}
-                onSaveSmartGoalAnswer={async () => {}}
+                onSaveWhyAnswer={async (id, ans) => handleSaveLessonData(id, { whyAnswer: ans })}
+                onSaveSmartGoalAnswer={async (id, ans) => handleSaveLessonData(id, { smartGoalAnswer: ans })}
                 userProfile={userProfile}
                 weightLogs={weightLogs}
                 pastDaysSummary={Object.values(pastDaysSummary)}
@@ -1565,7 +1594,22 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
         {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} /></div>}
         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
-        <AICoachModal show={showAICoachModal} onClose={() => { setShowAICoachModal(false); setCoachInitialContext(null); }} analysisContext={{ userProfile, goals, allWeightLogs: weightLogs, last30DaysSummaries: Object.values(pastDaysSummary), mentalWellbeingLogs, goalTimeline: calculateGoalTimeline(userProfile), currentStreak: streakData.currentStreak }} initialContext={coachInitialContext} />
+        {/* Pass userCourseProgress to AI Coach Modal */}
+        <AICoachModal 
+            show={showAICoachModal} 
+            onClose={() => { setShowAICoachModal(false); setCoachInitialContext(null); }} 
+            analysisContext={{ 
+                userProfile, 
+                goals, 
+                allWeightLogs: weightLogs, 
+                last30DaysSummaries: Object.values(pastDaysSummary), 
+                mentalWellbeingLogs, 
+                goalTimeline: calculateGoalTimeline(userProfile), 
+                currentStreak: streakData.currentStreak,
+                userCourseProgress // Added
+            }} 
+            initialContext={coachInitialContext} 
+        />
         {showGamificationModal && (
             <GamificationModal
                 show={showGamificationModal}

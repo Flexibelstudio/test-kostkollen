@@ -413,6 +413,7 @@ export interface AIDataForJourneyAnalysis {
   };
   mentalWellbeingLogs?: MentalWellbeingLog[];
   currentStreak: number;
+  userCourseProgress?: UserCourseProgress;
 }
 
 export interface AIDataForCoachSummary {
