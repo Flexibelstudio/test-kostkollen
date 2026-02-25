@@ -656,6 +656,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       const summary = pastDaysSummary[yesterdayUID];
 
       if (summary) {
+           // Ensure streakData is up to date in the report
            setMorningReportData({ summary, currentStreak: streakData.currentStreak });
       }
   }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday]);

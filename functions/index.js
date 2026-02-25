@@ -1,6 +1,5 @@
 
 const functions = require("firebase-functions");
-const auth = require("firebase-functions/v1/auth");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
@@ -96,7 +95,7 @@ async function sendNotificationToUser(userId, payload, notificationType) {
 // ---- Notis-funktioner ----
 
 // 0. Notiser till Coach
-exports.onNewUserRegistered = functions.auth.user().onCreate(async (user, context) => {
+exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
     const { email, displayName } = user;
     const name = displayName || email || "En ny användare";
 
@@ -130,7 +129,7 @@ exports.onNewUserRegistered = functions.auth.user().onCreate(async (user, contex
 // 1. Peppkompisförfrågan skapad
 exports.onFriendRequestCreated = functions.firestore
   .document("peppkompisRequests/{requestId}")
-  .onCreate(async (snapshot, context) => {
+  .onCreate(async (snapshot) => {
     const request = snapshot.data();
     if (!request) return;
 
@@ -221,46 +220,62 @@ exports.onCommentCreated = functions.firestore
 exports.onUserStreakUpdated = functions.firestore
   .document("users/{userId}")
   .onUpdate(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
-    const userId = context.params.userId;
+    try {
+      const before = change.before.data() || {};
+      const after = change.after.data() || {};
+      const userId = context.params.userId;
 
-    const newStreak = after.currentStreak || 0;
-    const oldStreak = before.currentStreak || 0;
+      const newStreak = after.currentStreak || 0;
+      const oldStreak = before.currentStreak || 0;
 
-    // Om streaken har ökat och är över 0
-    if (newStreak > oldStreak && newStreak > 0) {
-      logger.log(`Streak increased for user ${userId}: ${oldStreak} -> ${newStreak}. Creating timeline event.`);
+      // Logga varje ändring för felsökning
+      logger.log(`Streak check for user ${userId}. Old: ${oldStreak}, New: ${newStreak}`);
 
-      // Hämta kompisar för att sätta synlighet
-      const buddiesSnap = await db.collection("users").doc(userId).collection("buddies").get();
-      const buddyUids = buddiesSnap.docs.map(d => d.id);
-      const visibleTo = [userId, ...buddyUids];
+      // Om streaken inte ändrats eller är 0, gör inget.
+      if (newStreak === oldStreak || newStreak <= 0) return null;
+      
+      // Om streaken har ökat
+      if (newStreak > oldStreak) {
+        logger.log(`Streak increased for user ${userId}: ${oldStreak} -> ${newStreak}. Creating timeline event.`);
 
-      const eventId = `streak_${userId}_${newStreak}_${new Date().toISOString().split('T')[0]}`;
-      const timelineDocRef = db.collection("communityTimeline").doc(eventId);
+        // Hämta kompisar säkert
+        const buddiesSnap = await db.collection("users").doc(userId).collection("buddies").get();
+        const buddyUids = buddiesSnap.docs.map(d => d.id);
+        const visibleTo = [userId, ...buddyUids];
 
-      const eventData = {
-        type: 'streak',
-        timestamp: Date.now(),
-        title: 'håller i sin streak! 🔥',
-        description: `Har nu loggat ${newStreak} ${newStreak === 1 ? 'dag' : 'dagar'} i rad!`,
-        icon: '🔥',
-        userId: userId,
-        userName: after.displayName || 'En användare',
-        userPhotoURL: after.photoURL || null,
-        gender: after.gender || 'female',
-        visibleTo: visibleTo,
-        reactions: {},
-        comments: [],
-        relatedDocPath: `users/${userId}`,
-      };
+        // Skapa unikt ID per dag och streak-siffra för att undvika dubbletter vid retries
+        const dateStr = new Date().toISOString().split('T')[0];
+        const eventId = `streak_${userId}_${newStreak}_${dateStr}`;
+        const timelineDocRef = db.collection("communityTimeline").doc(eventId);
 
-      try {
-        await timelineDocRef.set(eventData, { merge: true });
-      } catch (error) {
-        logger.error("Failed to create streak timeline event:", error);
+        // Kontrollera om eventet redan finns (idempotency check)
+        const existingDoc = await timelineDocRef.get();
+        if (existingDoc.exists) {
+            logger.log(`Timeline event ${eventId} already exists. Skipping.`);
+            return null;
+        }
+
+        const eventData = {
+          type: 'streak',
+          timestamp: Date.now(),
+          title: 'håller i sin streak! 🔥',
+          description: `Har nu loggat ${newStreak} ${newStreak === 1 ? 'dag' : 'dagar'} i rad!`,
+          icon: '🔥',
+          userId: userId,
+          userName: after.displayName || 'En användare',
+          userPhotoURL: after.photoURL || null,
+          gender: after.gender || 'female',
+          visibleTo: visibleTo,
+          reactions: {},
+          comments: [],
+          relatedDocPath: `users/${userId}`,
+        };
+
+        await timelineDocRef.set(eventData);
+        logger.log(`Successfully created timeline event ${eventId}`);
       }
+    } catch (error) {
+      logger.error("Failed to process streak update:", error);
     }
   });
 
