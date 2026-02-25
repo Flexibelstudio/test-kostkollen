@@ -1106,7 +1106,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
         
-        // --- NY LOGIK FÖR SPARPOTTRÄDDNING ---
         let goalMet = false;
         let usedFromBank = 0;
         let savedBy: "sparpott" | undefined = undefined;
@@ -1116,7 +1115,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 if (totals.calories <= goals.calorieGoal) {
                     goalMet = true;
                 } else {
-                    // Vi ligger över målet, kolla om banken räcker
                     const excess = totals.calories - goals.calorieGoal;
                     if (weeklyBank.bankedCalories >= excess) {
                         goalMet = true;
@@ -1125,7 +1123,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                     }
                 }
             } else if (userProfile.goalType === 'gain_muscle') {
-                // För gain_muscle räknas det som lyckat om man är över TDEE-floor
                 goalMet = totals.calories >= (goals.calorieGoal - 300);
             }
         }
@@ -1138,6 +1135,26 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         }
 
         const hasLogs = mealsToProcess.length > 0;
+        
+        // --- STREAK LOGIC ---
+        // Fetch day BEFORE yesterday to calculate streak correctly
+        const dayBeforeYesterday = new Date(yesterdayStart);
+        dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+        const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
+
+        // We need the summary of dayBeforeYesterday to know the streak baseline.
+        // It might be in pastDaysSummary state OR we might need to assume 0 if it's missing (e.g. first day).
+        const prevDaySummary = pastDaysSummary[dayBeforeYesterdayUID];
+        const prevStreak = prevDaySummary?.streakForThisDay || 0;
+        
+        let finalNewStreak = 0;
+        
+        // Strict logic: If logs exist > 0 streak increases. If not, reset to 0.
+        if (hasLogs) {
+             finalNewStreak = prevStreak + 1;
+        } else {
+             finalNewStreak = 0;
+        }
         
         const summary: PastDaySummary = {
             date: yesterdayUID,
@@ -1153,34 +1170,17 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             fatGoal: goals.fatGoal,
             goalType: userProfile.goalType,
             waterGoalMet: yesterdayWater >= DEFAULT_WATER_GOAL_ML,
-            streakForThisDay: 0, 
+            streakForThisDay: finalNewStreak, 
             bankedAmount: bankedAmount,
             savedBy: savedBy
         };
 
-        let finalNewStreak = 0;
-
-        setStreakData(prev => {
-            let newStreak = prev.currentStreak;
-            const dayBeforeYesterday = new Date(yesterdayStart);
-            dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
-            const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
-
-            if (prev.lastDateStreakChecked !== dayBeforeYesterdayUID && prev.lastDateStreakChecked !== yesterdayUID) {
-                 newStreak = 0;
-            }
-
-            if (hasLogs) {
-                newStreak += 1;
-            } else {
-                newStreak = 0;
-            }
-            
-            finalNewStreak = newStreak;
-            return { currentStreak: newStreak, lastDateStreakChecked: yesterdayUID };
-        });
-
-        summary.streakForThisDay = finalNewStreak;
+        // --- STATE UPDATE: Force update to streakData ---
+        // This ensures the UI reflects the new streak immediately.
+        setStreakData(prev => ({ 
+            currentStreak: finalNewStreak, 
+            lastDateStreakChecked: yesterdayUID 
+        }));
 
         await setPastDaySummary(uid, yesterdayUID, summary);
         
@@ -1205,7 +1205,10 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         await updateUserDocument(uid, userUpdates);
 
+        // Update local summaries state so Dashboard sees the new summary immediately
         setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
+        
+        // Trigger morning report with the NEW calculated streak
         setMorningReportData({ summary, currentStreak: finalNewStreak });
         playAudio('levelUp'); 
 
@@ -1223,7 +1226,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     } finally {
         setIsSummarizingYesterday(false);
     }
-}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories]);
+}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories, pastDaysSummary]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
