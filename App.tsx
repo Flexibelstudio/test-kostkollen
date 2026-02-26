@@ -1541,13 +1541,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 lesson={currentLesson}
                 progress={userCourseProgress[currentLessonId]}
                 onToggleFocusPoint={handleToggleFocusPoint} 
-                onSaveReflection={async (id, ans) => handleSaveLessonData(id, { reflectionAnswer: ans })}
+                onSaveProgress={handleSaveLessonData}
                 onMarkComplete={handleMarkLessonComplete} 
                 onClose={handleCloseLessonDetail}
                 onOpenSpeedDial={handleOpenSpeedDial}
                 onNavigateToJourney={handleNavigateToJourney}
-                onSaveWhyAnswer={async (id, ans) => handleSaveLessonData(id, { whyAnswer: ans })}
-                onSaveSmartGoalAnswer={async (id, ans) => handleSaveLessonData(id, { smartGoalAnswer: ans })}
                 userProfile={userProfile}
                 weightLogs={weightLogs}
                 pastDaysSummary={Object.values(pastDaysSummary)}
