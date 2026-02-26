@@ -30,9 +30,7 @@ import {
   ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS, VAPID_PUBLIC_KEY
 } from './constants.ts';
 
-import { getAIPeedback } from './services/geminiService.ts'; // Note: Typo in import checked, assuming getAIFeedback exists
-
-import { getAIFeedback as getAIFeedbackService } from './services/geminiService.ts'; // Correct import
+import { getAIFeedback as getAIFeedbackService } from './services/geminiService.ts';
 
 import {
   fetchWaterLog,
@@ -419,29 +417,35 @@ export const App = () => {
         }
     }, [isInitialDataLoaded, currentUser, hasCompletedOnboarding, userRole, userStatus, showUserProfileModal]);
 
-    // --- SELF HEALING STREAK LOGIC ---
+    // --- AGGRESSIV SJÄLVLÄKNING STREAK ---
     useEffect(() => {
         if (!currentUser || !isInitialDataLoaded || userRole === 'coach') return;
 
-        // "Sanningen" finns i pastDaysSummary. Om profilen säger fel, laga det.
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yKey = dayKeySE(yesterday);
-        const history = pastDaysSummary[yKey];
+        // Hämta alla summaries och sortera ut den senaste
+        const summaries = Object.values(pastDaysSummary).sort((a, b) => b.date.localeCompare(a.date));
+        const latestSummary = summaries[0];
 
-        if (history && history.streakForThisDay !== undefined) {
-            // Om profilens streak skiljer sig från historikens facit...
-            if (streakData.currentStreak !== history.streakForThisDay) {
-                console.log(`Self-healing streak. Profile: ${streakData.currentStreak}, History: ${history.streakForThisDay}`);
-                
-                // Uppdatera lokalt state
-                setStreakData(prev => ({...prev, currentStreak: history.streakForThisDay! }));
-                
-                // Uppdatera databasen
-                updateUserDocument(currentUser.uid, { currentStreak: history.streakForThisDay }).then(() => {
-                     setToastNotification({ message: "Din streak har korrigerats baserat på din historik!", type: "success" });
-                }).catch(e => console.error("Self-healing failed", e));
-            }
+        if (latestSummary && typeof latestSummary.streakForThisDay === 'number') {
+             // Kolla om senaste summary är från idag eller igår (relevant historik)
+             const yesterday = new Date();
+             yesterday.setDate(yesterday.getDate() - 1);
+             const yesterdayKey = dayKeySE(yesterday);
+             const todayKey = dayKeySE(new Date());
+
+             if (latestSummary.date === yesterdayKey || latestSummary.date === todayKey) {
+                 // Om profilens streak inte matchar historikens facit...
+                 if (streakData.currentStreak !== latestSummary.streakForThisDay) {
+                    console.log(`Self-healing streak. Profile: ${streakData.currentStreak}, History (${latestSummary.date}): ${latestSummary.streakForThisDay}`);
+                    
+                    // Uppdatera lokalt state direkt
+                    setStreakData(prev => ({...prev, currentStreak: latestSummary.streakForThisDay! }));
+                    
+                    // Uppdatera databasen
+                    updateUserDocument(currentUser.uid, { currentStreak: latestSummary.streakForThisDay }).then(() => {
+                         setToastNotification({ message: `Din streak har synkats till ${latestSummary.streakForThisDay} dagar!`, type: "success" });
+                    }).catch(e => console.error("Self-healing failed", e));
+                 }
+             }
         }
     }, [isInitialDataLoaded, currentUser, pastDaysSummary, streakData.currentStreak, userRole, setToastNotification, setStreakData]);
 
@@ -1164,15 +1168,13 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             }
         }
 
-        // --- STREAK LOGIC FIXED ---
-        // Look at the day BEFORE yesterday to determine streak continuity.
+        // --- STREAK LOGIC FIXED (Using Historical Chain) ---
+        // Look at the day BEFORE yesterday (forrgår) to determine continuity.
         const dayBeforeYesterday = new Date(yesterdayStart);
         dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
         const dayBeforeUID = dayKeySE(dayBeforeYesterday);
         
-        // Use history if available, otherwise assume 0 (safety fallback)
-        // Note: pastDaysSummary object might not be fully populated if not loaded, 
-        // but typically context loads it. 
+        // Find historical streak from context. Fallback to 0 if missing.
         const prevDaySummary = pastDaysSummary[dayBeforeUID];
         const prevStreak = prevDaySummary?.streakForThisDay || 0;
         
