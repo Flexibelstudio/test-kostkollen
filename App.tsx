@@ -1138,15 +1138,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         const hasLogs = mealsToProcess.length > 0;
         
         // --- STREAK LOGIC ---
-        // Fetch day BEFORE yesterday to calculate streak correctly
-        const dayBeforeYesterday = new Date(yesterdayStart);
-        dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
-        const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
-
-        // We need the summary of dayBeforeYesterday to know the streak baseline.
-        // It might be in pastDaysSummary state OR we might need to assume 0 if it's missing (e.g. first day).
-        const prevDaySummary = pastDaysSummary[dayBeforeYesterdayUID];
-        const prevStreak = prevDaySummary?.streakForThisDay || 0;
+        
+        // FIX: Use currentStreak from profile as baseline instead of looking up pastDaySummary.
+        // relying on pastDaysSummary is fragile if data hasn't fully loaded into the local state yet.
+        // We assume currentStreak reflects the state up until the last check.
+        let prevStreak = streakData.currentStreak;
         
         let finalNewStreak = 0;
         
@@ -1227,7 +1223,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     } finally {
         setIsSummarizingYesterday(false);
     }
-}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories, pastDaysSummary]);
+}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories, pastDaysSummary, streakData.currentStreak]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
@@ -1237,7 +1233,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                 ensureYesterdayProcessed(currentUser.uid, new Date());
             }
         }
-    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding]);
+    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, streakData.lastDateStreakChecked, ensureYesterdayProcessed]);
 
   
   useEffect(() => {
