@@ -21,7 +21,8 @@ import {
   OnboardingChecklistItemStatus,
   UserRole,
   GoalSettings,
-  LoggedMeal
+  LoggedMeal,
+  PastDaysSummaryCollection
 } from './types.ts';
 
 import {
@@ -417,11 +418,12 @@ export const App = () => {
         }
     }, [isInitialDataLoaded, currentUser, hasCompletedOnboarding, userRole, userStatus, showUserProfileModal]);
 
-    // --- AGGRESSIV SJÄLVLÄKNING STREAK ---
+    // --- AGGRESSIV SJÄLVLÄKNING STREAK: LITA PÅ HISTORIKEN ---
     useEffect(() => {
         if (!currentUser || !isInitialDataLoaded || userRole === 'coach') return;
 
         // Hämta alla summaries och sortera ut den senaste
+        // Vi litar på att pastDaySummary innehåller sanningen.
         const summaries = Object.values(pastDaysSummary).sort((a, b) => b.date.localeCompare(a.date));
         const latestSummary = summaries[0];
 
@@ -435,14 +437,17 @@ export const App = () => {
              if (latestSummary.date === yesterdayKey || latestSummary.date === todayKey) {
                  // Om profilens streak inte matchar historikens facit...
                  if (streakData.currentStreak !== latestSummary.streakForThisDay) {
-                    console.log(`Self-healing streak. Profile: ${streakData.currentStreak}, History (${latestSummary.date}): ${latestSummary.streakForThisDay}`);
+                    console.log(`Self-healing streak (TRUST SUMMARY). Profile: ${streakData.currentStreak}, Latest History (${latestSummary.date}): ${latestSummary.streakForThisDay}`);
                     
                     // Uppdatera lokalt state direkt
                     setStreakData(prev => ({...prev, currentStreak: latestSummary.streakForThisDay! }));
                     
                     // Uppdatera databasen
                     updateUserDocument(currentUser.uid, { currentStreak: latestSummary.streakForThisDay }).then(() => {
-                         setToastNotification({ message: `Din streak har synkats till ${latestSummary.streakForThisDay} dagar!`, type: "success" });
+                         // Visa en bekräftelse om vi fixade en bugg
+                         if (latestSummary.streakForThisDay! > streakData.currentStreak) {
+                            setToastNotification({ message: `Din streak har synkats till ${latestSummary.streakForThisDay} dagar!`, type: "success" });
+                         }
                     }).catch(e => console.error("Self-healing failed", e));
                  }
              }
