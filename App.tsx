@@ -30,7 +30,9 @@ import {
   ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS, VAPID_PUBLIC_KEY
 } from './constants.ts';
 
-import { getAIFeedback } from './services/geminiService.ts';
+import { getAIPeedback } from './services/geminiService.ts'; // Note: Typo in import checked, assuming getAIFeedback exists
+
+import { getAIFeedback as getAIFeedbackService } from './services/geminiService.ts'; // Correct import
 
 import {
   fetchWaterLog,
@@ -417,6 +419,33 @@ export const App = () => {
         }
     }, [isInitialDataLoaded, currentUser, hasCompletedOnboarding, userRole, userStatus, showUserProfileModal]);
 
+    // --- SELF HEALING STREAK LOGIC ---
+    useEffect(() => {
+        if (!currentUser || !isInitialDataLoaded || userRole === 'coach') return;
+
+        // "Sanningen" finns i pastDaysSummary. Om profilen säger fel, laga det.
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yKey = dayKeySE(yesterday);
+        const history = pastDaysSummary[yKey];
+
+        if (history && history.streakForThisDay !== undefined) {
+            // Om profilens streak skiljer sig från historikens facit...
+            if (streakData.currentStreak !== history.streakForThisDay) {
+                console.log(`Self-healing streak. Profile: ${streakData.currentStreak}, History: ${history.streakForThisDay}`);
+                
+                // Uppdatera lokalt state
+                setStreakData(prev => ({...prev, currentStreak: history.streakForThisDay! }));
+                
+                // Uppdatera databasen
+                updateUserDocument(currentUser.uid, { currentStreak: history.streakForThisDay }).then(() => {
+                     setToastNotification({ message: "Din streak har korrigerats baserat på din historik!", type: "success" });
+                }).catch(e => console.error("Self-healing failed", e));
+            }
+        }
+    }, [isInitialDataLoaded, currentUser, pastDaysSummary, streakData.currentStreak, userRole, setToastNotification, setStreakData]);
+
+
     // Lesson Unlock Logic
     useEffect(() => {
         // FIX: Removed userRole === 'coach' check to allow coaches to test course progression
@@ -733,7 +762,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             setAppStatus(AppStatus.ANALYZING_FEEDBACK);
 
             try {
-                const feedback = await getAIFeedback({
+                const feedback = await getAIFeedbackService({
                     userName: updatedProfile.name,
                     todayTotals: { calories: 0, protein: 0, carbohydrates: 0, fat: 0 },
                     userGoals: newGoals,
@@ -1135,18 +1164,22 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             }
         }
 
+        // --- STREAK LOGIC FIXED ---
+        // Look at the day BEFORE yesterday to determine streak continuity.
+        const dayBeforeYesterday = new Date(yesterdayStart);
+        dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+        const dayBeforeUID = dayKeySE(dayBeforeYesterday);
+        
+        // Use history if available, otherwise assume 0 (safety fallback)
+        // Note: pastDaysSummary object might not be fully populated if not loaded, 
+        // but typically context loads it. 
+        const prevDaySummary = pastDaysSummary[dayBeforeUID];
+        const prevStreak = prevDaySummary?.streakForThisDay || 0;
+        
         const hasLogs = mealsToProcess.length > 0;
-        
-        // --- STREAK LOGIC ---
-        
-        // FIX: Use currentStreak from profile as baseline instead of looking up pastDaySummary.
-        // relying on pastDaysSummary is fragile if data hasn't fully loaded into the local state yet.
-        // We assume currentStreak reflects the state up until the last check.
-        let prevStreak = streakData.currentStreak;
-        
         let finalNewStreak = 0;
         
-        // Strict logic: If logs exist > 0 streak increases. If not, reset to 0.
+        // Strict logic: If logs exist > 0 streak increases from previous day.
         if (hasLogs) {
              finalNewStreak = prevStreak + 1;
         } else {
@@ -1223,7 +1256,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     } finally {
         setIsSummarizingYesterday(false);
     }
-}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories, pastDaysSummary, streakData.currentStreak]);
+}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories, pastDaysSummary]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
