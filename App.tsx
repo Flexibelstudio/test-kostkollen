@@ -1613,6 +1613,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
          )}
           {viewMode === 'lessonDetail' && currentLessonId && currentLesson && (
             <LessonDetail
+                key={currentLesson.id}
                 lesson={currentLesson}
                 progress={userCourseProgress[currentLessonId]}
                 onToggleFocusPoint={handleToggleFocusPoint} 
