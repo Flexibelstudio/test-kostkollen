@@ -418,41 +418,75 @@ export const App = () => {
         }
     }, [isInitialDataLoaded, currentUser, hasCompletedOnboarding, userRole, userStatus, showUserProfileModal]);
 
-    // --- AGGRESSIV SJÄLVLÄKNING STREAK: LITA PÅ HISTORIKEN ---
+    // --- SELF-HEALING & SYNC LOGIC ---
     useEffect(() => {
-        if (!currentUser || !isInitialDataLoaded || userRole === 'coach') return;
+        if (isInitialDataLoaded && currentUser && userRole !== 'coach') {
+             // 1. Self-healing Streak
+             const summaries = Object.values(pastDaysSummary).sort((a, b) => b.date.localeCompare(a.date));
+             const latestSummary = summaries[0];
+             
+             if (latestSummary && typeof latestSummary.streakForThisDay === 'number') {
+                 const yesterday = new Date();
+                 yesterday.setDate(yesterday.getDate() - 1);
+                 const yesterdayKey = dayKeySE(yesterday);
+                 const todayKey = dayKeySE(new Date());
 
-        // Hämta alla summaries och sortera ut den senaste
-        // Vi litar på att pastDaySummary innehåller sanningen.
-        const summaries = Object.values(pastDaysSummary).sort((a, b) => b.date.localeCompare(a.date));
-        const latestSummary = summaries[0];
+                 if (latestSummary.date === yesterdayKey || latestSummary.date === todayKey) {
+                     if (streakData.currentStreak !== latestSummary.streakForThisDay) {
+                        console.log(`Self-healing streak (TRUST SUMMARY). Profile: ${streakData.currentStreak}, Latest History (${latestSummary.date}): ${latestSummary.streakForThisDay}`);
+                        
+                        setStreakData(prev => ({...prev, currentStreak: latestSummary.streakForThisDay! }));
+                        
+                        updateUserDocument(currentUser.uid, { currentStreak: latestSummary.streakForThisDay }).then(() => {
+                             if (latestSummary.streakForThisDay! > streakData.currentStreak) {
+                                setToastNotification({ message: `Din streak har synkats till ${latestSummary.streakForThisDay} dagar!`, type: "success" });
+                             }
+                        }).catch(e => console.error("Self-healing failed", e));
+                     }
+                 }
+             }
 
-        if (latestSummary && typeof latestSummary.streakForThisDay === 'number') {
-             // Kolla om senaste summary är från idag eller igår (relevant historik)
-             const yesterday = new Date();
-             yesterday.setDate(yesterday.getDate() - 1);
-             const yesterdayKey = dayKeySE(yesterday);
-             const todayKey = dayKeySE(new Date());
-
-             if (latestSummary.date === yesterdayKey || latestSummary.date === todayKey) {
-                 // Om profilens streak inte matchar historikens facit...
-                 if (streakData.currentStreak !== latestSummary.streakForThisDay) {
-                    console.log(`Self-healing streak (TRUST SUMMARY). Profile: ${streakData.currentStreak}, Latest History (${latestSummary.date}): ${latestSummary.streakForThisDay}`);
-                    
-                    // Uppdatera lokalt state direkt
-                    setStreakData(prev => ({...prev, currentStreak: latestSummary.streakForThisDay! }));
-                    
-                    // Uppdatera databasen
-                    updateUserDocument(currentUser.uid, { currentStreak: latestSummary.streakForThisDay }).then(() => {
-                         // Visa en bekräftelse om vi fixade en bugg
-                         if (latestSummary.streakForThisDay! > streakData.currentStreak) {
-                            setToastNotification({ message: `Din streak har synkats till ${latestSummary.streakForThisDay} dagar!`, type: "success" });
-                         }
-                    }).catch(e => console.error("Self-healing failed", e));
+             // 2. Self-healing Bank (Retroactive fix for missing banked calories)
+             const yesterdayKey = dayKeySE(new Date(Date.now() - 86400000));
+             const yesterdaySummary = pastDaysSummary[yesterdayKey];
+             
+             if (yesterdaySummary && (userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain')) {
+                 // Check if we missed banking calories
+                 const minSafe = Math.max((yesterdaySummary.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+                 
+                 // Condition: Consumed is within safe range AND below goal, BUT bankedAmount is 0 (and not saved by bank usage)
+                 if (yesterdaySummary.consumedCalories >= minSafe && 
+                     yesterdaySummary.consumedCalories < yesterdaySummary.calorieGoal && 
+                     (!yesterdaySummary.bankedAmount || yesterdaySummary.bankedAmount === 0) &&
+                     yesterdaySummary.savedBy !== 'sparpott') {
+                     
+                     const shouldHaveBanked = Math.round(yesterdaySummary.calorieGoal - yesterdaySummary.consumedCalories);
+                     
+                     if (shouldHaveBanked > 0) {
+                         console.log(`Self-healing Bank: Found ${shouldHaveBanked} kcal that should have been banked for ${yesterdayKey}. Fixing...`);
+                         
+                         // 1. Update local summary
+                         const updatedSummary = { ...yesterdaySummary, bankedAmount: shouldHaveBanked };
+                         setPastDaysSummary(prev => ({ ...prev, [yesterdayKey]: updatedSummary }));
+                         
+                         // 2. Update Firestore Summary
+                         setPastDaySummary(currentUser.uid, yesterdayKey, updatedSummary);
+                         
+                         // 3. Update Weekly Bank
+                         const newBankTotal = weeklyBank.bankedCalories + shouldHaveBanked;
+                         setWeeklyBank(prev => ({ ...prev, bankedCalories: newBankTotal }));
+                         
+                         // 4. Update User Document (Bank Total)
+                         updateUserDocument(currentUser.uid, { 
+                             "weeklyBank.bankedCalories": increment(shouldHaveBanked) 
+                         }).then(() => {
+                             setToastNotification({ message: `Hittade ${shouldHaveBanked} kcal som missades igår. De är nu insatta på sparpotten! 💰`, type: 'success' });
+                         }).catch(console.error);
+                     }
                  }
              }
         }
-    }, [isInitialDataLoaded, currentUser, pastDaysSummary, streakData.currentStreak, userRole, setToastNotification, setStreakData]);
+    }, [isInitialDataLoaded, currentUser, pastDaysSummary, streakData.currentStreak, userRole, setToastNotification, setStreakData, userProfile.goalType, weeklyBank.bankedCalories]);
 
 
     // Lesson Unlock Logic
@@ -694,8 +728,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       const summary = pastDaysSummary[yesterdayUID];
 
       if (summary) {
-           // Ensure streakData is up to date in the report
-           setMorningReportData({ summary, currentStreak: streakData.currentStreak });
+           // Use the streak stored in the summary as the truth, fallback to currentStreak if missing
+           const displayStreak = (typeof summary.streakForThisDay === 'number') ? summary.streakForThisDay : streakData.currentStreak;
+           setMorningReportData({ summary, currentStreak: displayStreak });
       }
   }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday]);
 
