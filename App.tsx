@@ -327,6 +327,15 @@ export const App = () => {
   const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number } | null>(null);
   const [isSummarizingYesterday, setIsSummarizingYesterday] = useState(false);
 
+  // Refs to store latest state for use in async callbacks (like the catch-up loop)
+  const pastDaysSummaryRef = useRef(pastDaysSummary);
+  const streakDataRef = useRef(streakData);
+  const weeklyBankRef = useRef(weeklyBank);
+
+  useEffect(() => { pastDaysSummaryRef.current = pastDaysSummary; }, [pastDaysSummary]);
+  useEffect(() => { streakDataRef.current = streakData; }, [streakData]);
+  useEffect(() => { weeklyBankRef.current = weeklyBank; }, [weeklyBank]);
+
 
   const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   
@@ -1172,7 +1181,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                     goalMet = true;
                 } else {
                     const excess = totals.calories - goals.calorieGoal;
-                    if (weeklyBank.bankedCalories >= excess) {
+                    if (weeklyBankRef.current.bankedCalories >= excess) {
                         goalMet = true;
                         usedFromBank = Math.round(excess);
                         savedBy = 'sparpott';
@@ -1197,7 +1206,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         const dayBeforeUID = dayKeySE(dayBeforeYesterday);
         
         // Find historical streak from context. Fallback to 0 if missing.
-        const prevDaySummary = pastDaysSummary[dayBeforeUID];
+        const prevDaySummary = pastDaysSummaryRef.current[dayBeforeUID];
         const prevStreak = prevDaySummary?.streakForThisDay || 0;
         
         const hasLogs = mealsToProcess.length > 0;
@@ -1262,9 +1271,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         // Update local summaries state so Dashboard sees the new summary immediately
         setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
         
-        // Trigger morning report with the NEW calculated streak
-        setMorningReportData({ summary, currentStreak: finalNewStreak });
-        playAudio('levelUp'); 
+        if (!options.silent) {
+            // Trigger morning report with the NEW calculated streak
+            setMorningReportData({ summary, currentStreak: finalNewStreak });
+            playAudio('levelUp'); 
+        }
 
         // Streak Achievement Check
         const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
@@ -1280,17 +1291,53 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     } finally {
         setIsSummarizingYesterday(false);
     }
-}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, weeklyBank.bankedCalories, pastDaysSummary]);
+}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification]);
 
+    const isCatchingUp = useRef(false);
     useEffect(() => {
-        if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
-            // Körs bara om igår INTE redan är kollad
-            const yesterdayUID = dayKeySE(new Date(Date.now() - 86400000));
-            if (streakData.lastDateStreakChecked !== yesterdayUID) {
-                ensureYesterdayProcessed(currentUser.uid, new Date());
+        const catchUp = async () => {
+            if (isCatchingUp.current) return;
+            if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding && !isSummarizingYesterday) {
+                isCatchingUp.current = true;
+                try {
+                    const today = new Date();
+                    const yesterdayUID = dayKeySE(new Date(today.getTime() - 86400000));
+                    
+                    if (streakDataRef.current.lastDateStreakChecked && streakDataRef.current.lastDateStreakChecked !== yesterdayUID) {
+                        // We have a gap.
+                        // lastDateStreakChecked is the last day that WAS processed.
+                        // We start from lastDateStreakChecked + 1 day.
+                        
+                        let currentCheckDate = new Date(streakDataRef.current.lastDateStreakChecked + "T12:00:00"); 
+                        currentCheckDate.setDate(currentCheckDate.getDate() + 1);
+                        
+                        let currentCheckUID = dayKeySE(currentCheckDate);
+                        
+                        // Limit catch-up to avoid performance issues (max 30 days)
+                        let safetyCounter = 0;
+                        while (currentCheckUID <= yesterdayUID && safetyCounter < 30) {
+                            const isFinalDay = currentCheckUID === yesterdayUID;
+                            // To process currentCheckUID, we pass currentCheckUID + 1 day as 'now' to ensureYesterdayProcessed
+                            const processNow = new Date(currentCheckDate.getTime() + 86400000);
+                            
+                            await ensureYesterdayProcessed(currentUser.uid, processNow, { silent: !isFinalDay });
+                            
+                            // Move to next day
+                            currentCheckDate.setDate(currentCheckDate.getDate() + 1);
+                            currentCheckUID = dayKeySE(currentCheckDate);
+                            safetyCounter++;
+                        }
+                    } else if (!streakDataRef.current.lastDateStreakChecked) {
+                        // Fallback for new users or missing data
+                        await ensureYesterdayProcessed(currentUser.uid, today);
+                    }
+                } finally {
+                    isCatchingUp.current = false;
+                }
             }
-        }
-    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, streakData.lastDateStreakChecked, ensureYesterdayProcessed]);
+        };
+        catchUp();
+    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, streakData.lastDateStreakChecked, ensureYesterdayProcessed, isSummarizingYesterday]);
 
   
   useEffect(() => {
