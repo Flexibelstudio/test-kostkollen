@@ -421,32 +421,7 @@ export const App = () => {
     // --- SELF-HEALING & SYNC LOGIC ---
     useEffect(() => {
         if (isInitialDataLoaded && currentUser && userRole !== 'coach') {
-             // 1. Self-healing Streak
-             const summaries = Object.values(pastDaysSummary).sort((a, b) => b.date.localeCompare(a.date));
-             const latestSummary = summaries[0];
-             
-             if (latestSummary && typeof latestSummary.streakForThisDay === 'number') {
-                 const yesterday = new Date();
-                 yesterday.setDate(yesterday.getDate() - 1);
-                 const yesterdayKey = dayKeySE(yesterday);
-                 const todayKey = dayKeySE(new Date());
-
-                 if (latestSummary.date === yesterdayKey || latestSummary.date === todayKey) {
-                     if (streakData.currentStreak !== latestSummary.streakForThisDay) {
-                        console.log(`Self-healing streak (TRUST SUMMARY). Profile: ${streakData.currentStreak}, Latest History (${latestSummary.date}): ${latestSummary.streakForThisDay}`);
-                        
-                        setStreakData(prev => ({...prev, currentStreak: latestSummary.streakForThisDay! }));
-                        
-                        updateUserDocument(currentUser.uid, { currentStreak: latestSummary.streakForThisDay }).then(() => {
-                             if (latestSummary.streakForThisDay! > streakData.currentStreak) {
-                                setToastNotification({ message: `Din streak har synkats till ${latestSummary.streakForThisDay} dagar!`, type: "success" });
-                             }
-                        }).catch(e => console.error("Self-healing failed", e));
-                     }
-                 }
-             }
-
-             // 2. Self-healing Bank (Retroactive fix for missing banked calories)
+             // 1. Self-healing Bank (Retroactive fix for missing banked calories)
              const yesterdayKey = dayKeySE(new Date(Date.now() - 86400000));
              const yesterdaySummary = pastDaysSummary[yesterdayKey];
              
@@ -486,7 +461,7 @@ export const App = () => {
                  }
              }
         }
-    }, [isInitialDataLoaded, currentUser, pastDaysSummary, streakData.currentStreak, userRole, setToastNotification, setStreakData, userProfile.goalType, weeklyBank.bankedCalories]);
+    }, [isInitialDataLoaded, currentUser, pastDaysSummary, userRole, setToastNotification, setWeeklyBank, setPastDaysSummary, userProfile.goalType, weeklyBank.bankedCalories]);
 
 
     // Lesson Unlock Logic
@@ -1156,6 +1131,13 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
     if (!uid || userRole === 'coach' || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
     const { start: yesterdayStart, yKey: yesterdayUID } = yesterdayRangeSE(now);
+    const todayUID = dayKeySE(new Date());
+
+    // STRICT CHECK: Never summarize today or a future date
+    if (yesterdayUID >= todayUID) {
+        console.warn(`Attempted to summarize a future/current date (${yesterdayUID}). Aborting.`);
+        return;
+    }
     
     if (!summaryStartDate || yesterdayUID < summaryStartDate) {
         return;
