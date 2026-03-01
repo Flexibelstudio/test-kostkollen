@@ -427,52 +427,6 @@ export const App = () => {
         }
     }, [isInitialDataLoaded, currentUser, hasCompletedOnboarding, userRole, userStatus, showUserProfileModal]);
 
-    // --- SELF-HEALING & SYNC LOGIC ---
-    useEffect(() => {
-        if (isInitialDataLoaded && currentUser && userRole !== 'coach') {
-             // 1. Self-healing Bank (Retroactive fix for missing banked calories)
-             const yesterdayKey = dayKeySE(new Date(Date.now() - 86400000));
-             const yesterdaySummary = pastDaysSummary[yesterdayKey];
-             
-             if (yesterdaySummary && (userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain')) {
-                 // Check if we missed banking calories
-                 const minSafe = Math.max((yesterdaySummary.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-                 
-                 // Condition: Consumed is within safe range AND below goal, BUT bankedAmount is 0 (and not saved by bank usage)
-                 if (yesterdaySummary.consumedCalories >= minSafe && 
-                     yesterdaySummary.consumedCalories < yesterdaySummary.calorieGoal && 
-                     (!yesterdaySummary.bankedAmount || yesterdaySummary.bankedAmount === 0) &&
-                     yesterdaySummary.savedBy !== 'sparpott') {
-                     
-                     const shouldHaveBanked = Math.round(yesterdaySummary.calorieGoal - yesterdaySummary.consumedCalories);
-                     
-                     if (shouldHaveBanked > 0) {
-                         console.log(`Self-healing Bank: Found ${shouldHaveBanked} kcal that should have been banked for ${yesterdayKey}. Fixing...`);
-                         
-                         // 1. Update local summary
-                         const updatedSummary = { ...yesterdaySummary, bankedAmount: shouldHaveBanked };
-                         setPastDaysSummary(prev => ({ ...prev, [yesterdayKey]: updatedSummary }));
-                         
-                         // 2. Update Firestore Summary
-                         setPastDaySummary(currentUser.uid, yesterdayKey, updatedSummary);
-                         
-                         // 3. Update Weekly Bank
-                         const newBankTotal = weeklyBank.bankedCalories + shouldHaveBanked;
-                         setWeeklyBank(prev => ({ ...prev, bankedCalories: newBankTotal }));
-                         
-                         // 4. Update User Document (Bank Total)
-                         updateUserDocument(currentUser.uid, { 
-                             "weeklyBank.bankedCalories": increment(shouldHaveBanked) 
-                         }).then(() => {
-                             setToastNotification({ message: `Hittade ${shouldHaveBanked} kcal som missades igår. De är nu insatta på sparpotten! 💰`, type: 'success' });
-                         }).catch(console.error);
-                     }
-                 }
-             }
-        }
-    }, [isInitialDataLoaded, currentUser, pastDaysSummary, userRole, setToastNotification, setWeeklyBank, setPastDaysSummary, userProfile.goalType, weeklyBank.bankedCalories]);
-
-
     // Lesson Unlock Logic
     useEffect(() => {
         // FIX: Removed userRole === 'coach' check to allow coaches to test course progression
@@ -1240,10 +1194,12 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         // --- STATE UPDATE: Force update to streakData ---
         // This ensures the UI reflects the new streak immediately.
-        setStreakData(prev => ({ 
+        const newStreakData = { 
             currentStreak: finalNewStreak, 
             lastDateStreakChecked: yesterdayUID 
-        }));
+        };
+        setStreakData(newStreakData);
+        streakDataRef.current = newStreakData;
 
         await setPastDaySummary(uid, yesterdayUID, summary);
         
@@ -1254,22 +1210,28 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         if (bankedAmount > 0) {
             userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
-            setWeeklyBank(prev => ({
-                ...prev,
-                bankedCalories: prev.bankedCalories + bankedAmount
-            }));
+            const newBank = {
+                ...weeklyBankRef.current,
+                bankedCalories: weeklyBankRef.current.bankedCalories + bankedAmount
+            };
+            setWeeklyBank(newBank);
+            weeklyBankRef.current = newBank;
         } else if (usedFromBank > 0) {
             userUpdates["weeklyBank.bankedCalories"] = increment(-usedFromBank);
-            setWeeklyBank(prev => ({
-                ...prev,
-                bankedCalories: Math.max(0, prev.bankedCalories - usedFromBank)
-            }));
+            const newBank = {
+                ...weeklyBankRef.current,
+                bankedCalories: Math.max(0, weeklyBankRef.current.bankedCalories - usedFromBank)
+            };
+            setWeeklyBank(newBank);
+            weeklyBankRef.current = newBank;
         }
 
         await updateUserDocument(uid, userUpdates);
 
         // Update local summaries state so Dashboard sees the new summary immediately
-        setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
+        const newSummaries = { ...pastDaysSummaryRef.current, [yesterdayUID]: summary };
+        setPastDaysSummary(newSummaries);
+        pastDaysSummaryRef.current = newSummaries;
         
         if (!options.silent) {
             // Trigger morning report with the NEW calculated streak
