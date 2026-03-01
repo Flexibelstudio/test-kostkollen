@@ -1090,7 +1090,7 @@ useEffect(() => {
     ensureWeeklyBankReset();
 }, [ensureWeeklyBankReset]);
 
-const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[]): Promise<void> => {
+const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[], prefetchedWater?: number): Promise<void> => {
     if (!uid || userRole === 'coach' || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
     const { start: yesterdayStart, yKey: yesterdayUID } = yesterdayRangeSE(now);
@@ -1110,8 +1110,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     try {
         const [yesterdayMeals, yesterdayWater] = await Promise.all([
-            fetchMealLogsForDate(uid, yesterdayUID),
-            fetchWaterLog(uid, yesterdayUID)
+            manualLogOverride ? Promise.resolve(manualLogOverride) : fetchMealLogsForDate(uid, yesterdayUID),
+            prefetchedWater !== undefined ? Promise.resolve(prefetchedWater) : fetchWaterLog(uid, yesterdayUID)
         ]);
 
         const mealsToProcess = manualLogOverride || yesterdayMeals;
@@ -1277,17 +1277,39 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
                         
                         // Limit catch-up to avoid performance issues (max 30 days)
                         let safetyCounter = 0;
+                        const daysToProcess = [];
+                        
                         while (currentCheckUID <= yesterdayUID && safetyCounter < 30) {
                             const isFinalDay = currentCheckUID === yesterdayUID;
                             // To process currentCheckUID, we pass currentCheckUID + 1 day as 'now' to ensureYesterdayProcessed
                             const processNow = new Date(currentCheckDate.getTime() + 86400000);
                             
-                            await ensureYesterdayProcessed(currentUser.uid, processNow, { silent: !isFinalDay });
+                            daysToProcess.push({
+                                uid: currentCheckUID,
+                                processNow,
+                                isFinalDay
+                            });
                             
                             // Move to next day
                             currentCheckDate.setDate(currentCheckDate.getDate() + 1);
                             currentCheckUID = dayKeySE(currentCheckDate);
                             safetyCounter++;
+                        }
+
+                        // 1. Fetch all data in parallel
+                        const prefetchPromises = daysToProcess.map(async (day) => {
+                            const [meals, water] = await Promise.all([
+                                fetchMealLogsForDate(currentUser.uid, day.uid),
+                                fetchWaterLog(currentUser.uid, day.uid)
+                            ]);
+                            return { ...day, meals, water };
+                        });
+                        
+                        const prefetchedData = await Promise.all(prefetchPromises);
+
+                        // 2. Process sequentially (instantaneous because data is prefetched and state is updated synchronously)
+                        for (const dayData of prefetchedData) {
+                            await ensureYesterdayProcessed(currentUser.uid, dayData.processNow, { silent: !dayData.isFinalDay }, dayData.meals, dayData.water);
                         }
                     } else if (!streakDataRef.current.lastDateStreakChecked) {
                         // Fallback for new users or missing data
