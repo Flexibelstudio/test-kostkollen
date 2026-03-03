@@ -1,5 +1,5 @@
 
-import { db, functions } from "../firebase";
+import { db, functions } from "../firebase"; // Import functions
 import type { User } from '@firebase/auth';
 import { 
     collection, 
@@ -26,10 +26,9 @@ import {
     increment,
     runTransaction,
     arrayUnion,
-    startAfter,
-    QuerySnapshot
+    Transaction,
 } from "@firebase/firestore";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "firebase/functions"; // Import httpsCallable
 import type { 
     LoggedMeal, 
     UserProfileData, 
@@ -51,11 +50,12 @@ import type {
     PeppkompisRequest,
     BuddyDetails,
     TimelineEvent,
+    Achievement,
     TimelineComment,
     Reactions,
-    PostCategory
+    CompletedGoal,
 } from '../types';
-import { DEFAULT_GOALS, DEFAULT_USER_PROFILE } from '../constants';
+import { DEFAULT_GOALS, LEVEL_DEFINITIONS, DEFAULT_USER_PROFILE } from '../constants';
 import { courseLessons, menopauseCourseLessons } from '../courseData.ts';
 import { getWeekInfo } from "../utils/dateUtils.ts";
 
@@ -379,146 +379,7 @@ export async function fetchMealLogsForDate(userId: string, dateUID: string): Pro
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoggedMeal[];
 }
 
-/* ===== Timeline Helper ===== */
-
-// Helper to fetch sub-collections (comments/likes) for events
-const enrichTimelineEvents = async (snapshot: QuerySnapshot): Promise<{ events: TimelineEvent[], lastDoc: any }> => {
-    if (snapshot.empty) {
-        return { events: [], lastDoc: null };
-    }
-    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-    
-    const eventsPromises = snapshot.docs.map(async (doc) => {
-        const eventData = { id: doc.id, ...doc.data() } as TimelineEvent;
-        
-        // Fetch comments subcollection
-        const commentsRef = collection(db, 'communityTimeline', eventData.id, 'comments');
-        const commentsQuery = query(commentsRef, orderBy('timestamp', 'asc'));
-        const commentsSnapshot = await getDocsSafe(commentsQuery);
-        
-        const commentsWithLikesPromises = commentsSnapshot.docs.map(async (commentDoc) => {
-            const commentData = { id: commentDoc.id, ...commentDoc.data() } as TimelineComment;
-            
-            // Fetch likes subcollection for each comment
-            const likesRef = collection(db, 'communityTimeline', eventData.id, 'comments', commentDoc.id, 'likes');
-            const likesSnapshot = await getDocsSafe(likesRef);
-            
-            const likesMap: { [uid: string]: string } = {};
-            likesSnapshot.forEach(likeDoc => {
-                likesMap[likeDoc.id] = likeDoc.data().userName; 
-            });
-            
-            commentData.likes = likesMap;
-            return commentData;
-        });
-        
-        eventData.comments = await Promise.all(commentsWithLikesPromises);
-        return eventData;
-    });
-
-    const events = await Promise.all(eventsPromises);
-    return { events, lastDoc };
-};
-
 /* ===== Timeline ===== */
-
-// 1. Listen for NEW events (Real-time)
-export function listenToCommunityTimeline(
-  userId: string, 
-  callback: (data: { events: TimelineEvent[], lastDoc: any }) => void,
-  limitCount: number = 20
-) {
-  const q = query(
-    collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains', userId),
-    orderBy('timestamp', 'desc'),
-    limit(limitCount)
-  );
-
-  return onSnapshot(q, async (snapshot) => {
-    // Note: async inside onSnapshot callback works, but data might lag slightly behind the sync snapshot emission.
-    // This is generally acceptable for this use case.
-    const { events, lastDoc } = await enrichTimelineEvents(snapshot);
-    callback({ events, lastDoc });
-  }, (error) => {
-    console.error("Error listening to timeline:", error);
-  });
-}
-
-// 2. Fetch OLDER events (Pagination)
-export async function fetchCommunityTimeline(
-  currentUserId: string, 
-  lastSnapshot: any = null, 
-  limitCount: number = 10
-): Promise<{ events: TimelineEvent[], lastDoc: any }> {
-  
-  let q = query(
-    collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains', currentUserId),
-    orderBy('timestamp', 'desc'),
-    limit(limitCount)
-  );
-
-  if (lastSnapshot) {
-      q = query(q, startAfter(lastSnapshot));
-  }
-  
-  try {
-    const snapshot = await getDocsSafe(q);
-    return enrichTimelineEvents(snapshot);
-  } catch (error: any) {
-      console.error("Error fetching community timeline:", error);
-      if (error.code === 'failed-precondition') {
-          console.error("Firestore Index Missing! Please check the Firebase Console link in the error object above to create it.");
-      }
-      throw error;
-  }
-}
-
-export async function createUserPost(
-  userId: string,
-  text: string,
-  category: PostCategory,
-  imageBase64?: string
-) {
-    const userDocRef = doc(db, 'users', userId);
-    const userDocSnap = await getDocSafe(userDocRef);
-    if (!userDocSnap.exists()) throw new Error("User not found");
-    const userData = userDocSnap.data() as FirestoreUserDocument;
-
-    const buddies = await fetchBuddies(userId);
-    const buddyUids = buddies.map(b => b.uid);
-    const visibleTo = [userId, ...buddyUids];
-
-    const eventId = `post_${userId}_${Date.now()}`;
-    const timelineDocRef = doc(db, "communityTimeline", eventId);
-
-    const postEvent: Omit<TimelineEvent, 'id'> = {
-        type: 'user_post',
-        timestamp: Date.now(),
-        title: 'skapade ett inlägg',
-        description: text,
-        icon: category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
-        userId: userId,
-        userName: userData.displayName,
-        userPhotoURL: userData.photoURL ?? null,
-        gender: userData.gender,
-        visibleTo: visibleTo,
-        reactions: {},
-        comments: [],
-        relatedDocPath: `users/${userId}/posts/${eventId}`,
-        category: category,
-        imageUrl: imageBase64 // Note: Saving base64 directly to Firestore doc. Keep images small (<500kb).
-    };
-
-    await setDoc(timelineDocRef, cleanFirestoreData(postEvent));
-    return { id: eventId, ...postEvent };
-}
-
-export async function deleteTimelineEvent(eventId: string): Promise<void> {
-  const eventRef = doc(db, 'communityTimeline', eventId);
-  await deleteDoc(eventRef);
-}
 
 export async function addTimelineEvent(
   userId: string,
@@ -642,38 +503,6 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   } catch (e) {
     console.error("Failed to create goal timeline event", e);
   }
-}
-
-/* ===== Gamification: Achievements ===== */
-
-export async function unlockAchievement(userId: string, achievementId: string, achievementName: string, achievementIcon: string, description: string): Promise<boolean> {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDocSafe(userRef);
-
-    if (userSnap.exists()) {
-        const data = userSnap.data() as FirestoreUserDocument;
-        // Check if already unlocked to prevent duplicates
-        if (data.unlockedAchievements && data.unlockedAchievements[achievementId]) {
-            return false; 
-        }
-    }
-
-    // Unlock in Firestore
-    await updateDoc(userRef, {
-        [`unlockedAchievements.${achievementId}`]: new Date().toISOString()
-    });
-
-    // Create a timeline event for the achievement
-    await addTimelineEvent(userId, {
-        type: 'achievement',
-        timestamp: Date.now(),
-        title: 'har låst upp en bragd!',
-        description: `${achievementName} - ${description}`,
-        icon: achievementIcon,
-        relatedDocId: `ach_${achievementId}` // Ensure unique per achievement
-    });
-
-    return true;
 }
 
 /* ===== Weight ===== */
@@ -1032,6 +861,50 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
   const buddiesRef = collection(db, 'users', userId, 'buddies');
   const snapshot = await getDocsSafe(buddiesRef);
   return snapshot.docs.map(doc => doc.data() as Peppkompis);
+}
+
+export async function fetchCommunityTimeline(currentUserId: string): Promise<TimelineEvent[]> {
+  const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+
+  const timelineRef = collection(db, 'communityTimeline');
+  const q = query(
+    timelineRef,
+    where('visibleTo', 'array-contains', currentUserId),
+    where('timestamp', '>=', threeDaysAgo)
+  );
+  
+  const snapshot = await getDocsSafe(q);
+
+  const allBaseEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TimelineEvent));
+  allBaseEvents.sort((a, b) => b.timestamp - a.timestamp);
+
+  const recentEvents = allBaseEvents.slice(0, 50);
+
+  const eventsWithCommentsPromises = recentEvents.map(async (eventData) => {
+    const commentsRef = collection(db, 'communityTimeline', eventData.id, 'comments');
+    const commentsQuery = query(commentsRef, orderBy('timestamp', 'asc'));
+    const commentsSnapshot = await getDocsSafe(commentsQuery);
+    
+    const commentsWithLikesPromises = commentsSnapshot.docs.map(async (commentDoc) => {
+      const commentData = { id: commentDoc.id, ...commentDoc.data() } as TimelineComment;
+      
+      const likesRef = collection(db, 'communityTimeline', eventData.id, 'comments', commentDoc.id, 'likes');
+      const likesSnapshot = await getDocsSafe(likesRef);
+      
+      const likesMap: { [uid: string]: string } = {};
+      likesSnapshot.forEach(likeDoc => {
+        likesMap[likeDoc.id] = likeDoc.data().userName; 
+      });
+      
+      commentData.likes = likesMap;
+      return commentData;
+    });
+    
+    eventData.comments = await Promise.all(commentsWithLikesPromises);
+    return eventData;
+  });
+
+  return await Promise.all(eventsWithCommentsPromises);
 }
 
 export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetails[]> {
