@@ -620,6 +620,15 @@ exports.manualSummarizeYesterday = functions
     const yesterday = new Date(serverTime.toLocaleString("en-US", {timeZone: "Europe/Stockholm"}));
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayDateUID = getDateUID(yesterday, "Europe/Stockholm");
+    
+    const today = new Date(serverTime.toLocaleString("en-US", {timeZone: "Europe/Stockholm"}));
+    const todayDateUID = getDateUID(today, "Europe/Stockholm");
+
+    // STRICT CHECK: Never summarize today or a future date
+    if (yesterdayDateUID >= todayDateUID) {
+        logger.warn(`Attempted to summarize a future/current date (${yesterdayDateUID}). Aborting.`);
+        return {success: false, message: `Attempted to summarize a future/current date (${yesterdayDateUID}). Aborting.`};
+    }
 
     const usersSnapshot = await db.collection("users").where("status", "==", "approved").get();
     const allWriteOps = [];
@@ -662,6 +671,7 @@ exports.manualSummarizeYesterday = functions
                 consumedCalories: totalNutrients.calories,
                 calorieGoal: user.goals.calorieGoal,
                 streakForThisDay: newStreak,
+                bankedAmount: bankedAmountThisDay
             };
 
             allWriteOps.push({ref: db.collection("users").doc(userId).collection("pastDaySummaries").doc(yesterdayDateUID), data: summaryData, type: "set"});
