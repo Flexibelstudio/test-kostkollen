@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "flexibel-kostkollen"
-  }
+    "default": "flexibel-kostkollen",
+    "staging": "flexibel-kostloggen-staging"
+  },
+  "targets": {},
+  "etags": {}
 }

@@ -49,21 +49,17 @@ const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
   viewingDate, 
   onDateSelect 
 }) => {
-  // State for the date currently being browsed in history
   const [browseDate, setBrowseDate] = useState(new Date(viewingDate));
 
-  // Sync browseDate if viewingDate changes externally (e.g. from top chart)
   useEffect(() => {
     setBrowseDate(new Date(viewingDate));
   }, [viewingDate]);
 
   const todayISO = useMemo(() => getLocalISODateString(currentDate), [currentDate]);
   
-  // Calculate week range based on browseDate
   const weekStart = getStartOfWeek(browseDate);
   const weekNumber = getISOWeekNumber(weekStart);
   
-  // Create array of 7 days for the current view
   const weekDays = useMemo(() => {
     const days = [];
     for (let i = 0; i < 7; i++) {
@@ -80,7 +76,6 @@ const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
     setBrowseDate(prev => addDays(prev, 7));
   };
 
-  // Check if we are viewing the current week to disable "Next" if desired
   const currentWeekStart = getStartOfWeek(new Date());
   const isFutureWeek = weekStart > currentWeekStart;
 
@@ -128,7 +123,6 @@ const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
             const waterGoalWasMet = summary?.waterGoalMet === true;
             
             let bgColor = 'bg-gray-200';
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             let iconColorClass = 'text-gray-700';
 
             if (isFutureDay) {
@@ -137,19 +131,17 @@ const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
             } else if (isToday) {
                 bgColor = 'bg-secondary/30';
                 iconColorClass = 'text-secondary-darker';
-            } else { // Past day
+            } else { 
                 if (summary) {
-                    // Strikt kontroll: Om man ätit mer än målet = Orange (även om goalMet var true pga sparpott/underhåll)
-                    const isOverConsumed = summary.consumedCalories > summary.calorieGoal;
-                    
-                    if (summary.goalMet && !isOverConsumed) {
+                    // Om goalMet är sant (av dagslogik eller sparpott) -> Grön
+                    if (summary.goalMet) {
                         bgColor = 'bg-primary/70';
                         iconColorClass = 'text-white';
                     } else {
                         bgColor = 'bg-secondary/70';
                         iconColorClass = 'text-white';
                     }
-                } else { // Past day, no summary
+                } else { 
                     bgColor = 'bg-neutral-light';
                     iconColorClass = 'text-neutral-dark';
                 }

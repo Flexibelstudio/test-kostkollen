@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { WeightLogEntry } from '../types';
-import { XMarkIcon, CheckIcon, InformationCircleIcon } from './icons';
+import { XMarkIcon, CheckIcon } from './icons';
 
 interface LogWeightModalProps {
   show: boolean;
   onClose: () => void;
   onSave: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
+  measurementMethod?: 'scale' | 'inbody';
 }
 
-const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave }) => {
+const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, measurementMethod = 'scale' }) => {
   const [weightKg, setWeightKg] = useState<string>('');
   const [skeletalMuscleMassKg, setSkeletalMuscleMassKg] = useState<string>('');
   const [bodyFatMassKg, setBodyFatMassKg] = useState<string>('');
@@ -97,20 +98,36 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave }
                 />
             </div>
 
-            <div className="pt-3 border-t border-neutral-light/60 group-disabled:opacity-60 transition-opacity">
-                <p className="text-sm text-neutral-dark mb-3 flex items-start">
-                    <InformationCircleIcon className="w-6 h-6 mr-2 text-secondary flex-shrink-0" />
-                    <span>Har du gjort en InBody-mätning? Fyll i valfria fält nedan för att spåra din kroppssammansättning.</span>
-                </p>
-                <div>
-                    <label htmlFor="skeletalMuscleMassKg" className={labelClass}>Skelettmuskelmassa (kg)</label>
-                    <input type="number" id="skeletalMuscleMassKg" value={skeletalMuscleMassKg} onChange={(e) => setSkeletalMuscleMassKg(e.target.value)} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
+            {measurementMethod === 'inbody' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 group-disabled:opacity-60 transition-opacity animate-fade-in">
+                    <div>
+                        <label htmlFor="skeletalMuscleMassKg" className={labelClass}>Muskelmassa (kg)</label>
+                        <input 
+                            type="number" 
+                            id="skeletalMuscleMassKg" 
+                            value={skeletalMuscleMassKg} 
+                            onChange={(e) => setSkeletalMuscleMassKg(e.target.value)} 
+                            className={inputClass} 
+                            min="0" 
+                            step="0.1" 
+                            placeholder="Valfritt" 
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="bodyFatMassKg" className={labelClass}>Fettmassa (kg)</label>
+                        <input 
+                            type="number" 
+                            id="bodyFatMassKg" 
+                            value={bodyFatMassKg} 
+                            onChange={(e) => setBodyFatMassKg(e.target.value)} 
+                            className={inputClass} 
+                            min="0" 
+                            step="0.1" 
+                            placeholder="Valfritt" 
+                        />
+                    </div>
                 </div>
-                <div>
-                    <label htmlFor="bodyFatMassKg" className={labelClass}>Kroppsfettmassa (kg)</label>
-                    <input type="number" id="bodyFatMassKg" value={bodyFatMassKg} onChange={(e) => setBodyFatMassKg(e.target.value)} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
-                </div>
-            </div>
+            )}
             
             <div className="group-disabled:opacity-60 transition-opacity">
                 <label htmlFor="comment" className={labelClass}>Kommentar (valfritt)</label>

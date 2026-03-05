@@ -21,7 +21,8 @@ import {
   OnboardingChecklistItemStatus,
   UserRole,
   GoalSettings,
-  LoggedMeal
+  LoggedMeal,
+  PastDaysSummaryCollection
 } from './types.ts';
 
 import {
@@ -30,14 +31,14 @@ import {
   ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS, VAPID_PUBLIC_KEY
 } from './constants.ts';
 
-import { getAIFeedback } from './services/geminiService.ts';
+import { getAIFeedback as getAIFeedbackService } from './services/geminiService.ts';
 
 import {
   fetchWaterLog,
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   listenForFriendRequests,
   fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate,
-  setPastDaySummary, savePushSubscription
+  setPastDaySummary, savePushSubscription, unlockAchievement
 } from './services/firestoreService.ts';
 
 // Context
@@ -303,7 +304,7 @@ export const App = () => {
   // Local UI State
   const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
   const [viewMode, setViewMode] = useState<ViewMode>('main');
-  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'>('member');
+  const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'admin'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -325,6 +326,15 @@ export const App = () => {
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
   const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number } | null>(null);
   const [isSummarizingYesterday, setIsSummarizingYesterday] = useState(false);
+
+  // Refs to store latest state for use in async callbacks (like the catch-up loop)
+  const pastDaysSummaryRef = useRef(pastDaysSummary);
+  const streakDataRef = useRef(streakData);
+  const weeklyBankRef = useRef(weeklyBank);
+
+  useEffect(() => { pastDaysSummaryRef.current = pastDaysSummary; }, [pastDaysSummary]);
+  useEffect(() => { streakDataRef.current = streakData; }, [streakData]);
+  useEffect(() => { weeklyBankRef.current = weeklyBank; }, [weeklyBank]);
 
 
   const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -395,7 +405,7 @@ export const App = () => {
             setDailyLog(loadedLog);
             setWaterLoggedMl(loadedWater);
         } catch (error: any) {
-            setToastNotification({ message: 'Kunde inte ladda dagens data.', type: 'error'});
+            setToastNotification({ message: 'Kunde inte ladda dagens data.', type: 'error' });
         } finally {
             setAppStatus(AppStatus.IDLE);
         }
@@ -419,26 +429,32 @@ export const App = () => {
 
     // Lesson Unlock Logic
     useEffect(() => {
-        if (!currentUser || !isInitialDataLoaded || userRole === 'coach' || userStatus !== 'approved') return;
+        // FIX: Removed userRole === 'coach' check to allow coaches to test course progression
+        if (!currentUser || !isInitialDataLoaded || userStatus !== 'approved') return;
 
         const checkAndUnlockLessons = async () => {
             const batch = writeBatch(db);
             let hasUnlockedAny = false;
 
+            // 1. Praktisk Viktkontroll (Streak-baserad)
             const pvLessons = courseLessons;
             let lastStreakAtUnlock = 0;
             let lastUnlockedIdx = -1;
 
-            for (let i = 0; i < pvLessons.length; i++) {
+            // Initialize baseline from Lesson 1 (which must be unlocked to start)
+            if (userCourseProgress[pvLessons[0].id]?.unlockedAt) {
+                lastUnlockedIdx = 0;
+                lastStreakAtUnlock = userCourseProgress[pvLessons[0].id].streakAtUnlock ?? 0;
+            }
+
+            // Start checking from Lesson 2 (index 1)
+            for (let i = 1; i < pvLessons.length; i++) {
                 const lessonId = pvLessons[i].id;
                 const prog = userCourseProgress[lessonId];
                 if (prog?.unlockedAt) {
                     lastUnlockedIdx = i;
                     lastStreakAtUnlock = prog.streakAtUnlock ?? 0;
                 } else {
-                    const isFirstLesson = i === 0;
-                    if (isFirstLesson) break; // NO BACKGROUND AUTO-UNLOCK FOR FIRST LESSON
-
                     const prevWasUnlocked = lastUnlockedIdx === i - 1;
                     const streakTarget = lastStreakAtUnlock + 7;
 
@@ -463,36 +479,45 @@ export const App = () => {
                 }
             }
 
+            // 2. Maxa Klimakteriet (Tidsbaserad - Veckovis)
             const mkLessons = menopauseCourseLessons;
-            for (let i = 0; i < mkLessons.length; i++) {
-                const lessonId = mkLessons[i].id;
-                const prog = userCourseProgress[lessonId];
-                if (prog?.unlockedAt) {
-                    // Skip if already unlocked
-                } else {
-                    const isFirst = i === 0;
-                    if (isFirst) break; // NO BACKGROUND AUTO-UNLOCK FOR FIRST LESSON
+            const firstMkLessonProg = userCourseProgress[mkLessons[0].id];
+            
+            // Vi behöver veta när kursen startade (unlockedAt för första lektionen)
+            if (firstMkLessonProg?.unlockedAt) {
+                const activatedAt = firstMkLessonProg.unlockedAt;
+                const now = Date.now();
+                const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
 
-                    const prevIsCompleted = i > 0 && userCourseProgress[mkLessons[i-1].id]?.isCompleted;
+                for (let i = 1; i < mkLessons.length; i++) {
+                    const lessonId = mkLessons[i].id;
+                    const prog = userCourseProgress[lessonId];
+                    
+                    if (!prog?.unlockedAt) {
+                        // Denna lektion är låst. Kolla om det gått tillräckligt många veckor.
+                        const weeksRequired = i; // Lektion 2 (index 1) kräver 1 vecka osv.
+                        const timeElapsed = now - activatedAt;
 
-                    if (prevIsCompleted) {
-                        const newProg: UserLessonProgress = {
-                            unlockedAt: Date.now(),
-                            streakAtUnlock: streakData.currentStreak,
-                            completedFocusPoints: [],
-                            isCompleted: false,
-                            reflectionAnswer: ''
-                        };
-                        const ref = doc(db, 'users', currentUser.uid, 'courseProgress', lessonId);
-                        batch.set(ref, newProg, { merge: true });
-                        
-                        setUserCourseProgress(prev => ({ ...prev, [lessonId]: newProg }));
-                        setNewlyUnlockedLesson(mkLessons[i]);
-                        hasUnlockedAny = true;
-                        playAudio('levelUp');
+                        if (timeElapsed >= (weeksRequired * oneWeekMs)) {
+                            const newProg: UserLessonProgress = {
+                                unlockedAt: now,
+                                completedFocusPoints: [],
+                                isCompleted: false,
+                                reflectionAnswer: ''
+                            };
+                            const ref = doc(db, 'users', currentUser.uid, 'courseProgress', lessonId);
+                            batch.set(ref, newProg, { merge: true });
+                            
+                            setUserCourseProgress(prev => ({ ...prev, [lessonId]: newProg }));
+                            setNewlyUnlockedLesson(mkLessons[i]);
+                            hasUnlockedAny = true;
+                            playAudio('levelUp');
+                            // Fortsätt inte loopen i samma körning för att inte låsa upp allt på en gång om de varit borta länge
+                            break;
+                        }
+                        // Om vi når en låst lektion som inte är redo, stanna.
                         break;
                     }
-                    break;
                 }
             }
 
@@ -583,18 +608,20 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         if (!currentUser) return;
         setIsLoadingCommunityData(true);
         try {
-            const [events, details] = await Promise.all([
+            const [timelineResult, details] = await Promise.all([
                 fetchCommunityTimeline(currentUser.uid),
                 fetchBuddyDetailsList(currentUser.uid),
             ]);
-            const filteredEvents = events.filter(event => event.userId === currentUser.uid || details.some(b => b.uid === event.userId));
-            setTimelineEvents(filteredEvents);
+            // FIX: Removed redundant filtering. The Firestore query already filters by 'visibleTo'.
+            setTimelineEvents(timelineResult.events);
             setBuddyDetails(details);
         } catch (error) {
+            console.error("Failed to load community data:", error);
+            setToastNotification({ message: "Kunde inte ladda flödet. Kontrollera din anslutning.", type: 'error' });
         } finally {
             setIsLoadingCommunityData(false);
         }
-    }, [currentUser]);
+    }, [currentUser, setToastNotification]); // Added setToastNotification to deps
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
@@ -621,6 +648,29 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         } catch (error) {}
     }
   }, [isInitialDataLoaded, currentUser]);
+
+  // --- NEW EFFECT: Ensure Morning Report is shown if not seen today ---
+  useEffect(() => {
+      if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) return;
+
+      // Don't show if currently processing or already showing
+      if (isSummarizingYesterday || morningReportData) return;
+
+      const todayUID = dayKeySE(new Date());
+      const lastSeen = localStorage.getItem('lastSeenMorningReport');
+
+      if (lastSeen === todayUID) return;
+
+      // Check if we have summary for yesterday
+      const yesterdayUID = dayKeySE(new Date(Date.now() - 86400000));
+      const summary = pastDaysSummary[yesterdayUID];
+
+      if (summary) {
+           // Use the streak stored in the summary as the truth, fallback to currentStreak if missing
+           const displayStreak = (typeof summary.streakForThisDay === 'number') ? summary.streakForThisDay : streakData.currentStreak;
+           setMorningReportData({ summary, currentStreak: displayStreak });
+      }
+  }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -694,7 +744,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             setAppStatus(AppStatus.ANALYZING_FEEDBACK);
 
             try {
-                const feedback = await getAIFeedback({
+                const feedback = await getAIFeedbackService({
                     userName: updatedProfile.name,
                     todayTotals: { calories: 0, protein: 0, carbohydrates: 0, fat: 0 },
                     userGoals: newGoals,
@@ -829,9 +879,12 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     
     // Manual activation check
     if (!userCourseProgress[firstLessonId]?.unlockedAt) {
+        // För Praktisk Viktkontroll nollställer vi streakAtUnlock så användaren får credit för sin befintliga streak
+        const initialStreakBaseline = courseId === 'praktisk-viktkontroll' ? 0 : streakData.currentStreak;
+
         const newProg: UserLessonProgress = {
             unlockedAt: Date.now(),
-            streakAtUnlock: streakData.currentStreak,
+            streakAtUnlock: initialStreakBaseline,
             completedFocusPoints: [],
             isCompleted: false,
             reflectionAnswer: ''
@@ -954,15 +1007,51 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setToastNotification({ message: "Vikt sparad!", type: 'success' });
         playAudio('logSuccess');
         setShowLogWeightModal(false);
+
+        // Check if goal reached
+        if (!userProfile.mainGoalCompleted && userProfile.goalStartWeight && userProfile.desiredWeightChangeKg) {
+             const isWeightLoss = userProfile.goalType === 'lose_fat';
+             const isMuscleGain = userProfile.goalType === 'gain_muscle';
+             let goalMet = false;
+             const targetWeight = userProfile.goalStartWeight + userProfile.desiredWeightChangeKg;
+
+             if (isWeightLoss && data.weightKg <= targetWeight) goalMet = true;
+             if (isMuscleGain && data.weightKg >= targetWeight) goalMet = true;
+
+             if (goalMet) {
+                const ach = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'main_goal_reached');
+                if (ach) {
+                    const unlocked = await unlockAchievement(currentUser.uid, ach.id, ach.name, ach.icon, ach.description);
+                    if (unlocked) {
+                        setShowConfetti(true);
+                        setShowGoalMetModalData({ date: new Date().toISOString().split('T')[0], streak: streakData.currentStreak });
+                        playAudio('levelUp');
+                        setUserProfile(prev => ({ ...prev, mainGoalCompleted: true }));
+                        await updateUserDocument(currentUser.uid, { mainGoalCompleted: true });
+                    }
+                }
+             }
+        }
+
     } catch (error) {
-        setToastNotification({ message: "Kunde inte spara vikt.", type: 'error' });
+        setToastNotification({ message: "Kunde inte spara mätningen.", type: 'error' });
     } finally {
         setAppStatus(AppStatus.IDLE);
     }
   };
 
-  const handleSaveWellbeingAndProceed = async () => {
-      setShowMentalWellbeingModal(false);
+  const handleSaveWellbeingAndProceed = async (data: MentalWellbeingData) => {
+      if(!currentUser) return;
+      try {
+          // You might want to save this to Firestore here as well, 
+          // but based on App.tsx, the saving logic seems to be missing or implied.
+          // Assuming `addMentalWellbeingLog` is available or similar.
+          // For now, just close modal and open weight log as requested.
+          setShowMentalWellbeingModal(false);
+          setShowLogWeightModal(true); // Chain to weight log
+      } catch(e) {
+          console.error(e);
+      }
   };
 
   const handleCloseUserProfileModal = () => {
@@ -975,12 +1064,12 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   };
 
 const ensureWeeklyBankReset = useCallback(async () => {
-    if (!currentUser || !isInitialDataLoaded || userRole === 'coach' || userStatus !== 'approved') return;
+if (!currentUser || !isInitialDataLoaded || userStatus !== 'approved') return;
 
     const now = new Date();
     const currentWeek = getWeekInfo(now);
 
-    if (weeklyBank.weekId !== currentWeek.weekId) {
+    if (weeklyBankRef.current.weekId !== currentWeek.weekId) {
         const resetBank: WeeklyCalorieBank = {
             weekId: currentWeek.weekId,
             bankedCalories: 0,
@@ -993,20 +1082,23 @@ const ensureWeeklyBankReset = useCallback(async () => {
                 weeklyBank: resetBank
             });
             setWeeklyBank(resetBank);
+            weeklyBankRef.current = resetBank;
         } catch (error) {}
     }
-}, [currentUser, isInitialDataLoaded, userRole, userStatus, weeklyBank.weekId, setWeeklyBank]);
+}, [currentUser, isInitialDataLoaded, userRole, userStatus, setWeeklyBank]);
 
-useEffect(() => {
-    ensureWeeklyBankReset();
-}, [ensureWeeklyBankReset]);
-
-const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[]): Promise<void> => {
-    if (!uid || userRole === 'coach' || userStatus !== 'approved' || !hasCompletedOnboarding) return;
+const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[], prefetchedWater?: number): Promise<void> => {
+if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
     const { start: yesterdayStart, yKey: yesterdayUID } = yesterdayRangeSE(now);
+    const todayUID = dayKeySE(new Date());
+
+    // STRICT CHECK: Never summarize today or a future date
+    if (yesterdayUID >= todayUID) {
+        console.warn(`Attempted to summarize a future/current date (${yesterdayUID}). Aborting.`);
+        return;
+    }
     
-    // Guard: Only process summaries from summaryStartDate and onwards
     if (!summaryStartDate || yesterdayUID < summaryStartDate) {
         return;
     }
@@ -1015,8 +1107,8 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
     try {
         const [yesterdayMeals, yesterdayWater] = await Promise.all([
-            fetchMealLogsForDate(uid, yesterdayUID),
-            fetchWaterLog(uid, yesterdayUID)
+            manualLogOverride ? Promise.resolve(manualLogOverride) : fetchMealLogsForDate(uid, yesterdayUID),
+            prefetchedWater !== undefined ? Promise.resolve(prefetchedWater) : fetchWaterLog(uid, yesterdayUID)
         ]);
 
         const mealsToProcess = manualLogOverride || yesterdayMeals;
@@ -1031,20 +1123,57 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
         
         let goalMet = false;
+        let usedFromBank = 0;
+        let savedBy: "sparpott" | undefined = undefined;
+
         if (totals.calories >= minSafe) {
-             if (userProfile.goalType === 'lose_fat') goalMet = totals.calories <= goals.calorieGoal;
-             else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300);
-             else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
+            if (userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') {
+                if (totals.calories <= goals.calorieGoal) {
+                    goalMet = true;
+                } else {
+                    const excess = totals.calories - goals.calorieGoal;
+                    if (weeklyBankRef.current.bankedCalories >= excess) {
+                        goalMet = true;
+                        usedFromBank = Math.round(excess);
+                        savedBy = 'sparpott';
+                    }
+                }
+            } else if (userProfile.goalType === 'gain_muscle') {
+                goalMet = totals.calories >= (goals.calorieGoal - 300);
+            }
         }
 
         let bankedAmount = 0;
-        if (userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') {
+        if ((userProfile.goalType === 'lose_fat' || userProfile.goalType === 'maintain') && !savedBy) {
             if (totals.calories >= minSafe && totals.calories < goals.calorieGoal) {
                 bankedAmount = Math.round(goals.calorieGoal - totals.calories);
             }
         }
 
+        // --- STREAK LOGIC FIXED (Using Historical Chain) ---
+        // Look at the day BEFORE yesterday (forrgår) to determine continuity.
+        const dayBeforeYesterday = new Date(yesterdayStart);
+        dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+        const dayBeforeUID = dayKeySE(dayBeforeYesterday);
+        
+        // Find historical streak from context. Fallback to 0 if missing.
+        const prevDaySummary = pastDaysSummaryRef.current[dayBeforeUID];
+        const prevStreak = prevDaySummary?.streakForThisDay || 0;
+        
         const hasLogs = mealsToProcess.length > 0;
+        let finalNewStreak = 0;
+        
+        // Check if server already processed this exact day
+        if (streakDataRef.current.lastDateStreakChecked === yesterdayUID) {
+            finalNewStreak = streakDataRef.current.currentStreak;
+        } else {
+            // Strict logic: If logs exist > 0 streak increases from previous day.
+            if (hasLogs) {
+                 finalNewStreak = prevStreak + 1;
+            } else {
+                 finalNewStreak = 0;
+            }
+        }
         
         const summary: PastDaySummary = {
             date: yesterdayUID,
@@ -1060,33 +1189,19 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
             fatGoal: goals.fatGoal,
             goalType: userProfile.goalType,
             waterGoalMet: yesterdayWater >= DEFAULT_WATER_GOAL_ML,
-            streakForThisDay: 0, // Sätts nedan i functional update
-            bankedAmount: bankedAmount 
+            streakForThisDay: finalNewStreak, 
+            bankedAmount: bankedAmount,
+            savedBy: savedBy
         };
 
-        let finalNewStreak = 0;
-
-        setStreakData(prev => {
-            let newStreak = prev.currentStreak;
-            const dayBeforeYesterday = new Date(yesterdayStart);
-            dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
-            const dayBeforeYesterdayUID = dayKeySE(dayBeforeYesterday);
-
-            if (prev.lastDateStreakChecked !== dayBeforeYesterdayUID && prev.lastDateStreakChecked !== yesterdayUID) {
-                 newStreak = 0;
-            }
-
-            if (hasLogs) {
-                newStreak += 1;
-            } else {
-                newStreak = 0;
-            }
-            
-            finalNewStreak = newStreak;
-            return { currentStreak: newStreak, lastDateStreakChecked: yesterdayUID };
-        });
-
-        summary.streakForThisDay = finalNewStreak;
+        // --- STATE UPDATE: Force update to streakData ---
+        // This ensures the UI reflects the new streak immediately.
+        const newStreakData = { 
+            currentStreak: finalNewStreak, 
+            lastDateStreakChecked: yesterdayUID 
+        };
+        setStreakData(newStreakData);
+        streakDataRef.current = newStreakData;
 
         await setPastDaySummary(uid, yesterdayUID, summary);
         
@@ -1097,36 +1212,131 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
 
         if (bankedAmount > 0) {
             userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
-            setWeeklyBank(prev => ({
-                ...prev,
-                bankedCalories: prev.bankedCalories + bankedAmount
-            }));
+            const newBank = {
+                ...weeklyBankRef.current,
+                bankedCalories: weeklyBankRef.current.bankedCalories + bankedAmount
+            };
+            setWeeklyBank(newBank);
+            weeklyBankRef.current = newBank;
+        } else if (usedFromBank > 0) {
+            userUpdates["weeklyBank.bankedCalories"] = increment(-usedFromBank);
+            const newBank = {
+                ...weeklyBankRef.current,
+                bankedCalories: Math.max(0, weeklyBankRef.current.bankedCalories - usedFromBank)
+            };
+            setWeeklyBank(newBank);
+            weeklyBankRef.current = newBank;
         }
 
         await updateUserDocument(uid, userUpdates);
 
-        setPastDaysSummary(prev => ({ ...prev, [yesterdayUID]: summary }));
-        setMorningReportData({ summary, currentStreak: finalNewStreak });
-        playAudio('levelUp'); 
+        // Update local summaries state so Dashboard sees the new summary immediately
+        const newSummaries = { ...pastDaysSummaryRef.current, [yesterdayUID]: summary };
+        setPastDaysSummary(newSummaries);
+        pastDaysSummaryRef.current = newSummaries;
+        
+        if (!options.silent) {
+            // Trigger morning report with the NEW calculated streak
+            setMorningReportData({ summary, currentStreak: finalNewStreak });
+            playAudio('levelUp'); 
+        }
+
+        // Streak Achievement Check
+        const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
+        if (streakAch) {
+             const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
+             if (unlocked) {
+                 setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
+             }
+        }
 
     } catch (error) {
         setToastNotification({ message: "Kunde inte sammanställa gårdagen.", type: 'error' });
     } finally {
         setIsSummarizingYesterday(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification]);
 
+    const isCatchingUp = useRef(false);
     useEffect(() => {
-        if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
-            // Körs bara om igår INTE redan är kollad
-            const yesterdayUID = dayKeySE(new Date(Date.now() - 86400000));
-            if (streakData.lastDateStreakChecked !== yesterdayUID) {
-                ensureYesterdayProcessed(currentUser.uid, new Date());
+        const catchUp = async () => {
+            if (isCatchingUp.current) return;
+            if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding && !isSummarizingYesterday) {
+                isCatchingUp.current = true;
+                try {
+                    const today = new Date();
+                    const yesterdayUID = dayKeySE(new Date(today.getTime() - 86400000));
+                    
+                    const hasSummaryForYesterday = !!pastDaysSummaryRef.current[yesterdayUID];
+                    
+                    if (!hasSummaryForYesterday) {
+                        // We need to process yesterday (and potentially earlier days)
+                        let startDateToProcess = null;
+                        
+                        const summaryDates = Object.keys(pastDaysSummaryRef.current).sort();
+                        if (summaryDates.length > 0) {
+                            startDateToProcess = summaryDates[summaryDates.length - 1];
+                        } else if (summaryStartDate) {
+                            // Start from the day before summaryStartDate so we process summaryStartDate
+                            startDateToProcess = dayKeySE(new Date(new Date(summaryStartDate + "T12:00:00").getTime() - 86400000));
+                        } else if (streakDataRef.current.lastDateStreakChecked && streakDataRef.current.lastDateStreakChecked < yesterdayUID) {
+                            startDateToProcess = streakDataRef.current.lastDateStreakChecked;
+                        }
+                        
+                        if (startDateToProcess && startDateToProcess < yesterdayUID) {
+                            let currentCheckDate = new Date(startDateToProcess + "T12:00:00"); 
+                            currentCheckDate.setDate(currentCheckDate.getDate() + 1);
+                            
+                            let currentCheckUID = dayKeySE(currentCheckDate);
+                            
+                            // Limit catch-up to avoid performance issues (max 30 days)
+                            let safetyCounter = 0;
+                            const daysToProcess = [];
+                            
+                            while (currentCheckUID <= yesterdayUID && safetyCounter < 30) {
+                                const isFinalDay = currentCheckUID === yesterdayUID;
+                                const processNow = new Date(currentCheckDate.getTime() + 86400000);
+                                
+                                daysToProcess.push({
+                                    uid: currentCheckUID,
+                                    processNow,
+                                    isFinalDay
+                                });
+                                
+                                currentCheckDate.setDate(currentCheckDate.getDate() + 1);
+                                currentCheckUID = dayKeySE(currentCheckDate);
+                                safetyCounter++;
+                            }
+
+                            const prefetchPromises = daysToProcess.map(async (day) => {
+                                const [meals, water] = await Promise.all([
+                                    fetchMealLogsForDate(currentUser.uid, day.uid),
+                                    fetchWaterLog(currentUser.uid, day.uid)
+                                ]);
+                                return { ...day, meals, water };
+                            });
+                            
+                            const prefetchedData = await Promise.all(prefetchPromises);
+
+                            for (const dayData of prefetchedData) {
+                                await ensureYesterdayProcessed(currentUser.uid, dayData.processNow, { silent: !dayData.isFinalDay }, dayData.meals, dayData.water);
+                            }
+                        } else {
+                            // Fallback for new users or missing data
+                            await ensureYesterdayProcessed(currentUser.uid, today);
+                        }
+                    }
+                    
+                    // After catchUp is done (or if it wasn't needed), ensure the weekly bank is reset if it's a new week
+                    await ensureWeeklyBankReset();
+                } finally {
+                    isCatchingUp.current = false;
+                }
             }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding]);
+        };
+
+        catchUp();
+    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, ensureYesterdayProcessed, ensureWeeklyBankReset, isSummarizingYesterday, summaryStartDate]);
 
   
   useEffect(() => {
@@ -1176,24 +1386,41 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         }
     };
 
+    // IMPLEMENTED SAVING LOGIC HERE
+    const handleSaveLessonData = async (lessonId: string, data: Partial<UserLessonProgress>) => {
+        if (!currentUser) return;
+
+        // Optimistic update
+        setUserCourseProgress(prev => {
+            const current = prev[lessonId] || { completedFocusPoints: [], isCompleted: false, reflectionAnswer: '' };
+            const updated = {
+                ...current,
+                ...data
+            };
+            return {
+                ...prev,
+                [lessonId]: updated
+            };
+        });
+
+        // Firestore update
+        try {
+            const currentProgress = userCourseProgress[lessonId] || { completedFocusPoints: [], isCompleted: false, reflectionAnswer: '' };
+            const updatedProgress = { ...currentProgress, ...data };
+            await saveCourseProgress(currentUser.uid, lessonId, updatedProgress, userRole || 'member', userStatus || 'approved');
+            setToastNotification({ message: 'Sparat!', type: 'success' });
+        } catch (error) {
+            console.error("Failed to save lesson data", error);
+            setToastNotification({ message: 'Kunde inte spara.', type: 'error' });
+        }
+    };
+
   // --- RENDERING LOGIC START ---
   
-  // 1. Show splash if checking auth
-  if (authLoading) {
-    return <SplashScreen />;
-  }
+  if (authLoading) return <SplashScreen />;
+  if (!currentUser) return <AuthForm onAuthStateChange={setCurrentUser} />;
+  if (!isInitialDataLoaded) return <SplashScreen />;
 
-  // 2. Show auth form if not logged in
-  if (!currentUser) {
-    return <AuthForm onAuthStateChange={setCurrentUser} />;
-  }
-
-  // 3. Show splash if logged in BUT user data isn't ready yet
-  if (!isInitialDataLoaded) {
-    return <SplashScreen />;
-  }
-
-  // 4. Handle other user statuses
   if (userStatus === 'pending') {
     return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} userId={currentUser.uid} />;
   }
@@ -1210,8 +1437,6 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
               onToggleInterface={toggleInterfaceView}
             />;
   }
-
-  // --- RENDERING LOGIC END ---
 
   const DropdownMenuItem: React.FC<{
     onClick: () => void;
@@ -1416,16 +1641,15 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
          )}
           {viewMode === 'lessonDetail' && currentLessonId && currentLesson && (
             <LessonDetail
+                key={currentLesson.id}
                 lesson={currentLesson}
                 progress={userCourseProgress[currentLessonId]}
                 onToggleFocusPoint={handleToggleFocusPoint} 
-                onSaveReflection={async () => {}}
+                onSaveProgress={handleSaveLessonData}
                 onMarkComplete={handleMarkLessonComplete} 
                 onClose={handleCloseLessonDetail}
                 onOpenSpeedDial={handleOpenSpeedDial}
                 onNavigateToJourney={handleNavigateToJourney}
-                onSaveWhyAnswer={async () => {}}
-                onSaveSmartGoalAnswer={async () => {}}
                 userProfile={userProfile}
                 weightLogs={weightLogs}
                 pastDaysSummary={Object.values(pastDaysSummary)}
@@ -1449,6 +1673,7 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
               isLoading={isLoadingCommunityData}
               onDataChanged={loadCommunityData}
               lastViewTimestamp={lastCommunityViewTimestamp}
+              currentStreak={streakData.currentStreak}
             />
          )}
         </main>
@@ -1457,7 +1682,11 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         {showOnboardingRewardModal && <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} goalType={userProfile.goalType} />}
         {dayToPotentiallySave && <UseStreakSaverModal show={!!dayToPotentiallySave} onClose={() => setDayToPotentiallySave(null)} onConfirm={handleUseStreakSaver} daySummary={dayToPotentiallySave} />}
         {showMotivationModal && <MotivationModal show={!!showMotivationModal} onClose={() => setShowMotivationModal(null)} daySummary={showMotivationModal} />}
-        {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => setMorningReportData(null)} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} />}
+        {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => {
+            setMorningReportData(null);
+            const todayUID = dayKeySE(new Date());
+            localStorage.setItem('lastSeenMorningReport', todayUID);
+        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} />}
         {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
         {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
@@ -1465,9 +1694,24 @@ const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(
         {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
         {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
         {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
-        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} /></div>}
+        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} /></div>}
         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
-        <AICoachModal show={showAICoachModal} onClose={() => { setShowAICoachModal(false); setCoachInitialContext(null); }} analysisContext={{ userProfile, goals, allWeightLogs: weightLogs, last30DaysSummaries: Object.values(pastDaysSummary), mentalWellbeingLogs, goalTimeline: calculateGoalTimeline(userProfile), currentStreak: streakData.currentStreak }} initialContext={coachInitialContext} />
+        {/* Pass userCourseProgress to AI Coach Modal */}
+        <AICoachModal 
+            show={showAICoachModal} 
+            onClose={() => { setShowAICoachModal(false); setCoachInitialContext(null); }} 
+            analysisContext={{ 
+                userProfile, 
+                goals, 
+                allWeightLogs: weightLogs, 
+                last30DaysSummaries: Object.values(pastDaysSummary), 
+                mentalWellbeingLogs, 
+                goalTimeline: calculateGoalTimeline(userProfile), 
+                currentStreak: streakData.currentStreak,
+                userCourseProgress // Added
+            }} 
+            initialContext={coachInitialContext} 
+        />
         {showGamificationModal && (
             <GamificationModal
                 show={showGamificationModal}

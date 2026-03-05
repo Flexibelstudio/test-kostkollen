@@ -3,6 +3,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
+const cors = require('cors')({ origin: true });
 
 // Initiera Stripe med den hemliga nyckeln från config
 const stripe = require("stripe")(functions.config().stripe.secret);
@@ -219,47 +220,144 @@ exports.onCommentCreated = functions.firestore
 exports.onUserStreakUpdated = functions.firestore
   .document("users/{userId}")
   .onUpdate(async (change, context) => {
+    try {
+      const before = change.before.data() || {};
+      const after = change.after.data() || {};
+      const userId = context.params.userId;
+
+      const newStreak = after.currentStreak || 0;
+      const oldStreak = before.currentStreak || 0;
+
+      // Logga varje ändring för felsökning
+      logger.log(`Streak check for user ${userId}. Old: ${oldStreak}, New: ${newStreak}`);
+
+      // Om streaken inte ändrats eller är 0, gör inget.
+      if (newStreak === oldStreak || newStreak <= 0) return null;
+      
+      // Om streaken har ökat
+      if (newStreak > oldStreak) {
+        logger.log(`Streak increased for user ${userId}: ${oldStreak} -> ${newStreak}. Creating timeline event.`);
+
+        // Hämta kompisar säkert
+        const buddiesSnap = await db.collection("users").doc(userId).collection("buddies").get();
+        const buddyUids = buddiesSnap.docs.map(d => d.id);
+        const visibleTo = [userId, ...buddyUids];
+
+        // Skapa unikt ID per dag och streak-siffra för att undvika dubbletter vid retries
+        const dateStr = new Date().toISOString().split('T')[0];
+        const eventId = `streak_${userId}_${newStreak}_${dateStr}`;
+        const timelineDocRef = db.collection("communityTimeline").doc(eventId);
+
+        // Kontrollera om eventet redan finns (idempotency check)
+        const existingDoc = await timelineDocRef.get();
+        if (existingDoc.exists) {
+            logger.log(`Timeline event ${eventId} already exists. Skipping.`);
+            return null;
+        }
+
+        const eventData = {
+          type: 'streak',
+          timestamp: Date.now(),
+          title: 'håller i sin streak! 🔥',
+          description: `Har nu loggat ${newStreak} ${newStreak === 1 ? 'dag' : 'dagar'} i rad!`,
+          icon: '🔥',
+          userId: userId,
+          userName: after.displayName || 'En användare',
+          userPhotoURL: after.photoURL || null,
+          gender: after.gender || 'female',
+          visibleTo: visibleTo,
+          reactions: {},
+          comments: [],
+          relatedDocPath: `users/${userId}`,
+        };
+
+        await timelineDocRef.set(eventData);
+        logger.log(`Successfully created timeline event ${eventId}`);
+      }
+    } catch (error) {
+      logger.error("Failed to process streak update:", error);
+    }
+  });
+
+// 5. Reaktion på inlägg (Dilla)
+exports.onReactionAdded = functions.firestore
+  .document("communityTimeline/{eventId}")
+  .onUpdate(async (change, context) => {
     const before = change.before.data();
     const after = change.after.data();
-    const userId = context.params.userId;
+    const eventId = context.params.eventId;
 
-    const newStreak = after.currentStreak || 0;
-    const oldStreak = before.currentStreak || 0;
+    // Check if reactions changed
+    const beforeReactions = before.reactions || {};
+    const afterReactions = after.reactions || {};
 
-    // Om streaken har ökat och är över 0
-    if (newStreak > oldStreak && newStreak > 0) {
-      logger.log(`Streak increased for user ${userId}: ${oldStreak} -> ${newStreak}. Creating timeline event.`);
+    // Simple equality check to avoid processing if no reaction change
+    if (JSON.stringify(beforeReactions) === JSON.stringify(afterReactions)) return;
 
-      // Hämta kompisar för att sätta synlighet
-      const buddiesSnap = await db.collection("users").doc(userId).collection("buddies").get();
-      const buddyUids = buddiesSnap.docs.map(d => d.id);
-      const visibleTo = [userId, ...buddyUids];
+    const eventOwnerId = after.userId;
 
-      const eventId = `streak_${userId}_${newStreak}_${new Date().toISOString().split('T')[0]}`;
-      const timelineDocRef = db.collection("communityTimeline").doc(eventId);
+    // Iterate through emojis to find new reactions
+    for (const emoji in afterReactions) {
+        const usersAfter = afterReactions[emoji] || {};
+        const usersBefore = beforeReactions[emoji] || {};
 
-      const eventData = {
-        type: 'streak',
-        timestamp: Date.now(),
-        title: 'håller i sin streak! 🔥',
-        description: `Har nu loggat ${newStreak} ${newStreak === 1 ? 'dag' : 'dagar'} i rad!`,
-        icon: '🔥',
-        userId: userId,
-        userName: after.displayName || 'En användare',
-        userPhotoURL: after.photoURL || null,
-        gender: after.gender || 'female',
-        visibleTo: visibleTo,
-        reactions: {},
-        comments: [],
-        relatedDocPath: `users/${userId}`,
-      };
+        // Find UIDs present in 'after' but not 'before'
+        const newUids = Object.keys(usersAfter).filter(uid => !usersBefore[uid]);
 
-      try {
-        await timelineDocRef.set(eventData, { merge: true });
-      } catch (error) {
-        logger.error("Failed to create streak timeline event:", error);
-      }
+        for (const newUid of newUids) {
+            // Don't notify if user reacts to their own post
+            if (newUid === eventOwnerId) continue;
+
+            const likerName = usersAfter[newUid];
+
+            const payload = {
+                notification: {
+                    title: `Ny reaktion! ${emoji}`,
+                    body: `${likerName} reagerade på ditt inlägg.`,
+                    icon: "/icons/icon-192x192.png",
+                    badge: "/icons/badge-96x96.png",
+                    data: {
+                        url: `/?view=community&highlight=${eventId}`
+                    }
+                }
+            };
+
+            await sendNotificationToUser(eventOwnerId, payload, "likes");
+        }
     }
+  });
+
+// 6. Gilla på kommentar (Dilla kommentar)
+exports.onCommentLikeCreated = functions.firestore
+  .document("communityTimeline/{eventId}/comments/{commentId}/likes/{likeId}")
+  .onCreate(async (snapshot, context) => {
+    const likeData = snapshot.data();
+    const { eventId, commentId } = context.params;
+
+    // Get comment author
+    const commentRef = db.collection("communityTimeline").doc(eventId).collection("comments").doc(commentId);
+    const commentDoc = await commentRef.get();
+
+    if (!commentDoc.exists) return;
+    const commentData = commentDoc.data();
+    const commentAuthorId = commentData.authorUid;
+
+    // Don't notify if user likes their own comment
+    if (likeData.userId === commentAuthorId) return;
+
+    const payload = {
+      notification: {
+        title: "Gilla på kommentar ❤️",
+        body: `${likeData.userName} gillade din kommentar.`,
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        data: {
+          url: `/?view=community&highlight=${eventId}`
+        }
+      }
+    };
+
+    await sendNotificationToUser(commentAuthorId, payload, "likes");
   });
 
 // ---- Kompis-hanteringsfunktioner ----
@@ -522,6 +620,15 @@ exports.manualSummarizeYesterday = functions
     const yesterday = new Date(serverTime.toLocaleString("en-US", {timeZone: "Europe/Stockholm"}));
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayDateUID = getDateUID(yesterday, "Europe/Stockholm");
+    
+    const today = new Date(serverTime.toLocaleString("en-US", {timeZone: "Europe/Stockholm"}));
+    const todayDateUID = getDateUID(today, "Europe/Stockholm");
+
+    // STRICT CHECK: Never summarize today or a future date
+    if (yesterdayDateUID >= todayDateUID) {
+        logger.warn(`Attempted to summarize a future/current date (${yesterdayDateUID}). Aborting.`);
+        return {success: false, message: `Attempted to summarize a future/current date (${yesterdayDateUID}). Aborting.`};
+    }
 
     const usersSnapshot = await db.collection("users").where("status", "==", "approved").get();
     const allWriteOps = [];
@@ -564,6 +671,7 @@ exports.manualSummarizeYesterday = functions
                 consumedCalories: totalNutrients.calories,
                 calorieGoal: user.goals.calorieGoal,
                 streakForThisDay: newStreak,
+                bankedAmount: bankedAmountThisDay
             };
 
             allWriteOps.push({ref: db.collection("users").doc(userId).collection("pastDaySummaries").doc(yesterdayDateUID), data: summaryData, type: "set"});
@@ -600,49 +708,41 @@ exports.manualSummarizeYesterday = functions
 // ==========================================
 
 // 1. Skapa en Checkout Session (Anropa denna från Appen!)
+// Se till att denna rad är med högst upp
+
 exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
-    // Endast inloggade användare får köpa
+    // Logga direkt för att se om vi ens når hit
+    console.log("Anrop mottaget till createCheckoutSession", { 
+        uid: context.auth ? context.auth.uid : 'ej inloggad',
+        data: data 
+    });
+
     if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Du måste vara inloggad för att starta ett köp.');
+        throw new functions.https.HttpsError('unauthenticated', 'Användaren är inte inloggad.');
     }
 
-    const userId = context.auth.uid;
-    const userEmail = context.auth.token.email;
-
-    // HÄR ÄR ÄNDRINGEN:
-    // Vi använder URL:en som skickas från appen (data.returnUrl).
-    // Om ingen skickas med, faller vi tillbaka på produktions-adressen som säkerhet.
-    const domainURL = data.returnUrl || 'https://app.kostloggen.se'; 
+    // Hämta priceId dynamiskt från config eller frontend
+    const priceId = functions.config().stripe.price || data.priceId;
+    const origin = data.returnUrl || 'https://staging-kostloggen.netlify.app';
 
     try {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             mode: 'subscription',
-            customer_email: userEmail,
-            allow_promotion_codes: true, // Lägg till rabattkodsfält
-            line_items: [
-                {
-                    // VIKTIGT: Detta är ditt riktiga Price ID du skickade med
-                    price: 'price_1RtQRCK0orFqQ8UR0oXWzweX', 
-                    quantity: 1,
-                },
-            ],
-            // Skicka med userId så att webhooken vet vem som betalade
-            metadata: {
-                firebaseUid: userId
-            },
-            // Add session_id to URL to allow frontend validation
-            success_url: `${domainURL}/success?session_id={CHECKOUT_SESSION_ID}`, 
-            cancel_url: `${domainURL}/cancel`,   
+            customer_email: context.auth.token.email,
+            line_items: [{ price: priceId, quantity: 1 }],
+            metadata: { firebaseUid: context.auth.uid },
+            success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${origin}/cancel`,
         });
-
+        
         return { sessionId: session.id, url: session.url };
     } catch (error) {
-        logger.error("Stripe Checkout Error:", error);
-        throw new functions.https.HttpsError('internal', 'Kunde inte skapa betalningssession.');
+        console.error("Stripe fel:", error);
+        // Genom att kasta ett specifikt fel här undviker vi "internal"
+        throw new functions.https.HttpsError('internal', error.message);
     }
 });
-
 
 // 2. Avsluta Prenumeration (Anropa från appen)
 exports.cancelSubscription = functions.https.onCall(async (data, context) => {

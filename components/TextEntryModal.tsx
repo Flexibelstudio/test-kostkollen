@@ -13,6 +13,21 @@ interface TextEntryModalProps {
   defaultMealType?: MealType | null;
 }
 
+const PLACEHOLDER_EXAMPLES = [
+    "Vad har du ätit?",
+    "T.ex. 2 ägg, kaffe och en macka med ost",
+    "T.ex. Kyckling, ris och broccoli",
+    "T.ex. Havregrynsgröt med mjölk och äppelmos",
+    "T.ex. En banan och en proteinshake"
+];
+
+const SUGGESTION_CHIPS = [
+    "Havregrynsgröt, mjölk & äppelmos",
+    "Kyckling, ris och broccoli",
+    "2 st stekta ägg och en macka",
+    "Lax med potatis och sås"
+];
+
 const TextEntryModal: React.FC<TextEntryModalProps> = ({ 
     show, 
     onClose, 
@@ -36,10 +51,17 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
     const [baseValues, setBaseValues] = useState<SearchedFoodInfo | null>(null);
     const [saveAsCommon, setSaveAsCommon] = useState<boolean>(false); 
     const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
+    
+    const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
     useEffect(() => {
         if (show) {
             setSelectedMealType(defaultMealType);
+            // Start rotating placeholder
+            const interval = setInterval(() => {
+                setPlaceholderIndex(prev => (prev + 1) % PLACEHOLDER_EXAMPLES.length);
+            }, 3000);
+            return () => clearInterval(interval);
         }
     }, [show, defaultMealType]);
 
@@ -135,6 +157,10 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
             }
         };
     };
+    
+    const handleChipClick = (suggestion: string) => {
+        setQuery(suggestion);
+    };
 
     if (!show) return null;
 
@@ -142,8 +168,8 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
     const labelClass = "block text-sm font-medium text-neutral-dark";
 
     return (
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleClose}>
-            <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-start justify-center z-[70] p-4 pt-20 animate-fade-in" onClick={handleClose}>
+            <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-5 flex-shrink-0">
                     <div className="flex items-center">
                         <SearchIcon className="w-7 h-7 text-primary mr-2.5" />
@@ -156,7 +182,7 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
                     </button>
                 </div>
                 
-                <form onSubmit={handleSearch} className="mb-4 flex-shrink-0">
+                <form onSubmit={handleSearch} className="mb-2 flex-shrink-0">
                     <label htmlFor="textQueryInput" className="sr-only">Ange livsmedel eller måltid</label>
                     <div className="flex gap-2">
                         <input
@@ -164,8 +190,8 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
                             id="textQueryInput"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Vad har du ätit?"
-                            className="flex-grow px-4 py-2.5 bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base"
+                            placeholder={PLACEHOLDER_EXAMPLES[placeholderIndex]}
+                            className="flex-grow px-4 py-2.5 bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base transition-all placeholder:transition-opacity placeholder:duration-300"
                             autoFocus
                         />
                         <button type="submit" disabled={!query.trim() || isLoading} className="px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-lg shadow-sm disabled:opacity-50 flex items-center justify-center">
@@ -173,6 +199,23 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
                         </button>
                     </div>
                 </form>
+                
+                {!searchResult && !isLoading && (
+                    <div className="mb-4">
+                        <p className="text-xs text-neutral-500 font-medium mb-2 uppercase tracking-wide">Tips: Du kan skriva hela måltider!</p>
+                        <div className="flex flex-wrap gap-2">
+                            {SUGGESTION_CHIPS.map((chip) => (
+                                <button
+                                    key={chip}
+                                    onClick={() => handleChipClick(chip)}
+                                    className="px-3 py-1.5 bg-neutral-light/50 hover:bg-neutral-light text-neutral-dark text-xs sm:text-sm rounded-full border border-neutral-light/80 transition-colors"
+                                >
+                                    {chip}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 
                 {isLoading && (
                     <div className="flex items-center justify-center text-neutral-dark p-8">
@@ -255,6 +298,7 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
                                     <input type="checkbox" id="saveAsCommonText" name="saveAsCommon" checked={saveAsCommon} onChange={(e) => setSaveAsCommon(e.target.checked)} className="h-5 w-5 text-primary border-neutral-light rounded focus:ring-primary mr-2.5" />
                                     <span className="mr-1.5" role="img" aria-hidden="true">📌</span>
                                     Spara som vanligt val
+                                    {searchResult.foodItem.includes(',') && <span className="ml-2 text-xs text-primary font-medium">(Perfekt för måltider!)</span>}
                                 </label>
                             </div>
                         </div>

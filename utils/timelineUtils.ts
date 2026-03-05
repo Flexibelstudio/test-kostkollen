@@ -1,4 +1,5 @@
-import { UserProfileData } from '../types.ts';
+
+import { UserProfileData, WeightLogEntry } from '../types.ts';
 import { CALORIE_ADJUSTMENT } from '../constants.ts';
 
 
@@ -10,11 +11,11 @@ export interface TimelineMilestone {
   isFinal: boolean;
 }
 
-export const calculateGoalTimeline = (profile: UserProfileData): {
+export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: WeightLogEntry[] = []): {
   milestones: TimelineMilestone[];
   paceFeedback: { type: 'warning' | 'info' | 'error'; text: string } | null;
 } => {
-    const { desiredFatMassChangeKg, desiredMuscleMassChangeKg, currentWeightKg, goalCompletionDate, measurementMethod, desiredWeightChangeKg } = profile;
+    const { desiredFatMassChangeKg, desiredMuscleMassChangeKg, currentWeightKg, goalCompletionDate, measurementMethod, desiredWeightChangeKg, goalStartDate } = profile;
 
     let goalChange: number | undefined;
     let goalTypeLabel: string | null = null;
@@ -23,17 +24,32 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
         goalChange = desiredWeightChangeKg;
         goalTypeLabel = 'Vikt';
     } else { // 'inbody' or legacy
-        // Prioritize fat change for timeline calculation as it's more directly related to weight pace.
-        goalChange = desiredFatMassChangeKg ?? desiredMuscleMassChangeKg;
-        goalTypeLabel = desiredFatMassChangeKg !== undefined && desiredFatMassChangeKg !== 0 ? 'Fettmassa' : (desiredMuscleMassChangeKg !== undefined && desiredMuscleMassChangeKg !== 0 ? 'Muskelmassa' : null);
+        // Prioritize fat/muscle change, but FALLBACK to weight change if unavailable.
+        if (desiredFatMassChangeKg !== undefined && desiredFatMassChangeKg !== 0 && desiredFatMassChangeKg !== null) {
+             goalChange = desiredFatMassChangeKg;
+             goalTypeLabel = 'Fettmassa';
+        } else if (desiredMuscleMassChangeKg !== undefined && desiredMuscleMassChangeKg !== 0 && desiredMuscleMassChangeKg !== null) {
+             goalChange = desiredMuscleMassChangeKg;
+             goalTypeLabel = 'Muskelmassa';
+        } else {
+             // FALLBACK: User has InBody selected but might have only set a general weight goal (or simple setup)
+             goalChange = desiredWeightChangeKg;
+             goalTypeLabel = 'Vikt (Estimerat)';
+        }
     }
     
-    if (goalChange === undefined || goalChange === 0 || !currentWeightKg) {
+    if (goalChange === undefined || goalChange === null || goalChange === 0 || !currentWeightKg) {
       return { milestones: [], paceFeedback: null };
     }
     
-    const startDate = new Date();
+    // FIX: Use persisted goalStartDate. If none, use today (don't infer from logs, forcing a reset visual)
+    const startDate = goalStartDate ? new Date(goalStartDate) : new Date();
     startDate.setHours(0, 0, 0, 0);
+    
+    // Determine the starting weight for the goal based on the *start date*.
+    // If we have a goalStartWeight saved, use it. Otherwise fall back to currentWeight.
+    const startWeightForCalculation = profile.goalStartWeight || currentWeightKg;
+
     let endDate: Date;
     let paceFeedback: { type: 'warning' | 'info' | 'error', text: string } | null = null;
 
@@ -51,7 +67,7 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
 
         if (goalChange < 0) { // It's a loss goal
             const weeklyLossKg = Math.abs(weeklyChange);
-            const weeklyLossPercentage = (weeklyLossKg / currentWeightKg) * 100;
+            const weeklyLossPercentage = (weeklyLossKg / startWeightForCalculation) * 100;
             if (weeklyLossPercentage > 1.2) {
                 paceFeedback = { type: 'warning', text: "⚠️ Detta är en mycket snabb takt (>1.2% av kroppsvikten per vecka). Överväg en mer hållbar plan." };
             } else if (weeklyLossPercentage > 0.8) {
@@ -118,7 +134,7 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
             milestoneDate.setDate(startDate.getDate() + i * 7);
             
             const cumulativeChange = weeklyChange * i;
-            const targetWeight = currentWeightKg + cumulativeChange;
+            const targetWeight = startWeightForCalculation + cumulativeChange;
             let targetString = `Total förändring: ${cumulativeChange.toFixed(1)} kg ${goalTypeLabel}`;
             targetString += ` (ca ${targetWeight.toFixed(1)} kg)`;
 
@@ -132,7 +148,7 @@ export const calculateGoalTimeline = (profile: UserProfileData): {
         }
     }
     
-    const finalTargetWeight = currentWeightKg + goalChange;
+    const finalTargetWeight = startWeightForCalculation + goalChange;
     let finalTargetString = `Slutmål: ${goalChange.toFixed(1)} kg ${goalTypeLabel}`;
     finalTargetString += ` (ca ${finalTargetWeight.toFixed(1)} kg)`;
     

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CourseLesson, UserLessonProgress, UserProfileData, WeightLogEntry, PastDaySummary, AIDataForLessonIntro } from '../../types';
 import { ArrowLeftIcon, CheckCircleIcon, CheckIcon, InformationCircleIcon, SparklesIcon, BookOpenIcon, PlusCircleIcon, ChartLineIcon, XMarkIcon, ChevronDownIcon } from '../icons';
 import { getAIPersonalizedLessonIntro } from '../../services/geminiService';
@@ -8,12 +8,10 @@ interface LessonDetailProps {
   lesson: CourseLesson;
   progress: UserLessonProgress | undefined;
   onToggleFocusPoint: (lessonId: string, focusPointId: string) => void;
-  onSaveReflection: (lessonId: string, answer: string) => Promise<void>;
-  onSaveWhyAnswer: (lessonId: string, answer: string) => Promise<void>;
-  onSaveSmartGoalAnswer: (lessonId: string, answer: string) => Promise<void>;
+  onSaveProgress: (lessonId: string, data: Partial<UserLessonProgress>) => Promise<void>;
   onMarkComplete: (lessonId: string) => void;
   onOpenSpeedDial: () => void;
-  onNavigateToJourney: (tab: 'weight' | 'calendar' | 'profile' | 'achievements') => void;
+  onNavigateToJourney: (tab: 'calendar' | 'profile' | 'achievements') => void;
   userProfile: UserProfileData;
   weightLogs: WeightLogEntry[];
   pastDaysSummary: PastDaySummary[];
@@ -25,9 +23,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
   lesson,
   progress,
   onToggleFocusPoint,
-  onSaveReflection,
-  onSaveWhyAnswer,
-  onSaveSmartGoalAnswer,
+  onSaveProgress,
   onMarkComplete,
   onOpenSpeedDial,
   onNavigateToJourney,
@@ -41,16 +37,20 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
   const [whyAnswer, setWhyAnswer] = useState(progress?.whyAnswer || '');
   const [smartGoalAnswer, setSmartGoalAnswer] = useState(progress?.smartGoalAnswer || '');
   
+  const isDirty = useRef(false);
+
   const [aiIntro, setAiIntro] = useState<string | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDetailedTextExpanded, setIsDetailedTextExpanded] = useState(false);
 
-
+  // Sync state with props if they change externally (only if not dirty)
   useEffect(() => {
-    setReflectionAnswer(progress?.reflectionAnswer || '');
-    setWhyAnswer(progress?.whyAnswer || '');
-    setSmartGoalAnswer(progress?.smartGoalAnswer || '');
+    if (progress && !isDirty.current) {
+        setReflectionAnswer(prev => progress.reflectionAnswer !== undefined ? progress.reflectionAnswer : prev);
+        setWhyAnswer(prev => progress.whyAnswer !== undefined ? progress.whyAnswer : prev);
+        setSmartGoalAnswer(prev => progress.smartGoalAnswer !== undefined ? progress.smartGoalAnswer : prev);
+    }
   }, [progress]);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
           setAiIntro(intro);
         } catch (error) {
           console.error("Failed to fetch AI intro:", error);
-          setAiIntro(null); // Fallback to no AI intro on error
+          setAiIntro(null);
         } finally {
           setIsLoadingAi(false);
         }
@@ -83,33 +83,26 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
   const handleSaveAndClose = async () => {
     setIsSaving(true);
     try {
-        const promises: Promise<void>[] = [];
+        // Create a single update object with ALL fields
+        const updates: Partial<UserLessonProgress> = {};
         
-        if (reflectionAnswer.trim() !== (progress?.reflectionAnswer || '')) {
-            promises.push(onSaveReflection(lesson.id, reflectionAnswer));
-        }
-
-        if (lesson.specialAction?.type === 'writeWhy' && onSaveWhyAnswer) {
-            if (whyAnswer.trim() !== (progress?.whyAnswer || '')) {
-                promises.push(onSaveWhyAnswer(lesson.id, whyAnswer));
-            }
+        // Always include current state values to prevent overwriting with old data
+        updates.reflectionAnswer = reflectionAnswer;
+        
+        if (lesson.specialAction?.type === 'writeWhy') {
+            updates.whyAnswer = whyAnswer;
         }
         
-        if (lesson.specialAction?.type === 'smartGoal' && onSaveSmartGoalAnswer) {
-             if (smartGoalAnswer.trim() !== (progress?.smartGoalAnswer || '')) {
-                promises.push(onSaveSmartGoalAnswer(lesson.id, smartGoalAnswer));
-            }
+        if (lesson.specialAction?.type === 'smartGoal') {
+            updates.smartGoalAnswer = smartGoalAnswer;
         }
 
-        if (promises.length > 0) {
-            await Promise.all(promises);
-        }
-
+        await onSaveProgress(lesson.id, updates);
+        isDirty.current = false; // Reset dirty state after save
         onClose();
 
     } catch (error) {
         console.error("Failed to save lesson details:", error);
-        // Error toast is handled by parent App.tsx
     } finally {
         setIsSaving(false);
     }
@@ -201,6 +194,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                  <textarea
                   value={lesson.specialAction.type === 'writeWhy' ? whyAnswer : smartGoalAnswer} 
                   onChange={(e) => {
+                      isDirty.current = true;
                       if (lesson.specialAction?.type === 'writeWhy') {
                           setWhyAnswer(e.target.value);
                       } else {
@@ -278,7 +272,10 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
           <h2 className="text-xl font-bold text-neutral-dark mb-3">{lesson.reflection.question}</h2>
           <textarea
             value={reflectionAnswer}
-            onChange={(e) => setReflectionAnswer(e.target.value)}
+            onChange={(e) => {
+                isDirty.current = true;
+                setReflectionAnswer(e.target.value);
+            }}
             rows={4}
             className="w-full p-4 border border-neutral-light rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base"
             placeholder="Dina tankar och reflektioner..."

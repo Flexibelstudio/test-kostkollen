@@ -5,7 +5,7 @@ import {
   setPersistence,
   browserLocalPersistence,
   type Auth,
-} from "firebase/auth";
+} from "@firebase/auth";
 // FIX: Corrected import path for Firestore functions and types from 'firebase/firestore' to '@firebase/firestore'.
 // FIX: Corrected import path for Firestore functions
 // FIX: Changed import from 'firebase/firestore' to '@firebase/firestore' to resolve missing member errors.

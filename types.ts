@@ -186,6 +186,7 @@ export interface NotificationSettings {
   friendRequests: boolean;
   newEvents: boolean;
   comments: boolean;
+  likes: boolean; // Add this
   // Reminder notifications
   waterReminder: boolean;
   foodReminder: boolean;
@@ -212,6 +213,7 @@ export interface UserProfileData {
   desiredFatMassChangeKg?: number;
   desiredMuscleMassChangeKg?: number;
   goalCompletionDate?: string;
+  goalStartDate?: string; // New field to lock the timeline start date
   isSearchable?: boolean;
   goalStartWeight?: number;
   goalStartMuscleMassKg?: number;
@@ -411,6 +413,7 @@ export interface AIDataForJourneyAnalysis {
   };
   mentalWellbeingLogs?: MentalWellbeingLog[];
   currentStreak: number;
+  userCourseProgress?: UserCourseProgress;
 }
 
 export interface AIDataForCoachSummary {
@@ -541,7 +544,10 @@ export type TimelineEventType =
   | "level"
   | "goal"
   | "goal_achieved"
-  | "goal_set";
+  | "goal_set"
+  | "user_post"; // Added user_post
+
+export type PostCategory = 'general' | 'food' | 'workout' | 'question' | 'pepp';
 
 export interface Reactions {
   [emoji: string]: {
@@ -569,6 +575,10 @@ export interface TimelineEvent {
   title: string;
   description: string;
   icon: string;
+
+  // New fields for User Posts
+  imageUrl?: string; // Optional image (Base64 or URL)
+  category?: PostCategory; // For filtering/styling
 
   // New reaction and comment structure
   reactions: Reactions;

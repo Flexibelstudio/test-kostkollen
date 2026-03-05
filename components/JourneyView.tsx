@@ -59,19 +59,22 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const [isFullGoalEdit, setIsFullGoalEdit] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
-  const currentYear = useMemo(() => new Date().getFullYear(), []);
-  const juneFirst = useMemo(() => new Date(currentYear, 5, 1), [currentYear]); 
-
+  // Filter logs to only show those AFTER the goalStartDate
   const filteredWeightLogs = useMemo(() => {
-    return weightLogs.filter(log => new Date(log.loggedAt) >= juneFirst);
-  }, [weightLogs, juneFirst]);
+    if (!userProfile.goalStartDate) return weightLogs;
+    const startDate = new Date(userProfile.goalStartDate).getTime();
+    return weightLogs.filter(log => log.loggedAt >= startDate);
+  }, [weightLogs, userProfile.goalStartDate]);
   
-  const timeline = useMemo(() => calculateGoalTimeline(userProfile), [userProfile]);
+  const timeline = useMemo(() => {
+      // Calculate timeline using the filtered logs (relevant to current goal)
+      return calculateGoalTimeline(userProfile, filteredWeightLogs);
+  }, [userProfile, filteredWeightLogs]);
   
-  // Find latest measurements for each metric independently to handle logs with partial data
-  const latestWeightValue = useMemo(() => [...weightLogs].reverse().find(l => l.weightKg != null)?.weightKg ?? userProfile.currentWeightKg, [weightLogs, userProfile.currentWeightKg]);
-  const latestMuscleValue = useMemo(() => [...weightLogs].reverse().find(l => l.skeletalMuscleMassKg != null)?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg, [weightLogs, userProfile.skeletalMuscleMassKg]);
-  const latestFatValue = useMemo(() => [...weightLogs].reverse().find(l => l.bodyFatMassKg != null)?.bodyFatMassKg ?? userProfile.bodyFatMassKg, [weightLogs, userProfile.bodyFatMassKg]);
+  // Find latest measurements
+  const latestWeightValue = useMemo(() => [...filteredWeightLogs].reverse().find(l => l.weightKg != null)?.weightKg ?? userProfile.currentWeightKg, [filteredWeightLogs, userProfile.currentWeightKg]);
+  const latestMuscleValue = useMemo(() => [...filteredWeightLogs].reverse().find(l => l.skeletalMuscleMassKg != null)?.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg, [filteredWeightLogs, userProfile.skeletalMuscleMassKg]);
+  const latestFatValue = useMemo(() => [...filteredWeightLogs].reverse().find(l => l.bodyFatMassKg != null)?.bodyFatMassKg ?? userProfile.bodyFatMassKg, [filteredWeightLogs, userProfile.bodyFatMassKg]);
 
   const latestWeightLog = filteredWeightLogs.length > 0 ? filteredWeightLogs[filteredWeightLogs.length - 1] : null;
   const previousWeightLog = filteredWeightLogs.length > 1 ? filteredWeightLogs[filteredWeightLogs.length - 2] : null;
@@ -80,13 +83,29 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   let muscleChangeNum: number | undefined;
   let fatChangeNum: number | undefined;
 
-  if (latestWeightLog && previousWeightLog) {
-      weightChangeNum = latestWeightLog.weightKg - previousWeightLog.weightKg;
-      if (latestWeightLog.skeletalMuscleMassKg != null && previousWeightLog.skeletalMuscleMassKg != null) {
-          muscleChangeNum = latestWeightLog.skeletalMuscleMassKg - previousWeightLog.skeletalMuscleMassKg;
-      }
-      if (latestWeightLog.bodyFatMassKg != null && previousWeightLog.bodyFatMassKg != null) {
-          fatChangeNum = latestWeightLog.bodyFatMassKg - previousWeightLog.bodyFatMassKg;
+  if (latestWeightLog) {
+      if (previousWeightLog) {
+          // Case 1: We have at least two logs in the current period -> Compare latest vs previous
+          weightChangeNum = latestWeightLog.weightKg - previousWeightLog.weightKg;
+          if (latestWeightLog.skeletalMuscleMassKg != null && previousWeightLog.skeletalMuscleMassKg != null) {
+              muscleChangeNum = latestWeightLog.skeletalMuscleMassKg - previousWeightLog.skeletalMuscleMassKg;
+          }
+          if (latestWeightLog.bodyFatMassKg != null && previousWeightLog.bodyFatMassKg != null) {
+              fatChangeNum = latestWeightLog.bodyFatMassKg - previousWeightLog.bodyFatMassKg;
+          }
+      } else {
+          // Case 2: We only have ONE log in the current period (fresh start) -> Compare latest vs Start Values
+          if (userProfile.goalStartWeight != null) {
+             weightChangeNum = latestWeightLog.weightKg - userProfile.goalStartWeight;
+          }
+          
+          if (latestWeightLog.skeletalMuscleMassKg != null && userProfile.goalStartMuscleMassKg != null) {
+             muscleChangeNum = latestWeightLog.skeletalMuscleMassKg - userProfile.goalStartMuscleMassKg;
+          }
+          
+          if (latestWeightLog.bodyFatMassKg != null && userProfile.goalStartFatMassKg != null) {
+             fatChangeNum = latestWeightLog.bodyFatMassKg - userProfile.goalStartFatMassKg;
+          }
       }
   }
 
@@ -153,25 +172,40 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   const { goalProgress, goalDisplayString } = useMemo(() => {
     let startValueKg, currentValueKg, goalChangeKg;
 
-    const isScaleGoal = userProfile.measurementMethod === 'scale' && userProfile.desiredWeightChangeKg;
-    const isFatLossGoal = userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
-    const isMuscleGainGoal = userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
+    const isScaleGoal = userProfile.measurementMethod === 'scale';
+    // For InBody, check if specific composition goals are set
+    const isFatLossGoal = !isScaleGoal && userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
+    const isMuscleGainGoal = !isScaleGoal && userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
 
-    // Logic: Favor values from logs (latestValue variables) over static profile values
+    // Logic: Favor specific values if available, otherwise fallback to weight for progress tracking
     if (isFatLossGoal) {
-        startValueKg = userProfile.goalStartFatMassKg;
-        currentValueKg = latestFatValue;
-        goalChangeKg = userProfile.desiredFatMassChangeKg;
+        if (latestFatValue != null && userProfile.goalStartFatMassKg != null) {
+            startValueKg = userProfile.goalStartFatMassKg;
+            currentValueKg = latestFatValue;
+            goalChangeKg = userProfile.desiredFatMassChangeKg;
+        } else {
+            // FALLBACK: User has Fat Loss Goal but logs only Weight
+            startValueKg = userProfile.goalStartWeight;
+            currentValueKg = latestWeightValue;
+            // We assume the desired fat loss amount is the desired weight loss amount in this context
+            goalChangeKg = userProfile.desiredFatMassChangeKg; 
+        }
     } else if (isMuscleGainGoal) {
-        startValueKg = userProfile.goalStartMuscleMassKg;
-        currentValueKg = latestMuscleValue;
-        goalChangeKg = userProfile.desiredMuscleMassChangeKg;
-    } else if (isScaleGoal) {
+        if (latestMuscleValue != null && userProfile.goalStartMuscleMassKg != null) {
+            startValueKg = userProfile.goalStartMuscleMassKg;
+            currentValueKg = latestMuscleValue;
+            goalChangeKg = userProfile.desiredMuscleMassChangeKg;
+        } else {
+            // FALLBACK: User has Muscle Gain Goal but logs only Weight
+            startValueKg = userProfile.goalStartWeight;
+            currentValueKg = latestWeightValue;
+            goalChangeKg = userProfile.desiredMuscleMassChangeKg;
+        }
+    } else {
+        // Scale Mode or Fallback for InBody without specific comp goal (uses weight)
         startValueKg = userProfile.goalStartWeight;
         currentValueKg = latestWeightValue;
         goalChangeKg = userProfile.desiredWeightChangeKg;
-    } else {
-        return { goalProgress: 0, goalDisplayString: 'Inget aktivt mål' };
     }
     
     const datePart = userProfile.goalCompletionDate ? ` till ${new Date(userProfile.goalCompletionDate+'T00:00:00').toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })}` : '';
@@ -185,22 +219,29 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         const changes = [];
         if (userProfile.desiredFatMassChangeKg) changes.push(`${userProfile.desiredFatMassChangeKg > 0 ? '+' : ''}${userProfile.desiredFatMassChangeKg.toFixed(1).replace('.',',')} kg fett`);
         if (userProfile.desiredMuscleMassChangeKg) changes.push(`${userProfile.desiredMuscleMassChangeKg > 0 ? '+' : ''}${userProfile.desiredMuscleMassChangeKg.toFixed(1).replace('.',',')} kg muskler`);
+        
         if (changes.length > 0) displayString = `Nå en förändring på ${changes.join(' och ')}${datePart}`;
+        else if (userProfile.desiredWeightChangeKg) displayString = `Nå en viktförändring på ${userProfile.desiredWeightChangeKg > 0 ? '+' : ''}${userProfile.desiredWeightChangeKg.toFixed(1).replace('.',',')} kg${datePart}`; // Fallback description
         else displayString = 'Bibehålla nuvarande form';
     }
 
-    if (startValueKg == null || currentValueKg == null || userProfile.mainGoalCompleted) {
+    if (startValueKg == null || currentValueKg == null || userProfile.mainGoalCompleted || goalChangeKg == null) {
         return { goalProgress: 0, goalDisplayString: displayString };
     }
 
-    const totalChangeNeeded = Math.abs(goalChangeKg || 0);
+    const totalChangeNeeded = Math.abs(goalChangeKg);
     let changeAchieved;
-    if ((goalChangeKg || 0) > 0) { 
+    
+    // Strict logic: Progress is only movement in the desired direction
+    if (goalChangeKg > 0) { 
+        // Goal: Gain weight/muscle. Progress = Current - Start
         changeAchieved = currentValueKg - startValueKg;
     } else { 
+        // Goal: Lose weight/fat. Progress = Start - Current
         changeAchieved = startValueKg - currentValueKg;
     }
     
+    // If changeAchieved is negative, it means we went the wrong way. Clamp to 0.
     changeAchieved = Math.max(0, changeAchieved);
 
     if (totalChangeNeeded < 0.01) {
@@ -249,38 +290,36 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                     </span>
                 </div>
 
-                {/* Secondary Metrics */}
-                <div className="flex gap-4 w-full justify-center">
-                    {latestMuscleValue != null && (
+                {/* Secondary Metrics - Only Show if InBody is selected */}
+                {userProfile.measurementMethod === 'inbody' && (
+                    <div className="flex gap-4 w-full justify-center">
                         <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
                             <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 mb-2">
                                 <Dumbbell className="w-5 h-5" />
                             </div>
                             <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Muskler</span>
                             <span className="text-xl font-bold text-neutral-dark">
-                                {latestMuscleValue.toFixed(1).replace('.',',')}
+                                {latestMuscleValue != null ? latestMuscleValue.toFixed(1).replace('.',',') : '-'}
                             </span>
                             <span className={`text-xs font-semibold ${muscleChangeDetails.colorClass}`}>
                                 {muscleChangeDetails.text}
                             </span>
                         </div>
-                    )}
-                    
-                    {latestFatValue != null && (
+                        
                         <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
                             <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600 mb-2">
                                 <PieChart className="w-5 h-5" />
                             </div>
                             <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Fett</span>
                             <span className="text-xl font-bold text-neutral-dark">
-                                {latestFatValue.toFixed(1).replace('.',',')}
+                                {latestFatValue != null ? latestFatValue.toFixed(1).replace('.',',') : '-'}
                             </span>
                             <span className={`text-xs font-semibold ${fatChangeDetails.colorClass}`}>
                                 {fatChangeDetails.text}
                             </span>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
         </div>
 

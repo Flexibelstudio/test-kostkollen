@@ -26,6 +26,14 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
     }
   }
 
+  // För tidsbaserad logik (Klimakteriet)
+  const firstLessonProg = lessons.length > 0 ? userProgress[lessons[0].id] : null;
+  const activatedAt = firstMkLessonProg_Helper_ActivatedAt(firstLessonProg);
+
+  function firstMkLessonProg_Helper_ActivatedAt(prog: any) {
+      return prog?.unlockedAt || null;
+  }
+
   return (
     <>
       <div className="animate-fade-in pb-10">
@@ -77,8 +85,15 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                         }
                         progressFlames = Math.max(0, Math.min(7, progressFlames));
                     }
-                } else { // maxa-klimakteriet
-                    unlockMessage = "Låses upp när föregående lektion är klar.";
+                } else { // maxa-klimakteriet (Tidsbaserad)
+                    if (activatedAt) {
+                        const nextUnlockDate = new Date(activatedAt + (index * 7 * 24 * 60 * 60 * 1000));
+                        const options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'short' };
+                        const dateStr = nextUnlockDate.toLocaleDateString('sv-SE', options);
+                        unlockMessage = `Låses upp på ${dateStr}.`;
+                    } else {
+                        unlockMessage = "Låses upp veckovis efter start.";
+                    }
                 }
 
                 return (
