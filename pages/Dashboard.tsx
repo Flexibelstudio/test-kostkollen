@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
     LoggedMeal, 
@@ -376,11 +375,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         setPastDaysSummary(prev => ({ ...prev, [viewingUID]: newSummary }));
         
-        // Always attempt to save if we're recalculating (even if in past)
-        try {
-            await setPastDaySummaryFirestore(currentUser.uid, viewingUID, newSummary);
-        } catch(e) {
-            console.error("Failed to update past day summary", e);
+        // Spara BARA till databasen om det är en historisk dag. Dagens datum får ALDRIG sparas ner i förtid!
+        if (viewingUID < currentUID) {
+            try {
+                await setPastDaySummaryFirestore(currentUser.uid, viewingUID, newSummary);
+            } catch(e) {
+                console.error("Failed to update past day summary", e);
+            }
         }
 
         if (viewingUID < currentUID) {
