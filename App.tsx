@@ -1064,7 +1064,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   };
 
 const ensureWeeklyBankReset = useCallback(async () => {
-    if (!currentUser || !isInitialDataLoaded || userRole === 'coach' || userStatus !== 'approved') return;
+if (!currentUser || !isInitialDataLoaded || userStatus !== 'approved') return;
 
     const now = new Date();
     const currentWeek = getWeekInfo(now);
@@ -1088,7 +1088,7 @@ const ensureWeeklyBankReset = useCallback(async () => {
 }, [currentUser, isInitialDataLoaded, userRole, userStatus, setWeeklyBank]);
 
 const ensureYesterdayProcessed = useCallback(async (uid: string, now = new Date(), options: ProcessDayEndLogicOptions = {}, manualLogOverride?: LoggedMeal[], prefetchedWater?: number): Promise<void> => {
-    if (!uid || userRole === 'coach' || userStatus !== 'approved' || !hasCompletedOnboarding) return;
+if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
     const { start: yesterdayStart, yKey: yesterdayUID } = yesterdayRangeSE(now);
     const todayUID = dayKeySE(new Date());
