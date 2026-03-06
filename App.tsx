@@ -326,6 +326,7 @@ export const App = () => {
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
   const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number } | null>(null);
   const [isSummarizingYesterday, setIsSummarizingYesterday] = useState(false);
+  const [hasRunCatchUp, setHasRunCatchUp] = useState(false);
 
   // Refs to store latest state for use in async callbacks (like the catch-up loop)
   const pastDaysSummaryRef = useRef(pastDaysSummary);
@@ -651,7 +652,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
   // --- NEW EFFECT: Ensure Morning Report is shown if not seen today ---
   useEffect(() => {
-      if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) return;
+      if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding || !hasRunCatchUp) return;
 
       // Don't show if currently processing or already showing
       if (isSummarizingYesterday || morningReportData) return;
@@ -1163,16 +1164,11 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         const hasLogs = mealsToProcess.length > 0;
         let finalNewStreak = 0;
         
-        // Check if server already processed this exact day
-        if (streakDataRef.current.lastDateStreakChecked === yesterdayUID) {
-            finalNewStreak = streakDataRef.current.currentStreak;
+        // ALLTID räkna ut streaken på nytt baserat på faktiska loggar (självläkande)
+        if (hasLogs) {
+             finalNewStreak = prevStreak + 1;
         } else {
-            // Strict logic: If logs exist > 0 streak increases from previous day.
-            if (hasLogs) {
-                 finalNewStreak = prevStreak + 1;
-            } else {
-                 finalNewStreak = 0;
-            }
+             finalNewStreak = 0;
         }
         
         const summary: PastDaySummary = {
@@ -1261,7 +1257,8 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     useEffect(() => {
         const catchUp = async () => {
             if (isCatchingUp.current) return;
-            if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding && !isSummarizingYesterday) {
+            // VI HAR TAGIT BORT !isSummarizingYesterday PÅ RADEN UNDER:
+            if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
                 isCatchingUp.current = true;
                 try {
                     const today = new Date();
@@ -1331,12 +1328,14 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                     await ensureWeeklyBankReset();
                 } finally {
                     isCatchingUp.current = false;
+                    setHasRunCatchUp(true); // <--- LÄGG TILL DENNA
                 }
             }
         };
 
         catchUp();
-    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, ensureYesterdayProcessed, ensureWeeklyBankReset, isSummarizingYesterday, summaryStartDate]);
+    // TA BORT isSummarizingYesterday FRÅN LISTAN NEDANFÖR:
+    }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, ensureYesterdayProcessed, ensureWeeklyBankReset, summaryStartDate]);
 
   
   useEffect(() => {

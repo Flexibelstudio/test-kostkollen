@@ -1,22 +1,32 @@
-
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
 const cors = require('cors')({ origin: true });
 
-// Initiera Stripe med den hemliga nyckeln från config
-const stripe = require("stripe")(functions.config().stripe.secret);
+// --- SÄKER HÄMTNING AV VARIABLER ---
+// Denna funktion förhindrar krascher om en miljövariabel saknas i molnet
+function getSafeConfig(domain, key) {
+    try {
+        return functions.config()[domain][key];
+    } catch (e) {
+        return null;
+    }
+}
+
+// Initiera Stripe med den hemliga nyckeln (från .env ELLER molnet)
+const stripeSecret = process.env.STRIPE_SECRET_KEY || getSafeConfig('stripe', 'secret');
+const stripe = require("stripe")(stripeSecret);
 
 admin.initializeApp();
 const db = admin.firestore();
 
 // ---- VAPID-nycklar ----
-const vapidPublicKey = functions.config().webpush ? functions.config().webpush.public_key : null;
-const vapidPrivateKey = functions.config().webpush ? functions.config().webpush.private_key : null;
+const vapidPublicKey = process.env.WEBPUSH_PUBLIC_KEY || getSafeConfig('webpush', 'public_key');
+const vapidPrivateKey = process.env.WEBPUSH_PRIVATE_KEY || getSafeConfig('webpush', 'private_key');
 
 if (vapidPublicKey && vapidPrivateKey) {
-    logger.log("Webpush VAPID keys loaded from Firebase config", {
+    logger.log("Webpush VAPID keys loaded", {
         publicKeyLength: vapidPublicKey.length,
         privateKeyLength: vapidPrivateKey.length
     });
@@ -31,7 +41,7 @@ if (vapidPublicKey && vapidPrivateKey) {
         logger.error("VAPID details configuration failed at startup:", error);
     }
 } else {
-    logger.warn("WEBPUSH keys are not set in functions config. Push notifications will be disabled.");
+    logger.warn("WEBPUSH keys are not set. Push notifications will be disabled.");
 }
 
 // ---- Hjälpfunktioner för pushnotiser ----
@@ -94,7 +104,6 @@ async function sendNotificationToUser(userId, payload, notificationType) {
 
 // ---- Notis-funktioner ----
 
-// 0. Notiser till Coach
 exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
     const { email, displayName } = user;
     const name = displayName || email || "En ny användare";
@@ -107,26 +116,17 @@ exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
         body: `${name} har registrerat sig och väntar på godkännande.`,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
-        data: {
-          url: "/" 
-        }
+        data: { url: "/" }
       }
     };
 
     const coachIds = await getCoachAndAdminIds();
-    if (coachIds.length === 0) {
-        logger.warn("No coaches or admins found to notify about new user.");
-        return;
-    }
+    if (coachIds.length === 0) return;
 
-    const notificationPromises = coachIds.map((id) =>
-        sendNotificationToUser(id, payload, "newEvents") 
-    );
-
+    const notificationPromises = coachIds.map((id) => sendNotificationToUser(id, payload, "newEvents"));
     await Promise.all(notificationPromises);
 });
 
-// 1. Peppkompisförfrågan skapad
 exports.onFriendRequestCreated = functions.firestore
   .document("peppkompisRequests/{requestId}")
   .onCreate(async (snapshot) => {
@@ -139,16 +139,12 @@ exports.onFriendRequestCreated = functions.firestore
         body: `${request.fromName} vill bli din peppkompis!`,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
-        data: {
-          url: "/?view=community&tab=requests"
-        }
+        data: { url: "/?view=community&tab=requests" }
       }
     };
-
     await sendNotificationToUser(request.toUid, payload, "friendRequests");
   });
 
-// 2. Händelse i flödet skapad (Skickar push-notiser)
 exports.onTimelineEventCreated = functions.firestore
   .document("communityTimeline/{eventId}")
   .onCreate(async (snapshot) => {
@@ -160,16 +156,13 @@ exports.onTimelineEventCreated = functions.firestore
     if (buddiesSnapshot.empty) return;
 
     const eventId = snapshot.id;
-
     const payload = {
       notification: {
         title: "Ny händelse i flödet!",
         body: `${event.userName} ${event.title}`,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
-        data: {
-          url: `/?view=community&highlight=${eventId}`
-        }
+        data: { url: `/?view=community&highlight=${eventId}` }
       }
     };
 
@@ -180,11 +173,9 @@ exports.onTimelineEventCreated = functions.firestore
       }
       return null;
     });
-
     await Promise.all(notificationPromises);
   });
 
-// 3. Kommentar skapad
 exports.onCommentCreated = functions.firestore
   .document("communityTimeline/{eventId}/comments/{commentId}")
   .onCreate(async (snapshot, context) => {
@@ -207,16 +198,12 @@ exports.onCommentCreated = functions.firestore
         body: `${comment.authorName} kommenterade ditt inlägg: "${eventData.title}"`,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
-        data: {
-          url: `/?view=community&highlight=${eventId}`
-        }
+        data: { url: `/?view=community&highlight=${eventId}` }
       }
     };
-
     await sendNotificationToUser(eventOwnerId, payload, "comments");
   });
 
-// 4. Streak-uppdatering (Skapar inlägg i flödet)
 exports.onUserStreakUpdated = functions.firestore
   .document("users/{userId}")
   .onUpdate(async (change, context) => {
@@ -228,32 +215,19 @@ exports.onUserStreakUpdated = functions.firestore
       const newStreak = after.currentStreak || 0;
       const oldStreak = before.currentStreak || 0;
 
-      // Logga varje ändring för felsökning
-      logger.log(`Streak check for user ${userId}. Old: ${oldStreak}, New: ${newStreak}`);
-
-      // Om streaken inte ändrats eller är 0, gör inget.
       if (newStreak === oldStreak || newStreak <= 0) return null;
       
-      // Om streaken har ökat
       if (newStreak > oldStreak) {
-        logger.log(`Streak increased for user ${userId}: ${oldStreak} -> ${newStreak}. Creating timeline event.`);
-
-        // Hämta kompisar säkert
         const buddiesSnap = await db.collection("users").doc(userId).collection("buddies").get();
         const buddyUids = buddiesSnap.docs.map(d => d.id);
         const visibleTo = [userId, ...buddyUids];
 
-        // Skapa unikt ID per dag och streak-siffra för att undvika dubbletter vid retries
         const dateStr = new Date().toISOString().split('T')[0];
         const eventId = `streak_${userId}_${newStreak}_${dateStr}`;
         const timelineDocRef = db.collection("communityTimeline").doc(eventId);
 
-        // Kontrollera om eventet redan finns (idempotency check)
         const existingDoc = await timelineDocRef.get();
-        if (existingDoc.exists) {
-            logger.log(`Timeline event ${eventId} already exists. Skipping.`);
-            return null;
-        }
+        if (existingDoc.exists) return null;
 
         const eventData = {
           type: 'streak',
@@ -272,14 +246,12 @@ exports.onUserStreakUpdated = functions.firestore
         };
 
         await timelineDocRef.set(eventData);
-        logger.log(`Successfully created timeline event ${eventId}`);
       }
     } catch (error) {
       logger.error("Failed to process streak update:", error);
     }
   });
 
-// 5. Reaktion på inlägg (Dilla)
 exports.onReactionAdded = functions.firestore
   .document("communityTimeline/{eventId}")
   .onUpdate(async (change, context) => {
@@ -287,54 +259,43 @@ exports.onReactionAdded = functions.firestore
     const after = change.after.data();
     const eventId = context.params.eventId;
 
-    // Check if reactions changed
     const beforeReactions = before.reactions || {};
     const afterReactions = after.reactions || {};
 
-    // Simple equality check to avoid processing if no reaction change
     if (JSON.stringify(beforeReactions) === JSON.stringify(afterReactions)) return;
 
     const eventOwnerId = after.userId;
 
-    // Iterate through emojis to find new reactions
     for (const emoji in afterReactions) {
         const usersAfter = afterReactions[emoji] || {};
         const usersBefore = beforeReactions[emoji] || {};
 
-        // Find UIDs present in 'after' but not 'before'
         const newUids = Object.keys(usersAfter).filter(uid => !usersBefore[uid]);
 
         for (const newUid of newUids) {
-            // Don't notify if user reacts to their own post
             if (newUid === eventOwnerId) continue;
 
             const likerName = usersAfter[newUid];
-
             const payload = {
                 notification: {
                     title: `Ny reaktion! ${emoji}`,
                     body: `${likerName} reagerade på ditt inlägg.`,
                     icon: "/icons/icon-192x192.png",
                     badge: "/icons/badge-96x96.png",
-                    data: {
-                        url: `/?view=community&highlight=${eventId}`
-                    }
+                    data: { url: `/?view=community&highlight=${eventId}` }
                 }
             };
-
             await sendNotificationToUser(eventOwnerId, payload, "likes");
         }
     }
   });
 
-// 6. Gilla på kommentar (Dilla kommentar)
 exports.onCommentLikeCreated = functions.firestore
   .document("communityTimeline/{eventId}/comments/{commentId}/likes/{likeId}")
   .onCreate(async (snapshot, context) => {
     const likeData = snapshot.data();
     const { eventId, commentId } = context.params;
 
-    // Get comment author
     const commentRef = db.collection("communityTimeline").doc(eventId).collection("comments").doc(commentId);
     const commentDoc = await commentRef.get();
 
@@ -342,7 +303,6 @@ exports.onCommentLikeCreated = functions.firestore
     const commentData = commentDoc.data();
     const commentAuthorId = commentData.authorUid;
 
-    // Don't notify if user likes their own comment
     if (likeData.userId === commentAuthorId) return;
 
     const payload = {
@@ -351,16 +311,11 @@ exports.onCommentLikeCreated = functions.firestore
         body: `${likeData.userName} gillade din kommentar.`,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
-        data: {
-          url: `/?view=community&highlight=${eventId}`
-        }
+        data: { url: `/?view=community&highlight=${eventId}` }
       }
     };
-
     await sendNotificationToUser(commentAuthorId, payload, "likes");
   });
-
-// ---- Kompis-hanteringsfunktioner ----
 
 exports.addMutualFriends = functions.firestore
   .document("peppkompisRequests/{requestId}")
@@ -421,8 +376,7 @@ exports.onBuddyRemoved = functions.firestore
     }
   });
 
-
-// --- SCHEMALAGD PUSHNOTIS-FUNKTION (SVERIGE-TID) ---
+// --- SCHEMALAGD PUSHNOTIS-FUNKTION ---
 const TZ = "Europe/Stockholm";
 
 function stockholmNow() {
@@ -441,11 +395,7 @@ function stockholmNow() {
   const hour = parseInt(get("hour"), 10);
   const weekday = (get("weekday") || "").toLowerCase();
 
-  return {
-    hour,
-    dateString: `${yyyy}-${mm}-${dd}`,
-    weekday,
-  };
+  return { hour, dateString: `${yyyy}-${mm}-${dd}`, weekday };
 }
 
 const MILESTONE_STREAKS = [7, 14, 21, 30, 50, 60, 90, 100, 150, 200, 300, 365];
@@ -459,11 +409,7 @@ exports.scheduledNotificationChecker = functions.pubsub
         const user = userDoc.data();
         const userId = userDoc.id;
 
-        const {
-          hour: localHour,
-          dateString: todayDateString,
-          weekday: dayOfWeek,
-        } = stockholmNow();
+        const { hour: localHour, dateString: todayDateString, weekday: dayOfWeek } = stockholmNow();
 
         // 1. Inaktivitet (kl 10)
         if (localHour === 10 && user.lastLogDate) {
@@ -580,7 +526,6 @@ exports.scheduledFirestoreExport = functions.pubsub
     }
   });
 
-// --- MANUELL SUMMERINGSFUNKTION ---
 const getDateUID = (date, timezone) => {
     const fmt = new Intl.DateTimeFormat("sv-SE", {
         timeZone: timezone || "Europe/Stockholm",
@@ -603,7 +548,6 @@ const wasCalorieGoalMetForSummary = (consumed, goal, goalType) => {
 
 const MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL = 0.80;
 const MIN_ABSOLUTE_CALORIES_THRESHOLD = 1200;
-const DEFAULT_WATER_GOAL_ML = 2000;
 
 exports.manualSummarizeYesterday = functions
   .region("us-central1")
@@ -624,7 +568,6 @@ exports.manualSummarizeYesterday = functions
     const today = new Date(serverTime.toLocaleString("en-US", {timeZone: "Europe/Stockholm"}));
     const todayDateUID = getDateUID(today, "Europe/Stockholm");
 
-    // STRICT CHECK: Never summarize today or a future date
     if (yesterdayDateUID >= todayDateUID) {
         logger.warn(`Attempted to summarize a future/current date (${yesterdayDateUID}). Aborting.`);
         return {success: false, message: `Attempted to summarize a future/current date (${yesterdayDateUID}). Aborting.`};
@@ -644,16 +587,11 @@ exports.manualSummarizeYesterday = functions
         try {
             const mealLogsSnap = await db.collection("users").doc(userId).collection("mealLogs").where("dateString", "==", yesterdayDateUID).get();
             const dailyLogForDate = mealLogsSnap.docs.map((d) => d.data());
-            const waterLogSnap = await db.collection("users").doc(userId).collection("waterLogs").doc(yesterdayDateUID).get();
-            const waterLogForDate = waterLogSnap.exists ? waterLogSnap.data().waterLoggedMl : 0;
 
             const totalNutrients = dailyLogForDate.reduce((acc, meal) => {
                 acc.calories += meal.nutritionalInfo.calories;
-                acc.protein += meal.nutritionalInfo.protein;
-                acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
-                acc.fat += meal.nutritionalInfo.fat;
                 return acc;
-            }, {calories: 0, protein: 0, carbohydrates: 0, fat: 0});
+            }, {calories: 0});
 
             const minSafeCalories = Math.max(user.goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
             const wasDaySuccessful = dailyLogForDate.length > 0 &&
@@ -707,23 +645,19 @@ exports.manualSummarizeYesterday = functions
 // NYTT: STRIPE INTEGRATION
 // ==========================================
 
-// 1. Skapa en Checkout Session (Anropa denna från Appen!)
-// Se till att denna rad är med högst upp
-
 exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
-    // Logga direkt för att se om vi ens når hit
-    console.log("Anrop mottaget till createCheckoutSession", { 
-        uid: context.auth ? context.auth.uid : 'ej inloggad',
-        data: data 
-    });
-
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Användaren är inte inloggad.');
     }
 
-    // Hämta priceId dynamiskt från config eller frontend
-    const priceId = functions.config().stripe.price || data.priceId;
-    const origin = data.returnUrl || 'https://staging-kostloggen.netlify.app';
+    // Hämta priceId från .env ELLER molnet ELLER frontend
+    const priceId = process.env.STRIPE_PRICE_ID || data.priceId || getSafeConfig('stripe', 'price');
+    const origin = data.returnUrl || 'https://app.kostloggen.se';
+
+    if (!priceId) {
+        console.error("Price ID is missing in both .env and functions.config()");
+        throw new functions.https.HttpsError('internal', "Kunde inte hitta ett pris för produkten.");
+    }
 
     try {
         const session = await stripe.checkout.sessions.create({
@@ -732,6 +666,7 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
             customer_email: context.auth.token.email,
             line_items: [{ price: priceId, quantity: 1 }],
             metadata: { firebaseUid: context.auth.uid },
+            allow_promotion_codes: true,
             success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/cancel`,
         });
@@ -739,35 +674,24 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
         return { sessionId: session.id, url: session.url };
     } catch (error) {
         console.error("Stripe fel:", error);
-        // Genom att kasta ett specifikt fel här undviker vi "internal"
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
 
-// 2. Avsluta Prenumeration (Anropa från appen)
 exports.cancelSubscription = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Du måste vara inloggad för att hantera prenumerationen.');
-    }
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inte inloggad.');
 
     const userId = context.auth.uid;
-    
     try {
-        // Hämta user doc för att få subscriptionId
         const userSnapshot = await db.collection('users').doc(userId).get();
         const userData = userSnapshot.data();
 
         if (!userData || !userData.subscriptionId) {
-             throw new functions.https.HttpsError('failed-precondition', 'Ingen aktiv prenumeration hittades.');
+             throw new functions.https.HttpsError('failed-precondition', 'Ingen prenumeration.');
         }
 
-        // Avsluta i Stripe (vid periodens slut)
-        const subscription = await stripe.subscriptions.update(userData.subscriptionId, {
-            cancel_at_period_end: true
-        });
+        const subscription = await stripe.subscriptions.update(userData.subscriptionId, { cancel_at_period_end: true });
 
-        // Uppdatera Firestore direkt (optimistiskt)
-        // Webhooken kommer också få ett event, men detta ger snabbare feedback
         await db.collection('users').doc(userId).update({
             subscriptionStatus: 'canceling',
             currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
@@ -777,35 +701,29 @@ exports.cancelSubscription = functions.https.onCall(async (data, context) => {
         return { success: true };
     } catch (error) {
         logger.error("Cancel Subscription Error:", error);
-        throw new functions.https.HttpsError('internal', 'Kunde inte avsluta prenumerationen. Försök igen eller kontakta support.');
+        throw new functions.https.HttpsError('internal', 'Kunde inte avsluta prenumerationen.');
     }
 });
 
-
-// 3. Webhook för att lyssna på Stripe-händelser (Säkert anrop från Stripe)
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     const signature = req.headers['stripe-signature'];
-    const endpointSecret = functions.config().stripe.webhook_secret;
+    // Hämta webhook secret från .env ELLER molnet
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || getSafeConfig('stripe', 'webhook_secret');
 
     let event;
 
     try {
-        // Verifiera att anropet kommer från Stripe
         event = stripe.webhooks.constructEvent(req.rawBody, signature, endpointSecret);
     } catch (err) {
         logger.error(`Webhook signature verification failed.`, err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // Hantera händelser
     try {
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object;
             const firebaseUid = session.metadata.firebaseUid;
 
-            logger.log(`Betalning genomförd för användare: ${firebaseUid}`);
-
-            // Uppdatera användaren i Firestore till "active" OCH "approved"
             await db.collection('users').doc(firebaseUid).update({
                 subscriptionStatus: 'active',
                 status: 'approved',
@@ -816,7 +734,6 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
         } 
         else if (event.type === 'customer.subscription.updated') {
              const subscription = event.data.object;
-             // Kolla om den är satt att avslutas
              if (subscription.cancel_at_period_end) {
                  const usersSnapshot = await db.collection('users').where('subscriptionId', '==', subscription.id).get();
                  if (!usersSnapshot.empty) {
@@ -829,16 +746,12 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
                          });
                      });
                      await batch.commit();
-                     logger.log(`Prenumeration uppdaterad till 'canceling' för id: ${subscription.id}`);
                  }
              } else {
-                 // Om användaren ångrat sig och återaktiverat (cancel_at_period_end = false)
-                 // Kan vi sätta tillbaka till 'active' här om vi vill stödja det flödet i framtiden
                  const usersSnapshot = await db.collection('users').where('subscriptionId', '==', subscription.id).get();
                  if (!usersSnapshot.empty) {
                      const batch = db.batch();
                      usersSnapshot.forEach((doc) => {
-                         // Bara uppdatera om status var canceling/canceled
                          if (doc.data().subscriptionStatus !== 'active') {
                              batch.update(doc.ref, {
                                  subscriptionStatus: 'active',
@@ -853,7 +766,6 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
         }
         else if (event.type === 'customer.subscription.deleted') {
             const subscription = event.data.object;
-            // Vi måste hitta vem som hade denna subscription
             const usersSnapshot = await db.collection('users').where('subscriptionId', '==', subscription.id).get();
             
             if (!usersSnapshot.empty) {
@@ -861,12 +773,11 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
                 usersSnapshot.forEach((doc) => {
                     batch.update(doc.ref, {
                         subscriptionStatus: 'canceled',
-                        status: 'archived', // Stäng tillgången
+                        status: 'archived',
                         updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                 });
                 await batch.commit();
-                logger.log(`Prenumeration raderad (löpt ut) för id: ${subscription.id}`);
             }
         }
     } catch (err) {
