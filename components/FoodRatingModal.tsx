@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { NutritionalInfo, UserProfile, MealType } from '../types';
 import { COACH_PERSONAS } from '../constants';
-import { CheckCircleIcon, XMarkIcon } from './icons';
+import { CheckCircleIcon, XMarkIcon, SmileIcon, MehIcon, FrownIcon } from './icons';
 
 interface FoodRatingModalProps {
   show: boolean;
@@ -42,7 +42,8 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
     } else if (proteinRatio > 0.20) {
       currentScore += 15;
       prosList.push('Bra proteinkälla');
-    } else if (proteinRatio < 0.10) {
+    } else if (proteinRatio < 0.10 && calories > 150) {
+      // Only penalize low protein if it's not a very low calorie snack (like an apple)
       currentScore -= 15;
       consList.push('Lågt proteininnehåll');
     }
@@ -56,7 +57,8 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
     }
 
     // Carbs Logic
-    if (carbsRatio > 0.70) {
+    if (carbsRatio > 0.70 && calories > 150) {
+      // Don't penalize high carbs for low calorie items (fruits)
       currentScore -= 10;
       consList.push('Mycket hög andel kolhydrater');
     }
@@ -67,12 +69,15 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
         currentScore -= 15;
         consList.push('Väldigt energirikt för ett mellanmål');
       } else if (calories < 150) {
-        prosList.push('Kalorisnålt mellanmål');
+        currentScore += 15;
+        prosList.push('Kalorisnålt och lätt');
       }
     } else {
       if (calories > 1000) {
         currentScore -= 15;
         consList.push('Mycket stor måltid');
+      } else if (calories < 200) {
+        consList.push('Väldigt liten måltid');
       }
     }
 
@@ -87,16 +92,16 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
     let coachComment = '';
     if (coachStyle === 'soft') {
       if (currentRating === 'good') coachComment = 'Jättebra val! Det här ger kroppen fin energi. 💚';
-      else if (currentRating === 'neutral') coachComment = 'Helt okej! Vi balanserar upp det under resten av dagen. 🤗';
+      else if (currentRating === 'neutral') coachComment = 'Helt okej! Ett lätt och fräscht val. 🤗';
       else coachComment = 'Det är okej att unna sig ibland, men försök få in mer protein nästa gång! 🩹';
     } else if (coachStyle === 'hard') {
       if (currentRating === 'good') coachComment = 'Perfekt bränsle! Bra jobbat! 🔥';
-      else if (currentRating === 'neutral') coachComment = 'Duger i krig, men du kan bättre. 😐';
+      else if (currentRating === 'neutral') coachComment = 'Helt okej, duger som bukfylla. 😐';
       else coachComment = 'Vad är det här för skräp?! Skärpning! 🛑';
     } else {
       // Balanced
       if (currentRating === 'good') coachComment = 'Bra makros! Ett stabilt val. ✅';
-      else if (currentRating === 'neutral') coachComment = 'Godkänt, men kan optimeras lite. ➖';
+      else if (currentRating === 'neutral') coachComment = 'Ett okej val, varken jättebra eller dåligt. ➖';
       else coachComment = 'Inte optimalt. Mycket energi, lite protein. ❌';
     }
 
@@ -110,13 +115,13 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
   };
 
   const ratingFace = {
-    good: '😀',
-    neutral: '😐',
-    bad: '🙁'
+    good: <SmileIcon className="w-10 h-10" />,
+    neutral: <MehIcon className="w-10 h-10" />,
+    bad: <FrownIcon className="w-10 h-10" />
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in" onClick={e => e.stopPropagation()}>
         
         {/* Header */}

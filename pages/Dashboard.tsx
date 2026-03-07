@@ -439,7 +439,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Handlers
     const handleAddMealToLog = async (
         data: LoggedMeal | Omit<LoggedMeal, 'id'> | NutritionalInfo | SearchedFoodInfo, 
-        options?: { saveAsCommon?: boolean; mealType?: MealType }
+        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean }
     ) => {
         if (!currentUser) return;
         
@@ -494,9 +494,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             await addMealLogFirestore(currentUser.uid, newMeal.id, newMeal); 
             
-            // Show Food Rating Modal instead of just toast
-            setFoodRatingData({ nutritionalInfo: newMeal.nutritionalInfo, mealType: newMeal.mealType });
-            setShowFoodRatingModal(true);
+            if (options?.skipRatingModal) {
+                setToastNotification({ message: 'Måltid loggad!', type: 'success' });
+            } else {
+                // Show Food Rating Modal instead of just toast
+                setFoodRatingData({ nutritionalInfo: newMeal.nutritionalInfo, mealType: newMeal.mealType });
+                setShowFoodRatingModal(true);
+            }
             playAudio('logSuccess');
 
             if (checklistState && !checklistState.items.mealLogged) {
@@ -584,7 +588,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (showCommonMealsPopup) {
             handleAddMealToLog(
                 showCommonMealsPopup.nutritionalInfo, 
-                { mealType: type }
+                { mealType: type, skipRatingModal: true }
             );
             setShowCommonMealsPopup(null);
             setSelectedCommonMealType(null);
@@ -632,12 +636,23 @@ const Dashboard: React.FC<DashboardProps> = ({
     const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal); 
 
     const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
+    const coachPersona = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle] : COACH_PERSONAS['balanced'];
 
     return (
         <div className="flex flex-col gap-3 pb-0 relative">
             {/* Top Date & Progress Card */}
             <div className="bg-white rounded-3xl shadow-soft-xl p-6 border border-neutral-light relative overflow-hidden">
                 <div className="flex flex-col items-center">
+                    {/* Coach Indicator */}
+                    <div className="flex items-center gap-2 mb-3 bg-primary-50 px-3 py-1.5 rounded-full border border-primary-100">
+                        {coachPersona.imageUrl ? (
+                            <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-5 h-5 rounded-full object-cover" />
+                        ) : (
+                            <span className="text-sm">{coachPersona.emoji}</span>
+                        )}
+                        <span className="text-xs font-semibold text-primary-darker">Din coach: {coachPersona.label}</span>
+                    </div>
+                    
                     {/* Date Nav */}
                     <div className="flex items-center justify-center gap-4 mb-4 w-full">
                         <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
@@ -822,6 +837,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                         onLogCommonMeal={handleCommonMealLog}
                         onDeleteCommonMeal={handleDeleteCommonMeal}
                         onUpdateCommonMeal={handleUpdateCommonMeal}
+                        onShowRating={(nutritionalInfo) => {
+                            setFoodRatingData({ nutritionalInfo, mealType: 'snack' }); // default to snack for rating display
+                            setShowFoodRatingModal(true);
+                        }}
                         disabled={!isEditableView}
                     />
 
@@ -898,8 +917,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                             <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga {coachName}</span>
-                                <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Chatta med {coachName}</span>
+                                <div className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white overflow-hidden border-2 border-primary">
+                                    {coachPersona.imageUrl ? (
+                                        <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-xl">{coachPersona.emoji}</span>
+                                    )}
+                                </div>
                             </button>
                             <button onClick={handleTakePhoto} className="flex items-center gap-3">
                                 <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fota mat</span>

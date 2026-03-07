@@ -324,7 +324,7 @@ export const App = () => {
   const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; streak: number} | null>(null);
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
-  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number } | null>(null);
+  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[] } | null>(null);
   const [isSummarizingYesterday, setIsSummarizingYesterday] = useState(false);
   const [hasRunCatchUp, setHasRunCatchUp] = useState(false);
 
@@ -669,7 +669,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       if (summary) {
            // Use the streak stored in the summary as the truth, fallback to currentStreak if missing
            const displayStreak = (typeof summary.streakForThisDay === 'number') ? summary.streakForThisDay : streakData.currentStreak;
-           setMorningReportData({ summary, currentStreak: displayStreak });
+           fetchMealLogsForDate(currentUser.uid, yesterdayUID).then(meals => {
+               setMorningReportData({ summary, currentStreak: displayStreak, yesterdayMeals: meals });
+           });
       }
   }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday]);
 
@@ -1233,7 +1235,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         
         if (!options.silent) {
             // Trigger morning report with the NEW calculated streak
-            setMorningReportData({ summary, currentStreak: finalNewStreak });
+            setMorningReportData({ summary, currentStreak: finalNewStreak, yesterdayMeals: mealsToProcess });
             playAudio('levelUp'); 
         }
 
@@ -1685,7 +1687,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             setMorningReportData(null);
             const todayUID = dayKeySE(new Date());
             localStorage.setItem('lastSeenMorningReport', todayUID);
-        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} />}
+        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} yesterdayMeals={morningReportData.yesterdayMeals} />}
         {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
         {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}

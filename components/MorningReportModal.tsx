@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { PastDaySummary, UserProfileData } from '../types';
+import { PastDaySummary, UserProfileData, LoggedMeal } from '../types';
 import { CheckCircleIcon, XCircleIcon, TrophyIcon, SparklesIcon } from './icons';
 import { getMorningBriefingText, getMorningBriefingAudio } from '../services/geminiService';
 import { COACH_PERSONAS } from '../constants';
@@ -11,6 +11,7 @@ interface MorningReportModalProps {
   summary: PastDaySummary;
   currentStreak: number;
   userProfile: UserProfileData;
+  yesterdayMeals?: LoggedMeal[];
 }
 
 // Helper to decode raw PCM data from Gemini (16-bit, 24kHz, Mono)
@@ -40,7 +41,7 @@ const decodePCM = (base64: string, ctx: AudioContext): AudioBuffer => {
   return buffer;
 };
 
-const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile }) => {
+const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile, yesterdayMeals }) => {
   const [briefingText, setBriefingText] = useState<string | null>(null);
   const [isLoadingBriefing, setIsLoadingBriefing] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -51,7 +52,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
     if (show) {
       const fetchBriefing = async () => {
         setIsLoadingBriefing(true);
-        const text = await getMorningBriefingText({ userProfile, summary, currentStreak });
+        const text = await getMorningBriefingText({ userProfile, summary, currentStreak, yesterdayMeals });
         setBriefingText(text);
         setIsLoadingBriefing(false);
       };

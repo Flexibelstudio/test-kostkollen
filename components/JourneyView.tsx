@@ -429,8 +429,14 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             {isSpeedDialOpen && (
                 <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                     <button onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
-                        <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga {coachName}</span>
-                        <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
+                        <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Chatta med {coachName}</span>
+                        <div className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white overflow-hidden border-2 border-primary">
+                            {userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
+                                <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={coachName} className="w-full h-full object-cover" />
+                            ) : (
+                                <span className="text-xl">{userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].emoji : '🤖'}</span>
+                            )}
+                        </div>
                     </button>
                     <button onClick={() => { playAudio('uiClick'); setShowResetConfirmModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
                         <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Nytt Mål</span>

@@ -15,10 +15,11 @@ export interface AIDataForMorningBriefing {
   userProfile: UserProfileData;
   summary: PastDaySummary;
   currentStreak: number;
+  yesterdayMeals?: LoggedMeal[];
 }
 
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
-  const { userProfile, summary, currentStreak } = data;
+  const { userProfile, summary, currentStreak, yesterdayMeals } = data;
   const style = userProfile.coachStyle || 'balanced';
   const persona = COACH_PERSONAS[style];
   const name = userProfile.name || 'du';
@@ -51,15 +52,17 @@ SITUATION IGÅR:
 - Mål uppfyllt: ${goalStatusString} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
 - Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
 - Streak-status: ${currentStreak > 0 ? `AKTIV (${currentStreak} dagar i rad). Användaren loggade igår!` : 'BRUTEN (0 dagar). Användaren loggade inte igår.'}
+${yesterdayMeals && yesterdayMeals.length > 0 ? `- Mat loggad igår: ${yesterdayMeals.map(m => m.nutritionalInfo.foodItem).join(', ')}` : ''}
 
 INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
 2. VIKTIGT: Om 'Mål uppfyllt' är NEJ men 'Streak-status' är AKTIV: Beröm användaren tydligt för att hen ändå loggade och höll sin streak vid liv (det är det viktigaste beteendet!). Döm inte det missade målet, utan peppa mjukt att sikta på det idag istället.
 3. ${specificInstruction}
-4. Om både mål och streak är positiva, ge stort beröm enligt din persona.
-5. Om streak är bruten, var uppmuntrande kring nystart idag.
-6. Avsluta med en kort uppmaning för idag.
-7. Svara på SVENSKA.`;
+4. Om användaren loggade mat igår, nämn gärna något av det de åt och ge en kort, peppande kommentar om det (t.ex. "Bra jobbat med salladen!" eller "Pizzan drog iväg lite, men det är okej!").
+5. Om både mål och streak är positiva, ge stort beröm enligt din persona.
+6. Om streak är bruten, var uppmuntrande kring nystart idag.
+7. Avsluta med en kort uppmaning för idag.
+8. Svara på SVENSKA.`;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
