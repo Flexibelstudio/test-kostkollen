@@ -56,6 +56,7 @@ import BarcodeSearchResultModal from '../components/BarcodeSearchResultModal';
 import ImageAnalysisResultModal from '../components/ImageAnalysisResultModal';
 import SaveCommonMealModal from '../components/SaveCommonMealModal';
 import NutritionLabelResultModal from '../components/NutritionLabelResultModal';
+import FoodRatingModal from '../components/FoodRatingModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import MealTypeSelector from '../components/MealTypeSelector';
 import MealSectionCard from '../components/MealSectionCard';
@@ -177,6 +178,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [showImageAnalysisResultModal, setShowImageAnalysisResultModal] = useState(false);
     const [showSaveCommonMealModal, setShowSaveCommonMealModal] = useState(false);
     const [showNutritionLabelResultModal, setShowNutritionLabelResultModal] = useState(false);
+    const [showFoodRatingModal, setShowFoodRatingModal] = useState(false);
+    const [foodRatingData, setFoodRatingData] = useState<{ nutritionalInfo: NutritionalInfo, mealType: MealType } | null>(null);
     const [showCommonMealsPopup, setShowCommonMealsPopup] = useState<CommonMeal | null>(null);
     const [selectedCommonMealType, setSelectedCommonMealType] = useState<MealType | null>(null);
 
@@ -491,7 +494,9 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             await addMealLogFirestore(currentUser.uid, newMeal.id, newMeal); 
             
-            setToastNotification({ message: 'Måltid loggad!', type: 'success' });
+            // Show Food Rating Modal instead of just toast
+            setFoodRatingData({ nutritionalInfo: newMeal.nutritionalInfo, mealType: newMeal.mealType });
+            setShowFoodRatingModal(true);
             playAudio('logSuccess');
 
             if (checklistState && !checklistState.items.mealLogged) {
@@ -1044,6 +1049,15 @@ const Dashboard: React.FC<DashboardProps> = ({
             {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
             {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => setShowNutritionLabelResultModal(false)} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            {showFoodRatingModal && foodRatingData && userProfile && (
+                <FoodRatingModal 
+                    show={showFoodRatingModal} 
+                    onClose={() => setShowFoodRatingModal(false)} 
+                    nutritionalInfo={foodRatingData.nutritionalInfo} 
+                    mealType={foodRatingData.mealType} 
+                    userProfile={userProfile} 
+                />
+            )}
             
             {appStatus !== 'idle' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
         </div>
