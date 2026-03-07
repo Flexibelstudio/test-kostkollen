@@ -507,7 +507,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center">
           <div className="w-12 h-12 bg-primary-100 rounded-2xl flex items-center justify-center text-primary shadow-sm mr-4">
-            <UserCircleIcon className="w-7 h-7" />
+            {isOnboarding && onboardingStep === 'feedback' && persona.imageUrl ? (
+              <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-2xl" />
+            ) : isOnboarding && onboardingStep === 'feedback' ? (
+              <span className="text-2xl">{persona.emoji}</span>
+            ) : (
+              <UserCircleIcon className="w-7 h-7" />
+            )}
           </div>
           <h2 id="user-profile-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
             {isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
@@ -536,7 +542,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {aiFeedbackLoading && (
             <div className="flex flex-col items-center justify-center p-12 text-neutral-dark h-full space-y-4">
               <div className="w-16 h-16 bg-neutral-light rounded-2xl flex items-center justify-center animate-pulse">
-                  <span className="text-3xl">{persona.emoji}</span>
+                  {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-2xl" /> : <span className="text-3xl">{persona.emoji}</span>}
               </div>
               <p className="text-lg font-medium">{persona.label} analyserar din plan...</p>
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
@@ -554,7 +560,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
              <div className="flex flex-col gap-4">
                 <div className="flex items-end gap-3">
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${coachTheme.iconBg} ${coachTheme.iconText}`}>
-                        <span className="text-3xl">{persona.emoji}</span>
+                        {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-2xl" /> : <span className="text-3xl">{persona.emoji}</span>}
                     </div>
                     <div className={`p-5 rounded-2xl rounded-bl-none border shadow-sm ${coachTheme.bg} ${coachTheme.border} ${coachTheme.text}`}>
                         <h4 className="font-bold text-lg mb-2">Meddelande från {persona.label}, {persona.roleTitle}</h4>
