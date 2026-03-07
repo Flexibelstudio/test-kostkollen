@@ -231,6 +231,11 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                             </div>
                         );
                     }
+
+                    if (msg.sender === 'bot' && msg.isStreaming && !msg.text && !msg.chartData) {
+                        return null;
+                    }
+
                     return (
                         <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                            {msg.sender === 'bot' && (
@@ -245,7 +250,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                         </div>
                     );
                 })}
-                {isLoading && (
+                {isLoading && messages.some(m => m.sender === 'bot' && m.isStreaming && !m.text && !m.chartData) && (
                      <div className="flex items-center gap-3 justify-start p-2 pl-1 animate-fade-in">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${colorClass} animate-pulse`}>
                             {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-full" /> : <span className="text-xl">{CoachEmoji}</span>}

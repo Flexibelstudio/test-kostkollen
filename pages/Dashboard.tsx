@@ -644,13 +644,13 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="bg-white rounded-3xl shadow-soft-xl p-6 border border-neutral-light relative overflow-hidden">
                 <div className="flex flex-col items-center">
                     {/* Coach Indicator */}
-                    <div className="flex items-center gap-2 mb-3 bg-primary-50 px-3 py-1.5 rounded-full border border-primary-100">
+                    <div className="flex items-center gap-2 mb-3 self-start bg-primary-50 px-3 py-1.5 rounded-full border border-primary-100">
                         {coachPersona.imageUrl ? (
-                            <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-5 h-5 rounded-full object-cover" />
+                            <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-6 h-6 rounded-full object-cover" />
                         ) : (
-                            <span className="text-sm">{coachPersona.emoji}</span>
+                            <span className="text-base">{coachPersona.emoji}</span>
                         )}
-                        <span className="text-xs font-semibold text-primary-darker">Din coach: {coachPersona.label}</span>
+                        <span className="text-sm font-semibold text-primary-darker">Din coach: {coachPersona.label}</span>
                     </div>
                     
                     {/* Date Nav */}
@@ -906,14 +906,14 @@ const Dashboard: React.FC<DashboardProps> = ({
             {/* Backdrop for Speed Dial */}
             {isEditableView && isSpeedDialOpen && (
                 <div 
-                    className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[100] animate-fade-in"
+                    className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[40] animate-fade-in"
                     onClick={() => setIsSpeedDialOpen(false)}
                 />
             )}
 
             {/* Floating Action Button (FAB) */}
             {isEditableView && !isAICoachOpen && !isProfileOpen && !isMorningReportOpen && (
-                <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
+                <div className="fixed bottom-6 right-6 z-[50] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                             <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
