@@ -206,7 +206,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
             <header className="flex items-center justify-between p-4 border-b border-neutral-light/70 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorClass}`}>
-                        <span className="text-2xl">{CoachEmoji}</span>
+                        {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-xl" /> : <span className="text-2xl">{CoachEmoji}</span>}
                     </div>
                     <div>
                       <h2 id="ai-coach-modal-title" className="text-xl font-semibold text-neutral-dark leading-tight">
@@ -235,7 +235,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                         <div key={msg.id} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                            {msg.sender === 'bot' && (
                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mb-1 ${colorClass} bg-opacity-50`}>
-                                    <span className="text-lg">{CoachEmoji}</span>
+                                    {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-lg" /> : <span className="text-lg">{CoachEmoji}</span>}
                                 </div>
                            )}
                            <div className={`max-w-xs sm:max-w-md p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-primary text-white rounded-br-lg' : 'bg-neutral-light text-neutral-dark rounded-bl-lg'}`}>
@@ -248,7 +248,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                 {isLoading && (
                      <div className="flex items-center gap-3 justify-start p-2 pl-1 animate-fade-in">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${colorClass} animate-pulse`}>
-                            <span className="text-xl">{CoachEmoji}</span>
+                            {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-full" /> : <span className="text-xl">{CoachEmoji}</span>}
                         </div>
                         <span className="text-neutral-500 text-sm font-medium italic animate-pulse">
                             {personaName} skriver...

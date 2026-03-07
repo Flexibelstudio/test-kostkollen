@@ -201,13 +201,13 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
             <h3 className="text-sm font-bold text-neutral-dark mb-3 uppercase tracking-wide opacity-70">Hälsning från {persona.label}, {persona.roleTitle}</h3>
             <div className="flex gap-4">
                 <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-sm ${avatarColorClass}`}>
-                    <span className="text-2xl">{CoachEmoji}</span>
+                    {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-2xl" /> : <span className="text-2xl">{CoachEmoji}</span>}
                 </div>
                 <div className="bg-neutral-light/40 p-4 rounded-2xl rounded-tl-none relative flex-1">
                     {isLoadingBriefing ? (
                         <div className="flex items-center gap-3 py-2 animate-fade-in">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${avatarColorClass} bg-opacity-20 animate-pulse`}>
-                                <span className="text-lg">{CoachEmoji}</span>
+                                {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-full" /> : <span className="text-lg">{CoachEmoji}</span>}
                             </div>
                             <span className="text-neutral-500 text-sm font-medium italic animate-pulse">
                                 {persona.label} analyserar din gårdag...
