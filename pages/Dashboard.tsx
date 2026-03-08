@@ -765,21 +765,87 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 </div>
                             </div>
 
-                            {/* Bank Card */}
-                            <div ref={bankRef} className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                            {/* Goal Progress Card */}
+                            <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
                                 <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10">
-                                    <PiggyBank className="w-6 h-6" />
+                                    <TrophyIcon className="w-6 h-6" />
                                 </div>
                                 <div className="relative z-10 flex-1">
-                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Sparpott</p>
-                                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
-                                        {remainingBankDisplay} 
-                                        <span className="text-sm font-medium text-neutral ml-1">kcal</span>
-                                    </p>
+                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Ditt Mål</p>
+                                    <div className="flex items-start justify-between mb-1 gap-2">
+                                        <p className="text-sm font-bold text-neutral-dark leading-tight">
+                                            {userProfile.goalType === 'lose' ? 'Gå ner i vikt' : userProfile.goalType === 'gain' ? 'Gå upp i vikt' : 'Bibehålla vikten'}
+                                        </p>
+                                        <span className="text-xs font-bold text-primary whitespace-nowrap">
+                                            {userProfile.mainGoalCompleted ? '100%' : `${Math.round(
+                                                (() => {
+                                                    const start = userProfile.goalStartWeight || 0;
+                                                    const current = userProfile.currentWeightKg || 0;
+                                                    const change = userProfile.desiredWeightChangeKg || 0;
+                                                    if (!change || userProfile.mainGoalCompleted) return 100;
+                                                    const achieved = change > 0 ? (current - start) : (start - current);
+                                                    return Math.max(0, Math.min((Math.max(0, achieved) / Math.abs(change)) * 100, 100));
+                                                })()
+                                            )}%`}
+                                        </span>
+                                    </div>
+                                    <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
+                                        <div 
+                                            className="bg-primary h-full rounded-full transition-all duration-500" 
+                                            style={{ 
+                                                width: `${userProfile.mainGoalCompleted ? 100 : Math.round(
+                                                    (() => {
+                                                        const start = userProfile.goalStartWeight || 0;
+                                                        const current = userProfile.currentWeightKg || 0;
+                                                        const change = userProfile.desiredWeightChangeKg || 0;
+                                                        if (!change || userProfile.mainGoalCompleted) return 100;
+                                                        const achieved = change > 0 ? (current - start) : (start - current);
+                                                        return Math.max(0, Math.min((Math.max(0, achieved) / Math.abs(change)) * 100, 100));
+                                                    })()
+                                                )}%` 
+                                            }}
+                                        ></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+
+                    {/* Weekly Activity */}
+                    <WeeklyActivityChart 
+                        pastDaysSummary={pastDaysSummary}
+                        currentAppDate={new Date()}
+                        viewingDate={viewingDate}
+                        onDateSelect={onDateSelect}
+                        onPrevWeek={handlePrevWeek}
+                        onNextWeek={handleNextWeek}
+                        onToday={handleJumpToToday}
+                        goalType={userProfile.goalType} 
+                        currentViewStats={{ 
+                            calories: totalNutrients.calories,
+                            calorieGoal: goals.calorieGoal,
+                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
+                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
+                        }}
+                        isSummarizingYesterday={isSummarizingYesterday}
+                        bankedCalories={weeklyBank.bankedCalories}
+                    />
+                </div>
+
+                {/* Right Column */}
+                <div className="flex flex-col gap-3">
+                    
+                    <CommonMealsList 
+                        commonMeals={commonMeals}
+                        onLogCommonMeal={handleCommonMealLog}
+                        onDeleteCommonMeal={handleDeleteCommonMeal}
+                        onUpdateCommonMeal={handleUpdateCommonMeal}
+                        onShowRating={(nutritionalInfo) => {
+                            setFoodRatingData({ nutritionalInfo, mealType: 'snack' }); // default to snack for rating display
+                            setShowFoodRatingModal(true);
+                        }}
+                        disabled={!isEditableView}
+                    />
 
                     {/* Meal Sections (Matlogg) */}
                     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
@@ -837,42 +903,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                             />
                         </div>
                     </div>
-
-                    {/* Weekly Activity */}
-                    <WeeklyActivityChart 
-                        pastDaysSummary={pastDaysSummary}
-                        currentAppDate={new Date()}
-                        viewingDate={viewingDate}
-                        onDateSelect={onDateSelect}
-                        onPrevWeek={handlePrevWeek}
-                        onNextWeek={handleNextWeek}
-                        onToday={handleJumpToToday}
-                        goalType={userProfile.goalType} 
-                        currentViewStats={{ 
-                            calories: totalNutrients.calories,
-                            calorieGoal: goals.calorieGoal,
-                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
-                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
-                        }}
-                        isSummarizingYesterday={isSummarizingYesterday}
-                        bankedCalories={weeklyBank.bankedCalories}
-                    />
-                </div>
-
-                {/* Right Column */}
-                <div className="flex flex-col gap-3">
-                    
-                    <CommonMealsList 
-                        commonMeals={commonMeals}
-                        onLogCommonMeal={handleCommonMealLog}
-                        onDeleteCommonMeal={handleDeleteCommonMeal}
-                        onUpdateCommonMeal={handleUpdateCommonMeal}
-                        onShowRating={(nutritionalInfo) => {
-                            setFoodRatingData({ nutritionalInfo, mealType: 'snack' }); // default to snack for rating display
-                            setShowFoodRatingModal(true);
-                        }}
-                        disabled={!isEditableView}
-                    />
                 </div>
             </div>
 

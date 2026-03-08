@@ -78,7 +78,7 @@ import {
   PencilIcon,
   BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon, CreditCardIcon
 } from './components/icons.tsx';
-import { Home, Footprints, Users, GraduationCap } from "lucide-react";
+import { Home, Footprints, Users, GraduationCap, Moon, Sun } from "lucide-react";
 import Dashboard from './pages/Dashboard';
 
 /* ===========================
@@ -307,6 +307,24 @@ export const App = () => {
   const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'admin'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+      if (typeof window !== 'undefined') {
+          return localStorage.getItem('theme') === 'dark' || 
+              (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      }
+      return false;
+  });
+
+  useEffect(() => {
+      if (isDarkMode) {
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
+      } else {
+          document.documentElement.classList.remove('dark');
+          localStorage.setItem('theme', 'light');
+      }
+  }, [isDarkMode]);
+
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
@@ -1474,8 +1492,8 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
   return (
     <>
-      <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0">
-       <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-30">
+      <div className="min-h-screen bg-gray-100 dark:bg-black bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0">
+       <header className="w-full bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
@@ -1541,6 +1559,17 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                                     label="Information"
                                     onClick={() => {
                                         handleOpenInfoModal();
+                                        setShowProfileDropdown(false);
+                                    }}
+                                />
+                                
+                                <div className="my-1 border-t border-neutral-light/70"></div>
+                                
+                                <DropdownMenuItem
+                                    icon={isDarkMode ? <Sun className="w-5 h-5 text-neutral" /> : <Moon className="w-5 h-5 text-neutral" />}
+                                    label={isDarkMode ? "Ljust läge" : "Mörkt läge"}
+                                    onClick={() => {
+                                        setIsDarkMode(!isDarkMode);
                                         setShowProfileDropdown(false);
                                     }}
                                 />
