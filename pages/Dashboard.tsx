@@ -641,20 +641,20 @@ const Dashboard: React.FC<DashboardProps> = ({
     return (
         <div className="flex flex-col gap-3 pb-0 relative">
             {/* Top Date & Progress Card */}
-            <div className="bg-gradient-to-br from-[#E2F5D6] to-[#C5E8A8] rounded-3xl shadow-soft-xl p-6 border border-[#B5DE93] relative overflow-hidden">
+            <div className="bg-white rounded-3xl shadow-soft-xl p-6 border border-neutral-light relative overflow-hidden">
                 <div className="flex flex-col items-center">
                     {/* Date Nav */}
                     <div className="flex items-center justify-center gap-4 mb-6 w-full">
-                        <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-black/5 transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
+                        <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
                         <div className="text-center">
                             <h2 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">{formattedViewingDate}</h2>
                             {!isViewingToday && (
-                                <button onClick={() => onDateSelect(new Date())} className="text-xs font-semibold text-primary-darker hover:underline mt-1 block w-full text-center">
+                                <button onClick={() => onDateSelect(new Date())} className="text-xs font-semibold text-primary hover:underline mt-1 block w-full text-center">
                                     Gå till idag
                                 </button>
                             )}
                         </div>
-                        <button onClick={() => onDateSelect(new Date(viewingDate.getTime() + 86400000))} className={`p-2 rounded-full hover:bg-black/5 transition-colors ${isViewingToday ? 'opacity-30 cursor-default' : ''}`} disabled={isViewingToday}><ArrowRightIcon className="w-5 h-5 text-neutral-dark" /></button>
+                        <button onClick={() => onDateSelect(new Date(viewingDate.getTime() + 86400000))} className={`p-2 rounded-full hover:bg-neutral-light transition-colors ${isViewingToday ? 'opacity-30 cursor-default' : ''}`} disabled={isViewingToday}><ArrowRightIcon className="w-5 h-5 text-neutral-dark" /></button>
                     </div>
 
                     {/* Lifesum Style Header */}
@@ -662,7 +662,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {/* Left: Ätit */}
                         <div className="text-center flex-1">
                             <p className="text-sm font-medium text-neutral-dark mb-1">Ätit</p>
-                            <p className="text-3xl font-bold text-neutral-dark">{Math.round(totalNutrients.calories)}</p>
+                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(totalNutrients.calories)}</p>
                         </div>
 
                         {/* Center: Circular Progress */}
@@ -673,17 +673,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 size={180}
                                 strokeWidth={14}
                                 color={progressColor}
-                                trackColor="text-black/10"
+                                trackColor="text-neutral-light"
                                 centerContent={
                                     <div className="text-center">
                                         <span className="text-sm font-medium text-neutral-dark mb-1 block">Återstående</span>
-                                        <span className="text-5xl font-extrabold block text-neutral-dark leading-none tracking-tight">
+                                        <span className="text-4xl font-bold block text-neutral-dark leading-none tracking-tight">
                                             {isNetOverBudget
                                                 ? netCaloriesOver.toFixed(0)
                                                 : (isFullyCoveredByBank ? '0' : caloriesRemaining.toFixed(0))
                                             }
                                         </span>
-                                        <span className="text-xs font-medium text-neutral-600 mt-2 block">
+                                        <span className="text-xs font-medium text-neutral-500 mt-2 block">
                                             Mål {goals.calorieGoal} kcal
                                         </span>
                                     </div>
@@ -694,40 +694,40 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {/* Right: Sparpott */}
                         <div className="text-center flex-1">
                             <p className="text-sm font-medium text-neutral-dark mb-1">Sparpott</p>
-                            <p className="text-3xl font-bold text-neutral-dark">{Math.round(calorieBank)}</p>
+                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(remainingBankDisplay)}</p>
                         </div>
                     </div>
 
                     {/* Macros Integrated */}
                     <div className="grid grid-cols-3 gap-3 w-full">
                         {/* Kolhydrater */}
-                        <div className="bg-white rounded-2xl p-4 shadow-sm">
-                            <p className="text-sm font-bold text-neutral-dark mb-1">Kolhydrater</p>
+                        <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-light">
+                            <p className="text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Kolhydrater</p>
                             <p className="text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.carbohydrates)}/{goals.carbohydrateGoal}g
                             </p>
                             <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-blue-300 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
+                                <div className="bg-blue-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                         {/* Protein */}
-                        <div className="bg-white rounded-2xl p-4 shadow-sm">
-                            <p className="text-sm font-bold text-neutral-dark mb-1">Protein</p>
+                        <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-light">
+                            <p className="text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Protein</p>
                             <p className="text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.protein)}/{goals.proteinGoal}g
                             </p>
                             <div className="w-full bg-pink-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-pink-300 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
+                                <div className="bg-pink-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                         {/* Fett */}
-                        <div className="bg-white rounded-2xl p-4 shadow-sm">
-                            <p className="text-sm font-bold text-neutral-dark mb-1">Fett</p>
+                        <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-light">
+                            <p className="text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Fett</p>
                             <p className="text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.fat)}/{goals.fatGoal}g
                             </p>
                             <div className="w-full bg-purple-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-purple-300 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
+                                <div className="bg-purple-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                     </div>
@@ -784,7 +784,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* Meal Sections (Matlogg) */}
                     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-xl font-bold text-neutral-dark">Matlogg</h3>
+                            <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <MealSectionCard 
