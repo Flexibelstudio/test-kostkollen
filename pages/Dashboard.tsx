@@ -107,6 +107,81 @@ const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
     });
 };
 
+const calculateProgressPercentage = (
+    method: 'scale' | 'inbody' | undefined,
+    startWeight?: number, currentWeight?: number, desiredWeightChange?: number,
+    startFat?: number, currentFat?: number, desiredFatChange?: number,
+    startMuscle?: number, currentMuscle?: number, desiredMuscleChange?: number,
+    isGoalCompleted?: boolean
+): number => {
+    if (isGoalCompleted) return 100;
+
+    let start, current, goalChange;
+
+    const isScaleGoal = method === 'scale';
+    const isFatLossGoal = !isScaleGoal && desiredFatChange && desiredFatChange < 0;
+    const isMuscleGainGoal = !isScaleGoal && desiredMuscleChange && desiredMuscleChange > 0;
+
+    if (isFatLossGoal) {
+        if (currentFat != null && startFat != null) {
+            start = startFat;
+            current = currentFat;
+            goalChange = desiredFatChange;
+        } else {
+            start = startWeight;
+            current = currentWeight;
+            goalChange = desiredFatChange;
+        }
+    } else if (isMuscleGainGoal) {
+        if (currentMuscle != null && startMuscle != null) {
+            start = startMuscle;
+            current = currentMuscle;
+            goalChange = desiredMuscleChange;
+        } else {
+            start = startWeight;
+            current = currentWeight;
+            goalChange = desiredMuscleChange;
+        }
+    } else {
+        start = startWeight;
+        current = currentWeight;
+        goalChange = desiredWeightChange;
+    }
+    
+    if (start == null || current == null || !goalChange) return 0;
+    
+    const totalChangeNeeded = Math.abs(goalChange);
+    let changeAchieved;
+    
+    if (goalChange > 0) { 
+        changeAchieved = current - start;
+    } else { 
+        changeAchieved = start - current;
+    }
+    
+    changeAchieved = Math.max(0, changeAchieved);
+
+    if (totalChangeNeeded < 0.01) return 100;
+
+    const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
+    return Math.max(0, Math.min(progressRaw, 100));
+};
+
+const getGoalShortDescription = (
+    method: 'scale' | 'inbody' | undefined,
+    desiredWeightChange?: number,
+    desiredFatChange?: number,
+    desiredMuscleChange?: number
+): string => {
+    if (method === 'scale' && desiredWeightChange) {
+        return `Nå en viktförändring på ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange.toFixed(1).replace('.', ',')} kg`;
+    } else if (method === 'inbody') {
+        if (desiredFatChange) return `Nå en fettförändring på ${desiredFatChange.toFixed(1).replace('.', ',')} kg`;
+        if (desiredMuscleChange) return `Nå en muskelförändring på +${desiredMuscleChange.toFixed(1).replace('.', ',')} kg`;
+    }
+    return 'Bibehålla vikten';
+};
+
 interface DashboardProps {
     checklistState: OnboardingChecklistState | null;
     onOnboardingNavigate: (view: 'journey' | 'community', subView?: 'search') => void;
@@ -774,34 +849,33 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Ditt Mål</p>
                                     <div className="flex items-start justify-between mb-1 gap-2">
                                         <p className="text-sm font-bold text-neutral-dark leading-tight">
-                                            {userProfile.goalType === 'lose' ? 'Gå ner i vikt' : userProfile.goalType === 'gain' ? 'Gå upp i vikt' : 'Bibehålla vikten'}
+                                            {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
+                                                userProfile.measurementMethod,
+                                                userProfile.desiredWeightChangeKg,
+                                                userProfile.desiredFatMassChangeKg,
+                                                userProfile.desiredMuscleMassChangeKg
+                                            )}
                                         </p>
                                         <span className="text-xs font-bold text-primary whitespace-nowrap">
-                                            {userProfile.mainGoalCompleted ? '100%' : `${Math.round(
-                                                (() => {
-                                                    const start = userProfile.goalStartWeight || 0;
-                                                    const current = userProfile.currentWeightKg || 0;
-                                                    const change = userProfile.desiredWeightChangeKg || 0;
-                                                    if (!change || userProfile.mainGoalCompleted) return 100;
-                                                    const achieved = change > 0 ? (current - start) : (start - current);
-                                                    return Math.max(0, Math.min((Math.max(0, achieved) / Math.abs(change)) * 100, 100));
-                                                })()
-                                            )}%`}
+                                            {`${Math.round(calculateProgressPercentage(
+                                                userProfile.measurementMethod,
+                                                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                                userProfile.mainGoalCompleted
+                                            ))}%`} klart
                                         </span>
                                     </div>
                                     <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
                                         <div 
                                             className="bg-primary h-full rounded-full transition-all duration-500" 
                                             style={{ 
-                                                width: `${userProfile.mainGoalCompleted ? 100 : Math.round(
-                                                    (() => {
-                                                        const start = userProfile.goalStartWeight || 0;
-                                                        const current = userProfile.currentWeightKg || 0;
-                                                        const change = userProfile.desiredWeightChangeKg || 0;
-                                                        if (!change || userProfile.mainGoalCompleted) return 100;
-                                                        const achieved = change > 0 ? (current - start) : (start - current);
-                                                        return Math.max(0, Math.min((Math.max(0, achieved) / Math.abs(change)) * 100, 100));
-                                                    })()
+                                                width: `${calculateProgressPercentage(
+                                                    userProfile.measurementMethod,
+                                                    userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                                    userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                                    userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                                    userProfile.mainGoalCompleted
                                                 )}%` 
                                             }}
                                         ></div>
