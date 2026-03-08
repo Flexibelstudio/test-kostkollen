@@ -55,7 +55,7 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
         </div>
         
         {lessons.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-3xl shadow-soft-lg border border-neutral-light">
+          <div className="text-center py-12 bg-white dark:bg-neutral-darker rounded-3xl shadow-soft-lg border border-neutral-light">
              <p className="text-neutral text-lg">Inga lektioner tillgängliga just nu.</p>
           </div>
         ) : (
@@ -99,26 +99,26 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                 return (
                   <div
                     key={lesson.id}
-                    className="w-full text-left bg-gray-50/80 p-6 rounded-3xl border border-neutral-light/60 relative overflow-hidden group select-none"
+                    className="w-full text-left bg-gray-50/80 dark:bg-black p-6 rounded-3xl border border-neutral-light/60 dark:border-neutral-dark/60 relative overflow-hidden group select-none"
                     aria-label={`${lesson.title} (låst)`}
                   >
                     <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                       <div className="flex-grow z-10 opacity-60">
                          <div className="flex items-center mb-2">
                           <LockClosedIcon className="w-5 h-5 text-neutral mr-2.5" />
-                          <h2 className="text-xl font-bold text-neutral-dark">{lesson.title}</h2>
+                          <h2 className="text-xl font-bold text-neutral-dark dark:text-white">{lesson.title}</h2>
                         </div>
                         <p className="text-base text-neutral leading-relaxed">{lesson.introduction}</p>
                       </div>
                       
-                      <div className="flex-shrink-0 z-10 bg-white/50 px-3 py-1.5 rounded-lg border border-neutral-light/50 self-start sm:self-center">
+                      <div className="flex-shrink-0 z-10 bg-white/50 dark:bg-neutral-dark/50 px-3 py-1.5 rounded-lg border border-neutral-light/50 self-start sm:self-center">
                           <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide">
                             Låst
                           </p>
                       </div>
                     </div>
                     
-                    <div className="mt-4 pt-4 border-t border-gray-200/60 opacity-80">
+                    <div className="mt-4 pt-4 border-t border-gray-200/60 dark:border-neutral-dark/60 opacity-80">
                          <p className="text-sm font-medium text-accent flex items-center gap-2">
                             {unlockMessage}
                          </p>
@@ -148,7 +148,7 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                 <button
                   key={lesson.id}
                   onClick={() => onSelectLesson(lesson.id)}
-                  className="w-full text-left bg-white p-6 rounded-3xl shadow-soft-lg border border-neutral-light hover:shadow-soft-xl hover:scale-[1.01] hover:border-primary/30 transition-all duration-300 group relative overflow-hidden"
+                  className="w-full text-left bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-lg border border-neutral-light hover:shadow-soft-xl hover:scale-[1.01] hover:border-primary/30 transition-all duration-300 group relative overflow-hidden"
                   aria-label={`Gå till ${lesson.title}`}
                 >
                   <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start gap-4">

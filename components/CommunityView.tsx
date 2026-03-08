@@ -209,10 +209,10 @@ const CreatePostWidget: FC<{
         return (
             <div 
                 onClick={() => setIsExpanded(true)}
-                className="bg-white rounded-2xl shadow-sm border border-neutral-light p-3 mb-6 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors active:scale-[0.99] select-none"
+                className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-3 mb-6 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-dark transition-colors active:scale-[0.99] select-none"
             >
                 <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
-                <div className="flex-grow bg-neutral-light/50 rounded-full px-4 py-2.5 text-neutral-500 text-sm font-medium border border-transparent">
+                <div className="flex-grow bg-[#ffffff] rounded-full px-4 py-2.5 text-[#6B7280] text-sm font-medium border border-[#E5E7EB]">
                     Vad tänker du på? Dela med dig...
                 </div>
             </div>
@@ -220,10 +220,10 @@ const CreatePostWidget: FC<{
     }
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-neutral-light p-4 mb-6 relative animate-fade-in">
+        <div className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-4 mb-6 relative animate-fade-in">
             <button 
                 onClick={() => setIsExpanded(false)}
-                className="absolute top-2 right-2 p-2 text-neutral-400 hover:text-neutral-dark rounded-full hover:bg-neutral-light transition-colors z-10"
+                className="absolute top-2 right-2 p-2 text-neutral-400 hover:text-neutral-dark dark:hover:text-white rounded-full hover:bg-neutral-light dark:hover:bg-neutral-dark transition-colors z-10"
                 title="Stäng"
             >
                 <XMarkIcon className="w-5 h-5" />
@@ -237,7 +237,7 @@ const CreatePostWidget: FC<{
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         placeholder="Vad tänker du på? Dela med dig till dina kompisar..."
-                        className="w-full bg-neutral-light/50 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[100px] resize-none pr-8"
+                        className="w-full bg-[#ffffff] rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3bab5a] min-h-[100px] resize-none pr-8 text-[#000000] border border-[#E5E7EB] placeholder-[#9CA3AF]"
                     />
                     {image && (
                         <div className="relative mt-2 inline-block">
@@ -262,7 +262,7 @@ const CreatePostWidget: FC<{
                             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap border ${
                                 category === cat.id 
                                     ? 'bg-primary-100 border-primary text-primary-darker' 
-                                    : 'bg-white border-neutral-light text-neutral hover:bg-neutral-light'
+                                    : 'bg-white dark:bg-neutral-darker border-neutral-light text-neutral hover:bg-neutral-light dark:hover:bg-neutral-dark'
                             }`}
                         >
                             {cat.icon} {cat.label}
@@ -321,7 +321,7 @@ const BuddyCard: FC<{
     }, [buddy]);
 
     return (
-        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3 relative">
+        <div className="bg-white dark:bg-neutral-darker p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3 relative">
              <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                     <Avatar photoURL={buddy.photoURL} gender={buddy.gender} size={48} />
@@ -338,12 +338,12 @@ const BuddyCard: FC<{
                 <div className="relative">
                     <button 
                         onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-                        className="p-1.5 text-neutral-400 hover:text-neutral-dark rounded-full hover:bg-neutral-light transition-colors"
+                        className="p-1.5 text-neutral-400 hover:text-neutral-dark dark:hover:text-white rounded-full hover:bg-neutral-light dark:hover:bg-neutral-dark transition-colors"
                     >
                         <MoreHorizontal className="w-5 h-5" />
                     </button>
                     {showMenu && (
-                        <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
+                        <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-neutral-darker rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
                             <button 
                                 onClick={(e) => { e.stopPropagation(); setShowMenu(false); onRemove(); }}
                                 className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
@@ -359,7 +359,7 @@ const BuddyCard: FC<{
             )}
 
             <div>
-                <div className="w-full bg-neutral-light rounded-full h-2.5 shadow-inner">
+                <div className="w-full bg-neutral-light dark:bg-neutral-dark rounded-full h-2.5 shadow-inner">
                     <div className="bg-primary h-2.5 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
                 </div>
                 <p className="text-right text-sm font-semibold text-primary-darker mt-1">{progressPercentage.toFixed(0)}%</p>
@@ -473,7 +473,7 @@ const TimelineEventCard: FC<{
 
 
     return (
-    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${isNewEvent ? 'bg-green-50/50 border-green-200' : 'bg-white border-neutral-light'}`}>
+    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${isNewEvent ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-white dark:bg-neutral-darker border-neutral-light'}`}>
         <div className="flex items-start gap-3">
             <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={42} />
             <div className="flex-1 min-w-0">
@@ -492,7 +492,7 @@ const TimelineEventCard: FC<{
                                     <span className="text-neutral-300">|</span>
                                     <span className="truncate">{stats.goalText}</span>
                                 </div>
-                                <div className="h-1 w-full bg-neutral-light rounded-full overflow-hidden">
+                                <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
                                     <div className="h-full bg-primary" style={{width: `${stats.progress}%`}} />
                                 </div>
                             </div>
@@ -521,7 +521,7 @@ const TimelineEventCard: FC<{
                 </div>
                 
                 {event.category && event.type === 'user_post' && (
-                    <span className="inline-block px-2 py-0.5 mt-1 rounded text-[10px] font-semibold bg-neutral-light text-neutral-600 uppercase tracking-wide">
+                    <span className="inline-block px-2 py-0.5 mt-1 rounded text-[10px] font-semibold bg-neutral-light dark:bg-neutral-dark text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
                         {event.icon} {event.category === 'workout' ? 'Träning' : event.category === 'food' ? 'Mat' : event.category === 'pepp' ? 'Pepp' : event.category === 'question' ? 'Fråga' : 'Allmänt'}
                     </span>
                 )}
@@ -562,7 +562,7 @@ const TimelineEventCard: FC<{
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all active:scale-95 border
                             ${hasReacted 
                                 ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
-                                : 'bg-transparent border-transparent hover:bg-neutral-light text-neutral-500 hover:text-neutral-dark'
+                                : 'bg-transparent border-transparent hover:bg-neutral-light dark:hover:bg-neutral-dark text-neutral-500 dark:text-neutral-400 hover:text-neutral-dark dark:hover:text-white'
                             }`}
                     >
                         <span className={`text-lg transition-transform ${hasReacted ? 'scale-110' : ''}`}>{emoji}</span>
@@ -587,7 +587,7 @@ const TimelineEventCard: FC<{
                             <div className="flex-1">
                                 <div 
                                     onDoubleClick={() => onToggleLike(event, comment.id)} 
-                                    className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50' : 'bg-neutral-light/60'}`}
+                                    className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
                                 >
                                     <p className="font-bold text-neutral-dark text-xs mb-0.5">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
                                     <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>
@@ -601,7 +601,7 @@ const TimelineEventCard: FC<{
                                         className={`text-xs font-semibold flex items-center gap-1 transition-colors ${userHasLiked ? 'text-red-500' : 'text-neutral-400 hover:text-red-500'}`}
                                     >
                                         {userHasLiked ? 'Gillat' : 'Gilla'}
-                                        {likeCount > 0 && <span className="bg-white px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">{likeCount} ❤️</span>}
+                                        {likeCount > 0 && <span className="bg-white dark:bg-neutral-darker px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">{likeCount} ❤️</span>}
                                     </button>
                                 </div>
                             </div>
@@ -617,7 +617,7 @@ const TimelineEventCard: FC<{
                     <input
                         value={newComment}
                         onChange={e => setNewComment(e.target.value)}
-                        className="w-full pl-4 pr-10 py-2 text-sm bg-neutral-light/50 rounded-full border border-transparent focus:bg-white focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-neutral-400"
+                        className="w-full pl-4 pr-10 py-2 text-sm bg-[#ffffff] text-[#000000] rounded-full border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
                         placeholder="Skriv en kommentar..."
                     />
                     <button 
@@ -815,7 +815,7 @@ const FriendManagementView: FC<{
                                 type="search" 
                                 value={buddySearchQuery} 
                                 onChange={e => setBuddySearchQuery(e.target.value)} 
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker"
                                 placeholder="Sök bland dina kompisar..."
                             />
                         </div>
@@ -853,7 +853,7 @@ const FriendManagementView: FC<{
                                 type="search" 
                                 value={searchQuery} 
                                 onChange={e => setSearchQuery(e.target.value)} 
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker"
                                 placeholder="Sök bland användare..."
                                 autoFocus
                             />
@@ -863,7 +863,7 @@ const FriendManagementView: FC<{
                                 const isBuddy = buddyDetails.some(b => b.uid === user.uid);
                                 const hasPendingRequest = outgoingRequests.some(r => r.toUid === user.uid);
                                 return (
-                                    <div key={user.uid} className="flex items-center justify-between bg-white p-2 rounded-md border border-neutral-light">
+                                    <div key={user.uid} className="flex items-center justify-between bg-white dark:bg-neutral-darker p-2 rounded-md border border-neutral-light">
                                         <div className="flex items-center gap-2">
                                             <Avatar photoURL={user.photoURL} gender={user.gender} size={32} />
                                             <p className="font-semibold text-neutral-dark text-sm">{user.name}</p>
@@ -882,10 +882,10 @@ const FriendManagementView: FC<{
                 );
             case 'requests':
                 return (
-                    <div className="space-y-4 bg-white p-4 rounded-lg border border-neutral-light">
+                    <div className="space-y-4 bg-white dark:bg-neutral-darker p-4 rounded-lg border border-neutral-light">
                         <h4 className="font-semibold">Inkommande ({requests.length})</h4>
                         {requests.length > 0 ? requests.map(req => (
-                            <div key={req.id} className="flex items-center justify-between bg-neutral-light p-2 rounded-lg">
+                            <div key={req.id} className="flex items-center justify-between bg-neutral-light dark:bg-neutral-dark p-2 rounded-lg">
                                 <p className="font-semibold text-sm">{req.fromName}</p>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => handleRequestAction(req, 'declined')} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><XMarkIcon className="w-5 h-5" /></button>
@@ -895,7 +895,7 @@ const FriendManagementView: FC<{
                         )) : <p className="text-sm text-neutral">Inga nya förfrågningar.</p>}
                          <h4 className="font-semibold pt-2 border-t">Utgående ({outgoingRequests.length})</h4>
                         {outgoingRequests.length > 0 ? outgoingRequests.map(req => (
-                            <div key={req.id} className="flex items-center justify-between bg-neutral-light p-2 rounded-lg">
+                            <div key={req.id} className="flex items-center justify-between bg-neutral-light dark:bg-neutral-dark p-2 rounded-lg">
                                 <p className="font-semibold text-sm">{allSearchableUsers.find(u => u.uid === req.toUid)?.name || 'Okänd'}</p>
                                 <button onClick={() => handleCancelRequest(req.id)} className="text-xs font-semibold text-red-600 px-2 py-1 bg-red-100 rounded-full hover:bg-red-200">Avbryt</button>
                             </div>
@@ -926,11 +926,11 @@ const FriendManagementView: FC<{
                     onClick={() => setBuddyToRemove(null)}
                     role="dialog" aria-modal="true" aria-labelledby="confirm-remove-buddy-title"
                 >
-                    <div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                    <div className="bg-white dark:bg-neutral-darker p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
                         <h3 id="confirm-remove-buddy-title" className="text-lg font-semibold text-neutral-dark mb-4">Bekräfta borttagning</h3>
                         <p className="text-neutral mb-6">Är du säker på att du vill ta bort <strong>{buddyToRemove.name}</strong> som Peppkompis?</p>
                         <div className="flex justify-end space-x-3">
-                            <button onClick={() => setBuddyToRemove(null)} className="px-4 py-2 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md active:scale-95 interactive-transition">Avbryt</button>
+                            <button onClick={() => setBuddyToRemove(null)} className="px-4 py-2 text-neutral-dark dark:text-white bg-neutral-light dark:bg-neutral-dark hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md active:scale-95 interactive-transition">Avbryt</button>
                             <button onClick={confirmRemoveBuddy} className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md active:scale-95 interactive-transition">Ja, ta bort</button>
                         </div>
                     </div>
@@ -941,7 +941,7 @@ const FriendManagementView: FC<{
                     className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fade-in"
                     onClick={() => setShowInviteOptionsModal(false)}
                 >
-                    <div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                    <div className="bg-white dark:bg-neutral-darker p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
                         <h3 className="text-lg font-semibold text-neutral-dark mb-4">Bjud in en vän</h3>
                         <div className="space-y-3">
                             <button onClick={handleShareViaApp} className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm">
@@ -951,7 +951,7 @@ const FriendManagementView: FC<{
                             <button
                                 onClick={handleCopyToClipboard}
                                 disabled={isCopied}
-                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm disabled:bg-green-100 disabled:text-green-700"
+                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark dark:text-white bg-neutral-light dark:bg-neutral-dark hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md shadow-sm disabled:bg-green-100 disabled:text-green-700"
                             >
                                 <PencilIcon className="w-5 h-5 mr-2" /> {isCopied ? 'Kopierad!' : 'Kopiera inbjudningstext'}
                             </button>
@@ -1217,14 +1217,14 @@ export const CommunityView: React.FC<{
     );
 
     return (
-        <div className="flex flex-col h-full bg-white">
-            <header className="flex-shrink-0 bg-white shadow-md z-10 sticky top-0">
+        <div className="flex flex-col h-full bg-transparent">
+            <header className="flex-shrink-0 bg-white dark:bg-neutral-darker shadow-md z-10 sticky top-0">
                 <nav className="flex items-center justify-around">
                     {tabs.map(tab => <TabButton key={tab.key} tab={tab} isActive={activeTab === tab.key} onClick={() => setActiveTab(tab.key as any)} />)}
                 </nav>
             </header>
             
-            <main className="flex-grow overflow-y-auto bg-neutral-light/30">
+            <main className="flex-grow overflow-y-auto bg-transparent">
                 {activeTab === 'flode' && (
                     <div className="p-2 sm:p-4 max-w-2xl mx-auto w-full">
                         <CreatePostWidget 
@@ -1260,7 +1260,7 @@ export const CommunityView: React.FC<{
                                         <button 
                                             onClick={loadMoreEvents} 
                                             disabled={isLoadingMore}
-                                            className="px-6 py-2 bg-white border border-neutral-light text-neutral-dark font-semibold rounded-full shadow-sm hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 mx-auto"
+                                            className="px-6 py-2 bg-white dark:bg-neutral-darker border border-neutral-light text-neutral-dark font-semibold rounded-full shadow-sm hover:bg-gray-50 dark:hover:bg-neutral-dark active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 mx-auto"
                                         >
                                             {isLoadingMore ? <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /> : <RefreshCw className="w-4 h-4" />}
                                             Ladda fler

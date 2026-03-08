@@ -86,7 +86,7 @@ const CourseCard: React.FC<{
 }> = ({ course, onActivate, onShowInfo, hasStarted }) => {
 
   return (
-    <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group hover:scale-[1.01] transition-all duration-300">
+    <div className="bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group hover:scale-[1.01] transition-all duration-300">
         <div className="flex flex-col items-center text-center flex-grow mb-6">
             <div className="relative mb-4">
                 {/* Updated Icon Container to Squircle (rounded-2xl) */}
@@ -94,7 +94,7 @@ const CourseCard: React.FC<{
                     <course.Icon className="w-10 h-10" />
                 </div>
                 {hasStarted && (
-                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow-sm">
+                    <div className="absolute -bottom-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-1 shadow-sm">
                         <CheckCircleIcon className="w-6 h-6 text-primary" />
                     </div>
                 )}

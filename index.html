@@ -99,8 +99,22 @@
       .dark .nav-btn:hover .icon-wrap, .dark .nav-btn.active .icon-wrap {
         background-color: #374151 !important;
       }
-      .dark .bg-neutral-dark {
+      .dark .bg-neutral-light\/50 {
+        background-color: #374151 !important; /* Darker gray for input boxes */
+      }
+      .dark .bg-neutral-light\/30 {
+        background-color: transparent !important; /* Let the main background show through */
+      }
+      .dark .bg-neutral-light\/60 {
+        background-color: #1F2937 !important; /* Comments background */
+      }
+      .dark input, .dark textarea {
         background-color: #374151 !important;
+        color: #F3F4F6 !important;
+        border-color: #4B5563 !important;
+      }
+      .dark input::placeholder, .dark textarea::placeholder {
+        color: #9CA3AF !important;
       }
       
       /* Global transition for interactive elements for smoother hover/active states */

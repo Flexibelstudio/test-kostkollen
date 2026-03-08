@@ -131,7 +131,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
 
   return (
     <div className="animate-fade-in pb-10">
-      <article className="bg-white p-6 sm:p-8 rounded-3xl shadow-soft-xl border border-neutral-light">
+      <article className="bg-white dark:bg-neutral-darker p-6 sm:p-8 rounded-3xl shadow-soft-xl border border-neutral-light">
         <header className="mb-8 pb-6 border-b border-neutral-light/70">
             <div className="flex justify-between items-start mb-4">
                 <button
@@ -220,7 +220,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                   className={`flex items-center w-full p-4 rounded-xl border-2 interactive-transition active:scale-[0.98] shadow-sm
                     ${progress?.completedFocusPoints?.includes(point.id)
                       ? 'bg-primary-100 border-primary text-primary-darker'
-                      : 'bg-white border-neutral-light hover:border-neutral-light/80 hover:bg-neutral-light/30 text-neutral-dark'
+                      : 'bg-white dark:bg-neutral-darker border-neutral-light hover:border-neutral-light/80 hover:bg-neutral-light/30 dark:hover:bg-neutral-dark/50 text-neutral-dark dark:text-white'
                     }`}
                   aria-pressed={progress?.completedFocusPoints?.includes(point.id)}
                 >
