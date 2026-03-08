@@ -290,6 +290,7 @@ export const App = () => {
     highestStreak,
     highestLevelId,
     unlockedAchievements,
+    setUnlockedAchievements,
     achievementInteractions,
     userCourseProgress, setUserCourseProgress,
     hasCompletedOnboarding, setHasCompletedOnboarding,
@@ -1049,6 +1050,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                         playAudio('levelUp');
                         setUserProfile(prev => ({ ...prev, mainGoalCompleted: true }));
                         await updateUserDocument(currentUser.uid, { mainGoalCompleted: true });
+                        setUnlockedAchievements(prev => ({ ...prev, [ach.id]: new Date().toISOString() }));
                     }
                 }
              }
