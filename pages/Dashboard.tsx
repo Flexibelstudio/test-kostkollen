@@ -641,10 +641,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     return (
         <div className="flex flex-col gap-3 pb-0 relative">
             {/* Top Date & Progress Card */}
-            <div className="bg-white rounded-3xl shadow-soft-xl p-6 border border-neutral-light relative overflow-hidden">
+            <div className="bg-white rounded-3xl shadow-soft-xl py-6 border border-neutral-light relative overflow-hidden">
                 <div className="flex flex-col items-center">
                     {/* Date Nav */}
-                    <div className="flex items-center justify-center gap-4 mb-6 w-full">
+                    <div className="flex items-center justify-center gap-4 mb-6 w-full px-6">
                         <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
                         <div className="text-center">
                             <h2 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">{formattedViewingDate}</h2>
@@ -658,7 +658,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
 
                     {/* Lifesum Style Header */}
-                    <div className="flex w-full items-center justify-between mb-6">
+                    <div className="flex w-full items-center justify-between mb-6 px-6">
                         {/* Left: Ätit */}
                         <div className="text-center flex-1">
                             <p className="text-sm font-medium text-neutral-dark mb-1">Ätit</p>
@@ -699,11 +699,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
 
                     {/* Macros Integrated */}
-                    <div className="grid grid-cols-3 gap-3 w-full">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full px-4 sm:px-6">
                         {/* Kolhydrater */}
-                        <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-light">
-                            <p className="text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Kolhydrater</p>
-                            <p className="text-sm text-neutral-500 mb-2">
+                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Kolhydrater</p>
+                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.carbohydrates)}/{goals.carbohydrateGoal}g
                             </p>
                             <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
@@ -711,9 +711,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         {/* Protein */}
-                        <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-light">
-                            <p className="text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Protein</p>
-                            <p className="text-sm text-neutral-500 mb-2">
+                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Protein</p>
+                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.protein)}/{goals.proteinGoal}g
                             </p>
                             <div className="w-full bg-pink-100 rounded-full h-1.5 overflow-hidden">
@@ -721,9 +721,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         {/* Fett */}
-                        <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-light">
-                            <p className="text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Fett</p>
-                            <p className="text-sm text-neutral-500 mb-2">
+                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Fett</p>
+                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.fat)}/{goals.fatGoal}g
                             </p>
                             <div className="w-full bg-purple-100 rounded-full h-1.5 overflow-hidden">
