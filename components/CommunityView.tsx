@@ -75,35 +75,52 @@ const calculateProgressPercentage = (
 
     let start, current, goalChange;
 
-    if (method === 'scale') {
-        start = startWeight;
-        current = currentWeight;
-        goalChange = desiredWeightChange || 0;
-    } else { // inbody
-        if (desiredFatChange && desiredFatChange < 0) {
+    const isScaleGoal = method === 'scale';
+    const isFatLossGoal = !isScaleGoal && desiredFatChange && desiredFatChange < 0;
+    const isMuscleGainGoal = !isScaleGoal && desiredMuscleChange && desiredMuscleChange > 0;
+
+    if (isFatLossGoal) {
+        if (currentFat != null && startFat != null) {
             start = startFat;
             current = currentFat;
             goalChange = desiredFatChange;
-        } else if (desiredMuscleChange && desiredMuscleChange > 0) {
+        } else {
+            start = startWeight;
+            current = currentWeight;
+            goalChange = desiredFatChange;
+        }
+    } else if (isMuscleGainGoal) {
+        if (currentMuscle != null && startMuscle != null) {
             start = startMuscle;
             current = currentMuscle;
             goalChange = desiredMuscleChange;
-        } else { // Fallback to weight
-             start = startWeight;
-             current = currentWeight;
-             goalChange = 0;
+        } else {
+            start = startWeight;
+            current = currentWeight;
+            goalChange = desiredMuscleChange;
         }
+    } else {
+        start = startWeight;
+        current = currentWeight;
+        goalChange = desiredWeightChange;
     }
     
     if (start == null || current == null || !goalChange) return 0;
     
     const totalChangeNeeded = Math.abs(goalChange);
-    // Calc achieved change based on direction
-    const changeAchieved = goalChange > 0 ? (current - start) : (start - current);
+    let changeAchieved;
     
-    if (totalChangeNeeded < 0.1) return 100;
+    if (goalChange > 0) { 
+        changeAchieved = current - start;
+    } else { 
+        changeAchieved = start - current;
+    }
+    
+    changeAchieved = Math.max(0, changeAchieved);
 
-    const progressRaw = (Math.max(0, changeAchieved) / totalChangeNeeded) * 100;
+    if (totalChangeNeeded < 0.01) return 100;
+
+    const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
     return Math.max(0, Math.min(progressRaw, 100));
 };
 
