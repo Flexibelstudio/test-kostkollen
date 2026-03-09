@@ -58,7 +58,7 @@ export const ALL_COURSES: CourseInfo[] = [
   {
     id: 'maxa-klimakteriet',
     title: 'Maxa Klimakteriet',
-    cardDescription: 'Förstå och hantera förändringarna under klimakteriet. Lär dig om kost, träning och livsstilsstrategier för att må så bra som möjligt. Nya lektioner låses upp när du slutför den föregående.',
+    cardDescription: 'Förstå och hantera förändringarna under klimakteriet. Lär dig om kost, träning och livsstilsstrategier för att må så bra som möjligt. En ny lektion låses upp varje vecka.',
     longDescription: 'Den här kursen är för dig som vill förstå och hantera de fysiska och mentala förändringarna under klimakteriet. Vi går igenom kost, träning och livsstilsstrategier för att du ska må så bra som möjligt under denna nya fas i livet.',
     whatYouGet: [
         'Fokus på hormonell balans.',
@@ -66,7 +66,7 @@ export const ALL_COURSES: CourseInfo[] = [
         'Hantering av specifika symtom som vallningar och sömnproblem.',
         'Kunskap för att känna dig stark och energifylld.'
     ],
-    howItWorks: 'Nya lektioner låses upp sekventiellt när du slutför den föregående, så du kan ta kursen helt i din egen takt utan press.',
+    howItWorks: 'En ny lektion låses upp varje vecka, så du kan ta till dig kunskapen i lugn och ro och applicera den i din vardag.',
     forWhom: 'För kvinnor i eller på väg in i klimakteriet som vill ta ett proaktivt grepp om sin hälsa och sitt välmående.',
     Icon: VenusIcon,
   },
