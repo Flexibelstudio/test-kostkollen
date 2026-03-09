@@ -288,6 +288,7 @@ export const App = () => {
     weeklyBank, setWeeklyBank,
     streakSaver,
     highestStreak,
+    setHighestStreak,
     highestLevelId,
     unlockedAchievements,
     setUnlockedAchievements,
