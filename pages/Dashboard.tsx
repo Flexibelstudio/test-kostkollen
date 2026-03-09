@@ -846,17 +846,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <TrophyIcon className="w-6 h-6" />
                                 </div>
                                 <div className="relative z-10 flex-1 min-w-0">
-                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Ditt Mål</p>
-                                    <div className="flex items-start justify-between mb-1 gap-2">
-                                        <p className="text-sm font-bold text-neutral-dark leading-tight line-clamp-2">
-                                            {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
-                                                userProfile.measurementMethod,
-                                                userProfile.desiredWeightChangeKg,
-                                                userProfile.desiredFatMassChangeKg,
-                                                userProfile.desiredMuscleMassChangeKg
-                                            )}
-                                        </p>
-                                        <span className="text-xs font-bold text-primary whitespace-nowrap shrink-0 mt-0.5">
+                                    <div className="flex items-center justify-between mb-0.5">
+                                        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ditt Mål</p>
+                                        <span className="text-xs font-bold text-primary whitespace-nowrap">
                                             {`${Math.round(calculateProgressPercentage(
                                                 userProfile.measurementMethod,
                                                 userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
@@ -866,6 +858,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                                             ))}%`} klart
                                         </span>
                                     </div>
+                                    <p className="text-sm font-bold text-neutral-dark leading-tight line-clamp-2 mb-1.5">
+                                        {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
+                                            userProfile.measurementMethod,
+                                            userProfile.desiredWeightChangeKg,
+                                            userProfile.desiredFatMassChangeKg,
+                                            userProfile.desiredMuscleMassChangeKg
+                                        )}
+                                    </p>
                                     <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
                                         <div 
                                             className="bg-primary h-full rounded-full transition-all duration-500" 
