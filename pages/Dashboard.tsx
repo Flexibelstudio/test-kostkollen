@@ -174,12 +174,12 @@ const getGoalShortDescription = (
     desiredMuscleChange?: number
 ): string => {
     if (method === 'scale' && desiredWeightChange) {
-        return `Nå en viktförändring på ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange.toFixed(1).replace('.', ',')} kg`;
+        return `Mål: ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange.toFixed(1).replace('.', ',')} kg`;
     } else if (method === 'inbody') {
-        if (desiredFatChange) return `Nå en fettförändring på ${desiredFatChange.toFixed(1).replace('.', ',')} kg`;
-        if (desiredMuscleChange) return `Nå en muskelförändring på +${desiredMuscleChange.toFixed(1).replace('.', ',')} kg`;
+        if (desiredFatChange) return `Mål: ${desiredFatChange > 0 ? '+' : ''}${desiredFatChange.toFixed(1).replace('.', ',')} kg fett`;
+        if (desiredMuscleChange) return `Mål: ${desiredMuscleChange > 0 ? '+' : ''}${desiredMuscleChange.toFixed(1).replace('.', ',')} kg muskler`;
     }
-    return 'Bibehålla vikten';
+    return 'Mål: Bibehålla vikten';
 };
 
 interface DashboardProps {
@@ -842,13 +842,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                             {/* Goal Progress Card */}
                             <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
-                                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10">
+                                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10 shrink-0">
                                     <TrophyIcon className="w-6 h-6" />
                                 </div>
-                                <div className="relative z-10 flex-1">
+                                <div className="relative z-10 flex-1 min-w-0">
                                     <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Ditt Mål</p>
                                     <div className="flex items-start justify-between mb-1 gap-2">
-                                        <p className="text-sm font-bold text-neutral-dark leading-tight">
+                                        <p className="text-sm font-bold text-neutral-dark leading-tight line-clamp-2">
                                             {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
                                                 userProfile.measurementMethod,
                                                 userProfile.desiredWeightChangeKg,
@@ -856,7 +856,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                 userProfile.desiredMuscleMassChangeKg
                                             )}
                                         </p>
-                                        <span className="text-xs font-bold text-primary whitespace-nowrap">
+                                        <span className="text-xs font-bold text-primary whitespace-nowrap shrink-0 mt-0.5">
                                             {`${Math.round(calculateProgressPercentage(
                                                 userProfile.measurementMethod,
                                                 userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
