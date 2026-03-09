@@ -58,7 +58,7 @@ export const ALL_COURSES: CourseInfo[] = [
   {
     id: 'maxa-klimakteriet',
     title: 'Maxa Klimakteriet',
-    cardDescription: 'Förstå och hantera förändringarna under klimakteriet. Lär dig om kost, träning och livsstilsstrategier för att må så bra som möjligt. Nya lektioner låses upp när du slutför den föregående.',
+    cardDescription: 'Förstå och hantera förändringarna under klimakteriet. Lär dig om kost, träning och livsstilsstrategier för att må så bra som möjligt. En ny lektion låses upp varje vecka.',
     longDescription: 'Den här kursen är för dig som vill förstå och hantera de fysiska och mentala förändringarna under klimakteriet. Vi går igenom kost, träning och livsstilsstrategier för att du ska må så bra som möjligt under denna nya fas i livet.',
     whatYouGet: [
         'Fokus på hormonell balans.',
@@ -66,7 +66,7 @@ export const ALL_COURSES: CourseInfo[] = [
         'Hantering av specifika symtom som vallningar och sömnproblem.',
         'Kunskap för att känna dig stark och energifylld.'
     ],
-    howItWorks: 'Nya lektioner låses upp sekventiellt när du slutför den föregående, så du kan ta kursen helt i din egen takt utan press.',
+    howItWorks: 'En ny lektion låses upp varje vecka, så du kan ta till dig kunskapen i lugn och ro och applicera den i din vardag.',
     forWhom: 'För kvinnor i eller på väg in i klimakteriet som vill ta ett proaktivt grepp om sin hälsa och sitt välmående.',
     Icon: VenusIcon,
   },
@@ -86,7 +86,7 @@ const CourseCard: React.FC<{
 }> = ({ course, onActivate, onShowInfo, hasStarted }) => {
 
   return (
-    <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group hover:scale-[1.01] transition-all duration-300">
+    <div className="bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group hover:scale-[1.01] transition-all duration-300">
         <div className="flex flex-col items-center text-center flex-grow mb-6">
             <div className="relative mb-4">
                 {/* Updated Icon Container to Squircle (rounded-2xl) */}
@@ -94,7 +94,7 @@ const CourseCard: React.FC<{
                     <course.Icon className="w-10 h-10" />
                 </div>
                 {hasStarted && (
-                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow-sm">
+                    <div className="absolute -bottom-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-1 shadow-sm">
                         <CheckCircleIcon className="w-6 h-6 text-primary" />
                     </div>
                 )}

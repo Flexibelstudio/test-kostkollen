@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
-import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon } from './icons.tsx';
+import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon, SmileIcon } from './icons.tsx';
 import { 
   MoreHorizontal, 
   Soup, Egg, Sandwich, CupSoda, Drumstick, Beef, Fish, Salad, Carrot,
@@ -14,6 +14,7 @@ interface CommonMealsListProps {
   onLogCommonMeal: (commonMeal: CommonMeal) => void;
   onDeleteCommonMeal: (commonMealId: string) => void;
   onUpdateCommonMeal: (commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) => void;
+  onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled?: boolean;
 }
 
@@ -108,8 +109,9 @@ const CommonMealCard: React.FC<{
   onLog: (meal: CommonMeal) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, data: { name: string; nutritionalInfo: NutritionalInfo }) => void;
+  onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled: boolean;
-}> = ({ meal, onLog, onDelete, onUpdate, disabled }) => {
+}> = ({ meal, onLog, onDelete, onUpdate, onShowRating, disabled }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -186,9 +188,19 @@ const CommonMealCard: React.FC<{
             <input type="number" value={editedFat} onChange={createNumericHandler(setEditedFat)} className={inputClass} />
           </div>
         </div>
-        <div className="flex justify-end space-x-2 mt-2">
-          <button onClick={() => setIsEditing(false)} className="p-2 text-neutral hover:bg-neutral-light rounded-full"><XMarkIcon className="w-5 h-5" /></button>
-          <button onClick={handleSave} className="p-2 text-white bg-primary hover:bg-primary-darker rounded-full shadow-sm"><CheckIcon className="w-5 h-5" /></button>
+        <div className="flex justify-between items-center mt-2">
+          {onShowRating && (
+            <button 
+              onClick={() => onShowRating(meal.nutritionalInfo)} 
+              className="text-xs font-semibold text-primary hover:text-primary-darker flex items-center gap-1"
+            >
+              <SmileIcon className="w-4 h-4" /> Se matbetyg
+            </button>
+          )}
+          <div className="flex justify-end space-x-2 ml-auto">
+            <button onClick={() => setIsEditing(false)} className="p-2 text-neutral hover:bg-neutral-light rounded-full"><XMarkIcon className="w-5 h-5" /></button>
+            <button onClick={handleSave} className="p-2 text-white bg-primary hover:bg-primary-darker rounded-full shadow-sm"><CheckIcon className="w-5 h-5" /></button>
+          </div>
         </div>
       </div>
     );
@@ -252,7 +264,7 @@ const CommonMealCard: React.FC<{
   );
 };
 
-export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, disabled = false }) => {
+export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false }) => {
   const [mealIdToConfirmDelete, setMealIdToConfirmDelete] = useState<string | null>(null);
 
   const handleDeleteRequest = (mealId: string) => {
@@ -309,6 +321,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
                 onLog={handleLogClick}
                 onDelete={handleDeleteRequest}
                 onUpdate={onUpdateCommonMeal}
+                onShowRating={onShowRating}
                 disabled={disabled}
               />
             ))}

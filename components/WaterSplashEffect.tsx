@@ -34,7 +34,7 @@ const WaterSplashEffect: React.FC<WaterSplashEffectProps> = ({ x, y, count, onCo
         position: 'absolute',
         borderRadius: '50%',
         backgroundColor: '#60a5fa', // A pleasant blue
-      });
+      } as DropletStyle);
     }
     setDroplets(newDroplets);
 

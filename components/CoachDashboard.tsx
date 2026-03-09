@@ -480,7 +480,7 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     }, [handleAction]);
 
     const handleBulkAction = useCallback(async (action: 'approve' | 'setRoleCoach' | 'setRoleMember') => {
-        const idsToUpdate = Array.from(selectedMemberIds);
+        const idsToUpdate = Array.from(selectedMemberIds) as string[];
         if (idsToUpdate.length === 0) return;
         setIsBulkUpdating(true);
         try {

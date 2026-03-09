@@ -78,7 +78,7 @@ import {
   PencilIcon,
   BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon, CreditCardIcon
 } from './components/icons.tsx';
-import { Home, Footprints, Users, GraduationCap } from "lucide-react";
+import { Home, Footprints, Users, GraduationCap, Moon, Sun } from "lucide-react";
 import Dashboard from './pages/Dashboard';
 
 /* ===========================
@@ -290,6 +290,7 @@ export const App = () => {
     highestStreak,
     highestLevelId,
     unlockedAchievements,
+    setUnlockedAchievements,
     achievementInteractions,
     userCourseProgress, setUserCourseProgress,
     hasCompletedOnboarding, setHasCompletedOnboarding,
@@ -307,6 +308,24 @@ export const App = () => {
   const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'admin'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+      if (typeof window !== 'undefined') {
+          return localStorage.getItem('theme') === 'dark' || 
+              (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      }
+      return false;
+  });
+
+  useEffect(() => {
+      if (isDarkMode) {
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
+      } else {
+          document.documentElement.classList.remove('dark');
+          localStorage.setItem('theme', 'light');
+      }
+  }, [isDarkMode]);
+
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
@@ -324,7 +343,7 @@ export const App = () => {
   const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; streak: number} | null>(null);
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
-  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number } | null>(null);
+  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[] } | null>(null);
   const [isSummarizingYesterday, setIsSummarizingYesterday] = useState(false);
   const [hasRunCatchUp, setHasRunCatchUp] = useState(false);
 
@@ -669,7 +688,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       if (summary) {
            // Use the streak stored in the summary as the truth, fallback to currentStreak if missing
            const displayStreak = (typeof summary.streakForThisDay === 'number') ? summary.streakForThisDay : streakData.currentStreak;
-           setMorningReportData({ summary, currentStreak: displayStreak });
+           fetchMealLogsForDate(currentUser.uid, yesterdayUID).then(meals => {
+               setMorningReportData({ summary, currentStreak: displayStreak, yesterdayMeals: meals });
+           });
       }
   }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday]);
 
@@ -1029,6 +1050,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                         playAudio('levelUp');
                         setUserProfile(prev => ({ ...prev, mainGoalCompleted: true }));
                         await updateUserDocument(currentUser.uid, { mainGoalCompleted: true });
+                        setUnlockedAchievements(prev => ({ ...prev, [ach.id]: new Date().toISOString() }));
                     }
                 }
              }
@@ -1233,7 +1255,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         
         if (!options.silent) {
             // Trigger morning report with the NEW calculated streak
-            setMorningReportData({ summary, currentStreak: finalNewStreak });
+            setMorningReportData({ summary, currentStreak: finalNewStreak, yesterdayMeals: mealsToProcess });
             playAudio('levelUp'); 
         }
 
@@ -1543,6 +1565,17 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                                     }}
                                 />
                                 
+                                <div className="my-1 border-t border-neutral-light/70"></div>
+                                
+                                <DropdownMenuItem
+                                    icon={isDarkMode ? <Sun className="w-5 h-5 text-neutral" /> : <Moon className="w-5 h-5 text-neutral" />}
+                                    label={isDarkMode ? "Ljust läge" : "Mörkt läge"}
+                                    onClick={() => {
+                                        setIsDarkMode(!isDarkMode);
+                                        setShowProfileDropdown(false);
+                                    }}
+                                />
+                                
                                 {(userRole === 'coach' || userRole === 'admin') && (
                                     <>
                                         <div className="my-1 border-t border-neutral-light/70"></div>
@@ -1685,14 +1718,14 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             setMorningReportData(null);
             const todayUID = dayKeySE(new Date());
             localStorage.setItem('lastSeenMorningReport', todayUID);
-        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} />}
+        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} yesterdayMeals={morningReportData.yesterdayMeals} />}
         {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
         {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
         {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />}
         {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
         {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
-        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
+        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
         {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} /></div>}
         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
         {/* Pass userCourseProgress to AI Coach Modal */}

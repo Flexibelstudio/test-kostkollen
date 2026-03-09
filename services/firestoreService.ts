@@ -159,6 +159,7 @@ export const getDocsSafe = async (queryRef: Query) => {
 /* ===== User bootstrap ===== */
 
 export async function ensureUserProfileInFirestore(fbUser: User) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', fbUser.uid);
   const userDoc = await getDocSafe(userDocRef);
   const currentWeekInfo = getWeekInfo(new Date());
@@ -230,6 +231,31 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
 /* ===== Initial load ===== */
 
 export async function fetchInitialAppData(userId: string) {
+  if (!db) {
+    return {
+      role: 'member',
+      status: 'approved',
+      hasCompletedOnboarding: true,
+      profile: DEFAULT_USER_PROFILE,
+      goals: DEFAULT_GOALS,
+      currentStreak: 0,
+      lastDateStreakChecked: getDateUID_SE(),
+      summaryStartDate: null,
+      highestStreak: 0,
+      highestLevelId: null,
+      weeklyBank: null,
+      streakSaver: null,
+      commonMeals: [],
+      weightLogs: [],
+      pastDaySummaries: {},
+      courseProgress: {},
+      unlockedAchievements: {},
+      achievementInteractions: {},
+      journeyAnalysisFeedback: null,
+      pushSubscriptions: [],
+      mentalWellbeingLogs: [],
+    };
+  }
   const userDocRef = doc(db, 'users', userId);
   const commonMealsRef = collection(db, 'users', userId, 'commonMeals');
   const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
@@ -353,6 +379,7 @@ export async function fetchInitialAppData(userId: string) {
 /* ===== Meals / logs ===== */
 
 export async function addMealLog(userId: string, mealId: string, mealData: Omit<LoggedMeal, 'id'>) {
+  if (!db) return;
   const mealLogRef = doc(db, 'users', userId, 'mealLogs', mealId);
   const userDocRef = doc(db, 'users', userId);
   
@@ -363,16 +390,19 @@ export async function addMealLog(userId: string, mealId: string, mealData: Omit<
 }
 
 export async function deleteMealLog(userId: string, mealLogId: string) {
+  if (!db) return;
   const mealLogRef = doc(db, 'users', userId, 'mealLogs', mealLogId);
   await deleteDoc(mealLogRef);
 }
 
 export async function updateMealLog(userId: string, mealLogId: string, updatedInfo: Partial<NutritionalInfo>) {
+  if (!db) return;
   const mealLogRef = doc(db, 'users', userId, 'mealLogs', mealLogId);
   await updateDoc(mealLogRef, { nutritionalInfo: cleanFirestoreData(updatedInfo) });
 }
 
 export async function fetchMealLogsForDate(userId: string, dateUID: string): Promise<LoggedMeal[]> {
+  if (!db) return [];
   const mealLogsRef = collection(db, 'users', userId, 'mealLogs');
   const q = query(mealLogsRef, where("dateString", "==", dateUID), orderBy("timestamp", "desc"));
   const querySnapshot = await getDocsSafe(q);
@@ -428,6 +458,10 @@ export function listenToCommunityTimeline(
   callback: (data: { events: TimelineEvent[], lastDoc: any }) => void,
   limitCount: number = 20
 ) {
+  if (!db) {
+    callback({ events: [], lastDoc: null });
+    return () => {};
+  }
   const q = query(
     collection(db, 'communityTimeline'),
     where('visibleTo', 'array-contains', userId),
@@ -451,6 +485,7 @@ export async function fetchCommunityTimeline(
   lastSnapshot: any = null, 
   limitCount: number = 10
 ): Promise<{ events: TimelineEvent[], lastDoc: any }> {
+  if (!db) return { events: [], lastDoc: null };
   
   let q = query(
     collection(db, 'communityTimeline'),
@@ -481,6 +516,7 @@ export async function createUserPost(
   category: PostCategory,
   imageBase64?: string
 ) {
+    if (!db) return { id: `post_${Date.now()}`, type: 'user_post', timestamp: Date.now(), title: 'Mock Post', description: text, icon: '📝', userId, userName: 'Mock', userPhotoURL: null, gender: 'female', visibleTo: [], reactions: {}, comments: [], relatedDocPath: '', category, imageUrl: imageBase64 } as any;
     const userDocRef = doc(db, 'users', userId);
     const userDocSnap = await getDocSafe(userDocRef);
     if (!userDocSnap.exists()) throw new Error("User not found");
@@ -516,6 +552,7 @@ export async function createUserPost(
 }
 
 export async function deleteTimelineEvent(eventId: string): Promise<void> {
+  if (!db) return;
   const eventRef = doc(db, 'communityTimeline', eventId);
   await deleteDoc(eventRef);
 }
@@ -524,6 +561,7 @@ export async function addTimelineEvent(
   userId: string,
   eventData: Omit<TimelineEvent, 'id' | 'userId' | 'userName' | 'userPhotoURL' | 'gender' | 'relatedDocPath' | 'reactions' | 'comments'> & { relatedDocId: string }
 ) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', userId);
   const userDocSnap = await getDocSafe(userDocRef);
   if (!userDocSnap.exists()) {
@@ -570,11 +608,13 @@ export async function addTimelineEvent(
 /* ===== Water ===== */
 
 export async function setWaterLog(userId: string, dateUID: string, waterMl: number) {
+  if (!db) return;
   const waterLogRef = doc(db, 'users', userId, 'waterLogs', dateUID);
   await setDoc(waterLogRef, { dateUID, waterLoggedMl: waterMl });
 }
 
 export async function fetchWaterLog(userId: string, dateUID: string): Promise<number> {
+  if (!db) return 0;
   const waterLogRef = doc(db, 'users', userId, 'waterLogs', dateUID);
   const docSnap = await getDocSafe(waterLogRef);
   return docSnap.exists() ? docSnap.data().waterLoggedMl : 0;
@@ -583,17 +623,20 @@ export async function fetchWaterLog(userId: string, dateUID: string): Promise<nu
 /* ===== Common meals ===== */
 
 export async function addCommonMeal(userId: string, commonMealData: Omit<CommonMeal, 'id'>) {
+  if (!db) return `cm_${Date.now()}`;
   const commonMealsRef = collection(db, 'users', userId, 'commonMeals');
   const docRef = await addDoc(commonMealsRef, cleanFirestoreData(commonMealData));
   return docRef.id;
 }
 
 export async function deleteCommonMeal(userId: string, commonMealId: string) {
+  if (!db) return;
   const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);
   await deleteDoc(commonMealRef);
 }
 
 export async function updateCommonMeal(userId: string, commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) {
+  if (!db) return;
   const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);
   await updateDoc(commonMealRef, cleanFirestoreData(updatedData));
 }
@@ -601,6 +644,7 @@ export async function updateCommonMeal(userId: string, commonMealId: string, upd
 /* ===== Profile & goals ===== */
 
 export async function saveProfileAndGoals(userId: string, profile: UserProfileData, goals: GoalSettings) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', userId);
 
   let maybeSummaryStart: string | undefined;
@@ -647,6 +691,7 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
 /* ===== Gamification: Achievements ===== */
 
 export async function unlockAchievement(userId: string, achievementId: string, achievementName: string, achievementIcon: string, description: string): Promise<boolean> {
+    if (!db) return true;
     const userRef = doc(db, 'users', userId);
     const userSnap = await getDocSafe(userRef);
 
@@ -679,6 +724,7 @@ export async function unlockAchievement(userId: string, achievementId: string, a
 /* ===== Weight ===== */
 
 export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEntry, 'id'>) {
+  if (!db) return `wl_${Date.now()}`;
   const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
   const userDocRef = doc(db, 'users', userId);
   
@@ -747,12 +793,14 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
 /* ===== Wellbeing ===== */
 
 export async function addMentalWellbeingLog(userId: string, logData: Omit<MentalWellbeingLog, 'id'>): Promise<string> {
+  if (!db) return `wellbeing_${Date.now()}`;
   const wellbeingLogsRef = collection(db, 'users', userId, 'mentalWellbeingLogs');
   const docRef = await addDoc(wellbeingLogsRef, cleanFirestoreData(logData));
   return docRef.id;
 }
 
 export async function fetchMentalWellbeingLogs(userId: string): Promise<MentalWellbeingLog[]> {
+  if (!db) return [];
   const logsRef = collection(db, 'users', userId, 'mentalWellbeingLogs');
   const q = query(logsRef, orderBy("loggedAt", "desc"), limit(30));
   const querySnapshot = await getDocsSafe(q);
@@ -762,16 +810,19 @@ export async function fetchMentalWellbeingLogs(userId: string): Promise<MentalWe
 /* ===== Summaries & user doc misc ===== */
 
 export async function setPastDaySummary(userId: string, dateUID: string, summary: PastDaySummary) {
+  if (!db) return;
   const summaryRef = doc(db, 'users', userId, 'pastDaySummaries', dateUID);
   await setDoc(summaryRef, cleanFirestoreData(summary), { merge: true });
 }
 
 export async function updateUserDocument(userId: string, data: { [key: string]: any }) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', userId);
   await updateDoc(userDocRef, cleanFirestoreData(data));
 }
 
 export async function savePushSubscription(userId: string, subscription: object) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', userId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
@@ -787,6 +838,7 @@ export async function savePushSubscription(userId: string, subscription: object)
 /* ===== Course ===== */
 
 export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved' | 'archived') {
+  if (!db) return;
   const courseProgressRef = doc(db, 'users', userId, 'courseProgress', lessonId);
   await setDoc(courseProgressRef, cleanFirestoreData(progress), { merge: true });
   
@@ -832,6 +884,7 @@ export async function saveCourseProgress(userId: string, lessonId: string, progr
 /* ===== Coach ===== */
 
 export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
+  if (!db) return [];
   const usersRef = collection(db, "users");
   const q = query(usersRef, orderBy("createdAt", "desc"));
   const snapshot = await getDocsSafe(q);
@@ -883,6 +936,7 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
 }
 
 export async function fetchDetailedMemberDataForCoach(memberId: string): Promise<AIDataForCoachSummary> {
+  if (!db) return { memberName: 'Mock', memberProfile: DEFAULT_USER_PROFILE, last7DaysSummaries: [], last5WeightLogs: [], currentStreak: 0, lastLogDate: null, courseProgressSummary: null };
   const userDocRef = doc(db, 'users', memberId);
   const userDocSnap = await getDocSafe(userDocRef);
   if (!userDocSnap.exists()) throw new Error("Member not found");
@@ -947,6 +1001,7 @@ export async function fetchDetailedMemberDataForCoach(memberId: string): Promise
 /* ===== Admin & roles ===== */
 
 export async function approveMember(memberId: string) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', memberId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
@@ -955,6 +1010,7 @@ export async function approveMember(memberId: string) {
   }
 }
 export async function revokeApproval(memberId: string) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', memberId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
@@ -963,6 +1019,7 @@ export async function revokeApproval(memberId: string) {
   }
 }
 export async function archiveMember(memberId: string) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', memberId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
@@ -971,6 +1028,7 @@ export async function archiveMember(memberId: string) {
   }
 }
 export async function unarchiveMember(memberId: string) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', memberId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
@@ -979,6 +1037,7 @@ export async function unarchiveMember(memberId: string) {
   }
 }
 export async function updateUserRole(memberId: string, newRole: UserRole) {
+  if (!db) return;
   const userDocRef = doc(db, 'users', memberId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
@@ -987,6 +1046,7 @@ export async function updateUserRole(memberId: string, newRole: UserRole) {
   }
 }
 export async function bulkApproveMembers(memberIds: string[]) {
+  if (!db) return;
   const batch = writeBatch(db);
   for (const id of memberIds) {
     const userDocRef = doc(db, 'users', id);
@@ -999,6 +1059,7 @@ export async function bulkApproveMembers(memberIds: string[]) {
   await batch.commit();
 }
 export async function bulkUpdateUserRole(memberIds: string[], role: UserRole) {
+  if (!db) return;
   const batch = writeBatch(db);
   for (const id of memberIds) {
     const userDocRef = doc(db, 'users', id);
@@ -1014,6 +1075,10 @@ export async function bulkUpdateUserRole(memberIds: string[], role: UserRole) {
 /* ===== Social ===== */
 
 export function listenForFriendRequests(userId: string, callback: (requests: PeppkompisRequest[]) => void): () => void {
+  if (!db) {
+    callback([]);
+    return () => {};
+  }
   const requestsRef = collection(db, 'peppkompisRequests');
   const q = query(requestsRef, where("toUid", "==", userId));
   
@@ -1029,12 +1094,14 @@ export function listenForFriendRequests(userId: string, callback: (requests: Pep
 }
 
 export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
+  if (!db) return [];
   const buddiesRef = collection(db, 'users', userId, 'buddies');
   const snapshot = await getDocsSafe(buddiesRef);
   return snapshot.docs.map(doc => doc.data() as Peppkompis);
 }
 
 export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetails[]> {
+  if (!db) return [];
   const buddies = await fetchBuddies(userId);
   if (buddies.length === 0) return [];
 
@@ -1094,6 +1161,7 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
 }
 
 export async function searchForBuddies(currentUserId: string): Promise<Peppkompis[]> {
+  if (!db) return [];
   const usersRef = collection(db, "users");
   const q = query(usersRef, where("isSearchable", "==", true));
   const snapshot = await getDocsSafe(q);
@@ -1115,6 +1183,7 @@ export async function searchForBuddies(currentUserId: string): Promise<Peppkompi
 }
 
 export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string): Promise<void> {
+  if (!db) return;
   const requestsRef = collection(db, 'peppkompisRequests');
   const newRequest: Omit<PeppkompisRequest, 'id'> = {
     fromUid: fromUser.uid,
@@ -1128,6 +1197,7 @@ export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string)
 }
 
 export async function updateFriendRequestStatus(request: PeppkompisRequest, status: 'accepted' | 'declined'): Promise<void> {
+  if (!db) return;
   const requestRef = doc(db, 'peppkompisRequests', request.id);
   if (status === 'accepted') {
     await updateDoc(requestRef, { status: "accepted" });
@@ -1137,11 +1207,13 @@ export async function updateFriendRequestStatus(request: PeppkompisRequest, stat
 }
 
 export async function removeBuddy(currentUserId: string, buddyUid: string): Promise<void> {
+  if (!db) return;
   const currentUserBuddyRef = doc(db, `users/${currentUserId}/buddies/${buddyUid}`);
   await deleteDoc(currentUserBuddyRef);
 }
 
 export async function fetchFriendRequests(userId: string): Promise<PeppkompisRequest[]> {
+  if (!db) return [];
   const requestsRef = collection(db, 'peppkompisRequests');
   const q = query(requestsRef, where("toUid", "==", userId));
   const snapshot = await getDocsSafe(q);
@@ -1150,6 +1222,7 @@ export async function fetchFriendRequests(userId: string): Promise<PeppkompisReq
 }
 
 export async function fetchOutgoingFriendRequests(userId: string): Promise<PeppkompisRequest[]> {
+  if (!db) return [];
   const requestsRef = collection(db, 'peppkompisRequests');
   const q = query(requestsRef, where("fromUid", "==", userId));
   const snapshot = await getDocsSafe(q);
@@ -1158,6 +1231,7 @@ export async function fetchOutgoingFriendRequests(userId: string): Promise<Peppk
 }
 
 export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: string }, event: TimelineEvent, emoji: string): Promise<void> {
+  if (!db) return;
   const eventRef = doc(db, 'communityTimeline', event.id);
   await runTransaction(db, async (transaction) => {
     const eventDoc = await transaction.get(eventRef);
@@ -1181,12 +1255,14 @@ export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: s
 }
 
 export async function addCommentToTimelineEvent(eventId: string, commentData: Omit<TimelineComment, 'id'>): Promise<string> {
+  if (!db) return `comment_${Date.now()}`;
   const commentsRef = collection(db, 'communityTimeline', eventId, 'comments');
   const docRef = await addDoc(commentsRef, cleanFirestoreData(commentData));
   return docRef.id;
 }
 
 export async function toggleLikeOnComment(fromUser: { uid: string, name: string }, event: TimelineEvent, commentId: string): Promise<void> {
+  if (!db) return;
   const likeRef = doc(db, 'communityTimeline', event.id, 'comments', commentId, 'likes', fromUser.uid);
   await runTransaction(db, async (transaction) => {
     const likeDoc = await transaction.get(likeRef);
@@ -1203,6 +1279,7 @@ export async function toggleLikeOnComment(fromUser: { uid: string, name: string 
 }
 
 export async function cancelFriendRequest(requestId: string): Promise<void> {
+  if (!db) return;
   const requestRef = doc(db, 'peppkompisRequests', requestId);
   await deleteDoc(requestRef);
 }

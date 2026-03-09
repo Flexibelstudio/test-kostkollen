@@ -56,6 +56,7 @@ import BarcodeSearchResultModal from '../components/BarcodeSearchResultModal';
 import ImageAnalysisResultModal from '../components/ImageAnalysisResultModal';
 import SaveCommonMealModal from '../components/SaveCommonMealModal';
 import NutritionLabelResultModal from '../components/NutritionLabelResultModal';
+import FoodRatingModal from '../components/FoodRatingModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import MealTypeSelector from '../components/MealTypeSelector';
 import MealSectionCard from '../components/MealSectionCard';
@@ -104,6 +105,81 @@ const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
         };
         reader.onerror = reject;
     });
+};
+
+const calculateProgressPercentage = (
+    method: 'scale' | 'inbody' | undefined,
+    startWeight?: number, currentWeight?: number, desiredWeightChange?: number,
+    startFat?: number, currentFat?: number, desiredFatChange?: number,
+    startMuscle?: number, currentMuscle?: number, desiredMuscleChange?: number,
+    isGoalCompleted?: boolean
+): number => {
+    if (isGoalCompleted) return 100;
+
+    let start, current, goalChange;
+
+    const isScaleGoal = method === 'scale';
+    const isFatLossGoal = !isScaleGoal && desiredFatChange && desiredFatChange < 0;
+    const isMuscleGainGoal = !isScaleGoal && desiredMuscleChange && desiredMuscleChange > 0;
+
+    if (isFatLossGoal) {
+        if (currentFat != null && startFat != null) {
+            start = startFat;
+            current = currentFat;
+            goalChange = desiredFatChange;
+        } else {
+            start = startWeight;
+            current = currentWeight;
+            goalChange = desiredFatChange;
+        }
+    } else if (isMuscleGainGoal) {
+        if (currentMuscle != null && startMuscle != null) {
+            start = startMuscle;
+            current = currentMuscle;
+            goalChange = desiredMuscleChange;
+        } else {
+            start = startWeight;
+            current = currentWeight;
+            goalChange = desiredMuscleChange;
+        }
+    } else {
+        start = startWeight;
+        current = currentWeight;
+        goalChange = desiredWeightChange;
+    }
+    
+    if (start == null || current == null || !goalChange) return 0;
+    
+    const totalChangeNeeded = Math.abs(goalChange);
+    let changeAchieved;
+    
+    if (goalChange > 0) { 
+        changeAchieved = current - start;
+    } else { 
+        changeAchieved = start - current;
+    }
+    
+    changeAchieved = Math.max(0, changeAchieved);
+
+    if (totalChangeNeeded < 0.01) return 100;
+
+    const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
+    return Math.max(0, Math.min(progressRaw, 100));
+};
+
+const getGoalShortDescription = (
+    method: 'scale' | 'inbody' | undefined,
+    desiredWeightChange?: number,
+    desiredFatChange?: number,
+    desiredMuscleChange?: number
+): string => {
+    if (method === 'scale' && desiredWeightChange) {
+        return `Mål: ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange.toFixed(1).replace('.', ',')} kg`;
+    } else if (method === 'inbody') {
+        if (desiredFatChange) return `Mål: ${desiredFatChange > 0 ? '+' : ''}${desiredFatChange.toFixed(1).replace('.', ',')} kg fett`;
+        if (desiredMuscleChange) return `Mål: ${desiredMuscleChange > 0 ? '+' : ''}${desiredMuscleChange.toFixed(1).replace('.', ',')} kg muskler`;
+    }
+    return 'Mål: Bibehålla vikten';
 };
 
 interface DashboardProps {
@@ -177,6 +253,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [showImageAnalysisResultModal, setShowImageAnalysisResultModal] = useState(false);
     const [showSaveCommonMealModal, setShowSaveCommonMealModal] = useState(false);
     const [showNutritionLabelResultModal, setShowNutritionLabelResultModal] = useState(false);
+    const [showFoodRatingModal, setShowFoodRatingModal] = useState(false);
+    const [foodRatingData, setFoodRatingData] = useState<{ nutritionalInfo: NutritionalInfo, mealType: MealType } | null>(null);
     const [showCommonMealsPopup, setShowCommonMealsPopup] = useState<CommonMeal | null>(null);
     const [selectedCommonMealType, setSelectedCommonMealType] = useState<MealType | null>(null);
 
@@ -436,7 +514,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Handlers
     const handleAddMealToLog = async (
         data: LoggedMeal | Omit<LoggedMeal, 'id'> | NutritionalInfo | SearchedFoodInfo, 
-        options?: { saveAsCommon?: boolean; mealType?: MealType }
+        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean }
     ) => {
         if (!currentUser) return;
         
@@ -491,7 +569,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             await addMealLogFirestore(currentUser.uid, newMeal.id, newMeal); 
             
-            setToastNotification({ message: 'Måltid loggad!', type: 'success' });
+            if (options?.skipRatingModal) {
+                setToastNotification({ message: 'Måltid loggad!', type: 'success' });
+            } else {
+                // Show Food Rating Modal instead of just toast
+                setFoodRatingData({ nutritionalInfo: newMeal.nutritionalInfo, mealType: newMeal.mealType });
+                setShowFoodRatingModal(true);
+            }
             playAudio('logSuccess');
 
             if (checklistState && !checklistState.items.mealLogged) {
@@ -579,7 +663,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (showCommonMealsPopup) {
             handleAddMealToLog(
                 showCommonMealsPopup.nutritionalInfo, 
-                { mealType: type }
+                { mealType: type, skipRatingModal: true }
             );
             setShowCommonMealsPopup(null);
             setSelectedCommonMealType(null);
@@ -627,19 +711,20 @@ const Dashboard: React.FC<DashboardProps> = ({
     const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal); 
 
     const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
+    const coachPersona = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle] : COACH_PERSONAS['balanced'];
 
     return (
         <div className="flex flex-col gap-3 pb-0 relative">
             {/* Top Date & Progress Card */}
-            <div className="bg-white rounded-3xl shadow-soft-xl p-6 border border-neutral-light relative overflow-hidden">
+            <div className="bg-white rounded-3xl shadow-soft-xl py-6 border border-neutral-light relative overflow-hidden">
                 <div className="flex flex-col items-center">
                     {/* Date Nav */}
-                    <div className="flex items-center justify-center gap-4 mb-4 w-full">
+                    <div className="flex items-center justify-center gap-4 mb-6 w-full px-6">
                         <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
                         <div className="text-center">
-                            <h2 className="text-xl font-bold text-neutral-dark">{formattedViewingDate}</h2>
+                            <h2 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">{formattedViewingDate}</h2>
                             {!isViewingToday && (
-                                <button onClick={() => onDateSelect(new Date())} className="text-xs font-semibold text-primary hover:underline mt-1">
+                                <button onClick={() => onDateSelect(new Date())} className="text-xs font-semibold text-primary hover:underline mt-1 block w-full text-center">
                                     Gå till idag
                                 </button>
                             )}
@@ -647,53 +732,79 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <button onClick={() => onDateSelect(new Date(viewingDate.getTime() + 86400000))} className={`p-2 rounded-full hover:bg-neutral-light transition-colors ${isViewingToday ? 'opacity-30 cursor-default' : ''}`} disabled={isViewingToday}><ArrowRightIcon className="w-5 h-5 text-neutral-dark" /></button>
                     </div>
 
-                    {/* Circular Progress */}
-                    <CircularProgress
-                        value={totalNutrients.calories}
-                        max={goals.calorieGoal}
-                        size={220}
-                        strokeWidth={18}
-                        color={progressColor}
-                        trackColor="text-neutral-light"
-                        centerContent={
-                            <div className="text-center">
-                                <span className="text-5xl font-extrabold block text-neutral-dark">
-                                    {isNetOverBudget
-                                        ? netCaloriesOver.toFixed(0)
-                                        : (isFullyCoveredByBank ? '0' : caloriesRemaining.toFixed(0))
-                                    }
-                                </span>
-                                <span className="text-sm font-medium uppercase tracking-wider text-neutral-dark">
-                                    {isNetOverBudget ? 'ÖVER' : 'KVAR'}
-                                </span>
+                    {/* Lifesum Style Header */}
+                    <div className="flex w-full items-center justify-between mb-6 px-6">
+                        {/* Left: Ätit */}
+                        <div className="text-center flex-1">
+                            <p className="text-sm font-medium text-neutral-dark mb-1">Ätit</p>
+                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(totalNutrients.calories)}</p>
+                        </div>
+
+                        {/* Center: Circular Progress */}
+                        <div className="flex-shrink-0 mx-2">
+                            <CircularProgress
+                                value={totalNutrients.calories}
+                                max={goals.calorieGoal}
+                                size={180}
+                                strokeWidth={14}
+                                color={progressColor}
+                                trackColor="text-neutral-light"
+                                centerContent={
+                                    <div className="text-center">
+                                        <span className="text-sm font-medium text-neutral-dark mb-1 block">Återstående</span>
+                                        <span className="text-4xl font-bold block text-neutral-dark leading-none tracking-tight">
+                                            {isNetOverBudget
+                                                ? netCaloriesOver.toFixed(0)
+                                                : (isFullyCoveredByBank ? '0' : caloriesRemaining.toFixed(0))
+                                            }
+                                        </span>
+                                        <span className="text-xs font-medium text-neutral-500 mt-2 block">
+                                            Mål {goals.calorieGoal} kcal
+                                        </span>
+                                    </div>
+                                }
+                            />
+                        </div>
+
+                        {/* Right: Sparpott */}
+                        <div className="text-center flex-1">
+                            <p className="text-sm font-medium text-neutral-dark mb-1">Sparpott</p>
+                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(remainingBankDisplay)}</p>
+                        </div>
+                    </div>
+
+                    {/* Macros Integrated */}
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full px-4 sm:px-6">
+                        {/* Kolhydrater */}
+                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Kolhydrater</p>
+                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
+                                {Math.round(totalNutrients.carbohydrates)}/{goals.carbohydrateGoal}g
+                            </p>
+                            <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-blue-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
                             </div>
-                        }
-                    />
-                    
-                    <div className="mt-4 text-center">
-                        <p className="text-base font-medium text-neutral-dark">
-                            {goals.calorieGoal} kcal
-                        </p>
-                        <p className={`text-sm mt-1 ${
-                            isNetOverBudget 
-                                ? 'text-secondary font-semibold' 
-                                : (isFullyCoveredByBank 
-                                    ? 'text-blue-500 font-semibold' 
-                                    : (totalNutrients.calories >= minSafeCalories 
-                                        ? 'text-primary font-semibold' 
-                                        : 'text-neutral')
-                                )
-                        }`}>
-                            {isNetOverBudget
-                                ? "Du har passerat dagens mål." 
-                                : (isFullyCoveredByBank 
-                                    ? "Din sparpott täcker överskottet." 
-                                    : (totalNutrients.calories >= minSafeCalories 
-                                        ? "Snyggt! Du ligger bra till." 
-                                        : "Du är på väg mot din miniminivå.")
-                                )
-                            }
-                        </p>
+                        </div>
+                        {/* Protein */}
+                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Protein</p>
+                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
+                                {Math.round(totalNutrients.protein)}/{goals.proteinGoal}g
+                            </p>
+                            <div className="w-full bg-pink-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-pink-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
+                            </div>
+                        </div>
+                        {/* Fett */}
+                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Fett</p>
+                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
+                                {Math.round(totalNutrients.fat)}/{goals.fatGoal}g
+                            </p>
+                            <div className="w-full bg-purple-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-purple-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -703,49 +814,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 
                 {/* Left Column */}
                 <div className="flex flex-col gap-3">
-                    {/* Macros */}
-                    <div className="grid grid-cols-3 gap-3">
-                        {/* Protein */}
-                        <div className="bg-white p-5 rounded-3xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
-                            <div>
-                                <p className="text-sm font-bold text-primary uppercase tracking-wide mb-2">Protein</p>
-                                <p className="text-3xl font-extrabold text-neutral-dark leading-none">
-                                    {Math.round(totalNutrients.protein)}
-                                    <span className="text-sm text-neutral-500 font-medium ml-1">/{goals.proteinGoal}g</span>
-                                </p>
-                            </div>
-                            <div className="w-full bg-neutral-light/50 rounded-full h-2 mt-4 overflow-hidden">
-                                <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
-                            </div>
-                        </div>
-                        {/* Carbs */}
-                        <div className="bg-white py-5 px-1 rounded-3xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
-                            <div>
-                                <p className="text-sm font-bold text-yellow-600 uppercase tracking-wide mb-2">Kolhydrater</p>
-                                <p className="text-3xl font-extrabold text-neutral-dark leading-none">
-                                    {Math.round(totalNutrients.carbohydrates)}
-                                    <span className="text-sm text-neutral-500 font-medium ml-1">/{goals.carbohydrateGoal}g</span>
-                                </p>
-                            </div>
-                            <div className="mx-4 bg-neutral-light/50 rounded-full h-2 mt-4 overflow-hidden">
-                                <div className="bg-yellow-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
-                            </div>
-                        </div>
-                        {/* Fat */}
-                        <div className="bg-white p-5 rounded-3xl shadow-soft-lg border border-neutral-light text-center flex flex-col justify-between">
-                            <div>
-                                <p className="text-sm font-bold text-orange-600 uppercase tracking-wide mb-2">Fett</p>
-                                <p className="text-3xl font-extrabold text-neutral-dark leading-none">
-                                    {Math.round(totalNutrients.fat)}
-                                    <span className="text-sm text-neutral-500 font-medium ml-1">/{goals.fatGoal}g</span>
-                                </p>
-                            </div>
-                            <div className="w-full bg-neutral-light/50 rounded-full h-2 mt-4 overflow-hidden">
-                                <div className="bg-orange-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Water & Streak/Bank */}
                     <div className="grid grid-cols-2 gap-3">
                         <div ref={waterLoggerRef} className="h-full">
@@ -772,17 +840,46 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 </div>
                             </div>
 
-                            {/* Bank Card */}
-                            <div ref={bankRef} className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
-                                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10">
-                                    <PiggyBank className="w-6 h-6" />
+                            {/* Goal Progress Card */}
+                            <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10 shrink-0">
+                                    <TrophyIcon className="w-6 h-6" />
                                 </div>
-                                <div className="relative z-10 flex-1">
-                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Sparpott</p>
-                                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
-                                        {remainingBankDisplay} 
-                                        <span className="text-sm font-medium text-neutral ml-1">kcal</span>
+                                <div className="relative z-10 flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-0.5">
+                                        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ditt Mål</p>
+                                        <span className="text-xs font-bold text-primary whitespace-nowrap">
+                                            {`${Math.round(calculateProgressPercentage(
+                                                userProfile.measurementMethod,
+                                                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                                userProfile.mainGoalCompleted
+                                            ))}%`} klart
+                                        </span>
+                                    </div>
+                                    <p className="text-sm font-bold text-neutral-dark leading-tight line-clamp-2 mb-1.5">
+                                        {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
+                                            userProfile.measurementMethod,
+                                            userProfile.desiredWeightChangeKg,
+                                            userProfile.desiredFatMassChangeKg,
+                                            userProfile.desiredMuscleMassChangeKg
+                                        )}
                                     </p>
+                                    <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
+                                        <div 
+                                            className="bg-primary h-full rounded-full transition-all duration-500" 
+                                            style={{ 
+                                                width: `${calculateProgressPercentage(
+                                                    userProfile.measurementMethod,
+                                                    userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                                    userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                                    userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                                    userProfile.mainGoalCompleted
+                                                )}%` 
+                                            }}
+                                        ></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -817,13 +914,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                         onLogCommonMeal={handleCommonMealLog}
                         onDeleteCommonMeal={handleDeleteCommonMeal}
                         onUpdateCommonMeal={handleUpdateCommonMeal}
+                        onShowRating={(nutritionalInfo) => {
+                            setFoodRatingData({ nutritionalInfo, mealType: 'snack' }); // default to snack for rating display
+                            setShowFoodRatingModal(true);
+                        }}
                         disabled={!isEditableView}
                     />
 
-                    {/* Meal Sections */}
+                    {/* Meal Sections (Matlogg) */}
                     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-xl font-bold text-neutral-dark">Kalorifördelning</h3>
+                            <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <MealSectionCard 
@@ -882,19 +983,25 @@ const Dashboard: React.FC<DashboardProps> = ({
             {/* Backdrop for Speed Dial */}
             {isEditableView && isSpeedDialOpen && (
                 <div 
-                    className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[100] animate-fade-in"
+                    className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[40] animate-fade-in"
                     onClick={() => setIsSpeedDialOpen(false)}
                 />
             )}
 
             {/* Floating Action Button (FAB) */}
             {isEditableView && !isAICoachOpen && !isProfileOpen && !isMorningReportOpen && (
-                <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
+                <div className="fixed bottom-6 right-6 z-[50] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                             <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fråga {coachName}</span>
-                                <div className="w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"><SparklesIcon className="w-6 h-6" /></div>
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Chatta med {coachName}</span>
+                                <div className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white overflow-hidden border-2 border-primary">
+                                    {coachPersona.imageUrl ? (
+                                        <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-xl">{coachPersona.emoji}</span>
+                                    )}
+                                </div>
                             </button>
                             <button onClick={handleTakePhoto} className="flex items-center gap-3">
                                 <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fota mat</span>
@@ -916,10 +1023,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                     )}
                     <button 
                         onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
-                        className={`pointer-events-auto w-16 h-16 rounded-full shadow-soft-xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 ${isSpeedDialOpen ? 'bg-neutral-dark text-white rotate-45' : 'bg-primary text-white'}`}
+                        className={`pointer-events-auto w-16 h-16 rounded-full shadow-soft-xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 ${isSpeedDialOpen ? 'bg-neutral-dark text-white border-neutral-dark rotate-45' : 'bg-white border-primary'}`}
                         aria-label="Lägg till"
                     >
-                        <PlusIcon className="w-8 h-8" />
+                        {isSpeedDialOpen ? (
+                            <PlusIcon className="w-8 h-8" />
+                        ) : coachPersona.imageUrl ? (
+                            <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-full h-full object-cover" />
+                        ) : (
+                            <span className="text-3xl">{coachPersona.emoji}</span>
+                        )}
                     </button>
                 </div>
             )}
@@ -1044,6 +1157,15 @@ const Dashboard: React.FC<DashboardProps> = ({
             {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
             {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => setShowNutritionLabelResultModal(false)} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            {showFoodRatingModal && foodRatingData && userProfile && (
+                <FoodRatingModal 
+                    show={showFoodRatingModal} 
+                    onClose={() => setShowFoodRatingModal(false)} 
+                    nutritionalInfo={foodRatingData.nutritionalInfo} 
+                    mealType={foodRatingData.mealType} 
+                    userProfile={userProfile} 
+                />
+            )}
             
             {appStatus !== 'idle' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
         </div>

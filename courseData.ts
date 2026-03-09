@@ -5,7 +5,7 @@ export const courseLessons: CourseLesson[] = [
     id: 'lektion1',
     title: 'Lektion 1 – Din resa börjar här',
     introduction: 'Välkommen till din första lektion i Praktisk Viktkontroll – och starten på något viktigt. Den här veckan handlar inte om perfektion, utan om att börja. Små steg i rätt riktning bygger stora förändringar.',
-    detailedText: 'För att lyckas långsiktigt behöver du förstå varför du vill göra en förändring. Är det för att känna dig piggare? Bli starkare? Få på dig favoritjeansen igen? Eller något helt annat? Ditt personliga varför hjälper dig att hålla kursen – även när motivationen tryter. Skriv gärna ner det direkt i Kostloggen, antingen i loggen eller genom att skicka det till din coach i chatten. Det är ett första kraftfullt steg.\nSätt ett mål som känns realistiskt och viktigt för dig. Använd gärna SMART-modellen för att formulera det: Specifikt – Vad vill du uppnå? Mätbart – Hur vet du att du gör framsteg? Accepterat – Är det viktigt för dig personligen? Realistiskt – Är det genomförbart i din vardag? Tidsbundet – När vill du ha nått dit?\nExempel: “Jag vill minska 6 kg fett på 12 veckor genom att följa mitt kostprogram och träna tre gånger i veckan.” Du kan också skriva in ditt mål i appen – eller skicka det till coachen i chatten för pepp, återkoppling eller bara för att hålla dig själv ansvarig.\nBörja logga det du äter i Kostloggen varje dag. Du behöver inte ändra allt direkt – men att bli medveten om dina vanor är ett kraftfullt steg. Du kan när som helst skriva till coachen: “Hur ser min vecka ut?”, “Hur ser mitt proteinintag ut?” eller “Vad har jag gjort bra?” Det ger dig direkt feedback, statistik och motivation att fortsätta.',
+    detailedText: 'För att lyckas långsiktigt behöver du förstå varför du vill göra en förändring. Är det för att känna dig piggare? Bli starkare? Få på dig favoritjeansen igen? Eller något helt annat? Ditt personliga varför hjälper dig att hålla kursen – även när motivationen tryter. Skriv gärna ner det direkt i Kostloggen, antingen i loggen eller genom att skriva ner det i rutan här nedanför. Det är ett första kraftfullt steg.\nSätt ett mål som känns realistiskt och viktigt för dig. Använd gärna SMART-modellen för att formulera det: Specifikt – Vad vill du uppnå? Mätbart – Hur vet du att du gör framsteg? Accepterat – Är det viktigt för dig personligen? Realistiskt – Är det genomförbart i din vardag? Tidsbundet – När vill du ha nått dit?\nExempel: “Jag vill minska 6 kg fett på 12 veckor genom att följa mitt kostprogram och träna tre gånger i veckan.” Du kan också skriva in ditt mål i appen – eller skriva in det i rutan här nedanför för pepp och återkoppling från din coach, eller bara för att hålla dig själv ansvarig.\nBörja logga det du äter i Kostloggen varje dag. Du behöver inte ändra allt direkt – men att bli medveten om dina vanor är ett kraftfullt steg. Du kan när som helst skriva till coachen: “Hur ser min vecka ut?”, “Hur ser mitt proteinintag ut?” eller “Vad har jag gjort bra?” Det ger dig direkt feedback, statistik och motivation att fortsätta.',
     focusPoints: [
       { id: 'l1fp1', text: 'Skriv ner ditt "Varför".' },
       { id: 'l1fp2', text: 'Formulera ett SMART-mål.' },
@@ -16,7 +16,7 @@ export const courseLessons: CourseLesson[] = [
     specialAction: {
       type: 'writeWhy',
       prompt: 'Ditt Varför & SMART-mål',
-      description: '1. Skriv ner ditt varför. 2. Formulera ett SMART-mål som du kan följa under kursen. 3. Dela det med coachen i chatten om du vill – det är ett första steg mot hållbar förändring.'
+      description: '1. Skriv ner ditt varför. 2. Formulera ett SMART-mål som du kan följa under kursen. 3. Skriv ner det i rutan här nedanför – din coach läser det och det är ett första steg mot hållbar förändring.'
     }
   },
   {
@@ -30,7 +30,7 @@ export const courseLessons: CourseLesson[] = [
       { id: 'l2fp3', text: 'Identifiera en vana att förbättra baserat på din matlogg.' }
     ],
     tips: [{ id: 'l2t1', text: 'Tallriksmodellen är ett bra verktyg när du vill äta balanserat: Hälften grönsaker, en fjärdedel protein, en fjärdedel kolhydrater. Drick gärna vatten till måltiden – och logga det också i appen.' }],
-    reflection: { id: 'l2r1', question: 'Vad fungerade bra för dig under förra veckan? Vad vill du justera nu för att komma ännu ett steg närmare ditt mål? Du kan skriva dina tankar direkt till coachen i chatten – och få personlig återkoppling.' }
+    reflection: { id: 'l2r1', question: 'Vad fungerade bra för dig under förra veckan? Vad vill du justera nu för att komma ännu ett steg närmare ditt mål? Skriv dina tankar i rutan här nedanför så får du personlig återkoppling från din coach.' }
   },
   {
     id: 'lektion3',
@@ -43,7 +43,7 @@ export const courseLessons: CourseLesson[] = [
       { id: 'l3fp3', text: 'Identifiera triggers som leder till överätande.' },
       { id: 'l3fp4', text: 'Testa att lägga till lite rörelse som höjer pulsen.' }
     ],
-    tips: [{ id: 'l3t1', text: 'Om du är osäker kan du be coachen i appen att hjälpa dig tolka mönster i din logg. Vill du ha tips på pass eller rörelseformer kan du fråga coachen direkt i chatten.' }],
+    tips: [{ id: 'l3t1', text: 'Om du är osäker kan du be coachen i appen att hjälpa dig tolka mönster i din logg. Vill du ha tips på pass eller rörelseformer kan du fråga din coach direkt i appen.' }],
     reflection: { id: 'l3r1', question: 'Hur kändes det att äta långsamt? Märkte du tydligare när du blev mätt? Vad upptäckte du om dina matvanor under veckan?' }
   },
   {
