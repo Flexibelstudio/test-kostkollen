@@ -486,6 +486,48 @@ export interface CoachViewMember {
   courseInterest?: boolean;
 }
 
+// --- Chat & Community Types ---
+
+export type ChatType = 'coach_group' | 'private_group' | 'public_room' | 'direct';
+
+export type NotificationLevel = 'all' | 'mentions' | 'mute';
+
+export interface ChatMemberSettings {
+  notificationLevel: NotificationLevel;
+  lastReadTimestamp: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  senderPhotoURL?: string;
+  text: string;
+  timestamp: number;
+  mentions?: string[]; // Array of userIds
+}
+
+export interface Chat {
+  id: string;
+  type: ChatType;
+  name?: string;
+  description?: string;
+  avatarUrl?: string;
+  members: string[]; // Array of userIds
+  admins: string[]; // Array of userIds
+  memberSettings: {
+    [userId: string]: ChatMemberSettings;
+  };
+  lastMessage?: {
+    text: string;
+    timestamp: number;
+    senderId: string;
+  };
+  createdAt: number;
+  createdBy: string;
+}
+
 // --- Community & Social Types ---
 
 export interface Peppkompis {

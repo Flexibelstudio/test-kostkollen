@@ -27,6 +27,7 @@ import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIco
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 import Lightbox from './Lightbox';
+import { ChatRoomsView } from './ChatRoomsView';
 
 // --- HELPER FUNCTIONS ---
 
@@ -992,7 +993,7 @@ export const CommunityView: React.FC<{
   achievements: Achievement[];
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
   pendingRequestsCount: number;
-  initialTab?: 'flode' | 'hantera';
+  initialTab?: 'flode' | 'hantera' | 'chatt';
   initialSubTab?: 'buddies' | 'search' | 'requests';
   highlightEventId?: string | null;
   timelineEvents: TimelineEvent[];
@@ -1019,7 +1020,7 @@ export const CommunityView: React.FC<{
   lastViewTimestamp,
   currentStreak
 }) => {
-  const [activeTab, setActiveTab] = useState<'flode' | 'hantera'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
   
   // Real-time & Pagination State
@@ -1224,6 +1225,7 @@ export const CommunityView: React.FC<{
     const tabs = [
         { key: 'flode', label: 'Flöde', notificationCount: newEventsCount },
         { key: 'hantera', label: 'Kompisar', notificationCount: pendingRequestsCount },
+        { key: 'chatt', label: 'Chatt', notificationCount: 0 },
     ];
     
     const TabButton: FC<{ tab: typeof tabs[0], isActive: boolean, onClick: () => void }> = ({ tab, isActive, onClick }) => (
@@ -1309,6 +1311,15 @@ export const CommunityView: React.FC<{
                             buddyDetails={buddyDetails}
                             achievements={achievements}
                             initialTab={initialSubTab}
+                        />
+                    </div>
+                )}
+                {activeTab === 'chatt' && (
+                    <div className="max-w-4xl mx-auto w-full h-full">
+                        <ChatRoomsView 
+                            currentUser={currentUser}
+                            userProfile={userProfile}
+                            setToastNotification={setToastNotification}
                         />
                     </div>
                 )}
