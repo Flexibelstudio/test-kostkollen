@@ -37,6 +37,7 @@ export const createChat = async (
     };
   });
 
+  const now = Date.now();
   const chatData: Omit<Chat, 'id'> = {
     type,
     name,
@@ -44,8 +45,13 @@ export const createChat = async (
     members,
     admins: [creatorId],
     memberSettings,
-    createdAt: Date.now(),
-    createdBy: creatorId
+    createdAt: now,
+    createdBy: creatorId,
+    lastMessage: {
+      text: 'Chatten skapades',
+      timestamp: now,
+      senderId: 'system'
+    }
   };
 
   const chatRef = await addDoc(collection(db, 'chats'), chatData);
@@ -59,10 +65,11 @@ export const subscribeToUserChats = (
   callback: (chats: Chat[]) => void
 ) => {
   // Query 1: Chats where user is a member
+  // We remove orderBy here to avoid requiring a composite index in Firestore.
+  // We will sort the results in memory instead.
   const memberQuery = query(
     collection(db, 'chats'),
-    where('members', 'array-contains', userId),
-    orderBy('lastMessage.timestamp', 'desc')
+    where('members', 'array-contains', userId)
   );
 
   return onSnapshot(memberQuery, (snapshot) => {
@@ -70,6 +77,14 @@ export const subscribeToUserChats = (
     snapshot.forEach(doc => {
       chats.push({ id: doc.id, ...doc.data() } as Chat);
     });
+    
+    // Sort in memory (newest first)
+    chats.sort((a, b) => {
+      const timeA = a.lastMessage?.timestamp || a.createdAt;
+      const timeB = b.lastMessage?.timestamp || b.createdAt;
+      return timeB - timeA;
+    });
+    
     callback(chats);
   });
 };
@@ -77,10 +92,10 @@ export const subscribeToUserChats = (
 export const subscribeToPublicRooms = (
   callback: (chats: Chat[]) => void
 ) => {
+  // Remove orderBy to avoid composite index requirement
   const publicQuery = query(
     collection(db, 'chats'),
-    where('type', '==', 'public_room'),
-    orderBy('createdAt', 'desc')
+    where('type', '==', 'public_room')
   );
 
   return onSnapshot(publicQuery, (snapshot) => {
@@ -88,6 +103,10 @@ export const subscribeToPublicRooms = (
     snapshot.forEach(doc => {
       chats.push({ id: doc.id, ...doc.data() } as Chat);
     });
+    
+    // Sort in memory (newest first)
+    chats.sort((a, b) => b.createdAt - a.createdAt);
+    
     callback(chats);
   });
 };
