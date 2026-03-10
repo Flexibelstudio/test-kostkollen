@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { UserProfileData, Chat, ChatMessage, Peppkompis } from '../types';
-import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings } from '../services/chatService';
+import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
-import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon } from './icons';
+import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon } from 'lucide-react';
 import { searchForBuddies } from '../services/firestoreService';
 
@@ -11,9 +11,10 @@ interface ChatRoomsViewProps {
     currentUser: User;
     userProfile: UserProfileData;
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+    buddyDetails: BuddyDetails[];
 }
 
-export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userProfile, setToastNotification }) => {
+export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userProfile, setToastNotification, buddyDetails }) => {
     const [activeTab, setActiveTab] = useState<'my_chats' | 'discover'>('my_chats');
     const [myChats, setMyChats] = useState<Chat[]>([]);
     const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
@@ -47,6 +48,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                 userProfile={userProfile} 
                 onBack={() => setSelectedChat(null)} 
                 setToastNotification={setToastNotification}
+                buddyDetails={buddyDetails}
             />
         );
     }
@@ -62,6 +64,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                     setSelectedChat(chat);
                 }}
                 setToastNotification={setToastNotification}
+                buddyDetails={buddyDetails}
             />
         );
     }
@@ -185,11 +188,14 @@ const ChatWindow: React.FC<{
     currentUser: User, 
     userProfile: UserProfileData, 
     onBack: () => void,
-    setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void
-}> = ({ chat, currentUser, userProfile, onBack, setToastNotification }) => {
+    setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void,
+    buddyDetails?: BuddyDetails[]
+}> = ({ chat, currentUser, userProfile, onBack, setToastNotification, buddyDetails = [] }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [showSettings, setShowSettings] = useState(false);
+    const [isAddingMembers, setIsAddingMembers] = useState(false);
+    const [selectedBuddies, setSelectedBuddies] = useState<string[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -234,7 +240,76 @@ const ChatWindow: React.FC<{
         }
     };
 
+    const handleAddMembers = async () => {
+        if (selectedBuddies.length === 0) return;
+        try {
+            await addMembersToChat(chat.id, selectedBuddies);
+            setToastNotification({ message: 'Kompisar tillagda!', type: 'success' });
+            setIsAddingMembers(false);
+            setSelectedBuddies([]);
+        } catch (error) {
+            setToastNotification({ message: 'Kunde inte lägga till kompisar.', type: 'error' });
+        }
+    };
+
+    const toggleBuddy = (uid: string) => {
+        setSelectedBuddies(prev => 
+            prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
+        );
+    };
+
     const currentSetting = chat.memberSettings[currentUser.uid]?.notificationLevel || 'all';
+    
+    // Filter out buddies that are already in the chat
+    const availableBuddies = buddyDetails.filter(b => !chat.members.includes(b.uid));
+
+    if (isAddingMembers) {
+        return (
+            <div className="flex flex-col h-full bg-white">
+                <div className="flex items-center gap-3 p-4 border-b border-neutral-light">
+                    <button onClick={() => setIsAddingMembers(false)} className="p-2 -ml-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
+                        <ChevronLeftIcon className="w-6 h-6" />
+                    </button>
+                    <h2 className="text-xl font-bold text-neutral-dark">Lägg till kompisar</h2>
+                </div>
+                <div className="p-4 flex-grow overflow-y-auto">
+                    {availableBuddies.length > 0 ? (
+                        <div className="space-y-2">
+                            {availableBuddies.map(buddy => (
+                                <div 
+                                    key={buddy.uid} 
+                                    onClick={() => toggleBuddy(buddy.uid)}
+                                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors border ${selectedBuddies.includes(buddy.uid) ? 'bg-primary-50 border-primary' : 'border-neutral-light hover:bg-gray-50'}`}
+                                >
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedBuddies.includes(buddy.uid)}
+                                        readOnly
+                                        className="w-5 h-5 text-primary rounded focus:ring-primary"
+                                    />
+                                    <Avatar photoURL={buddy.photoURL} size={40} />
+                                    <span className="font-bold text-neutral-dark">{buddy.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-10">
+                            <p className="text-neutral-dark font-medium">Alla dina kompisar är redan med i chatten.</p>
+                        </div>
+                    )}
+                </div>
+                <div className="p-4 border-t border-neutral-light">
+                    <button 
+                        onClick={handleAddMembers}
+                        disabled={selectedBuddies.length === 0}
+                        className="w-full py-3 bg-primary text-white font-bold rounded-lg disabled:opacity-50 hover:bg-primary-darker transition-colors"
+                    >
+                        Lägg till ({selectedBuddies.length})
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full bg-neutral-light/30">
@@ -249,23 +324,30 @@ const ChatWindow: React.FC<{
                         <p className="text-xs text-neutral">{chat.members.length} medlemmar</p>
                     </div>
                 </div>
-                <div className="relative">
-                    <button onClick={() => setShowSettings(!showSettings)} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
-                        {currentSetting === 'mute' ? <BellOffIcon className="w-5 h-5" /> : currentSetting === 'mentions' ? <AtSignIcon className="w-5 h-5" /> : <BellIcon className="w-5 h-5" />}
-                    </button>
-                    {showSettings && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-neutral-light py-1 z-20">
-                            <button onClick={() => handleSettingChange('all')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'all' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
-                                <BellIcon className="w-4 h-4" /> Alla meddelanden
-                            </button>
-                            <button onClick={() => handleSettingChange('mentions')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'mentions' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
-                                <AtSignIcon className="w-4 h-4" /> Endast @mentions
-                            </button>
-                            <button onClick={() => handleSettingChange('mute')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'mute' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
-                                <BellOffIcon className="w-4 h-4" /> Stör ej (Mute)
-                            </button>
-                        </div>
+                <div className="flex items-center gap-1">
+                    {chat.type !== 'public_room' && availableBuddies.length > 0 && (
+                        <button onClick={() => setIsAddingMembers(true)} className="p-2 text-neutral hover:text-primary rounded-full hover:bg-primary-50 transition-colors" title="Lägg till kompisar">
+                            <UserPlusIcon className="w-5 h-5" />
+                        </button>
                     )}
+                    <div className="relative">
+                        <button onClick={() => setShowSettings(!showSettings)} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
+                            {currentSetting === 'mute' ? <BellOffIcon className="w-5 h-5" /> : currentSetting === 'mentions' ? <AtSignIcon className="w-5 h-5" /> : <BellIcon className="w-5 h-5" />}
+                        </button>
+                        {showSettings && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-neutral-light py-1 z-20">
+                                <button onClick={() => handleSettingChange('all')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'all' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
+                                    <BellIcon className="w-4 h-4" /> Alla meddelanden
+                                </button>
+                                <button onClick={() => handleSettingChange('mentions')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'mentions' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
+                                    <AtSignIcon className="w-4 h-4" /> Endast @mentions
+                                </button>
+                                <button onClick={() => handleSettingChange('mute')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'mute' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
+                                    <BellOffIcon className="w-4 h-4" /> Stör ej (Mute)
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -357,11 +439,13 @@ const CreateGroupView: React.FC<{
     onBack: () => void;
     onGroupCreated: (chat: Chat) => void;
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
-}> = ({ currentUser, userProfile, onBack, onGroupCreated, setToastNotification }) => {
+    buddyDetails: BuddyDetails[];
+}> = ({ currentUser, userProfile, onBack, onGroupCreated, setToastNotification, buddyDetails }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [isPublic, setIsPublic] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [selectedBuddies, setSelectedBuddies] = useState<string[]>([]);
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -379,7 +463,7 @@ const CreateGroupView: React.FC<{
                 name.trim(),
                 description.trim(),
                 currentUser.uid,
-                [] // Initial members (could add a buddy selector here)
+                selectedBuddies
             );
 
             // We don't have the full chat object immediately, but the subscription will pick it up.
@@ -392,6 +476,12 @@ const CreateGroupView: React.FC<{
         }
     };
 
+    const toggleBuddy = (uid: string) => {
+        setSelectedBuddies(prev => 
+            prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
+        );
+    };
+
     return (
         <div className="flex flex-col h-full bg-white">
             <div className="flex items-center gap-3 p-4 border-b border-neutral-light">
@@ -400,7 +490,7 @@ const CreateGroupView: React.FC<{
                 </button>
                 <h2 className="text-xl font-bold text-neutral-dark">Skapa ny grupp</h2>
             </div>
-            <form onSubmit={handleCreate} className="p-4 space-y-4">
+            <form onSubmit={handleCreate} className="p-4 space-y-4 overflow-y-auto">
                 <div>
                     <label className="block text-sm font-medium text-neutral-dark mb-1">Gruppnamn</label>
                     <input 
@@ -435,6 +525,31 @@ const CreateGroupView: React.FC<{
                         <span className="text-neutral">Alla i appen kan se och gå med i detta rum.</span>
                     </label>
                 </div>
+
+                {!isPublic && buddyDetails.length > 0 && (
+                    <div className="mt-4">
+                        <label className="block text-sm font-medium text-neutral-dark mb-2">Bjud in kompisar</label>
+                        <div className="space-y-2 max-h-48 overflow-y-auto border border-neutral-light rounded-lg p-2">
+                            {buddyDetails.map(buddy => (
+                                <div 
+                                    key={buddy.uid} 
+                                    onClick={() => toggleBuddy(buddy.uid)}
+                                    className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${selectedBuddies.includes(buddy.uid) ? 'bg-primary-100' : 'hover:bg-gray-50'}`}
+                                >
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedBuddies.includes(buddy.uid)}
+                                        readOnly
+                                        className="w-4 h-4 text-primary rounded focus:ring-primary"
+                                    />
+                                    <Avatar photoURL={buddy.photoURL} size={32} />
+                                    <span className="font-medium text-sm text-neutral-dark">{buddy.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <button 
                     type="submit"
                     disabled={!name.trim() || isSubmitting}

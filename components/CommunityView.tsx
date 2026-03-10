@@ -1243,7 +1243,7 @@ export const CommunityView: React.FC<{
                 </nav>
             </header>
             
-            <main className="flex-grow overflow-y-auto bg-transparent">
+            <main className={`flex-grow bg-transparent ${activeTab === 'chatt' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
                 {activeTab === 'flode' && (
                     <div className="p-2 sm:p-4 max-w-2xl mx-auto w-full">
                         <CreatePostWidget 
@@ -1320,6 +1320,7 @@ export const CommunityView: React.FC<{
                             currentUser={currentUser}
                             userProfile={userProfile}
                             setToastNotification={setToastNotification}
+                            buddyDetails={buddyDetails}
                         />
                     </div>
                 )}

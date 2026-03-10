@@ -162,6 +162,23 @@ export const sendMessage = async (
   });
 };
 
+export const addMembersToChat = async (chatId: string, userIds: string[]) => {
+  const chatRef = doc(db, 'chats', chatId);
+  
+  const updates: Record<string, any> = {
+    members: arrayUnion(...userIds)
+  };
+
+  userIds.forEach(uid => {
+    updates[`memberSettings.${uid}`] = {
+      notificationLevel: 'all',
+      lastReadTimestamp: Date.now()
+    };
+  });
+
+  await updateDoc(chatRef, updates);
+};
+
 export const joinPublicRoom = async (chatId: string, userId: string) => {
   const chatRef = doc(db, 'chats', chatId);
   await updateDoc(chatRef, {
