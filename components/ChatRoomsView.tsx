@@ -4,7 +4,7 @@ import { UserProfileData, Chat, ChatMessage, Peppkompis } from '../types';
 import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
-import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon } from 'lucide-react';
+import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon } from 'lucide-react';
 import { searchForBuddies } from '../services/firestoreService';
 
 interface ChatRoomsViewProps {
@@ -158,7 +158,12 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
             </div>
             <div className="flex-grow min-w-0">
                 <div className="flex justify-between items-baseline">
-                    <h3 className="font-bold text-neutral-dark truncate pr-2">{chat.name || 'Gruppchatt'}</h3>
+                    <div className="flex items-center gap-1.5 truncate pr-2">
+                        {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
+                         chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
+                         chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-primary flex-shrink-0" /> : null}
+                        <h3 className="font-bold text-neutral-dark truncate">{chat.name || 'Gruppchatt'}</h3>
+                    </div>
                     {chat.lastMessage && (
                         <span className="text-xs text-neutral flex-shrink-0">
                             {new Date(chat.lastMessage.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -320,12 +325,17 @@ const ChatWindow: React.FC<{
                         <ChevronLeftIcon className="w-6 h-6" />
                     </button>
                     <div>
-                        <h2 className="font-bold text-neutral-dark leading-tight">{chat.name || 'Gruppchatt'}</h2>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                            {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-neutral flex-shrink-0" /> : 
+                             chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-neutral flex-shrink-0" /> : 
+                             chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
+                            <h2 className="font-bold text-neutral-dark leading-tight">{chat.name || 'Gruppchatt'}</h2>
+                        </div>
                         <p className="text-xs text-neutral">{chat.members.length} medlemmar</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
-                    {chat.type !== 'public_room' && availableBuddies.length > 0 && (
+                    {availableBuddies.length > 0 && (
                         <button onClick={() => setIsAddingMembers(true)} className="p-2 text-neutral hover:text-primary rounded-full hover:bg-primary-50 transition-colors" title="Lägg till kompisar">
                             <UserPlusIcon className="w-5 h-5" />
                         </button>
