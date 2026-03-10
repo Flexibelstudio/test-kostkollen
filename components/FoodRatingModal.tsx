@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { NutritionalInfo, UserProfile, MealType } from '../types';
+import { NutritionalInfo, UserProfileData, MealType } from '../types';
 import { COACH_PERSONAS } from '../constants';
 import { CheckCircleIcon, XMarkIcon, SmileIcon, MehIcon, FrownIcon } from './icons';
 
@@ -8,7 +8,7 @@ interface FoodRatingModalProps {
   onClose: () => void;
   nutritionalInfo: NutritionalInfo;
   mealType: MealType;
-  userProfile: UserProfile;
+  userProfile: UserProfileData;
 }
 
 const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutritionalInfo, mealType, userProfile }) => {
