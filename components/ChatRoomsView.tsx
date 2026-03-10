@@ -352,7 +352,7 @@ const ChatWindow: React.FC<{
             </div>
 
             {/* Messages */}
-            <div className="flex-grow overflow-y-auto p-4 space-y-4">
+            <div className="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-4">
                 {messages.map((msg, index) => {
                     const isMe = msg.senderId === currentUser.uid;
                     const showHeader = index === 0 || messages[index - 1].senderId !== msg.senderId || (msg.timestamp - messages[index - 1].timestamp > 5 * 60 * 1000);
@@ -404,12 +404,12 @@ const ChatWindow: React.FC<{
             {/* Input */}
             <div className="flex-shrink-0 bg-white border-t border-neutral-light p-3 pb-safe">
                 <form onSubmit={handleSend} className="flex items-end gap-2">
-                    <div className="flex-grow bg-neutral-light/50 rounded-2xl border border-neutral-light focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+                    <div className="flex-grow bg-neutral-light/50 rounded-2xl border border-neutral-light focus-within:border-primary transition-all">
                         <textarea 
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             placeholder="Skriv ett meddelande..."
-                            className="w-full bg-transparent border-none focus:ring-0 resize-none max-h-32 py-2.5 px-4 text-[15px]"
+                            className="w-full bg-transparent border-none focus:ring-0 focus:outline-none resize-none max-h-32 py-2.5 px-4 text-[15px]"
                             rows={1}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
