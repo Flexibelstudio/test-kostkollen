@@ -232,6 +232,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         setPastDaysSummary,
         streakData,
         setStreakData,
+        highestStreak,
+        setHighestStreak,
         weeklyBank,
         currentDate,
         isInitialDataLoaded,
@@ -469,8 +471,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             if (isYesterday) {
                 setStreakData(prev => ({ ...prev, currentStreak: newStreak }));
+                const userUpdates: any = { currentStreak: newStreak };
+                if (newStreak > highestStreak) {
+                    userUpdates.highestStreak = newStreak;
+                    setHighestStreak(newStreak);
+                }
                 try {
-                    await updateUserDocument(currentUser.uid, { currentStreak: newStreak });
+                    await updateUserDocument(currentUser.uid, userUpdates);
                 } catch(e) {
                     console.error("Failed to update user currentStreak", e);
                 }

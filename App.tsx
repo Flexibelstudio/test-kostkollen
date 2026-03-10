@@ -288,6 +288,7 @@ export const App = () => {
     weeklyBank, setWeeklyBank,
     streakSaver,
     highestStreak,
+    setHighestStreak,
     highestLevelId,
     unlockedAchievements,
     setUnlockedAchievements,
@@ -1228,6 +1229,11 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             lastDateStreakChecked: yesterdayUID
         };
 
+        if (finalNewStreak > highestStreak) {
+            userUpdates.highestStreak = finalNewStreak;
+            setHighestStreak(finalNewStreak);
+        }
+
         if (bankedAmount > 0) {
             userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
             const newBank = {
@@ -1639,7 +1645,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 setViewingDate={setViewingDate}
                 currentDate={currentDate}
                 initialTab={journeyInitialTab}
-                highestStreak={streakData.currentStreak} 
+                highestStreak={highestStreak} 
                 highestLevelId={highestLevelId}
                 minSafeCalories={minSafeCalories}
                 setToastNotification={setToastNotification}
