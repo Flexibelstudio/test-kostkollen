@@ -96,7 +96,7 @@ export const COACH_PERSONAS = {
     description: 'För dig som behöver en spark i baken.',
     emoji: '🪖',
     imageUrl: '/coach-borje.png',
-    voice: 'Charon',
+    voice: 'Fenrir',
     promptTone: 'Du heter "Börje". Du är auktoritär, rakt på sak och kör med "tough love". Inga ursäkter accepteras. Korta meningar. VERSALER ibland för betoning. Använd emojis som 💥, 🛑, 🫡.'
   }
 };
