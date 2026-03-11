@@ -70,7 +70,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
     }
 
     return (
-        <div className="flex flex-col h-full bg-neutral-light/30">
+        <div className="flex flex-col flex-grow h-full bg-neutral-light/30">
             <div className="flex-shrink-0 bg-white border-b border-neutral-light p-4">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-bold text-primary-darker">Chattar</h2>
@@ -151,37 +151,32 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
     return (
         <div 
             onClick={onClick}
-            className="bg-white p-3 rounded-xl shadow-sm border border-neutral-light flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors"
+            className="bg-white p-4 rounded-xl shadow-sm border border-neutral-light flex flex-col gap-1 cursor-pointer hover:bg-gray-50 transition-colors"
         >
-            <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-darker font-bold text-lg flex-shrink-0">
-                {chat.name ? chat.name.charAt(0).toUpperCase() : <UsersIcon className="w-6 h-6" />}
+            <div className="flex justify-between items-start">
+                <div className="flex items-center gap-2 min-w-0 pr-2">
+                    <h3 className="font-bold text-neutral-dark truncate text-[17px]">{chat.name || 'Gruppchatt'}</h3>
+                    {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-blue-500 flex-shrink-0" /> : 
+                     chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-orange-400 flex-shrink-0" /> : 
+                     chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
+                </div>
+                {chat.lastMessage && (
+                    <span className="text-xs text-neutral flex-shrink-0 mt-1">
+                        {new Date(chat.lastMessage.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                )}
             </div>
-            <div className="flex-grow min-w-0">
-                <div className="flex justify-between items-baseline">
-                    <div className="flex items-center gap-1.5 truncate pr-2">
-                        {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
-                         chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
-                         chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-primary flex-shrink-0" /> : null}
-                        <h3 className="font-bold text-neutral-dark truncate">{chat.name || 'Gruppchatt'}</h3>
-                    </div>
-                    {chat.lastMessage && (
-                        <span className="text-xs text-neutral flex-shrink-0">
-                            {new Date(chat.lastMessage.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <div className="flex justify-between items-center">
+                <p className="text-sm text-neutral truncate pr-2">
+                    {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : chat.lastMessage.senderName || 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
+                </p>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    {isMuted && <BellOffIcon className="w-3.5 h-3.5 text-neutral" />}
+                    {unreadCount > 0 && (
+                        <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                            {unreadCount}
                         </span>
                     )}
-                </div>
-                <div className="flex justify-between items-center mt-0.5">
-                    <p className="text-sm text-neutral truncate pr-2">
-                        {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
-                    </p>
-                    <div className="flex items-center gap-1">
-                        {isMuted && <BellOffIcon className="w-3 h-3 text-neutral" />}
-                        {unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                                {unreadCount}
-                            </span>
-                        )}
-                    </div>
                 </div>
             </div>
         </div>
@@ -270,7 +265,7 @@ const ChatWindow: React.FC<{
 
     if (isAddingMembers) {
         return (
-            <div className="flex flex-col h-full bg-white">
+            <div className="flex flex-col flex-grow h-full bg-white">
                 <div className="flex items-center gap-3 p-4 border-b border-neutral-light">
                     <button onClick={() => setIsAddingMembers(false)} className="p-2 -ml-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
                         <ChevronLeftIcon className="w-6 h-6" />
@@ -317,7 +312,7 @@ const ChatWindow: React.FC<{
     }
 
     return (
-        <div className="flex flex-col h-full bg-neutral-light/30">
+        <div className="flex flex-col flex-grow h-full bg-neutral-light/30">
             {/* Header */}
             <div className="flex-shrink-0 bg-white border-b border-neutral-light p-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -412,14 +407,14 @@ const ChatWindow: React.FC<{
             </div>
 
             {/* Input */}
-            <div className="flex-shrink-0 bg-white border-t border-neutral-light p-3 pb-safe">
+            <div className="flex-shrink-0 bg-white border-t border-neutral-light p-3">
                 <form onSubmit={handleSend} className="flex items-end gap-2">
-                    <div className="flex-grow bg-neutral-light/50 rounded-2xl border border-neutral-light focus-within:border-primary transition-all">
+                    <div className="flex-grow bg-gray-100 rounded-2xl border border-transparent focus-within:border-primary focus-within:bg-white transition-all overflow-hidden">
                         <textarea 
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             placeholder="Skriv ett meddelande..."
-                            className="w-full bg-transparent border-none focus:ring-0 focus:outline-none resize-none max-h-32 py-2.5 px-4 text-[15px]"
+                            className="w-full bg-transparent border-none focus:ring-0 focus:outline-none appearance-none resize-none max-h-32 py-3 px-4 text-[15px] m-0 block"
                             rows={1}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -433,7 +428,7 @@ const ChatWindow: React.FC<{
                     <button 
                         type="submit" 
                         disabled={!newMessage.trim()}
-                        className="p-3 bg-primary text-white rounded-full disabled:opacity-50 disabled:bg-neutral hover:bg-primary-darker transition-colors flex-shrink-0"
+                        className="p-3 bg-primary text-white rounded-full disabled:opacity-50 disabled:bg-neutral hover:bg-primary-darker transition-colors flex-shrink-0 mb-0.5"
                     >
                         <svg className="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                     </button>
@@ -493,7 +488,7 @@ const CreateGroupView: React.FC<{
     };
 
     return (
-        <div className="flex flex-col h-full bg-white">
+        <div className="flex flex-col flex-grow h-full bg-white">
             <div className="flex items-center gap-3 p-4 border-b border-neutral-light">
                 <button onClick={onBack} className="p-2 -ml-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
                     <ChevronLeftIcon className="w-6 h-6" />

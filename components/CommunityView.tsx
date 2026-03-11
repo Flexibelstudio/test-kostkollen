@@ -1315,7 +1315,7 @@ export const CommunityView: React.FC<{
                     </div>
                 )}
                 {activeTab === 'chatt' && (
-                    <div className="max-w-4xl mx-auto w-full h-full">
+                    <div className="max-w-4xl mx-auto w-full flex-grow flex flex-col">
                         <ChatRoomsView 
                             currentUser={currentUser}
                             userProfile={userProfile}

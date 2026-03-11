@@ -157,7 +157,8 @@ export const sendMessage = async (
     lastMessage: {
       text,
       timestamp,
-      senderId
+      senderId,
+      senderName
     }
   });
 };

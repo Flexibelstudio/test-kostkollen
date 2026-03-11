@@ -523,6 +523,7 @@ export interface Chat {
     text: string;
     timestamp: number;
     senderId: string;
+    senderName?: string;
   };
   createdAt: number;
   createdBy: string;
