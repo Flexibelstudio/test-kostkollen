@@ -356,7 +356,7 @@ const ChatWindow: React.FC<{
         return buddy ? buddy.name : 'Någon';
     }, [chat.createdBy, currentUser.uid, buddyDetails]);
 
-    const [messageLimit, setMessageLimit] = useState(50);
+    const [messageLimit, setMessageLimit] = useState(20);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const [initialScrollDone, setInitialScrollDone] = useState(false);
     const [prevScrollHeight, setPrevScrollHeight] = useState(0);
@@ -374,8 +374,14 @@ const ChatWindow: React.FC<{
     // Handle initial scroll
     useEffect(() => {
         if (!isLoading && !initialScrollDone && messagesContainerRef.current) {
-            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-            setInitialScrollDone(true);
+            // Use setTimeout to ensure the DOM has updated with the messages before scrolling
+            const timer = setTimeout(() => {
+                if (messagesContainerRef.current) {
+                    messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+                    setInitialScrollDone(true);
+                }
+            }, 50);
+            return () => clearTimeout(timer);
         }
     }, [isLoading, initialScrollDone]);
 
@@ -389,10 +395,14 @@ const ChatWindow: React.FC<{
             const isMyMessage = lastMessage?.senderId === currentUser.uid;
 
             if (isNearBottom || isMyMessage) {
-                messagesContainerRef.current.scrollTo({
-                    top: messagesContainerRef.current.scrollHeight,
-                    behavior: 'smooth'
-                });
+                setTimeout(() => {
+                    if (messagesContainerRef.current) {
+                        messagesContainerRef.current.scrollTo({
+                            top: messagesContainerRef.current.scrollHeight,
+                            behavior: 'smooth'
+                        });
+                    }
+                }, 50);
             }
         }
     }, [messages, initialScrollDone, currentUser.uid]);
@@ -407,10 +417,10 @@ const ChatWindow: React.FC<{
     }, [messages, prevScrollHeight]);
 
     const handleScroll = () => {
-        if (messagesContainerRef.current) {
+        if (messagesContainerRef.current && initialScrollDone) {
             if (messagesContainerRef.current.scrollTop === 0) {
                 setPrevScrollHeight(messagesContainerRef.current.scrollHeight);
-                setMessageLimit(prev => prev + 50);
+                setMessageLimit(prev => prev + 20);
             }
         }
     };
