@@ -258,8 +258,8 @@ const CreatePostWidget: FC<{
                         className="w-full bg-[#ffffff] rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3bab5a] min-h-[100px] resize-none pr-8 text-[#000000] border border-[#E5E7EB] placeholder-[#9CA3AF]"
                     />
                     {image && (
-                        <div className="relative mt-2 inline-block">
-                            <img src={image} alt="Preview" className="h-24 w-auto rounded-lg object-cover border border-neutral-light" />
+                        <div className="relative mt-2 inline-block bg-white rounded-lg p-1 border border-neutral-light">
+                            <img src={image} alt="Preview" className="h-24 w-auto rounded-md object-contain" />
                             <button 
                                 onClick={() => setImage(null)}
                                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
@@ -553,11 +553,11 @@ const TimelineEventCard: FC<{
                     )}
                     
                     {event.imageUrl && (
-                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px]">
+                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px] bg-white flex items-center justify-center">
                              <img 
                                 src={event.imageUrl} 
                                 alt="Inläggsbild" 
-                                className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                                className="max-w-full max-h-[400px] object-contain cursor-pointer hover:opacity-95 transition-opacity"
                                 onClick={() => onImageClick(event.imageUrl!, `Bild från ${event.userName}`)}
                             />
                         </div>

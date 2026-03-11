@@ -227,6 +227,19 @@ export const deleteMessage = async (chatId: string, messageId: string) => {
   });
 };
 
+export const toggleLikeMessage = async (chatId: string, messageId: string, userId: string, isLiking: boolean) => {
+  const messageRef = doc(db, `chats/${chatId}/messages`, messageId);
+  if (isLiking) {
+    await updateDoc(messageRef, {
+      likes: arrayUnion(userId)
+    });
+  } else {
+    await updateDoc(messageRef, {
+      likes: arrayRemove(userId)
+    });
+  }
+};
+
 export const joinPublicRoom = async (chatId: string, userId: string) => {
   const chatRef = doc(db, 'chats', chatId);
   await updateDoc(chatRef, {

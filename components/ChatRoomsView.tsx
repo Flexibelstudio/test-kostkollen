@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings } from '../types';
-import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName } from '../services/chatService';
+import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleLikeMessage } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
-import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon } from 'lucide-react';
+import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon } from 'lucide-react';
 import { searchForBuddies } from '../services/firestoreService';
 
 interface ChatRoomsViewProps {
@@ -201,12 +201,25 @@ const ChatWindow: React.FC<{
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [showAdminMenu, setShowAdminMenu] = useState(false);
     const [newChatName, setNewChatName] = useState(chat.name || '');
+    const [optimisticName, setOptimisticName] = useState(chat.name || '');
     const [isEditingName, setIsEditingName] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const isAdmin = chat.admins?.includes(currentUser.uid);
+    const isAdmin = chat.admins?.includes(currentUser.uid) || chat.createdBy === currentUser.uid;
     const canInvite = chat.type === 'public_room' || chat.invitePermission === 'everyone' || isAdmin;
+
+    useEffect(() => {
+        setOptimisticName(chat.name || '');
+        setNewChatName(chat.name || '');
+    }, [chat.name]);
+
+    const creatorName = useMemo(() => {
+        if (!chat.createdBy) return null;
+        if (chat.createdBy === currentUser.uid) return 'Dig';
+        const buddy = buddyDetails.find(b => b.uid === chat.createdBy);
+        return buddy ? buddy.name : 'Någon';
+    }, [chat.createdBy, currentUser.uid, buddyDetails]);
 
     useEffect(() => {
         const unsubscribe = subscribeToChatMessages(chat.id, (newMessages) => {
@@ -378,40 +391,76 @@ const ChatWindow: React.FC<{
                              chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-neutral flex-shrink-0" /> : 
                              chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
                             {isEditingName ? (
-                                <input
-                                    type="text"
-                                    value={newChatName}
-                                    onChange={(e) => setNewChatName(e.target.value)}
-                                    onBlur={async () => {
-                                        if (newChatName.trim() && newChatName !== chat.name) {
-                                            try {
-                                                await updateChatName(chat.id, newChatName.trim());
-                                                setToastNotification({ message: 'Gruppnamn uppdaterat', type: 'success' });
-                                            } catch (error) {
-                                                setToastNotification({ message: 'Kunde inte uppdatera namn', type: 'error' });
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        value={newChatName}
+                                        onChange={(e) => setNewChatName(e.target.value)}
+                                        className="font-bold text-neutral-dark leading-tight bg-gray-100 rounded px-1 outline-none focus:ring-2 focus:ring-primary w-full max-w-[200px]"
+                                        autoFocus
+                                        onKeyDown={async (e) => {
+                                            if (e.key === 'Enter') {
+                                                if (newChatName.trim() && newChatName !== chat.name) {
+                                                    try {
+                                                        setOptimisticName(newChatName.trim());
+                                                        await updateChatName(chat.id, newChatName.trim());
+                                                        setToastNotification({ message: 'Gruppnamn uppdaterat', type: 'success' });
+                                                    } catch (error) {
+                                                        setToastNotification({ message: 'Kunde inte uppdatera namn', type: 'error' });
+                                                        setNewChatName(chat.name || '');
+                                                        setOptimisticName(chat.name || '');
+                                                    }
+                                                }
+                                                setIsEditingName(false);
+                                            } else if (e.key === 'Escape') {
                                                 setNewChatName(chat.name || '');
+                                                setIsEditingName(false);
                                             }
-                                        }
-                                        setIsEditingName(false);
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.currentTarget.blur();
-                                        }
-                                    }}
-                                    className="font-bold text-neutral-dark leading-tight bg-gray-100 rounded px-1 outline-none focus:ring-2 focus:ring-primary"
-                                    autoFocus
-                                />
+                                        }}
+                                    />
+                                    <button 
+                                        onClick={async () => {
+                                            if (newChatName.trim() && newChatName !== chat.name) {
+                                                try {
+                                                    setOptimisticName(newChatName.trim());
+                                                    await updateChatName(chat.id, newChatName.trim());
+                                                    setToastNotification({ message: 'Gruppnamn uppdaterat', type: 'success' });
+                                                } catch (error) {
+                                                    setToastNotification({ message: 'Kunde inte uppdatera namn', type: 'error' });
+                                                    setNewChatName(chat.name || '');
+                                                    setOptimisticName(chat.name || '');
+                                                }
+                                            }
+                                            setIsEditingName(false);
+                                        }}
+                                        className="text-xs bg-primary text-white px-2 py-1 rounded hover:bg-primary-dark"
+                                    >
+                                        Spara
+                                    </button>
+                                </div>
                             ) : (
-                                <h2 className="font-bold text-neutral-dark leading-tight">{chat.name || 'Gruppchatt'}</h2>
+                                <h2 className="font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
                             )}
                         </div>
-                        <p className="text-xs text-neutral">{chat.members.length} medlemmar</p>
+                        <p className="text-xs text-neutral">
+                            {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'}
+                            {creatorName && ` • Skapad av ${creatorName}`}
+                        </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
-                    {canInvite && availableBuddies.length > 0 && (
-                        <button onClick={() => setIsAddingMembers(true)} className="p-2 text-neutral hover:text-primary rounded-full hover:bg-primary-50 transition-colors" title="Lägg till kompisar">
+                    {canInvite && (
+                        <button 
+                            onClick={() => {
+                                if (availableBuddies.length > 0) {
+                                    setIsAddingMembers(true);
+                                } else {
+                                    setToastNotification({ message: 'Du har inga fler vänner att lägga till.', type: 'error' });
+                                }
+                            }} 
+                            className={`p-2 rounded-full transition-colors ${availableBuddies.length > 0 ? 'text-neutral hover:text-primary hover:bg-primary-50' : 'text-gray-300 cursor-not-allowed'}`} 
+                            title="Lägg till kompisar"
+                        >
                             <UserPlusIcon className="w-5 h-5" />
                         </button>
                     )}
@@ -487,24 +536,45 @@ const ChatWindow: React.FC<{
                             )}
                             <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'}`}>
                                 {msg.imageUrl && (
-                                    <img src={msg.imageUrl} alt="Bifogad bild" className="max-w-full rounded-lg mb-2" />
+                                    <div className="bg-white rounded-lg p-1 mb-2">
+                                        <img src={msg.imageUrl} alt="Bifogad bild" className="max-w-full rounded-lg" />
+                                    </div>
                                 )}
                                 <p className={`text-[15px] leading-relaxed break-words ${msg.isDeleted ? 'italic opacity-70' : ''}`}>{msg.text}</p>
                                 {msg.isEdited && !msg.isDeleted && (
                                     <span className="text-[10px] opacity-70 ml-2">(redigerad)</span>
                                 )}
                                 
+                                {/* Likes */}
+                                {msg.likes && msg.likes.length > 0 && (
+                                    <div className={`absolute -bottom-3 ${isMe ? 'right-2' : 'left-2'} bg-white border border-neutral-light rounded-full px-1.5 py-0.5 flex items-center gap-1 shadow-sm text-xs text-neutral-dark z-10`}>
+                                        <HeartIcon className="w-3 h-3 fill-red-500 text-red-500" />
+                                        <span>{msg.likes.length}</span>
+                                    </div>
+                                )}
+                                
                                 {/* Message Actions */}
-                                {!msg.isDeleted && (isMe || isAdmin) && (
-                                    <div className={`absolute top-2 ${isMe ? '-left-16' : '-right-16'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1`}>
-                                        {isMe && (
-                                            <button onClick={() => handleStartEdit(msg)} className="p-1 text-neutral hover:text-primary rounded hover:bg-gray-100" title="Redigera">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                            </button>
-                                        )}
-                                        <button onClick={() => handleDeleteMessage(msg.id)} className="p-1 text-neutral hover:text-red-500 rounded hover:bg-gray-100" title="Radera">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                {!msg.isDeleted && (
+                                    <div className={`absolute top-2 ${isMe ? '-left-24' : '-right-24'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1 z-10`}>
+                                        <button 
+                                            onClick={() => toggleLikeMessage(chat.id, msg.id, currentUser.uid, !(msg.likes?.includes(currentUser.uid)))} 
+                                            className={`p-1 rounded hover:bg-gray-100 ${msg.likes?.includes(currentUser.uid) ? 'text-red-500' : 'text-neutral hover:text-red-500'}`} 
+                                            title={msg.likes?.includes(currentUser.uid) ? 'Sluta gilla' : 'Gilla'}
+                                        >
+                                            <HeartIcon className={`w-4 h-4 ${msg.likes?.includes(currentUser.uid) ? 'fill-current' : ''}`} />
                                         </button>
+                                        {(isMe || isAdmin) && (
+                                            <>
+                                                {isMe && (
+                                                    <button onClick={() => handleStartEdit(msg)} className="p-1 text-neutral hover:text-primary rounded hover:bg-gray-100" title="Redigera">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                    </button>
+                                                )}
+                                                <button onClick={() => handleDeleteMessage(msg.id)} className="p-1 text-neutral hover:text-red-500 rounded hover:bg-gray-100" title="Radera">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -548,8 +618,8 @@ const ChatWindow: React.FC<{
                     </div>
                 )}
                 {selectedImage && (
-                    <div className="relative inline-block mb-2 ml-12">
-                        <img src={selectedImage} alt="Vald bild" className="h-20 rounded-lg border border-neutral-light" />
+                    <div className="relative inline-block mb-2 ml-12 bg-white rounded-lg p-1 border border-neutral-light">
+                        <img src={selectedImage} alt="Vald bild" className="h-20 rounded-md object-contain" />
                         <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-md border border-neutral-light text-neutral hover:text-red-500">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
