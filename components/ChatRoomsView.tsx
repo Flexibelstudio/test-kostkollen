@@ -4,8 +4,42 @@ import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType,
 import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleLikeMessage } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
-import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon } from 'lucide-react';
+import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
 import { searchForBuddies } from '../services/firestoreService';
+
+const resizeImage = (file: File, maxSize: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let { width, height } = img;
+                if (width > height) {
+                    if (width > maxSize) {
+                        height = Math.round(height * (maxSize / width));
+                        width = maxSize;
+                    }
+                } else {
+                    if (height > maxSize) {
+                        width = Math.round(width * (maxSize / height));
+                        height = maxSize;
+                    }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return reject(new Error('Canvas context failed'));
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.8));
+            };
+            img.onerror = reject;
+        };
+        reader.onerror = reject;
+    });
+};
 
 interface ChatRoomsViewProps {
     currentUser: User;
@@ -262,22 +296,19 @@ const ChatWindow: React.FC<{
         }
     };
 
-    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (file.size > 5 * 1024 * 1024) { // 5MB limit
-            setToastNotification({ message: 'Bilden är för stor (max 5MB)', type: 'error' });
-            return;
-        }
-
         setIsUploadingImage(true);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setSelectedImage(reader.result as string);
+        try {
+            const resized = await resizeImage(file, 1024);
+            setSelectedImage(resized);
+        } catch (error) {
+            setToastNotification({ message: 'Kunde inte ladda upp bild.', type: 'error' });
+        } finally {
             setIsUploadingImage(false);
-        };
-        reader.readAsDataURL(file);
+        }
     };
 
     const handleDeleteMessage = async (messageId: string) => {
@@ -387,9 +418,6 @@ const ChatWindow: React.FC<{
                     </button>
                     <div>
                         <div className="flex items-center gap-1.5 mb-0.5">
-                            {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-neutral flex-shrink-0" /> : 
-                             chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-neutral flex-shrink-0" /> : 
-                             chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
                             {isEditingName ? (
                                 <div className="flex items-center gap-2">
                                     <input
@@ -441,6 +469,9 @@ const ChatWindow: React.FC<{
                             ) : (
                                 <h2 className="font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
                             )}
+                            {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-blue-500 flex-shrink-0" /> : 
+                             chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-orange-400 flex-shrink-0" /> : 
+                             chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
                         </div>
                         <p className="text-xs text-neutral">
                             {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'}
@@ -766,8 +797,8 @@ const CreateGroupView: React.FC<{
                 </div>
 
                 {!isPublic && (
-                    <div className="mt-4 bg-gray-50 p-3 rounded-lg border border-neutral-light">
-                        <label className="block text-sm font-medium text-neutral-dark mb-2">Vem får bjuda in fler personer?</label>
+                    <div className="mt-4 bg-gray-50 dark:bg-neutral-dark p-3 rounded-lg border border-neutral-light dark:border-neutral-600">
+                        <label className="block text-sm font-medium text-neutral-dark dark:text-white mb-2">Vem får bjuda in fler personer?</label>
                         <div className="flex flex-col gap-2">
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input 
@@ -778,7 +809,7 @@ const CreateGroupView: React.FC<{
                                     onChange={() => setInvitePermission('everyone')}
                                     className="text-primary focus:ring-primary"
                                 />
-                                <span className="text-sm text-neutral-dark">Alla i gruppen</span>
+                                <span className="text-sm text-neutral-dark dark:text-gray-200">Alla i gruppen</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input 
@@ -789,7 +820,7 @@ const CreateGroupView: React.FC<{
                                     onChange={() => setInvitePermission('admin_only')}
                                     className="text-primary focus:ring-primary"
                                 />
-                                <span className="text-sm text-neutral-dark">Bara jag (Admin)</span>
+                                <span className="text-sm text-neutral-dark dark:text-gray-200">Bara jag (Admin)</span>
                             </label>
                         </div>
                     </div>

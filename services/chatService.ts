@@ -227,15 +227,26 @@ export const deleteMessage = async (chatId: string, messageId: string) => {
   });
 };
 
-export const toggleLikeMessage = async (chatId: string, messageId: string, userId: string, isLiking: boolean) => {
+export const toggleReactionMessage = async (
+  chatId: string, 
+  messageId: string, 
+  userId: string, 
+  userName: string, 
+  emoji: string, 
+  isAdding: boolean
+) => {
   const messageRef = doc(db, `chats/${chatId}/messages`, messageId);
-  if (isLiking) {
+  if (isAdding) {
     await updateDoc(messageRef, {
-      likes: arrayUnion(userId)
+      [`reactions.${emoji}.${userId}`]: userName
     });
   } else {
+    // We can't easily delete a specific key with updateDoc without FieldValue.delete(),
+    // but setting it to null or using deleteField() works.
+    // Let's import deleteField from firestore.
+    const { deleteField } = await import('firebase/firestore');
     await updateDoc(messageRef, {
-      likes: arrayRemove(userId)
+      [`reactions.${emoji}.${userId}`]: deleteField()
     });
   }
 };

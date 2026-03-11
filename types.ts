@@ -509,7 +509,8 @@ export interface ChatMessage {
   isDeleted?: boolean;
   timestamp: number;
   mentions?: string[]; // Array of userIds
-  likes?: string[]; // Array of userIds who liked the message
+  likes?: string[]; // Legacy: Array of userIds who liked the message
+  reactions?: Reactions;
 }
 
 export interface Chat {
