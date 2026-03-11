@@ -1023,6 +1023,11 @@ export const CommunityView: React.FC<{
   currentStreak
 }) => {
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
+  
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
   
   // Real-time & Pagination State

@@ -360,7 +360,7 @@ export const App = () => {
   useEffect(() => { weeklyBankRef.current = weeklyBank; }, [weeklyBank]);
 
 
-  const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error' | 'info', onClick?: () => void} | null>(null);
   
   const [activeCourse, setActiveCourse] = useState<CourseInfo | null>(null);
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
@@ -388,11 +388,12 @@ export const App = () => {
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [communityViewKey] = useState(Date.now());
-  const [communityInitialTab] = useState<'flode' | 'hantera'>('flode');
+  const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera' | 'chatt'>('flode');
   const [communityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
   const [highlightEventId] = useState<string | null>(null);
   const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
   const previousViewModeRef = useRef<ViewMode>(viewMode);
+  const lastSeenMessageTimestamps = useRef<Record<string, number>>({});
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [buddyDetails, setBuddyDetails] = useState<BuddyDetails[]>([]);
   const [isLoadingCommunityData, setIsLoadingCommunityData] = useState(true);
@@ -636,8 +637,30 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             chats.forEach(chat => {
                 const mySettings = chat.memberSettings?.[currentUser.uid];
                 const lastRead = mySettings?.lastReadTimestamp || 0;
+                const isMuted = mySettings?.notificationLevel === 'mute';
+
                 if (chat.lastMessage && chat.lastMessage.timestamp > lastRead && chat.lastMessage.senderId !== currentUser.uid) {
                     unreadCount++;
+                    
+                    const prevTimestamp = lastSeenMessageTimestamps.current[chat.id] || 0;
+                    if (chat.lastMessage.timestamp > prevTimestamp && !isMuted) {
+                        // Show toast if we are not in the community view
+                        if (previousViewModeRef.current !== 'community') {
+                            setToastNotification({ 
+                                message: `Nytt meddelande från ${chat.lastMessage.senderName || 'någon'} i ${chat.name || 'Gruppchatt'}`, 
+                                type: 'info',
+                                onClick: () => {
+                                    setCommunityInitialTab('chatt');
+                                    setViewMode('community');
+                                }
+                            });
+                            playAudio('logSuccess');
+                        }
+                    }
+                }
+                
+                if (chat.lastMessage) {
+                    lastSeenMessageTimestamps.current[chat.id] = chat.lastMessage.timestamp;
                 }
             });
             setUnreadChatsCount(unreadCount);
@@ -1519,7 +1542,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { setViewMode('main'); setCurrentLessonId(null); } },
     { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { setJourneyInitialTab('calendar'); setViewMode('journey'); } },
     { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { setViewMode('coursesView');} },
-    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setViewMode('community'); }, notificationCount: pendingRequestsCount + newEventsCount + unreadChatsCount },
+    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setCommunityInitialTab('flode'); setViewMode('community'); }, notificationCount: pendingRequestsCount + newEventsCount + unreadChatsCount },
   ];
 
   const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
@@ -1803,7 +1826,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         <LoadingSpinner message={appStatus === AppStatus.ANALYZING ? "Analyserar bild..." : appStatus === AppStatus.ANALYZING_INGREDIENTS ? "Hittar recept från dina bilder..." : "Sparar..."} />
       )}
       {splashEffect && <WaterSplashEffect key={splashEffect.id} x={splashEffect.x} y={splashEffect.y} count={splashEffect.count} onComplete={() => setSplashEffect(null)} />}
-      {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
+      {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} onClick={toastNotification.onClick} />}
       {showConfetti && <ConfettiCelebration isActive={showConfetti} />}
        {showInstallBanner && (
         <div className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 pt-6 shadow-[0_2px_10px_rgba(0,0,0,0.1)] z-[60] animate-slide-down-fade-in">
