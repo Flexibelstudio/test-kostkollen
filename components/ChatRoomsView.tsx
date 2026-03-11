@@ -606,7 +606,7 @@ const ChatWindow: React.FC<{
                                 
                                 {/* Message Actions */}
                                 {!msg.isDeleted && (
-                                    <div className={`absolute top-2 ${isMe ? '-left-32' : '-right-32'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1 z-10`}>
+                                    <div className={`absolute -top-10 ${isMe ? 'right-0' : 'left-0'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1 z-20`}>
                                         <button 
                                             onClick={() => {
                                                 const hasReacted = !!msg.reactions?.['👍']?.[currentUser.uid];
@@ -635,22 +635,6 @@ const ChatWindow: React.FC<{
                                             >
                                                 <PlusIcon className="w-4 h-4" />
                                             </button>
-                                            {showEmojiPickerFor === msg.id && (
-                                                <div className="absolute bottom-full mb-2 right-0 z-50">
-                                                    <div className="fixed inset-0" onClick={() => setShowEmojiPickerFor(null)}></div>
-                                                    <div className="relative">
-                                                        <EmojiPicker 
-                                                            onEmojiClick={(emojiData) => {
-                                                                const hasReacted = !!msg.reactions?.[emojiData.emoji]?.[currentUser.uid];
-                                                                toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emojiData.emoji, !hasReacted);
-                                                                setShowEmojiPickerFor(null);
-                                                            }}
-                                                            width={280}
-                                                            height={350}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
                                         {(isMe || isAdmin) && (
                                             <>
@@ -773,6 +757,25 @@ const ChatWindow: React.FC<{
                     </button>
                 </form>
             </div>
+            {showEmojiPickerFor && (
+                <div className="flex-shrink-0 bg-white border-t border-neutral-light w-full">
+                    <div className="flex justify-end p-2 border-b border-neutral-light">
+                        <button onClick={() => setShowEmojiPickerFor(null)} className="text-neutral hover:text-neutral-dark font-medium text-sm px-3 py-1 bg-gray-100 rounded-full">Stäng</button>
+                    </div>
+                    <EmojiPicker 
+                        onEmojiClick={(emojiData) => {
+                            const msg = messages.find(m => m.id === showEmojiPickerFor);
+                            if (msg) {
+                                const hasReacted = !!msg.reactions?.[emojiData.emoji]?.[currentUser.uid];
+                                toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emojiData.emoji, !hasReacted);
+                            }
+                            setShowEmojiPickerFor(null);
+                        }}
+                        width="100%"
+                        height={300}
+                    />
+                </div>
+            )}
         </div>
     );
 };

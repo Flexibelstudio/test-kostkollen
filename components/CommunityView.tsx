@@ -1236,7 +1236,7 @@ export const CommunityView: React.FC<{
     );
 
     return (
-        <div className="flex flex-col h-full bg-transparent">
+        <div className="flex flex-col flex-grow w-full h-full bg-transparent">
             <header className="flex-shrink-0 bg-white dark:bg-neutral-darker shadow-md z-10 sticky top-0">
                 <nav className="flex items-center justify-around">
                     {tabs.map(tab => <TabButton key={tab.key} tab={tab} isActive={activeTab === tab.key} onClick={() => setActiveTab(tab.key as any)} />)}
