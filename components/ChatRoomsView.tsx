@@ -373,17 +373,22 @@ const ChatWindow: React.FC<{
 
     // Handle initial scroll
     useEffect(() => {
-        if (!isLoading && !initialScrollDone && messagesContainerRef.current) {
-            // Use setTimeout to ensure the DOM has updated with the messages before scrolling
-            const timer = setTimeout(() => {
+        if (!isLoading && messages.length > 0 && !initialScrollDone && messagesContainerRef.current) {
+            // Use requestAnimationFrame to ensure DOM is fully painted
+            requestAnimationFrame(() => {
                 if (messagesContainerRef.current) {
                     messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-                    setInitialScrollDone(true);
+                    // Double check with a small timeout for images/content that might shift
+                    setTimeout(() => {
+                        if (messagesContainerRef.current) {
+                            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+                            setInitialScrollDone(true);
+                        }
+                    }, 100);
                 }
-            }, 50);
-            return () => clearTimeout(timer);
+            });
         }
-    }, [isLoading, initialScrollDone]);
+    }, [isLoading, messages.length, initialScrollDone]);
 
     // Handle scroll on new messages
     useEffect(() => {

@@ -239,15 +239,30 @@ export const toggleReactionMessage = async (
   isAdding: boolean
 ) => {
   const messageRef = doc(db, `chats/${chatId}/messages`, messageId);
+  const { deleteField } = await import('firebase/firestore');
+  
   if (isAdding) {
-    await updateDoc(messageRef, {
-      [`reactions.${emoji}.${userId}`]: userName
-    });
+    // First, get the current message to remove any existing reactions from this user
+    const messageDoc = await getDoc(messageRef);
+    if (messageDoc.exists()) {
+      const data = messageDoc.data();
+      const updates: any = {};
+      
+      // Remove user from all other reactions
+      if (data.reactions) {
+        Object.keys(data.reactions).forEach(existingEmoji => {
+          if (existingEmoji !== emoji && data.reactions[existingEmoji] && data.reactions[existingEmoji][userId]) {
+            updates[`reactions.${existingEmoji}.${userId}`] = deleteField();
+          }
+        });
+      }
+      
+      // Add the new reaction
+      updates[`reactions.${emoji}.${userId}`] = userName;
+      
+      await updateDoc(messageRef, updates);
+    }
   } else {
-    // We can't easily delete a specific key with updateDoc without FieldValue.delete(),
-    // but setting it to null or using deleteField() works.
-    // Let's import deleteField from firestore.
-    const { deleteField } = await import('firebase/firestore');
     await updateDoc(messageRef, {
       [`reactions.${emoji}.${userId}`]: deleteField()
     });
