@@ -668,24 +668,6 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   };
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
-
-  try {
-    let goalDesc = "Nytt mål inställt";
-    if (profile.goalType === 'lose_fat') goalDesc = "Fokus: Minska fettmassa";
-    else if (profile.goalType === 'gain_muscle') goalDesc = "Fokus: Öka muskelmassa";
-    else if (profile.goalType === 'maintain') goalDesc = "Fokus: Bibehålla formen";
-
-    await addTimelineEvent(userId, {
-        type: 'goal_set',
-        timestamp: Date.now(),
-        title: 'har uppdaterat sina mål',
-        description: `${goalDesc} 🎯`,
-        icon: '🎯',
-        relatedDocId: `goal_update_${Date.now()}`
-    });
-  } catch (e) {
-    console.error("Failed to create goal timeline event", e);
-  }
 }
 
 /* ===== Gamification: Achievements ===== */
