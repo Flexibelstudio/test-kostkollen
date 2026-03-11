@@ -6,6 +6,7 @@ import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
 import { searchForBuddies } from '../services/firestoreService';
+import EmojiPicker from 'emoji-picker-react';
 
 const resizeImage = (file: File, maxSize: number): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -239,6 +240,8 @@ const ChatWindow: React.FC<{
     const [isEditingName, setIsEditingName] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+    const [showEmojiPickerFor, setShowEmojiPickerFor] = useState<string | null>(null);
 
     const isAdmin = chat.admins?.includes(currentUser.uid) || chat.createdBy === currentUser.uid;
     const canInvite = chat.type === 'public_room' || chat.invitePermission === 'everyone' || isAdmin;
@@ -557,6 +560,8 @@ const ChatWindow: React.FC<{
 
                     const isLastMessage = index === messages.length - 1;
 
+                    const hasReactions = (msg.likes?.length || 0) > 0 || Object.keys(msg.reactions || {}).length > 0;
+
                     return (
                         <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                             {showHeader && !isMe && (
@@ -565,7 +570,7 @@ const ChatWindow: React.FC<{
                                     <span className="text-xs font-medium text-neutral">{msg.senderName}</span>
                                 </div>
                             )}
-                            <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'}`}>
+                            <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}>
                                 {msg.imageUrl && (
                                     <div className="bg-white rounded-lg p-1 mb-2">
                                         <img src={msg.imageUrl} alt="Bifogad bild" className="max-w-full rounded-lg" />
@@ -601,17 +606,52 @@ const ChatWindow: React.FC<{
                                 
                                 {/* Message Actions */}
                                 {!msg.isDeleted && (
-                                    <div className={`absolute top-2 ${isMe ? '-left-24' : '-right-24'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1 z-10`}>
+                                    <div className={`absolute top-2 ${isMe ? '-left-32' : '-right-32'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1 z-10`}>
+                                        <button 
+                                            onClick={() => {
+                                                const hasReacted = !!msg.reactions?.['👍']?.[currentUser.uid];
+                                                toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', '👍', !hasReacted);
+                                            }} 
+                                            className={`p-1 rounded hover:bg-gray-100 ${!!msg.reactions?.['👍']?.[currentUser.uid] ? 'bg-primary-50' : ''}`} 
+                                            title="Tumme upp"
+                                        >
+                                            👍
+                                        </button>
                                         <button 
                                             onClick={() => {
                                                 const hasReacted = !!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid);
                                                 toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', '❤️', !hasReacted);
                                             }} 
-                                            className={`p-1 rounded hover:bg-gray-100 ${!!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid) ? 'text-red-500' : 'text-neutral hover:text-red-500'}`} 
-                                            title={!!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid) ? 'Sluta gilla' : 'Gilla'}
+                                            className={`p-1 rounded hover:bg-gray-100 ${!!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid) ? 'bg-primary-50' : ''}`} 
+                                            title="Hjärta"
                                         >
-                                            <HeartIcon className={`w-4 h-4 ${!!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid) ? 'fill-current' : ''}`} />
+                                            ❤️
                                         </button>
+                                        <div className="relative">
+                                            <button 
+                                                onClick={() => setShowEmojiPickerFor(showEmojiPickerFor === msg.id ? null : msg.id)} 
+                                                className="p-1 rounded hover:bg-gray-100 text-neutral" 
+                                                title="Fler emojis"
+                                            >
+                                                <PlusIcon className="w-4 h-4" />
+                                            </button>
+                                            {showEmojiPickerFor === msg.id && (
+                                                <div className="absolute bottom-full mb-2 right-0 z-50">
+                                                    <div className="fixed inset-0" onClick={() => setShowEmojiPickerFor(null)}></div>
+                                                    <div className="relative">
+                                                        <EmojiPicker 
+                                                            onEmojiClick={(emojiData) => {
+                                                                const hasReacted = !!msg.reactions?.[emojiData.emoji]?.[currentUser.uid];
+                                                                toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emojiData.emoji, !hasReacted);
+                                                                setShowEmojiPickerFor(null);
+                                                            }}
+                                                            width={280}
+                                                            height={350}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                         {(isMe || isAdmin) && (
                                             <>
                                                 {isMe && (
@@ -682,11 +722,29 @@ const ChatWindow: React.FC<{
                         ref={fileInputRef}
                         onChange={handleImageSelect}
                     />
+                    <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="environment"
+                        className="hidden" 
+                        ref={cameraInputRef}
+                        onChange={handleImageSelect}
+                    />
+                    <button 
+                        type="button" 
+                        onClick={() => cameraInputRef.current?.click()}
+                        disabled={isUploadingImage}
+                        className="p-3 text-neutral hover:text-primary rounded-full hover:bg-gray-100 transition-colors flex-shrink-0 mb-0.5"
+                        title="Ta bild"
+                    >
+                        <CameraIcon className="w-6 h-6" />
+                    </button>
                     <button 
                         type="button" 
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploadingImage}
                         className="p-3 text-neutral hover:text-primary rounded-full hover:bg-gray-100 transition-colors flex-shrink-0 mb-0.5"
+                        title="Välj bild"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     </button>
