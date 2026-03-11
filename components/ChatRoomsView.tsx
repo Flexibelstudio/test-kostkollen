@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings } from '../types';
-import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleLikeMessage } from '../services/chatService';
+import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleReactionMessage } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
@@ -576,23 +576,41 @@ const ChatWindow: React.FC<{
                                     <span className="text-[10px] opacity-70 ml-2">(redigerad)</span>
                                 )}
                                 
-                                {/* Likes */}
-                                {msg.likes && msg.likes.length > 0 && (
+                                {/* Reactions */}
+                                {(msg.likes?.length || 0) > 0 || Object.keys(msg.reactions || {}).length > 0 ? (
                                     <div className={`absolute -bottom-3 ${isMe ? 'right-2' : 'left-2'} bg-white border border-neutral-light rounded-full px-1.5 py-0.5 flex items-center gap-1 shadow-sm text-xs text-neutral-dark z-10`}>
-                                        <HeartIcon className="w-3 h-3 fill-red-500 text-red-500" />
-                                        <span>{msg.likes.length}</span>
+                                        {Object.entries(msg.reactions || {}).map(([emoji, users]) => {
+                                            const count = Object.keys(users).length;
+                                            if (count === 0) return null;
+                                            return (
+                                                <div key={emoji} className="flex items-center gap-0.5">
+                                                    <span>{emoji}</span>
+                                                    <span>{count}</span>
+                                                </div>
+                                            );
+                                        })}
+                                        {/* Legacy likes */}
+                                        {msg.likes && msg.likes.length > 0 && !msg.reactions?.['❤️'] && (
+                                            <div className="flex items-center gap-0.5">
+                                                <HeartIcon className="w-3 h-3 fill-red-500 text-red-500" />
+                                                <span>{msg.likes.length}</span>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                ) : null}
                                 
                                 {/* Message Actions */}
                                 {!msg.isDeleted && (
                                     <div className={`absolute top-2 ${isMe ? '-left-24' : '-right-24'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1 z-10`}>
                                         <button 
-                                            onClick={() => toggleLikeMessage(chat.id, msg.id, currentUser.uid, !(msg.likes?.includes(currentUser.uid)))} 
-                                            className={`p-1 rounded hover:bg-gray-100 ${msg.likes?.includes(currentUser.uid) ? 'text-red-500' : 'text-neutral hover:text-red-500'}`} 
-                                            title={msg.likes?.includes(currentUser.uid) ? 'Sluta gilla' : 'Gilla'}
+                                            onClick={() => {
+                                                const hasReacted = !!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid);
+                                                toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', '❤️', !hasReacted);
+                                            }} 
+                                            className={`p-1 rounded hover:bg-gray-100 ${!!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid) ? 'text-red-500' : 'text-neutral hover:text-red-500'}`} 
+                                            title={!!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid) ? 'Sluta gilla' : 'Gilla'}
                                         >
-                                            <HeartIcon className={`w-4 h-4 ${msg.likes?.includes(currentUser.uid) ? 'fill-current' : ''}`} />
+                                            <HeartIcon className={`w-4 h-4 ${!!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid) ? 'fill-current' : ''}`} />
                                         </button>
                                         {(isMe || isAdmin) && (
                                             <>
