@@ -116,11 +116,13 @@ export const subscribeToPublicRooms = (
 
 export const subscribeToChatMessages = (
   chatId: string,
+  messageLimit: number,
   callback: (messages: ChatMessage[]) => void
 ) => {
   const q = query(
     collection(db, `chats/${chatId}/messages`),
-    orderBy('timestamp', 'asc')
+    orderBy('timestamp', 'desc'),
+    limit(messageLimit)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -128,7 +130,8 @@ export const subscribeToChatMessages = (
     snapshot.forEach(doc => {
       messages.push({ id: doc.id, ...doc.data() } as ChatMessage);
     });
-    callback(messages);
+    // Reverse to get chronological order
+    callback(messages.reverse());
   });
 };
 
