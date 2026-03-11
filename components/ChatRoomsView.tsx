@@ -598,7 +598,7 @@ const ChatWindow: React.FC<{
     }
 
     return (
-        <div className="flex flex-col flex-grow h-full bg-neutral-light/30">
+        <div className="flex flex-col flex-grow h-full bg-neutral-light/30 min-h-0">
             {/* Header */}
             <div className="flex-shrink-0 bg-white border-b border-neutral-light p-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
                 <div className="flex items-center gap-3">
