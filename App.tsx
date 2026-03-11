@@ -41,6 +41,8 @@ import {
   setPastDaySummary, savePushSubscription, unlockAchievement
 } from './services/firestoreService.ts';
 
+import { subscribeToUserChats } from './services/chatService.ts';
+
 // Context
 import { useUserContext } from './context/UserContext';
 
@@ -384,6 +386,7 @@ export const App = () => {
   const [showMentalWellbeingModal, setShowMentalWellbeingModal] = useState<boolean>(false);
   
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [communityViewKey] = useState(Date.now());
   const [communityInitialTab] = useState<'flode' | 'hantera'>('flode');
   const [communityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
@@ -618,9 +621,26 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         const unsubscribeRequests = listenForFriendRequests(currentUser.uid, (requests) => {
             setPendingRequestsCount(requests.length);
         });
-        return () => { unsubscribeRequests(); };
+        
+        const unsubscribeChats = subscribeToUserChats(currentUser.uid, (chats) => {
+            let unreadCount = 0;
+            chats.forEach(chat => {
+                const mySettings = chat.memberSettings?.[currentUser.uid];
+                const lastRead = mySettings?.lastReadTimestamp || 0;
+                if (chat.lastMessage && chat.lastMessage.timestamp > lastRead && chat.lastMessage.senderId !== currentUser.uid) {
+                    unreadCount++;
+                }
+            });
+            setUnreadChatsCount(unreadCount);
+        });
+
+        return () => { 
+            unsubscribeRequests(); 
+            unsubscribeChats();
+        };
     } else {
         setPendingRequestsCount(0);
+        setUnreadChatsCount(0);
     }
   }, [currentUser, userStatus]);
 
@@ -1490,7 +1510,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { setViewMode('main'); setCurrentLessonId(null); } },
     { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { setJourneyInitialTab('calendar'); setViewMode('journey'); } },
     { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { setViewMode('coursesView');} },
-    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setViewMode('community'); }, notificationCount: pendingRequestsCount + communityNotificationCount },
+    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setViewMode('community'); }, notificationCount: pendingRequestsCount + communityNotificationCount + unreadChatsCount },
   ];
 
   const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
@@ -1702,6 +1722,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
               achievements={ACHIEVEMENT_DEFINITIONS}
               setToastNotification={setToastNotification}
               pendingRequestsCount={pendingRequestsCount}
+              unreadChatsCount={unreadChatsCount}
               initialTab={communityInitialTab}
               initialSubTab={communityInitialSubTab}
               highlightEventId={highlightEventId}

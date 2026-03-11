@@ -180,37 +180,37 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
 };
 
 const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => void }> = ({ chat, currentUser, onClick }) => {
-    const unreadCount = 0; // TODO: Calculate based on lastReadTimestamp and message timestamps
-    const isMuted = chat.memberSettings[currentUser.uid]?.notificationLevel === 'mute';
+    const mySettings = chat.memberSettings?.[currentUser.uid];
+    const lastRead = mySettings?.lastReadTimestamp || 0;
+    const hasUnread = chat.lastMessage && chat.lastMessage.timestamp > lastRead && chat.lastMessage.senderId !== currentUser.uid;
+    const isMuted = mySettings?.notificationLevel === 'mute';
 
     return (
         <div 
             onClick={onClick}
-            className="bg-white p-4 rounded-xl shadow-sm border border-neutral-light flex flex-col gap-1 cursor-pointer hover:bg-gray-50 transition-colors"
+            className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-1 cursor-pointer hover:bg-gray-50 transition-colors ${hasUnread ? 'border-primary bg-primary-50/30' : 'border-neutral-light'}`}
         >
             <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2 min-w-0 pr-2">
-                    <h3 className="font-bold text-neutral-dark truncate text-[17px]">{chat.name || 'Gruppchatt'}</h3>
+                    <h3 className={`truncate text-[17px] ${hasUnread ? 'font-black text-neutral-darker' : 'font-bold text-neutral-dark'}`}>{chat.name || 'Gruppchatt'}</h3>
                     {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-blue-500 flex-shrink-0" /> : 
                      chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-orange-400 flex-shrink-0" /> : 
                      chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
                 </div>
                 {chat.lastMessage && (
-                    <span className="text-xs text-neutral flex-shrink-0 mt-1">
+                    <span className={`text-xs flex-shrink-0 mt-1 ${hasUnread ? 'text-primary font-bold' : 'text-neutral'}`}>
                         {new Date(chat.lastMessage.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                 )}
             </div>
             <div className="flex justify-between items-center">
-                <p className="text-sm text-neutral truncate pr-2">
+                <p className={`text-sm truncate pr-2 ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
                     {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : chat.lastMessage.senderName || 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
                 </p>
                 <div className="flex items-center gap-1 flex-shrink-0">
                     {isMuted && <BellOffIcon className="w-3.5 h-3.5 text-neutral" />}
-                    {unreadCount > 0 && (
-                        <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                            {unreadCount}
-                        </span>
+                    {hasUnread && (
+                        <span className="bg-red-500 h-3 w-3 rounded-full inline-block"></span>
                     )}
                 </div>
             </div>
@@ -245,6 +245,11 @@ const ChatWindow: React.FC<{
     const [mentionSearch, setMentionSearch] = useState<string | null>(null);
     const [mentionIndex, setMentionIndex] = useState<number>(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Capture the last read timestamp when opening the chat to highlight new messages
+    const [initialLastReadTimestamp] = useState(() => {
+        return chat.memberSettings?.[currentUser.uid]?.lastReadTimestamp || 0;
+    });
 
     const chatMembers = useMemo(() => {
         const membersMap = new Map<string, { uid: string, name: string, photoURL?: string }>();
@@ -751,6 +756,7 @@ const ChatWindow: React.FC<{
                     const isLastMessage = index === messages.length - 1;
 
                     const hasReactions = (msg.likes?.length || 0) > 0 || Object.keys(msg.reactions || {}).length > 0;
+                    const isNewMessage = !isMe && msg.timestamp > initialLastReadTimestamp;
 
                     return (
                         <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
@@ -760,7 +766,7 @@ const ChatWindow: React.FC<{
                                     <span className="text-xs font-medium text-neutral">{msg.senderName}</span>
                                 </div>
                             )}
-                            <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}>
+                            <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : isNewMessage ? 'bg-primary-50 border border-primary-200 text-neutral-dark rounded-bl-sm shadow-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}>
                                 {msg.imageUrl && (
                                     <div className="bg-white rounded-lg p-1 mb-2">
                                         <img src={msg.imageUrl} alt="Bifogad bild" className="max-w-full rounded-lg" />

@@ -993,6 +993,7 @@ export const CommunityView: React.FC<{
   achievements: Achievement[];
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
   pendingRequestsCount: number;
+  unreadChatsCount: number;
   initialTab?: 'flode' | 'hantera' | 'chatt';
   initialSubTab?: 'buddies' | 'search' | 'requests';
   highlightEventId?: string | null;
@@ -1009,6 +1010,7 @@ export const CommunityView: React.FC<{
   achievements,
   setToastNotification,
   pendingRequestsCount,
+  unreadChatsCount,
   initialTab = 'flode',
   initialSubTab = 'buddies',
   highlightEventId = null,
@@ -1225,7 +1227,7 @@ export const CommunityView: React.FC<{
     const tabs = [
         { key: 'flode', label: 'Flöde', notificationCount: newEventsCount },
         { key: 'hantera', label: 'Kompisar', notificationCount: pendingRequestsCount },
-        { key: 'chatt', label: 'Chatt', notificationCount: 0 },
+        { key: 'chatt', label: 'Chatt', notificationCount: unreadChatsCount },
     ];
     
     const TabButton: FC<{ tab: typeof tabs[0], isActive: boolean, onClick: () => void }> = ({ tab, isActive, onClick }) => (
