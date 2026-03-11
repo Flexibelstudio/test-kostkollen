@@ -356,17 +356,90 @@ const ChatWindow: React.FC<{
         return buddy ? buddy.name : 'Någon';
     }, [chat.createdBy, currentUser.uid, buddyDetails]);
 
+    const [messageLimit, setMessageLimit] = useState(50);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const [initialScrollDone, setInitialScrollDone] = useState(false);
+    const [prevScrollHeight, setPrevScrollHeight] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+
     useEffect(() => {
-        const unsubscribe = subscribeToChatMessages(chat.id, (newMessages) => {
+        const unsubscribe = subscribeToChatMessages(chat.id, messageLimit, (newMessages) => {
             setMessages(newMessages);
+            setIsLoading(false);
             updateLastRead(chat.id, currentUser.uid);
         });
         return () => unsubscribe();
-    }, [chat.id, currentUser.uid]);
+    }, [chat.id, currentUser.uid, messageLimit]);
 
+    // Handle initial scroll
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        if (!isLoading && !initialScrollDone && messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+            setInitialScrollDone(true);
+        }
+    }, [isLoading, initialScrollDone]);
+
+    // Handle scroll on new messages
+    useEffect(() => {
+        if (initialScrollDone && messagesContainerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+            const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+            
+            const lastMessage = messages[messages.length - 1];
+            const isMyMessage = lastMessage?.senderId === currentUser.uid;
+
+            if (isNearBottom || isMyMessage) {
+                messagesContainerRef.current.scrollTo({
+                    top: messagesContainerRef.current.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+        }
+    }, [messages, initialScrollDone, currentUser.uid]);
+
+    // Restore scroll position when loading more messages
+    useEffect(() => {
+        if (messagesContainerRef.current && prevScrollHeight > 0) {
+            const newScrollHeight = messagesContainerRef.current.scrollHeight;
+            messagesContainerRef.current.scrollTop = newScrollHeight - prevScrollHeight;
+            setPrevScrollHeight(0);
+        }
+    }, [messages, prevScrollHeight]);
+
+    const handleScroll = () => {
+        if (messagesContainerRef.current) {
+            if (messagesContainerRef.current.scrollTop === 0) {
+                setPrevScrollHeight(messagesContainerRef.current.scrollHeight);
+                setMessageLimit(prev => prev + 50);
+            }
+        }
+    };
+
+    const latestReadMessageIds = useMemo(() => {
+        const map = new Map<string, string[]>();
+        
+        Object.entries(chat.memberSettings || {}).forEach(([uid, settings]) => {
+            if (uid === currentUser.uid) return;
+            
+            let latestMsgId: string | null = null;
+            let latestTimestamp = 0;
+            
+            for (const msg of messages) {
+                if (settings.lastReadTimestamp >= msg.timestamp && msg.timestamp >= latestTimestamp) {
+                    latestTimestamp = msg.timestamp;
+                    latestMsgId = msg.id;
+                }
+            }
+            
+            if (latestMsgId) {
+                const existing = map.get(latestMsgId) || [];
+                existing.push(uid);
+                map.set(latestMsgId, existing);
+            }
+        });
+        
+        return map;
+    }, [chat.memberSettings, messages, currentUser.uid]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -646,7 +719,11 @@ const ChatWindow: React.FC<{
             </div>
 
             {/* Messages */}
-            <div className="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-4">
+            <div 
+                ref={messagesContainerRef}
+                onScroll={handleScroll}
+                className="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-4"
+            >
                 {messages.map((msg, index) => {
                     const isMe = msg.senderId === currentUser.uid;
                     const showHeader = index === 0 || messages[index - 1].senderId !== msg.senderId || (msg.timestamp - messages[index - 1].timestamp > 5 * 60 * 1000);
@@ -747,25 +824,28 @@ const ChatWindow: React.FC<{
                             </span>
                             
                             {/* Read Receipts (Messenger style) */}
-                            {isMe && isLastMessage && readBy.length > 0 && (
-                                <div className="flex items-center gap-0.5 mt-1 mr-1 justify-end">
-                                    {readBy.slice(0, 3).map(uid => (
-                                        <div key={uid} className="w-3.5 h-3.5 rounded-full bg-gray-300 border border-white overflow-hidden">
-                                            {/* Ideally we'd have the user's photoURL here, but we only have their UID in memberSettings. 
-                                                For a perfect implementation, we'd need a user cache or store avatars in memberSettings. 
-                                                Using a generic avatar for now. */}
-                                            <UsersIcon className="w-full h-full text-white p-0.5" />
-                                        </div>
-                                    ))}
-                                    {readBy.length > 3 && (
-                                        <span className="text-[10px] text-neutral ml-1">+{readBy.length - 3}</span>
+                            {latestReadMessageIds.get(msg.id) && (
+                                <div className={`flex items-center gap-0.5 mt-1 mx-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                    {latestReadMessageIds.get(msg.id)!.slice(0, 3).map(uid => {
+                                        const buddy = buddyDetails.find(b => b.uid === uid);
+                                        return (
+                                            <div key={uid} className="w-3.5 h-3.5 rounded-full bg-gray-300 border border-white overflow-hidden" title={buddy?.name || 'Användare'}>
+                                                {buddy?.photoURL ? (
+                                                    <img src={buddy.photoURL} alt={buddy?.name || 'Användare'} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <UsersIcon className="w-full h-full text-white p-0.5" />
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    {latestReadMessageIds.get(msg.id)!.length > 3 && (
+                                        <span className="text-[10px] text-neutral ml-1">+{latestReadMessageIds.get(msg.id)!.length - 3}</span>
                                     )}
                                 </div>
                             )}
                         </div>
                     );
                 })}
-                <div ref={messagesEndRef} />
             </div>
 
             {/* Input */}
