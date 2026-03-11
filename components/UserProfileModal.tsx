@@ -1014,6 +1014,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         checked={profile.notificationSettings?.likes ?? true}
                                         onChange={() => handleNotificationSettingChange('likes')}
                                     />
+                                    <ToggleSwitch 
+                                        id="messages"
+                                        label="Chattmeddelanden"
+                                        description="Nya meddelanden i dina chattar"
+                                        checked={profile.notificationSettings?.messages ?? true}
+                                        onChange={() => handleNotificationSettingChange('messages')}
+                                    />
                                 </div>
                             </div>
                         </div>

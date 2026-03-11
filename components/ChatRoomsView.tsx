@@ -441,11 +441,12 @@ const ChatWindow: React.FC<{
         Object.entries(chat.memberSettings || {}).forEach(([uid, settings]) => {
             if (uid === currentUser.uid) return;
             
+            const memberSettings = settings as ChatMemberSettings;
             let latestMsgId: string | null = null;
             let latestTimestamp = 0;
             
             for (const msg of messages) {
-                if (settings.lastReadTimestamp >= msg.timestamp && msg.timestamp >= latestTimestamp) {
+                if (memberSettings.lastReadTimestamp >= msg.timestamp && msg.timestamp >= latestTimestamp) {
                     latestTimestamp = msg.timestamp;
                     latestMsgId = msg.id;
                 }

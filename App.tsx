@@ -467,6 +467,7 @@ export const App = () => {
         if (!currentUser || !isInitialDataLoaded || userStatus !== 'approved') return;
 
         const checkAndUnlockLessons = async () => {
+            if (!db) return;
             const batch = writeBatch(db);
             let hasUnlockedAny = false;
 

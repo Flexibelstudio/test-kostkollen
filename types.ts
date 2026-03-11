@@ -187,6 +187,7 @@ export interface NotificationSettings {
   newEvents: boolean;
   comments: boolean;
   likes: boolean; // Add this
+  messages: boolean; // Chat messages
   // Reminder notifications
   waterReminder: boolean;
   foodReminder: boolean;

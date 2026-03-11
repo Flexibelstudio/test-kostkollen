@@ -61,6 +61,7 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
     newEvents: true,
     comments: true,
     likes: true, // New setting for 'dilla'
+    messages: true, // Chat messages
     waterReminder: true,
     foodReminder: true,
     weighInReminder: true,

@@ -705,6 +705,59 @@ exports.cancelSubscription = functions.https.onCall(async (data, context) => {
     }
 });
 
+exports.onChatMessageCreated = functions.firestore
+  .document("chats/{chatId}/messages/{messageId}")
+  .onCreate(async (snapshot, context) => {
+    const message = snapshot.data();
+    const chatId = context.params.chatId;
+    if (!message) return;
+
+    const chatRef = db.collection("chats").doc(chatId);
+    const chatDoc = await chatRef.get();
+    if (!chatDoc.exists) return;
+
+    const chatData = chatDoc.data();
+    const members = chatData.members || [];
+    const memberSettings = chatData.memberSettings || {};
+
+    const senderId = message.senderId;
+    
+    // Build notification payload
+    const payload = {
+      notification: {
+        title: chatData.type === 'direct_message' ? message.senderName : `${message.senderName} i ${chatData.name}`,
+        body: message.text || (message.imageUrl ? 'Skickade en bild' : 'Nytt meddelande'),
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        data: { url: `/?view=chat&chatId=${chatId}` }
+      }
+    };
+
+    const notificationPromises = members.map(async (memberId) => {
+      if (memberId === senderId) return null;
+
+      const settings = memberSettings[memberId] || {};
+      const level = settings.notificationLevel || 'all';
+
+      if (level === 'mute') return null;
+      
+      if (level === 'mentions') {
+        // Simple check for mentions (e.g. "@Karin")
+        // We'd need the member's name to do this properly, 
+        // but for now we can just skip or do a basic check if we had the name.
+        // Let's assume if it's 'mentions', we only send if the text contains '@'
+        if (!message.text || !message.text.includes('@')) {
+          return null;
+        }
+      }
+
+      // Send the notification
+      return sendNotificationToUser(memberId, payload, "messages");
+    });
+
+    await Promise.all(notificationPromises);
+  });
+
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     const signature = req.headers['stripe-signature'];
     // Hämta webhook secret från .env ELLER molnet

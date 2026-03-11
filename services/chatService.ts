@@ -29,6 +29,7 @@ export const createChat = async (
   initialMembers: string[] = [],
   invitePermission: 'admin_only' | 'everyone' = 'everyone'
 ): Promise<string> => {
+  if (!db) return '';
   const members = Array.from(new Set([creatorId, ...initialMembers]));
   
   const memberSettings: Record<string, any> = {};
@@ -67,6 +68,7 @@ export const subscribeToUserChats = (
   userId: string,
   callback: (chats: Chat[]) => void
 ) => {
+  if (!db) return () => {};
   // Query 1: Chats where user is a member
   // We remove orderBy here to avoid requiring a composite index in Firestore.
   // We will sort the results in memory instead.
@@ -95,6 +97,7 @@ export const subscribeToUserChats = (
 export const subscribeToPublicRooms = (
   callback: (chats: Chat[]) => void
 ) => {
+  if (!db) return () => {};
   // Remove orderBy to avoid composite index requirement
   const publicQuery = query(
     collection(db, 'chats'),
@@ -119,6 +122,7 @@ export const subscribeToChatMessages = (
   messageLimit: number,
   callback: (messages: ChatMessage[]) => void
 ) => {
+  if (!db) return () => {};
   const q = query(
     collection(db, `chats/${chatId}/messages`),
     orderBy('timestamp', 'desc'),
@@ -145,6 +149,7 @@ export const sendMessage = async (
   senderPhotoURL?: string,
   imageUrl?: string
 ) => {
+  if (!db) return;
   const timestamp = Date.now();
   
   // Create message
@@ -172,6 +177,7 @@ export const sendMessage = async (
 };
 
 export const addMembersToChat = async (chatId: string, userIds: string[]) => {
+  if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   
   const updates: Record<string, any> = {
@@ -189,6 +195,7 @@ export const addMembersToChat = async (chatId: string, userIds: string[]) => {
 };
 
 export const removeMemberFromChat = async (chatId: string, userId: string) => {
+  if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   
   const updates: Record<string, any> = {
@@ -201,11 +208,13 @@ export const removeMemberFromChat = async (chatId: string, userId: string) => {
 };
 
 export const updateChatName = async (chatId: string, newName: string) => {
+  if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   await updateDoc(chatRef, { name: newName });
 };
 
 export const deleteChat = async (chatId: string) => {
+  if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   // Note: For a complete deletion, you'd also want to delete all messages in the subcollection.
   // In a real production app, this is often done via a Cloud Function to avoid client-side timeouts.
@@ -214,6 +223,7 @@ export const deleteChat = async (chatId: string) => {
 };
 
 export const editMessage = async (chatId: string, messageId: string, newText: string) => {
+  if (!db) return;
   const messageRef = doc(db, `chats/${chatId}/messages`, messageId);
   await updateDoc(messageRef, {
     text: newText,
@@ -222,6 +232,7 @@ export const editMessage = async (chatId: string, messageId: string, newText: st
 };
 
 export const deleteMessage = async (chatId: string, messageId: string) => {
+  if (!db) return;
   const messageRef = doc(db, `chats/${chatId}/messages`, messageId);
   await updateDoc(messageRef, {
     text: 'Meddelandet har raderats',
@@ -238,6 +249,7 @@ export const toggleReactionMessage = async (
   emoji: string, 
   isAdding: boolean
 ) => {
+  if (!db) return;
   const messageRef = doc(db, `chats/${chatId}/messages`, messageId);
   const { deleteField } = await import('firebase/firestore');
   
@@ -270,6 +282,7 @@ export const toggleReactionMessage = async (
 };
 
 export const joinPublicRoom = async (chatId: string, userId: string) => {
+  if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   await updateDoc(chatRef, {
     members: arrayUnion(userId),
@@ -281,6 +294,7 @@ export const joinPublicRoom = async (chatId: string, userId: string) => {
 };
 
 export const leaveChat = async (chatId: string, userId: string) => {
+  if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   // We don't delete the memberSettings to keep history, but we remove them from members array
   await updateDoc(chatRef, {
@@ -289,6 +303,7 @@ export const leaveChat = async (chatId: string, userId: string) => {
 };
 
 export const updateLastRead = async (chatId: string, userId: string) => {
+  if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   await updateDoc(chatRef, {
     [`memberSettings.${userId}.lastReadTimestamp`]: Date.now()
@@ -300,6 +315,7 @@ export const updateNotificationSettings = async (
   userId: string, 
   level: NotificationLevel
 ) => {
+  if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   await updateDoc(chatRef, {
     [`memberSettings.${userId}.notificationLevel`]: level
