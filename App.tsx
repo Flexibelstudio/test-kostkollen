@@ -395,8 +395,17 @@ export const App = () => {
   const previousViewModeRef = useRef<ViewMode>(viewMode);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [buddyDetails, setBuddyDetails] = useState<BuddyDetails[]>([]);
-  const [communityNotificationCount] = useState(0);
   const [isLoadingCommunityData, setIsLoadingCommunityData] = useState(true);
+
+  const newEventsCount = useMemo(() => {
+    if (!currentUser || !timelineEvents) return 0;
+    const lastTimestamp = getLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, 0);
+    let count = 0;
+    timelineEvents.forEach(event => {
+        if (event.userId !== currentUser.uid && event.timestamp > lastTimestamp) count++;
+    });
+    return count;
+  }, [timelineEvents, currentUser]);
 
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -1510,7 +1519,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { setViewMode('main'); setCurrentLessonId(null); } },
     { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { setJourneyInitialTab('calendar'); setViewMode('journey'); } },
     { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { setViewMode('coursesView');} },
-    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setViewMode('community'); }, notificationCount: pendingRequestsCount + communityNotificationCount + unreadChatsCount },
+    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setViewMode('community'); }, notificationCount: pendingRequestsCount + newEventsCount + unreadChatsCount },
   ];
 
   const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
