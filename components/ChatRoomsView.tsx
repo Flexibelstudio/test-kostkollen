@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User } from 'firebase/auth';
-import { UserProfileData, Chat, ChatMessage, Peppkompis } from '../types';
-import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat } from '../services/chatService';
+import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings } from '../types';
+import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon } from 'lucide-react';
@@ -196,7 +196,17 @@ const ChatWindow: React.FC<{
     const [showSettings, setShowSettings] = useState(false);
     const [isAddingMembers, setIsAddingMembers] = useState(false);
     const [selectedBuddies, setSelectedBuddies] = useState<string[]>([]);
+    const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [showAdminMenu, setShowAdminMenu] = useState(false);
+    const [newChatName, setNewChatName] = useState(chat.name || '');
+    const [isEditingName, setIsEditingName] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const isAdmin = chat.admins?.includes(currentUser.uid);
+    const canInvite = chat.type === 'public_room' || chat.invitePermission === 'everyone' || isAdmin;
 
     useEffect(() => {
         const unsubscribe = subscribeToChatMessages(chat.id, (newMessages) => {
@@ -212,22 +222,65 @@ const ChatWindow: React.FC<{
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMessage.trim()) return;
+        if (!newMessage.trim() && !selectedImage) return;
 
         const text = newMessage.trim();
+        const imageToSend = selectedImage;
+        
         setNewMessage('');
+        setSelectedImage(null);
+        setEditingMessageId(null);
 
         try {
-            await sendMessage(
-                chat.id, 
-                currentUser.uid, 
-                userProfile.name || 'Användare', 
-                text, 
-                userProfile.photoURL
-            );
+            if (editingMessageId) {
+                await editMessage(chat.id, editingMessageId, text);
+            } else {
+                await sendMessage(
+                    chat.id, 
+                    currentUser.uid, 
+                    userProfile.name || 'Användare', 
+                    text, 
+                    userProfile.photoURL,
+                    imageToSend || undefined
+                );
+            }
         } catch (error) {
             setToastNotification({ message: 'Kunde inte skicka meddelande.', type: 'error' });
         }
+    };
+
+    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            setToastNotification({ message: 'Bilden är för stor (max 5MB)', type: 'error' });
+            return;
+        }
+
+        setIsUploadingImage(true);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setSelectedImage(reader.result as string);
+            setIsUploadingImage(false);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleDeleteMessage = async (messageId: string) => {
+        if (window.confirm('Är du säker på att du vill radera meddelandet?')) {
+            try {
+                await deleteMessage(chat.id, messageId);
+            } catch (error) {
+                setToastNotification({ message: 'Kunde inte radera meddelandet.', type: 'error' });
+            }
+        }
+    };
+
+    const handleStartEdit = (msg: ChatMessage) => {
+        setEditingMessageId(msg.id);
+        setNewMessage(msg.text);
+        setSelectedImage(msg.imageUrl || null);
     };
 
     const handleSettingChange = async (level: 'all' | 'mentions' | 'mute') => {
@@ -324,13 +377,40 @@ const ChatWindow: React.FC<{
                             {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-neutral flex-shrink-0" /> : 
                              chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-neutral flex-shrink-0" /> : 
                              chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
-                            <h2 className="font-bold text-neutral-dark leading-tight">{chat.name || 'Gruppchatt'}</h2>
+                            {isEditingName ? (
+                                <input
+                                    type="text"
+                                    value={newChatName}
+                                    onChange={(e) => setNewChatName(e.target.value)}
+                                    onBlur={async () => {
+                                        if (newChatName.trim() && newChatName !== chat.name) {
+                                            try {
+                                                await updateChatName(chat.id, newChatName.trim());
+                                                setToastNotification({ message: 'Gruppnamn uppdaterat', type: 'success' });
+                                            } catch (error) {
+                                                setToastNotification({ message: 'Kunde inte uppdatera namn', type: 'error' });
+                                                setNewChatName(chat.name || '');
+                                            }
+                                        }
+                                        setIsEditingName(false);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.currentTarget.blur();
+                                        }
+                                    }}
+                                    className="font-bold text-neutral-dark leading-tight bg-gray-100 rounded px-1 outline-none focus:ring-2 focus:ring-primary"
+                                    autoFocus
+                                />
+                            ) : (
+                                <h2 className="font-bold text-neutral-dark leading-tight">{chat.name || 'Gruppchatt'}</h2>
+                            )}
                         </div>
                         <p className="text-xs text-neutral">{chat.members.length} medlemmar</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
-                    {availableBuddies.length > 0 && (
+                    {canInvite && availableBuddies.length > 0 && (
                         <button onClick={() => setIsAddingMembers(true)} className="p-2 text-neutral hover:text-primary rounded-full hover:bg-primary-50 transition-colors" title="Lägg till kompisar">
                             <UserPlusIcon className="w-5 h-5" />
                         </button>
@@ -353,6 +433,34 @@ const ChatWindow: React.FC<{
                             </div>
                         )}
                     </div>
+                    {isAdmin && (
+                        <div className="relative">
+                            <button onClick={() => setShowAdminMenu(!showAdminMenu)} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            </button>
+                            {showAdminMenu && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-neutral-light py-1 z-20">
+                                    <button onClick={() => { setIsEditingName(true); setShowAdminMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-neutral-dark hover:bg-gray-50 flex items-center gap-2">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg> Byt namn
+                                    </button>
+                                    <button onClick={async () => {
+                                        if (window.confirm('Är du säker på att du vill radera gruppen? Detta kan inte ångras.')) {
+                                            try {
+                                                await deleteChat(chat.id);
+                                                onBack();
+                                                setToastNotification({ message: 'Grupp raderad', type: 'success' });
+                                            } catch (error) {
+                                                setToastNotification({ message: 'Kunde inte radera grupp', type: 'error' });
+                                            }
+                                        }
+                                        setShowAdminMenu(false);
+                                    }} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> Radera grupp
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -363,7 +471,7 @@ const ChatWindow: React.FC<{
                     const showHeader = index === 0 || messages[index - 1].senderId !== msg.senderId || (msg.timestamp - messages[index - 1].timestamp > 5 * 60 * 1000);
 
                     // Calculate who has read this message
-                    const readBy = Object.entries(chat.memberSettings)
+                    const readBy = Object.entries(chat.memberSettings as Record<string, ChatMemberSettings>)
                         .filter(([uid, settings]) => uid !== currentUser.uid && uid !== msg.senderId && settings.lastReadTimestamp >= msg.timestamp)
                         .map(([uid]) => uid);
 
@@ -377,8 +485,28 @@ const ChatWindow: React.FC<{
                                     <span className="text-xs font-medium text-neutral">{msg.senderName}</span>
                                 </div>
                             )}
-                            <div className={`max-w-[80%] px-4 py-2 rounded-2xl ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'}`}>
-                                <p className="text-[15px] leading-relaxed break-words">{msg.text}</p>
+                            <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'}`}>
+                                {msg.imageUrl && (
+                                    <img src={msg.imageUrl} alt="Bifogad bild" className="max-w-full rounded-lg mb-2" />
+                                )}
+                                <p className={`text-[15px] leading-relaxed break-words ${msg.isDeleted ? 'italic opacity-70' : ''}`}>{msg.text}</p>
+                                {msg.isEdited && !msg.isDeleted && (
+                                    <span className="text-[10px] opacity-70 ml-2">(redigerad)</span>
+                                )}
+                                
+                                {/* Message Actions */}
+                                {!msg.isDeleted && (isMe || isAdmin) && (
+                                    <div className={`absolute top-2 ${isMe ? '-left-16' : '-right-16'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1`}>
+                                        {isMe && (
+                                            <button onClick={() => handleStartEdit(msg)} className="p-1 text-neutral hover:text-primary rounded hover:bg-gray-100" title="Redigera">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                            </button>
+                                        )}
+                                        <button onClick={() => handleDeleteMessage(msg.id)} className="p-1 text-neutral hover:text-red-500 rounded hover:bg-gray-100" title="Radera">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                             <span className="text-[10px] text-neutral mt-1 mx-1">
                                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -408,7 +536,41 @@ const ChatWindow: React.FC<{
 
             {/* Input */}
             <div className="flex-shrink-0 bg-white border-t border-neutral-light p-3">
+                {editingMessageId && (
+                    <div className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-t-lg border-b border-gray-200 text-sm text-neutral-dark">
+                        <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            Redigerar meddelande
+                        </span>
+                        <button onClick={() => { setEditingMessageId(null); setNewMessage(''); setSelectedImage(null); }} className="text-neutral hover:text-neutral-dark">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                )}
+                {selectedImage && (
+                    <div className="relative inline-block mb-2 ml-12">
+                        <img src={selectedImage} alt="Vald bild" className="h-20 rounded-lg border border-neutral-light" />
+                        <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-md border border-neutral-light text-neutral hover:text-red-500">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                )}
                 <form onSubmit={handleSend} className="flex items-end gap-2">
+                    <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        ref={fileInputRef}
+                        onChange={handleImageSelect}
+                    />
+                    <button 
+                        type="button" 
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingImage}
+                        className="p-3 text-neutral hover:text-primary rounded-full hover:bg-gray-100 transition-colors flex-shrink-0 mb-0.5"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    </button>
                     <div className="flex-grow bg-gray-100 rounded-2xl border border-transparent focus-within:border-primary focus-within:bg-white transition-all overflow-hidden">
                         <textarea 
                             value={newMessage}
@@ -427,7 +589,7 @@ const ChatWindow: React.FC<{
                     </div>
                     <button 
                         type="submit" 
-                        disabled={!newMessage.trim()}
+                        disabled={(!newMessage.trim() && !selectedImage) || isUploadingImage}
                         className="p-3 bg-primary text-white rounded-full disabled:opacity-50 disabled:bg-neutral hover:bg-primary-darker transition-colors flex-shrink-0 mb-0.5"
                     >
                         <svg className="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
@@ -449,6 +611,7 @@ const CreateGroupView: React.FC<{
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [isPublic, setIsPublic] = useState(false);
+    const [invitePermission, setInvitePermission] = useState<'admin_only' | 'everyone'>('everyone');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedBuddies, setSelectedBuddies] = useState<string[]>([]);
 
@@ -468,7 +631,8 @@ const CreateGroupView: React.FC<{
                 name.trim(),
                 description.trim(),
                 currentUser.uid,
-                selectedBuddies
+                selectedBuddies,
+                isPublic ? 'everyone' : invitePermission
             );
 
             // We don't have the full chat object immediately, but the subscription will pick it up.
@@ -530,6 +694,36 @@ const CreateGroupView: React.FC<{
                         <span className="text-neutral">Alla i appen kan se och gå med i detta rum.</span>
                     </label>
                 </div>
+
+                {!isPublic && (
+                    <div className="mt-4 bg-gray-50 p-3 rounded-lg border border-neutral-light">
+                        <label className="block text-sm font-medium text-neutral-dark mb-2">Vem får bjuda in fler personer?</label>
+                        <div className="flex flex-col gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="radio" 
+                                    name="invitePermission" 
+                                    value="everyone" 
+                                    checked={invitePermission === 'everyone'} 
+                                    onChange={() => setInvitePermission('everyone')}
+                                    className="text-primary focus:ring-primary"
+                                />
+                                <span className="text-sm text-neutral-dark">Alla i gruppen</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="radio" 
+                                    name="invitePermission" 
+                                    value="admin_only" 
+                                    checked={invitePermission === 'admin_only'} 
+                                    onChange={() => setInvitePermission('admin_only')}
+                                    className="text-primary focus:ring-primary"
+                                />
+                                <span className="text-sm text-neutral-dark">Bara jag (Admin)</span>
+                            </label>
+                        </div>
+                    </div>
+                )}
 
                 {!isPublic && buddyDetails.length > 0 && (
                     <div className="mt-4">

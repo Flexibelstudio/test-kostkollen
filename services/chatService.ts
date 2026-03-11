@@ -13,7 +13,8 @@ import {
   serverTimestamp,
   arrayUnion,
   arrayRemove,
-  limit
+  limit,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Chat, ChatMessage, ChatType, NotificationLevel } from '../types';
@@ -25,7 +26,8 @@ export const createChat = async (
   name: string,
   description: string,
   creatorId: string,
-  initialMembers: string[] = []
+  initialMembers: string[] = [],
+  invitePermission: 'admin_only' | 'everyone' = 'everyone'
 ): Promise<string> => {
   const members = Array.from(new Set([creatorId, ...initialMembers]));
   
@@ -44,6 +46,7 @@ export const createChat = async (
     description,
     members,
     admins: [creatorId],
+    invitePermission,
     memberSettings,
     createdAt: now,
     createdBy: creatorId,
@@ -136,7 +139,8 @@ export const sendMessage = async (
   senderId: string,
   senderName: string,
   text: string,
-  senderPhotoURL?: string
+  senderPhotoURL?: string,
+  imageUrl?: string
 ) => {
   const timestamp = Date.now();
   
@@ -147,7 +151,8 @@ export const sendMessage = async (
     senderName,
     text,
     timestamp,
-    senderPhotoURL
+    senderPhotoURL,
+    ...(imageUrl ? { imageUrl } : {})
   };
 
   await addDoc(collection(db, `chats/${chatId}/messages`), messageData);
@@ -155,7 +160,7 @@ export const sendMessage = async (
   // Update chat lastMessage
   await updateDoc(doc(db, 'chats', chatId), {
     lastMessage: {
-      text,
+      text: imageUrl ? (text || 'Skickade en bild') : text,
       timestamp,
       senderId,
       senderName
@@ -178,6 +183,48 @@ export const addMembersToChat = async (chatId: string, userIds: string[]) => {
   });
 
   await updateDoc(chatRef, updates);
+};
+
+export const removeMemberFromChat = async (chatId: string, userId: string) => {
+  const chatRef = doc(db, 'chats', chatId);
+  
+  const updates: Record<string, any> = {
+    members: arrayRemove(userId)
+  };
+  
+  // We don't strictly need to delete the memberSettings, but we could.
+  // Leaving it is fine, it just won't be used.
+  await updateDoc(chatRef, updates);
+};
+
+export const updateChatName = async (chatId: string, newName: string) => {
+  const chatRef = doc(db, 'chats', chatId);
+  await updateDoc(chatRef, { name: newName });
+};
+
+export const deleteChat = async (chatId: string) => {
+  const chatRef = doc(db, 'chats', chatId);
+  // Note: For a complete deletion, you'd also want to delete all messages in the subcollection.
+  // In a real production app, this is often done via a Cloud Function to avoid client-side timeouts.
+  // For now, we'll just delete the main chat document.
+  await deleteDoc(chatRef);
+};
+
+export const editMessage = async (chatId: string, messageId: string, newText: string) => {
+  const messageRef = doc(db, `chats/${chatId}/messages`, messageId);
+  await updateDoc(messageRef, {
+    text: newText,
+    isEdited: true
+  });
+};
+
+export const deleteMessage = async (chatId: string, messageId: string) => {
+  const messageRef = doc(db, `chats/${chatId}/messages`, messageId);
+  await updateDoc(messageRef, {
+    text: 'Meddelandet har raderats',
+    imageUrl: null,
+    isDeleted: true
+  });
 };
 
 export const joinPublicRoom = async (chatId: string, userId: string) => {

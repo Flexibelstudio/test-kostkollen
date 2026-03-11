@@ -504,6 +504,9 @@ export interface ChatMessage {
   senderName: string;
   senderPhotoURL?: string;
   text: string;
+  imageUrl?: string;
+  isEdited?: boolean;
+  isDeleted?: boolean;
   timestamp: number;
   mentions?: string[]; // Array of userIds
 }
@@ -516,6 +519,7 @@ export interface Chat {
   avatarUrl?: string;
   members: string[]; // Array of userIds
   admins: string[]; // Array of userIds
+  invitePermission?: 'admin_only' | 'everyone';
   memberSettings: {
     [userId: string]: ChatMemberSettings;
   };
