@@ -242,6 +242,104 @@ const ChatWindow: React.FC<{
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const [showEmojiPickerFor, setShowEmojiPickerFor] = useState<string | null>(null);
+    const [mentionSearch, setMentionSearch] = useState<string | null>(null);
+    const [mentionIndex, setMentionIndex] = useState<number>(0);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const chatMembers = useMemo(() => {
+        const membersMap = new Map<string, { uid: string, name: string, photoURL?: string }>();
+        
+        buddyDetails.forEach(buddy => {
+            if (chat.members.includes(buddy.uid)) {
+                membersMap.set(buddy.uid, { uid: buddy.uid, name: buddy.name, photoURL: buddy.photoURL });
+            }
+        });
+
+        messages.forEach(msg => {
+            if (!membersMap.has(msg.senderId) && chat.members.includes(msg.senderId)) {
+                membersMap.set(msg.senderId, { uid: msg.senderId, name: msg.senderName, photoURL: msg.senderPhotoURL });
+            }
+        });
+
+        membersMap.delete(currentUser.uid);
+
+        return Array.from(membersMap.values());
+    }, [chat.members, buddyDetails, messages, currentUser.uid]);
+
+    const filteredMembers = useMemo(() => {
+        if (mentionSearch === null) return [];
+        return chatMembers.filter(m => m.name.toLowerCase().includes(mentionSearch.toLowerCase()));
+    }, [chatMembers, mentionSearch]);
+
+    const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const val = e.target.value;
+        setNewMessage(val);
+
+        const cursorPosition = e.target.selectionStart;
+        const textBeforeCursor = val.substring(0, cursorPosition);
+        const match = textBeforeCursor.match(/@([a-zA-Z0-9_åäöÅÄÖ]*)$/);
+
+        if (match) {
+            setMentionSearch(match[1]);
+            setMentionIndex(0);
+        } else {
+            setMentionSearch(null);
+        }
+    };
+
+    const handleMentionSelect = (member: { uid: string, name: string }) => {
+        if (!textareaRef.current) return;
+        
+        const cursorPosition = textareaRef.current.selectionStart;
+        const textBeforeCursor = newMessage.substring(0, cursorPosition);
+        const textAfterCursor = newMessage.substring(cursorPosition);
+        
+        const match = textBeforeCursor.match(/@([a-zA-Z0-9_åäöÅÄÖ]*)$/);
+        if (match) {
+            const beforeMention = textBeforeCursor.substring(0, match.index);
+            const newText = `${beforeMention}@${member.name} ${textAfterCursor}`;
+            setNewMessage(newText);
+            setMentionSearch(null);
+            
+            // Set cursor position after the mention
+            setTimeout(() => {
+                if (textareaRef.current) {
+                    const newCursorPos = beforeMention.length + member.name.length + 2;
+                    textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+                    textareaRef.current.focus();
+                }
+            }, 0);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (mentionSearch !== null && filteredMembers.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setMentionIndex(prev => (prev + 1) % filteredMembers.length);
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setMentionIndex(prev => (prev - 1 + filteredMembers.length) % filteredMembers.length);
+                return;
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                handleMentionSelect(filteredMembers[mentionIndex]);
+                return;
+            }
+            if (e.key === 'Escape') {
+                setMentionSearch(null);
+                return;
+            }
+        }
+
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSend(e as any);
+        }
+    };
 
     const isAdmin = chat.admins?.includes(currentUser.uid) || chat.createdBy === currentUser.uid;
     const canInvite = chat.type === 'public_room' || chat.invitePermission === 'everyone' || isAdmin;
@@ -607,26 +705,19 @@ const ChatWindow: React.FC<{
                                 {/* Message Actions */}
                                 {!msg.isDeleted && (
                                     <div className={`absolute -top-10 ${isMe ? 'right-0' : 'left-0'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1 z-20`}>
-                                        <button 
-                                            onClick={() => {
-                                                const hasReacted = !!msg.reactions?.['👍']?.[currentUser.uid];
-                                                toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', '👍', !hasReacted);
-                                            }} 
-                                            className={`p-1 rounded hover:bg-gray-100 ${!!msg.reactions?.['👍']?.[currentUser.uid] ? 'bg-primary-50' : ''}`} 
-                                            title="Tumme upp"
-                                        >
-                                            👍
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                const hasReacted = !!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid);
-                                                toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', '❤️', !hasReacted);
-                                            }} 
-                                            className={`p-1 rounded hover:bg-gray-100 ${!!msg.reactions?.['❤️']?.[currentUser.uid] || msg.likes?.includes(currentUser.uid) ? 'bg-primary-50' : ''}`} 
-                                            title="Hjärta"
-                                        >
-                                            ❤️
-                                        </button>
+                                        {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                                            <button 
+                                                key={emoji}
+                                                onClick={() => {
+                                                    const hasReacted = !!msg.reactions?.[emoji]?.[currentUser.uid] || (emoji === '❤️' && msg.likes?.includes(currentUser.uid));
+                                                    toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emoji, !hasReacted);
+                                                }} 
+                                                className={`p-1 rounded hover:bg-gray-100 ${!!msg.reactions?.[emoji]?.[currentUser.uid] || (emoji === '❤️' && msg.likes?.includes(currentUser.uid)) ? 'bg-primary-50' : ''}`} 
+                                                title={emoji}
+                                            >
+                                                {emoji}
+                                            </button>
+                                        ))}
                                         <div className="relative">
                                             <button 
                                                 onClick={() => setShowEmojiPickerFor(showEmojiPickerFor === msg.id ? null : msg.id)} 
@@ -698,7 +789,22 @@ const ChatWindow: React.FC<{
                         </button>
                     </div>
                 )}
-                <form onSubmit={handleSend} className="flex items-end gap-2">
+                <form onSubmit={handleSend} className="flex items-end gap-2 relative">
+                    {mentionSearch !== null && filteredMembers.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-xl shadow-lg border border-neutral-light overflow-hidden z-50">
+                            {filteredMembers.map((member, idx) => (
+                                <button
+                                    key={member.uid}
+                                    type="button"
+                                    onClick={() => handleMentionSelect(member)}
+                                    className={`w-full text-left px-4 py-2 flex items-center gap-2 hover:bg-gray-50 ${idx === mentionIndex ? 'bg-primary-50' : ''}`}
+                                >
+                                    <Avatar photoURL={member.photoURL} size={24} />
+                                    <span className="font-medium text-neutral-dark">{member.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <input 
                         type="file" 
                         accept="image/*" 
@@ -734,17 +840,13 @@ const ChatWindow: React.FC<{
                     </button>
                     <div className="flex-grow bg-gray-100 rounded-2xl border border-transparent focus-within:border-primary focus-within:bg-white transition-all overflow-hidden">
                         <textarea 
+                            ref={textareaRef}
                             value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
+                            onChange={handleMessageChange}
                             placeholder="Skriv ett meddelande..."
                             className="w-full bg-transparent border-none focus:ring-0 focus:outline-none appearance-none resize-none max-h-32 py-3 px-4 text-[15px] m-0 block"
                             rows={1}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSend(e);
-                                }
-                            }}
+                            onKeyDown={handleKeyDown}
                             style={{ minHeight: '44px' }}
                         />
                     </div>
@@ -772,7 +874,7 @@ const ChatWindow: React.FC<{
                             setShowEmojiPickerFor(null);
                         }}
                         width="100%"
-                        height={300}
+                        height="50vh"
                     />
                 </div>
             )}
