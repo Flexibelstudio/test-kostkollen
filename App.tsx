@@ -617,6 +617,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.message === 'push-received-in-foreground') {
         const { title, body } = event.data.notification;
+        
+        // Don't show toast if we are in the community view (which includes chat)
+        // to prevent it from getting in the way while typing.
+        if (previousViewModeRef.current === 'community') {
+            return;
+        }
+        
         setToastNotification({ message: body ? `${title}: ${body}` : title, type: 'success' });
         playAudio('logSuccess', 0.8);
       }
