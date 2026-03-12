@@ -7,7 +7,7 @@ import type { User } from '@firebase/auth';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from './icons';
 import { User as UserIconLucide, PieChart, TrendingDown, Users as UsersIcon } from 'lucide-react';
 import { playAudio } from '../services/audioService';
-import { subscribeToUserChats } from '../services/chatService';
+import { subscribeToSystemGroups } from '../services/chatService';
 import { 
     fetchCoachViewMembers, 
     approveMember,
@@ -568,11 +568,11 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
 
   useEffect(() => {
-      const unsubscribe = subscribeToUserChats(currentUserId, (chats) => {
-          setMyChats(chats.filter(c => c.isSystemGroup || c.createdBy === currentUserId));
+      const unsubscribe = subscribeToSystemGroups((chats) => {
+          setMyChats(chats);
       });
       return () => unsubscribe();
-  }, [currentUserId]);
+  }, []);
 
   const {
       membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
@@ -643,6 +643,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     chat={selectedChat}
                     currentUser={currentUser}
                     userProfile={userProfile}
+                    userRole={userRole}
                     onBack={() => setSelectedChat(null)}
                     setToastNotification={setToastNotification}
                     buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
@@ -662,6 +663,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
                     defaultIsSystemGroup={true}
                     defaultIsPublic={true}
+                    hideSystemGroupOption={true}
                 />
             </div>
         ) : (
@@ -688,7 +690,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
                             <h3 className="font-bold text-neutral-darker mb-4 flex items-center gap-2">
                                 <UsersIcon className="w-5 h-5 text-primary" />
-                                Mina Officiella Grupper
+                                Officiella Grupper
                             </h3>
                             <div className="space-y-3">
                                 {myChats.map(chat => (

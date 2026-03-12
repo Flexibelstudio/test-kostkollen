@@ -115,6 +115,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                 }}
                 setToastNotification={setToastNotification}
                 buddyDetails={buddyDetails}
+                hideSystemGroupOption={true}
             />
         );
     }
@@ -266,10 +267,11 @@ export const ChatWindow: React.FC<{
     chat: Chat, 
     currentUser: User, 
     userProfile: UserProfileData, 
+    userRole?: 'member' | 'coach' | 'admin',
     onBack: () => void,
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void,
     buddyDetails?: BuddyDetails[]
-}> = ({ chat, currentUser, userProfile, onBack, setToastNotification, buddyDetails = [] }) => {
+}> = ({ chat, currentUser, userProfile, userRole, onBack, setToastNotification, buddyDetails = [] }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [showSettings, setShowSettings] = useState(false);
@@ -391,7 +393,7 @@ export const ChatWindow: React.FC<{
         }
     };
 
-    const isAdmin = chat.admins?.includes(currentUser.uid) || chat.createdBy === currentUser.uid;
+    const isAdmin = chat.admins?.includes(currentUser.uid) || chat.createdBy === currentUser.uid || (userRole === 'coach' && chat.isSystemGroup);
     const canInvite = chat.type === 'public_room' || chat.invitePermission === 'everyone' || isAdmin;
 
     useEffect(() => {
@@ -596,7 +598,7 @@ export const ChatWindow: React.FC<{
         );
     };
 
-    const currentSetting = chat.memberSettings[currentUser.uid]?.notificationLevel || 'all';
+    const currentSetting = chat.memberSettings?.[currentUser.uid]?.notificationLevel || 'all';
     
     // Filter out buddies that are already in the chat
     const availableBuddies = buddyDetails.filter(b => !chat.members.includes(b.uid));
@@ -877,7 +879,7 @@ export const ChatWindow: React.FC<{
                     const showHeader = index === 0 || messages[index - 1].senderId !== msg.senderId || (msg.timestamp - messages[index - 1].timestamp > 5 * 60 * 1000);
 
                     // Calculate who has read this message
-                    const readBy = Object.entries(chat.memberSettings as Record<string, ChatMemberSettings>)
+                    const readBy = Object.entries((chat.memberSettings || {}) as Record<string, ChatMemberSettings>)
                         .filter(([uid, settings]) => uid !== currentUser.uid && uid !== msg.senderId && settings.lastReadTimestamp >= msg.timestamp)
                         .map(([uid]) => uid);
 
@@ -1120,7 +1122,8 @@ export const CreateGroupView: React.FC<{
     buddyDetails: BuddyDetails[];
     defaultIsSystemGroup?: boolean;
     defaultIsPublic?: boolean;
-}> = ({ currentUser, userProfile, onBack, onGroupCreated, setToastNotification, buddyDetails, defaultIsSystemGroup = false, defaultIsPublic = false }) => {
+    hideSystemGroupOption?: boolean;
+}> = ({ currentUser, userProfile, onBack, onGroupCreated, setToastNotification, buddyDetails, defaultIsSystemGroup = false, defaultIsPublic = false, hideSystemGroupOption = false }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [isPublic, setIsPublic] = useState(defaultIsPublic);
@@ -1226,7 +1229,7 @@ export const CreateGroupView: React.FC<{
                     </div>
                 )}
 
-                {(userProfile as any).role === 'coach' && isPublic && (
+                {(userProfile as any).role === 'coach' && isPublic && !hideSystemGroupOption && (
                     <div className="mt-4 flex items-center gap-3 p-3 bg-purple-50/50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
                         <input 
                             type="checkbox" 

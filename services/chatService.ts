@@ -99,6 +99,32 @@ export const subscribeToUserChats = (
   });
 };
 
+export const subscribeToSystemGroups = (
+  callback: (chats: Chat[]) => void
+) => {
+  if (!db) return () => {};
+  const systemQuery = query(
+    collection(db, 'chats'),
+    where('isSystemGroup', '==', true)
+  );
+
+  return onSnapshot(systemQuery, (snapshot) => {
+    const chats: Chat[] = [];
+    snapshot.forEach((doc) => {
+      chats.push({ id: doc.id, ...doc.data() } as Chat);
+    });
+    
+    // Sort client-side
+    chats.sort((a, b) => {
+      const timeA = a.lastMessage?.timestamp || a.createdAt;
+      const timeB = b.lastMessage?.timestamp || b.createdAt;
+      return timeB - timeA;
+    });
+    
+    callback(chats);
+  });
+};
+
 export const subscribeToPublicRooms = (
   callback: (chats: Chat[]) => void
 ) => {
