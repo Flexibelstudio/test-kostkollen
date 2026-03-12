@@ -589,7 +589,7 @@ export const ChatWindow: React.FC<{
             messageId: replyingToMessage.id,
             senderName: replyingToMessage.senderName,
             text: replyingToMessage.text,
-            imageUrl: replyingToMessage.imageUrl
+            ...(replyingToMessage.imageUrl ? { imageUrl: replyingToMessage.imageUrl } : {})
         } : undefined;
         setReplyingToMessage(null);
 

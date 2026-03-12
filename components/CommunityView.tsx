@@ -1050,7 +1050,7 @@ const ShareModal: FC<{
                 title: event.title,
                 description: event.description,
                 icon: event.icon,
-                imageUrl: event.imageUrl,
+                ...(event.imageUrl ? { imageUrl: event.imageUrl } : {}),
                 type: event.type
             };
 
