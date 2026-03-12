@@ -400,13 +400,14 @@ export const App = () => {
 
   const newEventsCount = useMemo(() => {
     if (!currentUser || !timelineEvents) return 0;
+    if (viewMode === 'community') return 0;
     const lastTimestamp = getLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, 0);
     let count = 0;
     timelineEvents.forEach(event => {
         if (event.userId !== currentUser.uid && event.timestamp > lastTimestamp) count++;
     });
     return count;
-  }, [timelineEvents, currentUser]);
+  }, [timelineEvents, currentUser, viewMode]);
 
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);

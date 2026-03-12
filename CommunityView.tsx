@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect, useMemo, FC, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, FC, useCallback } from 'react';
 import type { User } from '@firebase/auth';
-import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory, UserRole } from '../types';
+import { Peppkompis, TimelineEvent, Achievement, Gender, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions } from './types';
 import { 
     searchForBuddies,
     sendFriendRequest,
@@ -12,310 +11,64 @@ import {
     togglePeppOnTimelineEvent,
     addCommentToTimelineEvent,
     toggleLikeOnComment,
-    fetchCommunityTimeline,
-    listenToCommunityTimeline,
-    createUserPost,
-    cancelFriendRequest,
-    deleteTimelineEvent
-} from '../services/firestoreService';
+    fetchBuddies,
+    cancelFriendRequest
+} from './services/firestoreService';
 import { 
     HeartIcon, 
-    TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
-    ShareIcon, PencilIcon, CameraIcon
-} from './icons';
-import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw } from 'lucide-react';
-import { playAudio } from '../services/audioService';
-import { Avatar } from './UserProfileModal';
-import Lightbox from './Lightbox';
-import { ChatRoomsView } from './ChatRoomsView';
+    TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ChevronDownIcon, ArrowRightIcon,
+    ShareIcon, PencilIcon,
+} from './components/icons';
+import { Users, Newspaper, User as UserIcon, Dumbbell, PieChart } from 'lucide-react';
+import { playAudio } from './services/audioService';
+import { Avatar } from './components/UserProfileModal';
 
-// --- HELPER FUNCTIONS ---
+// --- HELPER FUNCTION ---
+const formatChange = (change: number | undefined, isFirstEntry: boolean, invertColors: boolean = false): { text: string; colorClass: string } => {
+    if (isFirstEntry) {
+        return { text: '-', colorClass: 'text-neutral' };
+    }
+    if (change === undefined || change === null || isNaN(change)) {
+        return { text: '-', colorClass: 'text-neutral' };
+    }
 
-export const resizeImage = (file: File, maxSize: number): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target?.result as string;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let { width, height } = img;
-                if (width > height) {
-                    if (width > maxSize) {
-                        height = Math.round(height * (maxSize / width));
-                        width = maxSize;
-                    }
-                } else {
-                    if (height > maxSize) {
-                        width = Math.round(width * (maxSize / height));
-                        height = maxSize;
-                    }
-                }
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return reject(new Error('Canvas context failed'));
-                ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.8));
-            };
-            img.onerror = reject;
-        };
-        reader.onerror = reject;
-    });
-};
+    if (Math.abs(change) < 0.05) {
+        return { text: '±0,0 kg', colorClass: 'text-accent' };
+    }
 
-const calculateProgressPercentage = (
-    method: 'scale' | 'inbody' | undefined,
-    startWeight?: number, currentWeight?: number, desiredWeightChange?: number,
-    startFat?: number, currentFat?: number, desiredFatChange?: number,
-    startMuscle?: number, currentMuscle?: number, desiredMuscleChange?: number,
-    isGoalCompleted?: boolean
-): number => {
-    if (isGoalCompleted) return 100;
+    const sign = change > 0 ? '+' : '';
+    const formattedValue = `${sign}${change.toFixed(1).replace('.', ',')} kg`;
 
-    let start, current, goalChange;
-
-    const isScaleGoal = method === 'scale';
-    const isFatLossGoal = !isScaleGoal && desiredFatChange && desiredFatChange < 0;
-    const isMuscleGainGoal = !isScaleGoal && desiredMuscleChange && desiredMuscleChange > 0;
-
-    if (isFatLossGoal) {
-        if (currentFat != null && startFat != null) {
-            start = startFat;
-            current = currentFat;
-            goalChange = desiredFatChange;
-        } else {
-            start = startWeight;
-            current = currentWeight;
-            goalChange = desiredFatChange;
-        }
-    } else if (isMuscleGainGoal) {
-        if (currentMuscle != null && startMuscle != null) {
-            start = startMuscle;
-            current = currentMuscle;
-            goalChange = desiredMuscleChange;
-        } else {
-            start = startWeight;
-            current = currentWeight;
-            goalChange = desiredMuscleChange;
-        }
-    } else {
-        start = startWeight;
-        current = currentWeight;
-        goalChange = desiredWeightChange;
+    let colorClass = 'text-neutral';
+    if (change > 0) {
+        colorClass = invertColors ? 'text-red-600' : 'text-primary-darker';
+    } else if (change < 0) {
+        colorClass = invertColors ? 'text-primary-darker' : 'text-red-600';
     }
     
-    if (start == null || current == null || !goalChange) return 0;
-    
-    const totalChangeNeeded = Math.abs(goalChange);
-    let changeAchieved;
-    
-    if (goalChange > 0) { 
-        changeAchieved = current - start;
-    } else { 
-        changeAchieved = start - current;
-    }
-    
-    changeAchieved = Math.max(0, changeAchieved);
-
-    if (totalChangeNeeded < 0.01) return 100;
-
-    const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
-    return Math.max(0, Math.min(progressRaw, 100));
+    return { text: formattedValue, colorClass };
 };
-
-const getGoalShortDescription = (
-    method: 'scale' | 'inbody' | undefined,
-    desiredWeightChange?: number,
-    desiredFatChange?: number,
-    desiredMuscleChange?: number
-): string => {
-    if (method === 'scale' && desiredWeightChange) {
-        return `Mål: ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange} kg`;
-    } else {
-        if (desiredFatChange) return `Mål: ${desiredFatChange} kg fett`;
-        if (desiredMuscleChange) return `Mål: +${desiredMuscleChange} kg muskler`;
-    }
-    return 'Mål: Bibehålla';
-};
-
 
 // --- SUB-COMPONENTS ---
 
-export const CreatePostWidget: FC<{
-    currentUser: User;
-    userProfile: UserProfileData;
-    onPostCreated: (post: TimelineEvent) => void;
-    setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
-    userRole?: UserRole;
-}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [text, setText] = useState('');
-    const [image, setImage] = useState<string | null>(null);
-    const [category, setCategory] = useState<PostCategory>('general');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const cameraInputRef = useRef<HTMLInputElement>(null);
-
-    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            try {
-                const resized = await resizeImage(file, 1024);
-                setImage(resized);
-                setIsExpanded(true); 
-            } catch (error) {
-                setToastNotification({ message: 'Kunde inte ladda upp bild.', type: 'error' });
-            }
-        }
-    };
-
-    const handleSubmit = async () => {
-        if (!text.trim() && !image) return;
-        setIsSubmitting(true);
-        playAudio('uiClick');
-
-        try {
-            const isGlobal = true;
-            const newPost = await createUserPost(currentUser.uid, text, category, image || undefined, isGlobal);
-            
-            const optimisticEvent: TimelineEvent = {
-                id: newPost.id,
-                type: 'user_post',
-                timestamp: Date.now(),
-                title: isGlobal ? 'delade ett meddelande till alla' : 'skapade ett inlägg',
-                description: text,
-                icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
-                userId: currentUser.uid,
-                userName: userProfile.name || 'Du',
-                userPhotoURL: userProfile.photoURL,
-                gender: userProfile.gender,
-                reactions: {},
-                comments: [],
-                relatedDocPath: `users/${currentUser.uid}/posts/${newPost.id}`,
-                category: category,
-                imageUrl: image || undefined,
-                visibleTo: newPost.visibleTo,
-                isGlobal: isGlobal
-            };
-            
-            onPostCreated(optimisticEvent);
-            setText('');
-            setImage(null);
-            setCategory('general');
-            setToastNotification({ message: 'Inlägg publicerat!', type: 'success' });
-            playAudio('logSuccess');
-            setIsExpanded(false);
-        } catch (error) {
-            console.error(error);
-            setToastNotification({ message: 'Kunde inte skapa inlägg.', type: 'error' });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const categories: { id: PostCategory, label: string, icon: string }[] = [
-        { id: 'pepp', label: 'Pepp', icon: '💖' },
-        { id: 'workout', label: 'Träning', icon: '💪' },
-        { id: 'food', label: 'Mat', icon: '🥗' },
-        { id: 'question', label: 'Fråga', icon: '❓' },
-    ];
-
-    const toggleCategory = (catId: PostCategory) => {
-        setCategory(prev => prev === catId ? 'general' : catId);
-    };
-
-    if (!isExpanded) {
-        return (
-            <div 
-                onClick={() => setIsExpanded(true)}
-                className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-3 mb-6 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-dark transition-colors active:scale-[0.99] select-none"
-            >
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
-                <div className="flex-grow bg-[#ffffff] rounded-full px-4 py-2.5 text-[#6B7280] text-sm font-medium border border-[#E5E7EB]">
-                    Vad tänker du på? Dela med dig...
-                </div>
+const StatCard: FC<{
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+    change: { text: string; colorClass: string };
+    bgColor: string;
+}> = ({ icon, label, value, change, bgColor }) => (
+    <div className="bg-white p-3 rounded-lg shadow-md border border-neutral-light/50 flex-1 min-w-[100px]">
+        <div className="flex items-center gap-2 mb-1">
+            <div className={`p-1.5 rounded-full ${bgColor}`}>
+                {icon}
             </div>
-        );
-    }
-
-    return (
-        <div className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-4 mb-6 relative animate-fade-in">
-            <button 
-                onClick={() => setIsExpanded(false)}
-                className="absolute top-2 right-2 p-2 text-neutral-400 hover:text-neutral-dark dark:hover:text-white rounded-full hover:bg-neutral-light dark:hover:bg-neutral-dark transition-colors z-10"
-                title="Stäng"
-            >
-                <XMarkIcon className="w-5 h-5" />
-            </button>
-
-            <div className="flex gap-3">
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={48} className="flex-shrink-0" />
-                <div className="flex-grow">
-                    <textarea
-                        autoFocus
-                        value={text}
-                        onChange={(e) => setText(e.target.value)}
-                        placeholder="Vad tänker du på? Dela med dig till dina kompisar..."
-                        className="w-full bg-[#ffffff] rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3bab5a] min-h-[100px] resize-none pr-8 text-[#000000] border border-[#E5E7EB] placeholder-[#9CA3AF]"
-                    />
-                    {image && (
-                        <div className="relative mt-2 inline-block bg-white rounded-lg p-1 border border-neutral-light">
-                            <img src={image} alt="Preview" className="h-24 w-auto rounded-md object-contain" />
-                            <button 
-                                onClick={() => setImage(null)}
-                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
-                            >
-                                <XMarkIcon className="w-3 h-3" />
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row justify-between items-center mt-3 gap-3 pt-3 border-t border-neutral-light/50">
-                 <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 hide-scrollbar">
-                    {categories.map(cat => (
-                        <button
-                            key={cat.id}
-                            onClick={() => toggleCategory(cat.id)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap border ${
-                                category === cat.id 
-                                    ? 'bg-primary-100 border-primary text-primary-darker' 
-                                    : 'bg-white dark:bg-neutral-darker border-neutral-light text-neutral hover:bg-neutral-light dark:hover:bg-neutral-dark'
-                            }`}
-                        >
-                            {cat.icon} {cat.label}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
-                    <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
-                    
-                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ta bild">
-                        <CameraIcon className="w-5 h-5" />
-                    </button>
-
-                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ladda upp bild">
-                        <ImageIcon className="w-5 h-5" />
-                    </button>
-                    
-                    <button 
-                        onClick={handleSubmit}
-                        disabled={(!text.trim() && !image) || isSubmitting}
-                        className="px-5 py-2 bg-primary text-white text-sm font-bold rounded-full shadow-md hover:bg-primary-darker active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-2"
-                    >
-                        {isSubmitting ? <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent" /> : <Send className="w-4 h-4" />}
-                        Publicera
-                    </button>
-                </div>
-            </div>
+            <span className="text-xs font-semibold text-neutral">{label}</span>
         </div>
-    );
-};
+        <p className="text-2xl font-bold text-neutral-dark">{value}</p>
+        <p className={`text-sm font-semibold ${change.colorClass}`}>{change.text}</p>
+    </div>
+);
 
 const BuddyCard: FC<{ 
     buddy: BuddyDetails; 
@@ -323,351 +76,159 @@ const BuddyCard: FC<{
     onRemove: () => void; 
     currentUser: User;
 }> = ({ buddy, achievements, onRemove, currentUser }) => {
-    const [showMenu, setShowMenu] = useState(false);
-
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [poppedAchievement, setPoppedAchievement] = useState<string | null>(null);
+    
     const progressPercentage = useMemo(() => {
-        return calculateProgressPercentage(
-            buddy.measurementMethod,
-            buddy.goalStartWeight, buddy.currentWeight, buddy.desiredWeightChangeKg,
-            buddy.goalStartFatMassKg, buddy.currentFatMass, buddy.desiredFatMassChangeKg,
-            buddy.goalStartMuscleMassKg, buddy.currentMuscleMass, buddy.desiredMuscleMassChangeKg,
-            buddy.mainGoalCompleted
-        );
+        if (buddy.mainGoalCompleted) return 100;
+
+        let start, current, goalChange;
+
+        if (buddy.measurementMethod === 'scale') {
+            start = buddy.goalStartWeight;
+            current = buddy.currentWeight;
+            goalChange = buddy.desiredWeightChangeKg || 0;
+        } else { // inbody
+            if (buddy.desiredFatMassChangeKg && buddy.desiredFatMassChangeKg < 0) {
+                start = buddy.goalStartFatMassKg;
+                current = buddy.currentFatMass;
+                goalChange = buddy.desiredFatMassChangeKg;
+            } else if (buddy.desiredMuscleMassChangeKg && buddy.desiredMuscleMassChangeKg > 0) {
+                start = buddy.goalStartMuscleMassKg;
+                current = buddy.currentMuscleMass;
+                goalChange = buddy.desiredMuscleMassChangeKg;
+            } else { // Fallback to weight if no specific fat/muscle goal is set
+                 start = buddy.goalStartWeight;
+                 current = buddy.currentWeight;
+                 goalChange = 0;
+            }
+        }
+        
+        if (start == null || current == null || goalChange === 0) {
+            return 0;
+        }
+        
+        const target = start + goalChange;
+        const totalChangeNeeded = start - target;
+        const changeAchieved = start - current;
+
+        if (totalChangeNeeded === 0) {
+            return 100;
+        }
+
+        const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
+        return Math.max(0, Math.min(progressRaw, 100));
     }, [buddy]);
     
     const goalDescription = useMemo(() => {
-        if (buddy.mainGoalCompleted) return "Mål uppnått!";
-        const desc = getGoalShortDescription(buddy.measurementMethod, buddy.desiredWeightChangeKg, buddy.desiredFatMassChangeKg, buddy.desiredMuscleMassChangeKg);
-        return desc !== 'Mål: Bibehålla' ? desc : (buddy.goalSummary || 'Inget specifikt mål');
+        const { mainGoalCompleted, measurementMethod, desiredWeightChangeKg, desiredFatMassChangeKg, desiredMuscleMassChangeKg, goalSummary } = buddy;
+        if (mainGoalCompleted) return "Mål uppnått!";
+
+        const changes = [];
+        if (measurementMethod === 'scale' && desiredWeightChangeKg) {
+            changes.push(`${desiredWeightChangeKg > 0 ? '+' : ''}${desiredWeightChangeKg.toFixed(1).replace('.',',')} kg vikt`);
+        } else {
+            if (desiredFatMassChangeKg) {
+                changes.push(`${desiredFatMassChangeKg > 0 ? '+' : ''}${desiredFatMassChangeKg.toFixed(1).replace('.',',')} kg fett`);
+            }
+            if (desiredMuscleMassChangeKg) {
+                changes.push(`${desiredMuscleMassChangeKg > 0 ? '+' : ''}${desiredMuscleMassChangeKg.toFixed(1).replace('.',',')} kg muskler`);
+            }
+        }
+
+        if (changes.length > 0) {
+            return `Mål: ${changes.join(' & ')}`;
+        }
+        
+        return goalSummary || 'Inget specifikt mål';
     }, [buddy]);
 
     return (
-        <div className="bg-white dark:bg-neutral-darker p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3 relative">
-             <div className="flex items-start justify-between">
+        <div className="bg-white p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3">
+            <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                     <Avatar photoURL={buddy.photoURL} gender={buddy.gender} size={48} />
                     <div>
-                        <h3 className="text-xl font-bold text-neutral-dark">{buddy.name}</h3>
-                        <p className="text-xs text-neutral flex items-center gap-2 mt-0.5">
-                            <span className="font-medium text-orange-500">🔥 {buddy.currentStreak} dagar</span>
-                            <span className="text-neutral-300">|</span>
-                            <span className="truncate max-w-[150px]">{goalDescription}</span>
+                        <h3 className="text-2xl font-bold text-primary-darker">{buddy.name}</h3>
+                        <p className="text-xs text-neutral-dark flex items-center gap-2">
+                            <span>{goalDescription}</span>
+                            <span>🔥 {buddy.currentStreak} dagar</span>
                         </p>
                     </div>
                 </div>
-                
-                <div className="relative">
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-                        className="p-1.5 text-neutral-400 hover:text-neutral-dark dark:hover:text-white rounded-full hover:bg-neutral-light dark:hover:bg-neutral-dark transition-colors"
-                    >
-                        <MoreHorizontal className="w-5 h-5" />
-                    </button>
-                    {showMenu && (
-                        <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-neutral-darker rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setShowMenu(false); onRemove(); }}
-                                className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            >
-                                <TrashIcon className="w-4 h-4" /> Ta bort
-                            </button>
-                        </div>
-                    )}
-                </div>
+                <button onClick={onRemove} className="p-2 text-neutral hover:text-red-600 rounded-full hover:bg-red-100/50" title={`Ta bort ${buddy.name}`}>
+                    <TrashIcon className="w-5 h-5"/>
+                </button>
             </div>
-            {showMenu && (
-                <div className="fixed inset-0 z-20 cursor-default" onClick={() => setShowMenu(false)}></div>
-            )}
-
             <div>
-                <div className="w-full bg-neutral-light dark:bg-neutral-dark rounded-full h-2.5 shadow-inner">
+                <div className="w-full bg-neutral-light rounded-full h-2.5 shadow-inner">
                     <div className="bg-primary h-2.5 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
                 </div>
                 <p className="text-right text-sm font-semibold text-primary-darker mt-1">{progressPercentage.toFixed(0)}%</p>
             </div>
-        </div>
-    );
-};
+            <div className="flex flex-wrap gap-2">
+                <StatCard 
+                    icon={<UserIcon size={16} className="text-green-700" />}
+                    label="Vikt"
+                    value={buddy.currentWeight ? `${buddy.currentWeight.toFixed(1).replace('.',',')}kg` : '-'}
+                    change={formatChange(buddy.totalWeightChange, buddy.totalWeightChange === undefined, true)}
+                    bgColor="bg-green-100"
+                />
+                 <StatCard 
+                    icon={<Dumbbell size={16} className="text-orange-700" />}
+                    label="Muskler"
+                    value={buddy.currentMuscleMass ? `${buddy.currentMuscleMass.toFixed(1).replace('.',',')}kg` : '-'}
+                    change={formatChange(buddy.muscleMassChange, buddy.muscleMassChange === undefined, false)}
+                    bgColor="bg-orange-100"
+                />
+                 <StatCard 
+                    icon={<PieChart size={16} className="text-yellow-700" />}
+                    label="Fett"
+                    value={buddy.currentFatMass ? `${buddy.currentFatMass.toFixed(1).replace('.',',')}kg` : '-'}
+                    change={formatChange(buddy.fatMassChange, buddy.fatMassChange === undefined, true)}
+                    bgColor="bg-yellow-100"
+                />
+            </div>
+            <div className="text-center">
+                <button onClick={() => setIsExpanded(!isExpanded)} className="p-1 text-neutral hover:text-primary">
+                    <ChevronDownIcon className={`w-6 h-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                </button>
+            </div>
+            {isExpanded && (
+                <div className="grid grid-cols-5 gap-2 animate-fade-in">
+                    {achievements.map(ach => {
+                        const isUnlocked = !!buddy.unlockedAchievements[ach.id];
+                        const pepps = buddy.achievementInteractions?.[ach.id]?.reactions?.['❤️'] || {};
+                        const peppCount = Object.keys(pepps).length;
+                        const currentUserPepped = !!pepps[currentUser.uid];
 
-const renderWeightDescription = (description: string) => {
-    const parts = description.split('\n'); 
-    return (
-        <div className="space-y-1 mt-2">
-            {parts.map(part => {
-                const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
-                if (!match) {
-                    return <p key={part} className="text-base text-neutral-dark">{part}</p>;
-                }
-                
-                const label = match[1];
-                const value = match[2];
-                const changeStr = match[3];
-                const changeNum = parseFloat(changeStr.replace(',', '.'));
-
-                let colorClass = 'text-accent'; 
-                if (changeNum > 0) {
-                    if (label === 'Muskler') colorClass = 'text-primary'; 
-                    else colorClass = 'text-red-600'; 
-                } else if (changeNum < 0) {
-                    if (label === 'Muskler') colorClass = 'text-red-600'; 
-                    else colorClass = 'text-primary'; 
-                }
-
-                return (
-                    <p key={label} className="text-base text-neutral-dark">
-                        <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
-                    </p>
-                );
-            })}
-        </div>
-    );
-};
-
-const TimelineEventCard: FC<{
-    event: TimelineEvent;
-    currentUser: User;
-    userProfile: UserProfileData;
-    onTogglePepp: (event: TimelineEvent, emoji: string) => void;
-    onAddComment: (event: TimelineEvent, text: string) => Promise<void>;
-    onToggleLike: (event: TimelineEvent, commentId: string) => void;
-    onDelete: (eventId: string) => void;
-    onImageClick: (src: string, alt: string) => void;
-    lastViewTimestamp: number | null;
-    buddyDetails: BuddyDetails[]; // Passed for stats lookup
-    currentStreak: number; // Current user's streak
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, lastViewTimestamp, buddyDetails, currentStreak }) => {
-    const [newComment, setNewComment] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const handleCommentSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newComment.trim() || isSubmitting) return;
-        setIsSubmitting(true);
-        await onAddComment(event, newComment);
-        setNewComment('');
-        setIsSubmitting(false);
-    };
-
-    const handleDelete = async () => {
-        if (window.confirm("Är du säker på att du vill ta bort det här inlägget? Det går inte att ångra.")) {
-            onDelete(event.id);
-        }
-    };
-    
-    const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
-    const isNewEvent = lastViewTimestamp !== null && event.timestamp > lastViewTimestamp && event.userId !== currentUser.uid;
-
-    // --- COMPACT STATS LOGIC ---
-    const isCurrentUser = event.userId === currentUser.uid;
-    
-    const stats = useMemo(() => {
-        let s = { streak: 0, progress: 0, goalText: '' };
-        
-        if (isCurrentUser) {
-            s.streak = currentStreak;
-            s.progress = calculateProgressPercentage(
-                userProfile.measurementMethod,
-                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                userProfile.mainGoalCompleted
-            );
-            s.goalText = getGoalShortDescription(userProfile.measurementMethod, userProfile.desiredWeightChangeKg, userProfile.desiredFatMassChangeKg, userProfile.desiredMuscleMassChangeKg);
-        } else {
-            const buddy = buddyDetails.find(b => b.uid === event.userId);
-            if (buddy) {
-                s.streak = buddy.currentStreak || 0;
-                s.progress = calculateProgressPercentage(
-                    buddy.measurementMethod,
-                    buddy.goalStartWeight, buddy.currentWeight, buddy.desiredWeightChangeKg,
-                    buddy.goalStartFatMassKg, buddy.currentFatMass, buddy.desiredFatMassChangeKg,
-                    buddy.goalStartMuscleMassKg, buddy.currentMuscleMass, buddy.desiredMuscleMassChangeKg,
-                    buddy.mainGoalCompleted
-                );
-                s.goalText = getGoalShortDescription(buddy.measurementMethod, buddy.desiredWeightChangeKg, buddy.desiredFatMassChangeKg, buddy.desiredMuscleMassChangeKg);
-            } else {
-                return null; // Not a buddy, don't show stats
-            }
-        }
-        return s;
-    }, [isCurrentUser, currentStreak, userProfile, buddyDetails, event.userId]);
-
-
-    const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
-
-    return (
-    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
-        isNewEvent 
-            ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-            : isGlobalPost
-                ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-                : 'bg-white dark:bg-neutral-darker border-neutral-light'
-    }`}>
-        <div className="flex items-start gap-3">
-            <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={42} />
-            <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                    <div className="flex flex-col">
-                        <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
-                            <span className="font-bold">{isCurrentUser ? 'Du' : event.userName}</span>
-                            {isGlobalPost && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                    Coach
-                                </span>
-                            )}
-                            {event.type === 'user_post' ? '' : ` ${event.title}`}
-                        </p>
-                        
-                        {/* --- COMPACT STATS ROW --- */}
-                        {stats && (
-                            <div className="mt-1 mb-2 w-full max-w-[200px]">
-                                <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
-                                    <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {stats.streak}</span>
-                                    <span className="text-neutral-300">|</span>
-                                    <span className="truncate">{stats.goalText}</span>
-                                </div>
-                                <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
-                                    <div className="h-full bg-primary" style={{width: `${stats.progress}%`}} />
-                                </div>
-                            </div>
-                        )}
-                        {/* ------------------------- */}
-                    </div>
-
-                    <div className="flex items-start gap-2 ml-2">
-                        <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
-                            {new Date(event.timestamp).toLocaleString('sv-SE', {
-                                ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
-                                    ? { hour: '2-digit', minute: '2-digit' } 
-                                    : { month: 'short', day: 'numeric' })
-                            })}
-                        </span>
-                        {isCurrentUser && (
-                            <button 
-                                onClick={handleDelete}
-                                className="text-neutral-400 hover:text-red-500 transition-colors p-0.5"
-                                title="Ta bort inlägg"
+                        return (
+                             <div 
+                                key={ach.id} 
+                                className={`relative group p-2 rounded-lg flex flex-col items-center justify-center text-center aspect-square transition-all ${isUnlocked ? 'bg-amber-100/50' : 'bg-neutral-light filter grayscale cursor-not-allowed'}`}
+                                title={ach.name}
                             >
-                                <TrashIcon className="w-4 h-4" />
-                            </button>
-                        )}
-                    </div>
-                </div>
-                
-                {event.category && event.type === 'user_post' && (
-                    <span className="inline-block px-2 py-0.5 mt-1 rounded text-[10px] font-semibold bg-neutral-light dark:bg-neutral-dark text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
-                        {event.icon} {event.category === 'workout' ? 'Träning' : event.category === 'food' ? 'Mat' : event.category === 'pepp' ? 'Pepp' : event.category === 'question' ? 'Fråga' : 'Allmänt'}
-                    </span>
-                )}
-
-                {/* Content Area */}
-                <div className="mt-1">
-                    {event.type === 'weight' ? (
-                        renderWeightDescription(event.description)
-                    ) : (
-                        <p className="text-base text-neutral-dark whitespace-pre-wrap leading-relaxed break-words">{event.description}</p>
-                    )}
-                    
-                    {event.imageUrl && (
-                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px] bg-white flex items-center justify-center">
-                             <img 
-                                src={event.imageUrl} 
-                                alt="Inläggsbild" 
-                                className="max-w-full max-h-[400px] object-contain cursor-pointer hover:opacity-95 transition-opacity"
-                                onClick={() => onImageClick(event.imageUrl!, `Bild från ${event.userName}`)}
-                            />
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-
-        {/* Action Bar */}
-        <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-neutral-light/50 ml-[50px]">
-            {reactions.map(emoji => {
-                const usersWhoReacted = (event.reactions || {})[emoji] || {};
-                const count = Object.keys(usersWhoReacted).length;
-                const hasReacted = !!usersWhoReacted[currentUser.uid];
-
-                return (
-                    <button 
-                        key={emoji} 
-                        onClick={() => onTogglePepp(event, emoji)} 
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all active:scale-95 border
-                            ${hasReacted 
-                                ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
-                                : 'bg-transparent border-transparent hover:bg-neutral-light dark:hover:bg-neutral-dark text-neutral-500 dark:text-neutral-400 hover:text-neutral-dark dark:hover:text-white'
-                            }`}
-                    >
-                        <span className={`text-lg transition-transform ${hasReacted ? 'scale-110' : ''}`}>{emoji}</span>
-                        {count > 0 && <span className="font-semibold text-xs">{count}</span>}
-                    </button>
-                )
-            })}
-        </div>
-        
-        {/* Comments Section */}
-        {((event.comments && event.comments.length > 0) || newComment) && (
-             <div className="space-y-3 mt-4 ml-[50px]">
-                {(event.comments || []).map(comment => {
-                    const likes = comment.likes || {};
-                    const likeCount = Object.keys(likes).length;
-                    const userHasLiked = !!likes[currentUser.uid];
-                    const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
-
-                    return (
-                        <div key={comment.id} className="flex items-start gap-2 group">
-                            <Avatar photoURL={comment.authorPhotoURL} size={28} />
-                            <div className="flex-1">
-                                <div 
-                                    onDoubleClick={() => onToggleLike(event, comment.id)} 
-                                    className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
-                                >
-                                    <p className="font-bold text-neutral-dark text-xs mb-0.5">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
-                                    <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>
-                                </div>
-                                <div className="flex items-center gap-3 mt-1 ml-1">
-                                    <span className="text-[10px] text-neutral-400">
-                                        {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
-                                    </span>
-                                    <button 
-                                        onClick={() => onToggleLike(event, comment.id)}
-                                        className={`text-xs font-semibold flex items-center gap-1 transition-colors ${userHasLiked ? 'text-red-500' : 'text-neutral-400 hover:text-red-500'}`}
-                                    >
-                                        {userHasLiked ? 'Gillat' : 'Gilla'}
-                                        {likeCount > 0 && <span className="bg-white dark:bg-neutral-darker px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">{likeCount} ❤️</span>}
-                                    </button>
-                                </div>
+                                <div className="text-3xl">{ach.icon}</div>
+                                {isUnlocked && peppCount > 0 && (
+                                    <div className="absolute bottom-1 right-1 flex items-center gap-1 bg-white/80 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-xs shadow">
+                                        <HeartIcon className={`w-3 h-3 ${currentUserPepped ? 'text-red-500' : 'text-gray-500'}`} />
+                                        <span className={`font-bold text-xs ${currentUserPepped ? 'text-red-600' : 'text-gray-600'}`}>{peppCount}</span>
+                                    </div>
+                                )}
+                                {poppedAchievement === ach.id && (
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <HeartIcon className="w-12 h-12 text-red-500 animate-heart-pop" />
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    );
-                })}
-            </div>
-        )}
-
-        <form onSubmit={handleCommentSubmit} className="flex items-center gap-3 mt-4 ml-[50px]">
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
-                <div className="flex-1 relative">
-                    <input
-                        value={newComment}
-                        onChange={e => setNewComment(e.target.value)}
-                        className="w-full pl-4 pr-10 py-2 text-sm bg-[#ffffff] text-[#000000] rounded-full border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
-                        placeholder="Skriv en kommentar..."
-                    />
-                    <button 
-                        type="submit" 
-                        disabled={isSubmitting || !newComment.trim()} 
-                        className={`absolute right-1 top-1 p-1.5 rounded-full transition-all ${newComment.trim() ? 'text-primary hover:bg-primary-50' : 'text-neutral-300'}`}
-                    >
-                        <Send className="w-4 h-4" />
-                    </button>
+                        )
+                    })}
                 </div>
-        </form>
-    </div>
+            )}
+        </div>
     );
 };
 
-// --- Friend Management Component ---
 const FriendManagementView: FC<{
     currentUser: User;
     userProfile: UserProfileData;
@@ -849,7 +410,7 @@ const FriendManagementView: FC<{
                                 type="search" 
                                 value={buddySearchQuery} 
                                 onChange={e => setBuddySearchQuery(e.target.value)} 
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white"
                                 placeholder="Sök bland dina kompisar..."
                             />
                         </div>
@@ -887,7 +448,7 @@ const FriendManagementView: FC<{
                                 type="search" 
                                 value={searchQuery} 
                                 onChange={e => setSearchQuery(e.target.value)} 
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white"
                                 placeholder="Sök bland användare..."
                                 autoFocus
                             />
@@ -897,7 +458,7 @@ const FriendManagementView: FC<{
                                 const isBuddy = buddyDetails.some(b => b.uid === user.uid);
                                 const hasPendingRequest = outgoingRequests.some(r => r.toUid === user.uid);
                                 return (
-                                    <div key={user.uid} className="flex items-center justify-between bg-white dark:bg-neutral-darker p-2 rounded-md border border-neutral-light">
+                                    <div key={user.uid} className="flex items-center justify-between bg-white p-2 rounded-md border border-neutral-light">
                                         <div className="flex items-center gap-2">
                                             <Avatar photoURL={user.photoURL} gender={user.gender} size={32} />
                                             <p className="font-semibold text-neutral-dark text-sm">{user.name}</p>
@@ -916,10 +477,10 @@ const FriendManagementView: FC<{
                 );
             case 'requests':
                 return (
-                    <div className="space-y-4 bg-white dark:bg-neutral-darker p-4 rounded-lg border border-neutral-light">
+                    <div className="space-y-4 bg-white p-4 rounded-lg border border-neutral-light">
                         <h4 className="font-semibold">Inkommande ({requests.length})</h4>
                         {requests.length > 0 ? requests.map(req => (
-                            <div key={req.id} className="flex items-center justify-between bg-neutral-light dark:bg-neutral-dark p-2 rounded-lg">
+                            <div key={req.id} className="flex items-center justify-between bg-neutral-light p-2 rounded-lg">
                                 <p className="font-semibold text-sm">{req.fromName}</p>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => handleRequestAction(req, 'declined')} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><XMarkIcon className="w-5 h-5" /></button>
@@ -929,7 +490,7 @@ const FriendManagementView: FC<{
                         )) : <p className="text-sm text-neutral">Inga nya förfrågningar.</p>}
                          <h4 className="font-semibold pt-2 border-t">Utgående ({outgoingRequests.length})</h4>
                         {outgoingRequests.length > 0 ? outgoingRequests.map(req => (
-                            <div key={req.id} className="flex items-center justify-between bg-neutral-light dark:bg-neutral-dark p-2 rounded-lg">
+                            <div key={req.id} className="flex items-center justify-between bg-neutral-light p-2 rounded-lg">
                                 <p className="font-semibold text-sm">{allSearchableUsers.find(u => u.uid === req.toUid)?.name || 'Okänd'}</p>
                                 <button onClick={() => handleCancelRequest(req.id)} className="text-xs font-semibold text-red-600 px-2 py-1 bg-red-100 rounded-full hover:bg-red-200">Avbryt</button>
                             </div>
@@ -960,11 +521,11 @@ const FriendManagementView: FC<{
                     onClick={() => setBuddyToRemove(null)}
                     role="dialog" aria-modal="true" aria-labelledby="confirm-remove-buddy-title"
                 >
-                    <div className="bg-white dark:bg-neutral-darker p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                    <div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
                         <h3 id="confirm-remove-buddy-title" className="text-lg font-semibold text-neutral-dark mb-4">Bekräfta borttagning</h3>
                         <p className="text-neutral mb-6">Är du säker på att du vill ta bort <strong>{buddyToRemove.name}</strong> som Peppkompis?</p>
                         <div className="flex justify-end space-x-3">
-                            <button onClick={() => setBuddyToRemove(null)} className="px-4 py-2 text-neutral-dark dark:text-white bg-neutral-light dark:bg-neutral-dark hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md active:scale-95 interactive-transition">Avbryt</button>
+                            <button onClick={() => setBuddyToRemove(null)} className="px-4 py-2 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md active:scale-95 interactive-transition">Avbryt</button>
                             <button onClick={confirmRemoveBuddy} className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md active:scale-95 interactive-transition">Ja, ta bort</button>
                         </div>
                     </div>
@@ -975,7 +536,7 @@ const FriendManagementView: FC<{
                     className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fade-in"
                     onClick={() => setShowInviteOptionsModal(false)}
                 >
-                    <div className="bg-white dark:bg-neutral-darker p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                    <div className="bg-white p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
                         <h3 className="text-lg font-semibold text-neutral-dark mb-4">Bjud in en vän</h3>
                         <div className="space-y-3">
                             <button onClick={handleShareViaApp} className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm">
@@ -985,7 +546,7 @@ const FriendManagementView: FC<{
                             <button
                                 onClick={handleCopyToClipboard}
                                 disabled={isCopied}
-                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark dark:text-white bg-neutral-light dark:bg-neutral-dark hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md shadow-sm disabled:bg-green-100 disabled:text-green-700"
+                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm disabled:bg-green-100 disabled:text-green-700"
                             >
                                 <PencilIcon className="w-5 h-5 mr-2" /> {isCopied ? 'Kopierad!' : 'Kopiera inbjudningstext'}
                             </button>
@@ -1000,7 +561,153 @@ const FriendManagementView: FC<{
     );
 };
 
-// --- MAIN COMPONENT ---
+const renderWeightDescription = (description: string) => {
+    const parts = description.split('\n'); // Split by newline
+    return (
+        <div className="space-y-1 mt-2">
+            {parts.map(part => {
+                const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
+                if (!match) {
+                    return <p key={part} className="text-base text-neutral-dark">{part}</p>;
+                }
+                
+                const label = match[1];
+                const value = match[2];
+                const changeStr = match[3];
+                const changeNum = parseFloat(changeStr.replace(',', '.'));
+
+                let colorClass = 'text-accent'; // Neutral/yellow for ±0,0
+                if (changeNum > 0) {
+                    if (label === 'Muskler') colorClass = 'text-primary'; // Green for muscle increase
+                    else colorClass = 'text-red-600'; // Red for weight/fat increase
+                } else if (changeNum < 0) {
+                    if (label === 'Muskler') colorClass = 'text-red-600'; // Red for muscle decrease
+                    else colorClass = 'text-primary'; // Green for weight/fat decrease
+                }
+
+                return (
+                    <p key={label} className="text-base text-neutral-dark">
+                        <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
+                    </p>
+                );
+            })}
+        </div>
+    );
+};
+
+const TimelineEventCard: FC<{
+    event: TimelineEvent;
+    currentUser: User;
+    userProfile: UserProfileData;
+    onTogglePepp: (event: TimelineEvent, emoji: string) => void;
+    onAddComment: (event: TimelineEvent, text: string) => Promise<void>;
+    onToggleLike: (event: TimelineEvent, commentId: string) => void;
+    lastViewTimestamp: number | null;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, lastViewTimestamp }) => {
+    const [newComment, setNewComment] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleCommentSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newComment.trim() || isSubmitting) return;
+        setIsSubmitting(true);
+        await onAddComment(event, newComment);
+        setNewComment('');
+        setIsSubmitting(false);
+    };
+    
+    const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
+    const isNewEvent = lastViewTimestamp !== null && event.timestamp > lastViewTimestamp && event.userId !== currentUser.uid;
+
+    return (
+    <div id={`event-${event.id}`} className={`p-3 rounded-xl shadow-sm border transition-colors duration-500 ease-out ${isNewEvent ? 'bg-green-100/60 border-green-200' : 'bg-white border-neutral-light/60'}`}>
+        <div className="flex items-start gap-3">
+            <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={40} />
+            <div className="flex-1">
+                <p className="text-sm">
+                    <span className="font-bold">{event.userId === currentUser.uid ? 'Du' : event.userName}</span> {event.title}
+                </p>
+                <p className="text-xs text-neutral">{new Date(event.timestamp).toLocaleString('sv-SE', {dateStyle: 'short', timeStyle: 'short'})}</p>
+                
+                {event.type === 'weight' ? (
+                    renderWeightDescription(event.description)
+                ) : (
+                    <p className="text-sm text-neutral-dark mt-1">{event.description}</p>
+                )}
+            </div>
+        </div>
+
+            <div className="flex flex-wrap items-center gap-1 mt-3 pt-2 border-t border-neutral-light/50 ml-[52px]">
+                {reactions.map(emoji => {
+                    const usersWhoReacted = (event.reactions || {})[emoji] || {};
+                    const count = Object.keys(usersWhoReacted).length;
+                    const hasReacted = !!usersWhoReacted[currentUser.uid];
+
+                    return (
+                        <button 
+                            key={emoji} 
+                            onClick={() => onTogglePepp(event, emoji)} 
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm transition-all active:scale-95 border
+                                ${hasReacted 
+                                    ? 'bg-primary-100 border-primary text-primary-darker' 
+                                    : 'bg-neutral-light/70 border-neutral-light/70 hover:bg-neutral-light text-neutral-dark'
+                                }`}
+                        >
+                            <span className="text-lg">{emoji}</span>
+                            {count > 0 && <span className="font-semibold text-xs">{count}</span>}
+                        </button>
+                    )
+                })}
+            </div>
+            
+            <div className="space-y-2 mt-3 ml-[52px]">
+                {(event.comments || []).map(comment => {
+                    const likes = comment.likes || {};
+                    const likeCount = Object.keys(likes).length;
+                    const userHasLiked = !!likes[currentUser.uid];
+                    const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
+
+                    return (
+                        <div key={comment.id} className="flex items-start gap-2">
+                            <Avatar photoURL={comment.authorPhotoURL} size={28} />
+                            <div onDoubleClick={() => onToggleLike(event, comment.id)} className={`rounded-lg px-3 py-1.5 text-sm flex-1 group relative cursor-pointer transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-100/50' : 'bg-neutral-light/70'}`}>
+                                <p className="font-semibold text-neutral-dark">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
+                                <p className="text-neutral-dark break-words">{comment.text}</p>
+                                
+                                <div className="absolute -bottom-3 -right-2 flex items-center gap-1 bg-white rounded-full p-0.5 shadow-sm border border-neutral-light/50">
+                                    <button 
+                                        onClick={() => onToggleLike(event, comment.id)}
+                                        className={`p-1 rounded-full transition-colors ${userHasLiked ? 'text-red-500' : 'text-neutral hover:text-red-500'}`}
+                                        aria-label="Gilla kommentar"
+                                    >
+                                        <HeartIcon className={`w-4 h-4 ${userHasLiked ? 'fill-current' : 'fill-none'}`} style={{ stroke: 'currentColor', strokeWidth: 2 }} />
+                                    </button>
+                                    {likeCount > 0 && (
+                                        <span className="text-xs font-semibold text-neutral-dark pr-1.5">{likeCount}</span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 mt-3 pt-2 border-t border-neutral-light/50">
+                 <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
+                 <input
+                    value={newComment}
+                    onChange={e => setNewComment(e.target.value)}
+                    className="flex-1 px-3 py-1.5 text-sm bg-neutral-light rounded-full border border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Skriv en kommentar..."
+                 />
+                 <button type="submit" disabled={isSubmitting || !newComment.trim()} className="p-2 text-primary rounded-full disabled:opacity-50 hover:bg-primary-100">
+                    <ArrowRightIcon className="w-5 h-5" />
+                 </button>
+            </form>
+        </div>
+    );
+};
+
 
 export const CommunityView: React.FC<{ 
   key: number;
@@ -1009,8 +716,7 @@ export const CommunityView: React.FC<{
   achievements: Achievement[];
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
   pendingRequestsCount: number;
-  unreadChatsCount: number;
-  initialTab?: 'flode' | 'hantera' | 'chatt';
+  initialTab?: 'flode' | 'hantera';
   initialSubTab?: 'buddies' | 'search' | 'requests';
   highlightEventId?: string | null;
   timelineEvents: TimelineEvent[];
@@ -1019,15 +725,12 @@ export const CommunityView: React.FC<{
   isLoading: boolean;
   onDataChanged: () => void;
   lastViewTimestamp: number | null;
-  currentStreak: number;
-  userRole: UserRole;
 }> = ({ 
   currentUser,
   userProfile,
   achievements,
   setToastNotification,
   pendingRequestsCount,
-  unreadChatsCount,
   initialTab = 'flode',
   initialSubTab = 'buddies',
   highlightEventId = null,
@@ -1036,91 +739,17 @@ export const CommunityView: React.FC<{
   buddyDetails,
   isLoading,
   onDataChanged,
-  lastViewTimestamp,
-  currentStreak,
-  userRole
+  lastViewTimestamp
 }) => {
-  const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
-  
-  useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab]);
-
-  const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
-  
-  // Real-time & Pagination State
-  // Initialize with timelineEvents to show cached data immediately if available
-  const [realtimeEvents, setRealtimeEvents] = useState<TimelineEvent[]>(Array.isArray(timelineEvents) ? timelineEvents : []);
-  const [historicalEvents, setHistoricalEvents] = useState<TimelineEvent[]>([]);
-  const [lastDoc, setLastDoc] = useState<any>(null);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-
-  // Sync prop to state when it changes (e.g. initial load finishes in App.tsx)
-  // But only if we don't have events yet, to avoid overwriting newer realtime updates
-  useEffect(() => {
-      if (Array.isArray(timelineEvents) && timelineEvents.length > 0) {
-          setRealtimeEvents(prev => (prev.length === 0 ? timelineEvents : prev));
-      }
-  }, [timelineEvents]);
-
-  // Combine and deduplicate
-  const visibleEvents = useMemo(() => {
-      const rt = Array.isArray(realtimeEvents) ? realtimeEvents : [];
-      const hist = Array.isArray(historicalEvents) ? historicalEvents : [];
-      
-      const all = [...rt, ...hist];
-      const seen = new Set();
-      return all.filter(e => {
-          if (seen.has(e.id)) return false;
-          seen.add(e.id);
-          return true;
-      }).sort((a,b) => b.timestamp - a.timestamp);
-  }, [realtimeEvents, historicalEvents]);
-
-  // Initial Real-time Listener
-  useEffect(() => {
-      let unsubscribe: () => void;
-      
-      const setupListener = async () => {
-          if (activeTab === 'flode' && currentUser) {
-              unsubscribe = listenToCommunityTimeline(currentUser.uid, ({ events, lastDoc: newLastDoc }) => {
-                  setRealtimeEvents(events || []); 
-                  if (historicalEvents.length === 0) {
-                      setLastDoc(newLastDoc);
-                      setHasMore(events.length >= 20); 
-                  }
-              });
-          }
-      };
-      
-      setupListener();
-      return () => {
-          if (unsubscribe) unsubscribe();
-      };
-  }, [currentUser.uid, activeTab]);
-
-  const loadMoreEvents = async () => {
-      if (isLoadingMore || !lastDoc) return;
-      setIsLoadingMore(true);
-      try {
-          const { events, lastDoc: newLastDoc } = await fetchCommunityTimeline(currentUser.uid, lastDoc, 10);
-          setHistoricalEvents(prev => [...prev, ...events]);
-          setLastDoc(newLastDoc);
-          setHasMore(events.length === 10);
-      } catch (e) {
-          setToastNotification({ message: 'Kunde inte ladda fler händelser.', type: 'error' });
-      } finally {
-          setIsLoadingMore(false);
-      }
-  };
-
+  const [activeTab, setActiveTab] = useState<'flode' | 'hantera'>(initialTab);
+    
     const handleTogglePepp = async (event: TimelineEvent, newEmoji: string) => {
         if (!event.id) return;
         playAudio('uiClick', 0.6);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
-        const updateEventList = (list: TimelineEvent[]) => list.map(e => {
+        const originalEvents = timelineEvents;
+        setTimelineEvents(prevEvents => prevEvents.map(e => {
             if (e.id === event.id) {
                 const newReactions: Reactions = JSON.parse(JSON.stringify(e.reactions || {}));
                 let previousReactionEmoji: string | null = null;
@@ -1143,15 +772,13 @@ export const CommunityView: React.FC<{
                 return { ...e, reactions: newReactions };
             }
             return e;
-        });
-
-        setRealtimeEvents(prev => updateEventList(prev));
-        setHistoricalEvents(prev => updateEventList(prev));
+        }));
 
         try { 
             await togglePeppOnTimelineEvent(fromUser, event, newEmoji); 
         } catch (error) {
             setToastNotification({ message: 'Kunde inte skicka reaktion.', type: 'error' });
+            setTimelineEvents(originalEvents);
         }
     };
     
@@ -1159,7 +786,8 @@ export const CommunityView: React.FC<{
         playAudio('uiClick', 0.5);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
-        const updateEventList = (list: TimelineEvent[]) => list.map(e => {
+        const originalEvents = timelineEvents;
+        setTimelineEvents(prevEvents => prevEvents.map(e => {
             if (e.id === event.id) {
                 const newComments = (e.comments || []).map(c => {
                     if (c.id === commentId) {
@@ -1173,13 +801,11 @@ export const CommunityView: React.FC<{
                 return { ...e, comments: newComments };
             }
             return e;
-        });
-
-        setRealtimeEvents(prev => updateEventList(prev));
-        setHistoricalEvents(prev => updateEventList(prev));
+        }));
         
         try { await toggleLikeOnComment(fromUser, event, commentId); } catch (error) {
             setToastNotification({ message: 'Kunde inte gilla kommentar.', type: 'error' });
+            setTimelineEvents(originalEvents);
         }
     };
     
@@ -1197,12 +823,10 @@ export const CommunityView: React.FC<{
             likes: {} 
         };
         
-        const updateEventList = (list: TimelineEvent[]) => list.map(e => 
+        const originalEvents = timelineEvents;
+        setTimelineEvents(prevEvents => prevEvents.map(e => 
             e.id === event.id ? { ...e, comments: [...(e.comments || []), optimisticComment] } : e
-        );
-
-        setRealtimeEvents(prev => updateEventList(prev));
-        setHistoricalEvents(prev => updateEventList(prev));
+        ));
 
         try {
             const commentDataForFirestore = { 
@@ -1213,40 +837,44 @@ export const CommunityView: React.FC<{
                 timestamp: optimisticComment.timestamp,
                 likes: optimisticComment.likes,
             };
-            await addCommentToTimelineEvent(event.id, commentDataForFirestore);
+            const newCommentId = await addCommentToTimelineEvent(event.id, commentDataForFirestore);
+            setTimelineEvents(prevEvents => prevEvents.map(e => {
+                if (e.id === event.id) {
+                    return { ...e, comments: (e.comments || []).map(c => c.id === optimisticComment.id ? { ...c, id: newCommentId } : c) };
+                }
+                return e;
+            }));
         } catch (error) {
             setToastNotification({ message: 'Kunde inte lägga till kommentar.', type: 'error' });
-        }
-    };
-
-    const handleDeleteEvent = async (eventId: string) => {
-        setRealtimeEvents(prev => prev.filter(e => e.id !== eventId));
-        setHistoricalEvents(prev => prev.filter(e => e.id !== eventId));
-        
-        try {
-            await deleteTimelineEvent(eventId);
-            setToastNotification({ message: "Inlägget raderat.", type: 'success' });
-            playAudio('uiClick');
-        } catch (error) {
-            console.error(error);
-            setToastNotification({ message: "Kunde inte radera inlägget.", type: 'error' });
+            setTimelineEvents(originalEvents);
         }
     };
     
     const newEventsCount = useMemo(() => {
         if (!lastViewTimestamp) return 0;
-        let count = 0;
-        visibleEvents.forEach(event => {
-            if (event.userId !== currentUser.uid && event.timestamp > lastViewTimestamp) count++;
+        const updatedEventIds = new Set<string>();
+        timelineEvents.forEach(event => {
+            let hasNewActivity = false;
+            if (event.userId !== currentUser.uid && event.timestamp > lastViewTimestamp) {
+                hasNewActivity = true;
+            }
+            (event.comments || []).forEach(comment => {
+                if (comment.authorUid !== currentUser.uid && comment.timestamp > lastViewTimestamp) {
+                    hasNewActivity = true;
+                }
+            });
+
+            if (hasNewActivity) {
+                updatedEventIds.add(event.id);
+            }
         });
-        return count;
-    }, [visibleEvents, lastViewTimestamp, currentUser.uid]);
+        return updatedEventIds.size;
+    }, [timelineEvents, lastViewTimestamp, currentUser.uid]);
 
 
     const tabs = [
         { key: 'flode', label: 'Flöde', notificationCount: newEventsCount },
         { key: 'hantera', label: 'Kompisar', notificationCount: pendingRequestsCount },
-        { key: 'chatt', label: 'Chatt', notificationCount: unreadChatsCount },
     ];
     
     const TabButton: FC<{ tab: typeof tabs[0], isActive: boolean, onClick: () => void }> = ({ tab, isActive, onClick }) => (
@@ -1257,98 +885,51 @@ export const CommunityView: React.FC<{
     );
 
     return (
-        <div className="flex flex-col flex-grow w-full h-full bg-transparent">
-            <header className="flex-shrink-0 bg-white dark:bg-neutral-darker shadow-md z-10 sticky top-0">
+        <div className="flex flex-col h-full bg-white">
+            <header className="flex-shrink-0 bg-white shadow-md z-10">
                 <nav className="flex items-center justify-around">
                     {tabs.map(tab => <TabButton key={tab.key} tab={tab} isActive={activeTab === tab.key} onClick={() => setActiveTab(tab.key as any)} />)}
                 </nav>
             </header>
             
-            <main className={`flex-grow bg-transparent ${activeTab === 'chatt' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
+            <main className="flex-grow overflow-y-auto bg-neutral-light/50">
                 {activeTab === 'flode' && (
-                    <div className="p-2 sm:p-4 max-w-2xl mx-auto w-full">
-                        
-                        {visibleEvents.length > 0 ? (
-                            <>
-                                <div className="space-y-4">
-                                    {visibleEvents.map(event => (
-                                        <TimelineEventCard 
-                                            key={`${event.id}-${event.timestamp}`}
-                                            event={event}
-                                            currentUser={currentUser}
-                                            userProfile={userProfile}
-                                            onTogglePepp={handleTogglePepp}
-                                            onAddComment={handleAddComment}
-                                            onToggleLike={handleToggleLike}
-                                            onDelete={handleDeleteEvent}
-                                            onImageClick={(src, alt) => setLightboxImage({ src, alt })}
-                                            lastViewTimestamp={lastViewTimestamp}
-                                            buddyDetails={buddyDetails}
-                                            currentStreak={currentStreak}
-                                        />
-                                    ))}
-                                </div>
-
-                                <div className="py-6 text-center">
-                                    {hasMore ? (
-                                        <button 
-                                            onClick={loadMoreEvents} 
-                                            disabled={isLoadingMore}
-                                            className="px-6 py-2 bg-white dark:bg-neutral-darker border border-neutral-light text-neutral-dark font-semibold rounded-full shadow-sm hover:bg-gray-50 dark:hover:bg-neutral-dark active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 mx-auto"
-                                        >
-                                            {isLoadingMore ? <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /> : <RefreshCw className="w-4 h-4" />}
-                                            Ladda fler
-                                        </button>
-                                    ) : (
-                                        <p className="text-sm text-neutral">Du har nått slutet på flödet.</p>
-                                    )}
-                                </div>
-                            </>
-                        ) : !isLoading && timelineEvents.length === 0 ? (
-                             <div className="text-center py-16 px-4">
-                                <h3 className="text-xl font-semibold text-neutral-dark">Ditt flöde är tomt!</h3>
-                                <p className="text-neutral mt-2">Bli den första att skriva något eller lägg till fler kompisar!</p>
-                            </div>
+                    <div className="p-2 sm:p-4 space-y-4">
+                        {isLoading ? (
+                            <div className="flex justify-center items-center h-full py-16"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div></div>
+                        ) : timelineEvents.length > 0 ? (
+                            timelineEvents.map(event => (
+                                <TimelineEventCard 
+                                    key={`${event.id}-${event.timestamp}`}
+                                    event={event}
+                                    currentUser={currentUser}
+                                    userProfile={userProfile}
+                                    onTogglePepp={handleTogglePepp}
+                                    onAddComment={handleAddComment}
+                                    onToggleLike={handleToggleLike}
+                                    lastViewTimestamp={lastViewTimestamp}
+                                />
+                            ))
                         ) : (
-                            <div className="flex justify-center items-center py-16">
-                                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+                            <div className="text-center py-16 px-4">
+                                <h3 className="text-xl font-semibold text-neutral-dark">Ditt flöde är tomt!</h3>
+                                <p className="text-neutral mt-2">När du och dina kompisar loggar mätningar, når nya nivåer eller klarar era mål kommer det att dyka upp här. Hitta och lägg till kompisar för att komma igång!</p>
                             </div>
                         )}
                     </div>
                 )}
                 {activeTab === 'hantera' && (
-                     <div className="max-w-4xl mx-auto w-full">
-                        <FriendManagementView 
-                            currentUser={currentUser} 
-                            userProfile={userProfile}
-                            setToastNotification={setToastNotification}
-                            onDataChanged={onDataChanged}
-                            buddyDetails={buddyDetails}
-                            achievements={achievements}
-                            initialTab={initialSubTab}
-                        />
-                    </div>
-                )}
-                {activeTab === 'chatt' && (
-                    <div className="max-w-4xl mx-auto w-full flex-grow flex flex-col min-h-0">
-                        <ChatRoomsView 
-                            currentUser={currentUser}
-                            userProfile={userProfile}
-                            setToastNotification={setToastNotification}
-                            buddyDetails={buddyDetails}
-                        />
-                    </div>
+                     <FriendManagementView 
+                        currentUser={currentUser} 
+                        userProfile={userProfile}
+                        setToastNotification={setToastNotification}
+                        onDataChanged={onDataChanged}
+                        buddyDetails={buddyDetails}
+                        achievements={achievements}
+                        initialTab={initialSubTab}
+                    />
                 )}
             </main>
-            
-            <Lightbox 
-                isOpen={!!lightboxImage} 
-                src={lightboxImage?.src || ''} 
-                alt={lightboxImage?.alt || ''} 
-                onClose={() => setLightboxImage(null)} 
-            />
         </div>
     );
 };
-
-export default CommunityView;

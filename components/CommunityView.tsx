@@ -154,7 +154,6 @@ export const CreatePostWidget: FC<{
     const [text, setText] = useState('');
     const [image, setImage] = useState<string | null>(null);
     const [category, setCategory] = useState<PostCategory>('general');
-    const [isGlobal, setIsGlobal] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -178,6 +177,7 @@ export const CreatePostWidget: FC<{
         playAudio('uiClick');
 
         try {
+            const isGlobal = true;
             const newPost = await createUserPost(currentUser.uid, text, category, image || undefined, isGlobal);
             
             const optimisticEvent: TimelineEvent = {
@@ -204,7 +204,6 @@ export const CreatePostWidget: FC<{
             setText('');
             setImage(null);
             setCategory('general');
-            setIsGlobal(false);
             setToastNotification({ message: 'Inlägg publicerat!', type: 'success' });
             playAudio('logSuccess');
             setIsExpanded(false);
@@ -293,17 +292,6 @@ export const CreatePostWidget: FC<{
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                    {(userRole === 'coach' || userRole === 'admin') && (
-                        <label className="flex items-center gap-2 text-sm text-neutral-dark mr-2 cursor-pointer">
-                            <input 
-                                type="checkbox" 
-                                checked={isGlobal} 
-                                onChange={(e) => setIsGlobal(e.target.checked)}
-                                className="rounded text-primary focus:ring-primary w-4 h-4"
-                            />
-                            Synlig för alla (Global)
-                        </label>
-                    )}
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
                     <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
                     
@@ -1053,6 +1041,15 @@ export const CommunityView: React.FC<{
   userRole
 }) => {
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
+  const [effectiveLastViewTimestamp, setEffectiveLastViewTimestamp] = useState(lastViewTimestamp);
+  
+  const previousTabRef = useRef(activeTab);
+  useEffect(() => {
+    if (previousTabRef.current === 'flode' && activeTab !== 'flode') {
+      setEffectiveLastViewTimestamp(Date.now());
+    }
+    previousTabRef.current = activeTab;
+  }, [activeTab]);
   
   useEffect(() => {
     setActiveTab(initialTab);
@@ -1163,6 +1160,7 @@ export const CommunityView: React.FC<{
         try { 
             await togglePeppOnTimelineEvent(fromUser, event, newEmoji); 
         } catch (error) {
+            console.error("Error toggling pepp:", error);
             setToastNotification({ message: 'Kunde inte skicka reaktion.', type: 'error' });
         }
     };
@@ -1246,13 +1244,13 @@ export const CommunityView: React.FC<{
     };
     
     const newEventsCount = useMemo(() => {
-        if (!lastViewTimestamp) return 0;
+        if (!effectiveLastViewTimestamp || activeTab === 'flode') return 0;
         let count = 0;
         visibleEvents.forEach(event => {
-            if (event.userId !== currentUser.uid && event.timestamp > lastViewTimestamp) count++;
+            if (event.userId !== currentUser.uid && event.timestamp > effectiveLastViewTimestamp) count++;
         });
         return count;
-    }, [visibleEvents, lastViewTimestamp, currentUser.uid]);
+    }, [visibleEvents, effectiveLastViewTimestamp, currentUser.uid, activeTab]);
 
 
     const tabs = [
@@ -1294,7 +1292,7 @@ export const CommunityView: React.FC<{
                                             onToggleLike={handleToggleLike}
                                             onDelete={handleDeleteEvent}
                                             onImageClick={(src, alt) => setLightboxImage({ src, alt })}
-                                            lastViewTimestamp={lastViewTimestamp}
+                                            lastViewTimestamp={effectiveLastViewTimestamp}
                                             buddyDetails={buddyDetails}
                                             currentStreak={currentStreak}
                                         />
