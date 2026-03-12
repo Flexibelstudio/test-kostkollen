@@ -171,7 +171,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                                     <div className="flex items-center gap-2">
                                         <h3 className="font-bold text-neutral-dark">{chat.name}</h3>
                                         {chat.isSystemGroup && (
-                                            <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Officiell</span>
+                                            <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">OFFICIELL</span>
                                         )}
                                     </div>
                                     <p className="text-sm text-neutral">{chat.description}</p>
@@ -222,7 +222,7 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
                 <div className="flex items-center gap-2 min-w-0 pr-2">
                     <h3 className={`truncate text-[17px] ${hasUnread ? 'font-black text-neutral-darker' : 'font-bold text-neutral-dark'}`}>{chat.name || 'Gruppchatt'}</h3>
                     {chat.isSystemGroup && (
-                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">Officiell</span>
+                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">OFFICIELL</span>
                     )}
                     {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-blue-500 flex-shrink-0" /> : 
                      chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-orange-400 flex-shrink-0" /> : 
@@ -758,7 +758,7 @@ const ChatWindow: React.FC<{
                                 <div className="flex items-center gap-2">
                                     <h2 className="font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
                                     {chat.isSystemGroup && (
-                                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">Officiell</span>
+                                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">OFFICIELL</span>
                                     )}
                                 </div>
                             )}
@@ -1092,19 +1092,21 @@ const ChatWindow: React.FC<{
     );
 };
 
-const CreateGroupView: React.FC<{
+export const CreateGroupView: React.FC<{
     currentUser: User;
     userProfile: UserProfileData;
     onBack: () => void;
     onGroupCreated: (chat: Chat) => void;
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     buddyDetails: BuddyDetails[];
-}> = ({ currentUser, userProfile, onBack, onGroupCreated, setToastNotification, buddyDetails }) => {
+    defaultIsSystemGroup?: boolean;
+    defaultIsPublic?: boolean;
+}> = ({ currentUser, userProfile, onBack, onGroupCreated, setToastNotification, buddyDetails, defaultIsSystemGroup = false, defaultIsPublic = false }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [isPublic, setIsPublic] = useState(false);
+    const [isPublic, setIsPublic] = useState(defaultIsPublic);
     const [requiresApproval, setRequiresApproval] = useState(false);
-    const [isSystemGroup, setIsSystemGroup] = useState(false);
+    const [isSystemGroup, setIsSystemGroup] = useState(defaultIsSystemGroup);
     const [invitePermission, setInvitePermission] = useState<'admin_only' | 'everyone'>('everyone');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedBuddies, setSelectedBuddies] = useState<string[]>([]);
