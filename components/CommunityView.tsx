@@ -525,7 +525,7 @@ const TimelineEventCard: FC<{
                         </p>
                         
                         {/* --- COMPACT STATS ROW --- */}
-                        {stats && (
+                        {stats && !isGlobalPost && (
                             <div className="mt-1 mb-2 w-full max-w-[200px]">
                                 <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
                                     <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {stats.streak}</span>
