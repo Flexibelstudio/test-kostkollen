@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, FC, useCallback, useRef } from 'react';
 import type { User } from '@firebase/auth';
-import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory, UserRole } from '../types';
+import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory, UserRole, Chat } from '../types';
 import { 
     searchForBuddies,
     sendFriendRequest,
@@ -18,6 +18,7 @@ import {
     cancelFriendRequest,
     deleteTimelineEvent
 } from '../services/firestoreService';
+import { subscribeToUserChats, sendMessage } from '../services/chatService';
 import { 
     HeartIcon, 
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
@@ -437,10 +438,11 @@ const TimelineEventCard: FC<{
     onToggleLike: (event: TimelineEvent, commentId: string) => void;
     onDelete: (eventId: string) => void;
     onImageClick: (src: string, alt: string) => void;
+    onShare?: (event: TimelineEvent) => void;
     lastViewTimestamp: number | null;
     buddyDetails: BuddyDetails[]; // Passed for stats lookup
     currentStreak: number; // Current user's streak
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, lastViewTimestamp, buddyDetails, currentStreak }) => {
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak }) => {
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -548,10 +550,19 @@ const TimelineEventCard: FC<{
                                     : { month: 'short', day: 'numeric' })
                             })}
                         </span>
+                        {isCurrentUser && onShare && (
+                            <button 
+                                onClick={() => onShare(event)}
+                                className="text-neutral-400 hover:text-primary transition-colors p-0.5 ml-1"
+                                title="Dela till chatt"
+                            >
+                                <ShareIcon className="w-4 h-4" />
+                            </button>
+                        )}
                         {isCurrentUser && (
                             <button 
                                 onClick={handleDelete}
-                                className="text-neutral-400 hover:text-red-500 transition-colors p-0.5"
+                                className="text-neutral-400 hover:text-red-500 transition-colors p-0.5 ml-1"
                                 title="Ta bort inlägg"
                             >
                                 <TrashIcon className="w-4 h-4" />
@@ -1006,6 +1017,77 @@ const FriendManagementView: FC<{
     );
 };
 
+const ShareModal: FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    event: TimelineEvent | null;
+    currentUser: User;
+    userProfile: UserProfileData;
+    setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+}> = ({ isOpen, onClose, event, currentUser, userProfile, setToastNotification }) => {
+    const [chats, setChats] = useState<Chat[]>([]);
+    const [isSharing, setIsSharing] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && currentUser) {
+            const unsubscribe = subscribeToUserChats(currentUser.uid, (fetchedChats) => {
+                setChats(fetchedChats);
+            });
+            return () => unsubscribe();
+        }
+    }, [isOpen, currentUser]);
+
+    if (!isOpen || !event) return null;
+
+    const handleShare = async (chat: Chat) => {
+        if (isSharing) return;
+        setIsSharing(true);
+        try {
+            const messageText = `Kolla in min senaste händelse: ${event.title}\nhttps://kostloggen.se/?view=community&highlight=${event.id}`;
+            await sendMessage(chat.id, currentUser.uid, userProfile.name || 'En kompis', messageText, userProfile.photoURL);
+            setToastNotification({ message: 'Händelsen har delats!', type: 'success' });
+            onClose();
+        } catch (error) {
+            console.error("Error sharing event:", error);
+            setToastNotification({ message: 'Kunde inte dela händelsen.', type: 'error' });
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl flex flex-col max-h-[80vh]">
+                <div className="p-4 border-b border-neutral-light flex justify-between items-center bg-white sticky top-0 z-10">
+                    <h2 className="text-xl font-bold text-neutral-dark">Dela till chatt</h2>
+                    <button onClick={onClose} className="p-2 hover:bg-neutral-light rounded-full transition-colors">
+                        <XMarkIcon className="w-6 h-6 text-neutral" />
+                    </button>
+                </div>
+                <div className="p-4 overflow-y-auto flex-1">
+                    {chats.length === 0 ? (
+                        <p className="text-center text-neutral py-8">Du är inte med i några chattar än.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {chats.map(chat => (
+                                <button
+                                    key={chat.id}
+                                    onClick={() => handleShare(chat)}
+                                    disabled={isSharing}
+                                    className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-light hover:border-primary hover:bg-primary-50/30 transition-colors text-left disabled:opacity-50"
+                                >
+                                    <span className="font-semibold text-neutral-dark truncate pr-4">{chat.name || 'Gruppchatt'}</span>
+                                    <ShareIcon className="w-5 h-5 text-primary flex-shrink-0" />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN COMPONENT ---
 
 export const CommunityView: React.FC<{ 
@@ -1064,6 +1146,7 @@ export const CommunityView: React.FC<{
   }, [initialTab]);
 
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
+  const [shareEvent, setShareEvent] = useState<TimelineEvent | null>(null);
   
   // Real-time & Pagination State
   // Initialize with timelineEvents to show cached data immediately if available
@@ -1306,6 +1389,7 @@ export const CommunityView: React.FC<{
                                             onToggleLike={handleToggleLike}
                                             onDelete={handleDeleteEvent}
                                             onImageClick={(src, alt) => setLightboxImage({ src, alt })}
+                                            onShare={(event) => setShareEvent(event)}
                                             lastViewTimestamp={effectiveLastViewTimestamp}
                                             buddyDetails={buddyDetails}
                                             currentStreak={currentStreak}
@@ -1371,6 +1455,14 @@ export const CommunityView: React.FC<{
                 src={lightboxImage?.src || ''} 
                 alt={lightboxImage?.alt || ''} 
                 onClose={() => setLightboxImage(null)} 
+            />
+            <ShareModal
+                isOpen={!!shareEvent}
+                onClose={() => setShareEvent(null)}
+                event={shareEvent}
+                currentUser={currentUser}
+                userProfile={userProfile}
+                setToastNotification={setToastNotification}
             />
         </div>
     );

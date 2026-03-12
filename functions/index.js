@@ -190,18 +190,36 @@ exports.onCommentCreated = functions.firestore
     const eventData = eventDoc.data();
     const eventOwnerId = eventData.userId;
 
-    if (comment.authorUid === eventOwnerId) return;
+    // Get all comments to find all users who have participated
+    const commentsSnapshot = await db.collection("communityTimeline").doc(eventId).collection("comments").get();
+    const participantIds = new Set();
+    
+    // Add the post owner
+    participantIds.add(eventOwnerId);
+    
+    // Add all commenters
+    commentsSnapshot.docs.forEach(doc => {
+        participantIds.add(doc.data().authorUid);
+    });
+
+    // Remove the person who just commented
+    participantIds.delete(comment.authorUid);
 
     const payload = {
       notification: {
         title: "Ny kommentar! 💬",
-        body: `${comment.authorName} kommenterade ditt inlägg: "${eventData.title}"`,
+        body: `${comment.authorName} kommenterade på inlägget: "${eventData.title}"`,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
         data: { url: `/?view=community&highlight=${eventId}` }
       }
     };
-    await sendNotificationToUser(eventOwnerId, payload, "comments");
+
+    const notificationPromises = Array.from(participantIds).map(userId => {
+        return sendNotificationToUser(userId, payload, "comments");
+    });
+
+    await Promise.all(notificationPromises);
   });
 
 exports.onUserStreakUpdated = functions.firestore
@@ -742,13 +760,9 @@ exports.onChatMessageCreated = functions.firestore
       if (level === 'mute') return null;
       
       if (level === 'mentions') {
-        // Simple check for mentions (e.g. "@Karin")
-        // We'd need the member's name to do this properly, 
-        // but for now we can just skip or do a basic check if we had the name.
-        // Let's assume if it's 'mentions', we only send if the text contains '@'
-        if (!message.text || !message.text.includes('@')) {
-          return null;
-        }
+        // Since 'mentions' was the default previously, many users have it set without knowing.
+        // For now, we'll treat 'mentions' as 'all' unless they explicitly mute.
+        // If we want to strictly enforce mentions later, we can check for '@'.
       }
 
       // Send the notification

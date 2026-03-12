@@ -695,9 +695,11 @@ export async function unlockAchievement(userId: string, achievementId: string, a
     }
 
     // Unlock in Firestore
-    await updateDoc(userRef, {
-        [`unlockedAchievements.${achievementId}`]: new Date().toISOString()
-    });
+    await setDoc(userRef, {
+        unlockedAchievements: {
+            [achievementId]: new Date().toISOString()
+        }
+    }, { merge: true });
 
     // Create a timeline event for the achievement
     await addTimelineEvent(userId, {

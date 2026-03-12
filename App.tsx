@@ -292,6 +292,7 @@ export const App = () => {
     highestStreak,
     setHighestStreak,
     highestLevelId,
+    setHighestLevelId,
     unlockedAchievements,
     setUnlockedAchievements,
     achievementInteractions,
@@ -1106,14 +1107,39 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setShowLogWeightModal(false);
 
         // Check if goal reached
-        if (!userProfile.mainGoalCompleted && userProfile.goalStartWeight && userProfile.desiredWeightChangeKg) {
-             const isWeightLoss = userProfile.goalType === 'lose_fat';
-             const isMuscleGain = userProfile.goalType === 'gain_muscle';
+        if (!userProfile.mainGoalCompleted) {
              let goalMet = false;
-             const targetWeight = userProfile.goalStartWeight + userProfile.desiredWeightChangeKg;
 
-             if (isWeightLoss && data.weightKg <= targetWeight) goalMet = true;
-             if (isMuscleGain && data.weightKg >= targetWeight) goalMet = true;
+             if (userProfile.measurementMethod === 'scale' && userProfile.goalStartWeight != null && userProfile.desiredWeightChangeKg != null) {
+                 const targetWeight = userProfile.goalStartWeight + userProfile.desiredWeightChangeKg;
+                 if (userProfile.desiredWeightChangeKg < 0 && data.weightKg <= targetWeight) goalMet = true;
+                 if (userProfile.desiredWeightChangeKg > 0 && data.weightKg >= targetWeight) goalMet = true;
+             } else if (userProfile.measurementMethod === 'inbody') {
+                 let fatMet = false;
+                 let muscleMet = false;
+                 let hasFatGoal = userProfile.desiredFatMassChangeKg != null;
+                 let hasMuscleGoal = userProfile.desiredMuscleMassChangeKg != null;
+
+                 if (hasFatGoal && userProfile.goalStartFatMassKg != null && data.bodyFatMassKg != null) {
+                     const targetFat = userProfile.goalStartFatMassKg + userProfile.desiredFatMassChangeKg!;
+                     if (userProfile.desiredFatMassChangeKg! < 0 && data.bodyFatMassKg <= targetFat) fatMet = true;
+                     if (userProfile.desiredFatMassChangeKg! > 0 && data.bodyFatMassKg >= targetFat) fatMet = true;
+                 }
+
+                 if (hasMuscleGoal && userProfile.goalStartMuscleMassKg != null && data.skeletalMuscleMassKg != null) {
+                     const targetMuscle = userProfile.goalStartMuscleMassKg + userProfile.desiredMuscleMassChangeKg!;
+                     if (userProfile.desiredMuscleMassChangeKg! < 0 && data.skeletalMuscleMassKg <= targetMuscle) muscleMet = true;
+                     if (userProfile.desiredMuscleMassChangeKg! > 0 && data.skeletalMuscleMassKg >= targetMuscle) muscleMet = true;
+                 }
+
+                 if (hasFatGoal && hasMuscleGoal) {
+                     goalMet = fatMet && muscleMet;
+                 } else if (hasFatGoal) {
+                     goalMet = fatMet;
+                 } else if (hasMuscleGoal) {
+                     goalMet = muscleMet;
+                 }
+             }
 
              if (goalMet) {
                 const ach = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'main_goal_reached');
@@ -1308,6 +1334,16 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             setHighestStreak(finalNewStreak);
         }
 
+        // Level Check
+        const newLevel = LEVEL_DEFINITIONS.find(l => l.requiredStreak === finalNewStreak);
+        if (newLevel) {
+            setShowLevelUpModal(newLevel);
+            if (highestLevelId !== newLevel.id) {
+                setHighestLevelId(newLevel.id);
+                userUpdates.highestLevelId = newLevel.id;
+            }
+        }
+
         if (bankedAmount > 0) {
             userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
             const newBank = {
@@ -1340,11 +1376,12 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         }
 
         // Streak Achievement Check
-        const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
-        if (streakAch) {
+        const streakAchs = ACHIEVEMENT_DEFINITIONS.filter(a => a.type === 'streak' && a.requiredValue <= finalNewStreak);
+        for (const streakAch of streakAchs) {
              const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
              if (unlocked) {
                  setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
+                 setUnlockedAchievements(prev => ({ ...prev, [streakAch.id]: new Date().toISOString() }));
              }
         }
 
