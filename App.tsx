@@ -1133,7 +1133,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                  }
 
                  if (hasFatGoal && hasMuscleGoal) {
-                     goalMet = fatMet && muscleMet;
+                     goalMet = fatMet || muscleMet;
                  } else if (hasFatGoal) {
                      goalMet = fatMet;
                  } else if (hasMuscleGoal) {
@@ -1145,12 +1145,14 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 const ach = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'main_goal_reached');
                 if (ach) {
                     const unlocked = await unlockAchievement(currentUser.uid, ach.id, ach.name, ach.icon, ach.description);
+                    
+                    setShowConfetti(true);
+                    setShowGoalMetModalData({ date: new Date().toISOString().split('T')[0], streak: streakData.currentStreak });
+                    playAudio('levelUp');
+                    setUserProfile(prev => ({ ...prev, mainGoalCompleted: true }));
+                    await updateUserDocument(currentUser.uid, { mainGoalCompleted: true });
+                    
                     if (unlocked) {
-                        setShowConfetti(true);
-                        setShowGoalMetModalData({ date: new Date().toISOString().split('T')[0], streak: streakData.currentStreak });
-                        playAudio('levelUp');
-                        setUserProfile(prev => ({ ...prev, mainGoalCompleted: true }));
-                        await updateUserDocument(currentUser.uid, { mainGoalCompleted: true });
                         setUnlockedAchievements(prev => ({ ...prev, [ach.id]: new Date().toISOString() }));
                     }
                 }
