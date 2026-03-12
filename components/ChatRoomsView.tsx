@@ -76,6 +76,15 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
         }
     }, [initialChatId, myChats, selectedChat]);
 
+    useEffect(() => {
+        if (selectedChat) {
+            const updatedChat = myChats.find(c => c.id === selectedChat.id) || publicRooms.find(c => c.id === selectedChat.id);
+            if (updatedChat && JSON.stringify(updatedChat) !== JSON.stringify(selectedChat)) {
+                setSelectedChat(updatedChat);
+            }
+        }
+    }, [myChats, publicRooms, selectedChat]);
+
     const handleJoinPublicRoom = async (chat: Chat) => {
         try {
             await joinPublicRoom(chat.id, currentUser.uid, chat.requiresApproval);

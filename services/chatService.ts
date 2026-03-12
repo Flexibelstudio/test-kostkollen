@@ -190,7 +190,7 @@ export const sendMessage = async (
     senderName,
     text,
     timestamp,
-    senderPhotoURL,
+    ...(senderPhotoURL ? { senderPhotoURL } : {}),
     ...(imageUrl ? { imageUrl } : {})
   };
 

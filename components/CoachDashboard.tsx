@@ -574,6 +574,15 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+      if (selectedChat) {
+          const updatedChat = myChats.find(c => c.id === selectedChat.id);
+          if (updatedChat && JSON.stringify(updatedChat) !== JSON.stringify(selectedChat)) {
+              setSelectedChat(updatedChat);
+          }
+      }
+  }, [myChats, selectedChat]);
+
   const {
       membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
       selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
