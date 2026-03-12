@@ -150,7 +150,8 @@ export const CreatePostWidget: FC<{
     onPostCreated: (post: TimelineEvent) => void;
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     userRole?: UserRole;
-}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole }) => {
+    isCoachDashboard?: boolean;
+}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole, isCoachDashboard }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [text, setText] = useState('');
     const [image, setImage] = useState<string | null>(null);
@@ -159,7 +160,7 @@ export const CreatePostWidget: FC<{
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
 
-    const isCoach = userRole === 'coach';
+    const isCoach = userRole === 'coach' && isCoachDashboard;
     const displayPhotoURL = isCoach ? '/favicon.png' : userProfile.photoURL;
     const displayName = isCoach ? 'Kostloggen' : (userProfile.name || 'Du');
 
