@@ -185,18 +185,18 @@ export const addMembersToChat = async (chatId: string, userIds: string[]) => {
   if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   
-  const updates: Record<string, any> = {
-    members: arrayUnion(...userIds)
-  };
-
+  const memberSettings: Record<string, any> = {};
   userIds.forEach(uid => {
-    updates[`memberSettings.${uid}`] = {
+    memberSettings[uid] = {
       notificationLevel: 'all',
       lastReadTimestamp: Date.now()
     };
   });
 
-  await updateDoc(chatRef, updates);
+  await setDoc(chatRef, {
+    members: arrayUnion(...userIds),
+    memberSettings
+  }, { merge: true });
 };
 
 export const removeMemberFromChat = async (chatId: string, userId: string) => {
@@ -291,31 +291,35 @@ export const joinPublicRoom = async (chatId: string, userId: string, requiresApp
   const chatRef = doc(db, 'chats', chatId);
   
   if (requiresApproval) {
-    await updateDoc(chatRef, {
+    await setDoc(chatRef, {
       pendingMembers: arrayUnion(userId)
-    });
+    }, { merge: true });
   } else {
-    await updateDoc(chatRef, {
+    await setDoc(chatRef, {
       members: arrayUnion(userId),
-      [`memberSettings.${userId}`]: {
-        notificationLevel: 'mentions', // Default to mentions for public rooms
-        lastReadTimestamp: Date.now()
+      memberSettings: {
+        [userId]: {
+          notificationLevel: 'mentions',
+          lastReadTimestamp: Date.now()
+        }
       }
-    });
+    }, { merge: true });
   }
 };
 
 export const approveMember = async (chatId: string, userId: string) => {
   if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
-  await updateDoc(chatRef, {
+  await setDoc(chatRef, {
     pendingMembers: arrayRemove(userId),
     members: arrayUnion(userId),
-    [`memberSettings.${userId}`]: {
-      notificationLevel: 'mentions',
-      lastReadTimestamp: Date.now()
+    memberSettings: {
+      [userId]: {
+        notificationLevel: 'mentions',
+        lastReadTimestamp: Date.now()
+      }
     }
-  });
+  }, { merge: true });
 };
 
 export const rejectMember = async (chatId: string, userId: string) => {
@@ -338,9 +342,13 @@ export const leaveChat = async (chatId: string, userId: string) => {
 export const updateLastRead = async (chatId: string, userId: string) => {
   if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
-  await updateDoc(chatRef, {
-    [`memberSettings.${userId}.lastReadTimestamp`]: Date.now()
-  });
+  await setDoc(chatRef, {
+    memberSettings: {
+      [userId]: {
+        lastReadTimestamp: Date.now()
+      }
+    }
+  }, { merge: true });
 };
 
 export const updateNotificationSettings = async (
@@ -350,7 +358,11 @@ export const updateNotificationSettings = async (
 ) => {
   if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
-  await updateDoc(chatRef, {
-    [`memberSettings.${userId}.notificationLevel`]: level
-  });
+  await setDoc(chatRef, {
+    memberSettings: {
+      [userId]: {
+        notificationLevel: level
+      }
+    }
+  }, { merge: true });
 };

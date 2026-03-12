@@ -85,6 +85,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                 setSelectedChat(chat);
             }
         } catch (error) {
+            console.error('Error joining public room:', error);
             setToastNotification({ message: 'Kunde inte gå med i rummet.', type: 'error' });
         }
     };
@@ -165,7 +166,9 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                     )
                 ) : (
                     publicRooms.filter(room => !room.members.includes(currentUser.uid)).length > 0 ? (
-                        publicRooms.filter(room => !room.members.includes(currentUser.uid)).map(chat => (
+                        publicRooms.filter(room => !room.members.includes(currentUser.uid)).map(chat => {
+                            const creatorName = chat.isSystemGroup ? 'Kostloggen' : (chat.createdBy === currentUser.uid ? 'Dig' : buddyDetails.find(b => b.uid === chat.createdBy)?.name || 'Någon');
+                            return (
                             <div key={chat.id} className="bg-white p-4 rounded-xl shadow-sm border border-neutral-light flex justify-between items-center">
                                 <div>
                                     <div className="flex items-center gap-2">
@@ -176,7 +179,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                                     </div>
                                     <p className="text-sm text-neutral">{chat.description}</p>
                                     <p className="text-xs text-neutral mt-1 flex items-center gap-1">
-                                        <UsersIcon className="w-3 h-3" /> {chat.members.length} medlemmar
+                                        <UsersIcon className="w-3 h-3" /> {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'} • Skapad av {creatorName}
                                     </p>
                                 </div>
                                 {chat.pendingMembers?.includes(currentUser.uid) ? (
@@ -195,7 +198,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                                     </button>
                                 )}
                             </div>
-                        ))
+                        )})
                     ) : (
                         <div className="text-center py-10">
                             <p className="text-neutral-dark font-medium">Inga nya öppna rum att upptäcka just nu.</p>
@@ -387,11 +390,12 @@ const ChatWindow: React.FC<{
     }, [chat.name]);
 
     const creatorName = useMemo(() => {
+        if (chat.isSystemGroup) return 'Kostloggen';
         if (!chat.createdBy) return null;
         if (chat.createdBy === currentUser.uid) return 'Dig';
         const buddy = buddyDetails.find(b => b.uid === chat.createdBy);
         return buddy ? buddy.name : 'Någon';
-    }, [chat.createdBy, currentUser.uid, buddyDetails]);
+    }, [chat.createdBy, currentUser.uid, buddyDetails, chat.isSystemGroup]);
 
     const [messageLimit, setMessageLimit] = useState(20);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
