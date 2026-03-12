@@ -1102,7 +1102,9 @@ export const ChatWindow: React.FC<{
                                         <img src={msg.imageUrl} alt="Bifogad bild" className="max-w-full rounded-lg" />
                                     </div>
                                 )}
-                                <p className={`text-[15px] leading-relaxed break-words ${msg.isDeleted ? 'italic opacity-70' : ''}`}>{msg.text}</p>
+                                {msg.text && (
+                                    <p className={`text-[15px] leading-relaxed break-words ${msg.isDeleted ? 'italic opacity-70' : ''}`}>{msg.text}</p>
+                                )}
                                 {msg.isEdited && !msg.isDeleted && (
                                     <span className="text-[10px] opacity-70 ml-2">(redigerad)</span>
                                 )}

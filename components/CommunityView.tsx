@@ -1027,12 +1027,14 @@ const ShareModal: FC<{
 }> = ({ isOpen, onClose, event, currentUser, userProfile, setToastNotification }) => {
     const [chats, setChats] = useState<Chat[]>([]);
     const [isSharing, setIsSharing] = useState(false);
+    const [customMessage, setCustomMessage] = useState('');
 
     useEffect(() => {
         if (isOpen && currentUser) {
             const unsubscribe = subscribeToUserChats(currentUser.uid, (fetchedChats) => {
                 setChats(fetchedChats);
             });
+            setCustomMessage(''); // Reset message when opened
             return () => unsubscribe();
         }
     }, [isOpen, currentUser]);
@@ -1043,7 +1045,7 @@ const ShareModal: FC<{
         if (isSharing) return;
         setIsSharing(true);
         try {
-            const messageText = `Kolla in min senaste händelse: ${event.title}\nhttps://kostloggen.se/?view=community&highlight=${event.id}`;
+            const messageText = customMessage.trim();
             
             const sharedEventPreview = {
                 id: event.id,
@@ -1073,6 +1075,15 @@ const ShareModal: FC<{
                     <button onClick={onClose} className="p-2 hover:bg-neutral-light rounded-full transition-colors">
                         <XMarkIcon className="w-6 h-6 text-neutral" />
                     </button>
+                </div>
+                <div className="p-4 border-b border-neutral-light bg-gray-50">
+                    <textarea
+                        value={customMessage}
+                        onChange={(e) => setCustomMessage(e.target.value)}
+                        placeholder="Skriv ett meddelande (frivilligt)..."
+                        className="w-full p-3 rounded-xl border border-neutral-light focus:border-primary focus:ring-1 focus:ring-primary resize-none text-sm"
+                        rows={2}
+                    />
                 </div>
                 <div className="p-4 overflow-y-auto flex-1">
                     {chats.length === 0 ? (
