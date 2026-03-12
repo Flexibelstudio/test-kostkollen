@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { NutritionalInfo, UserProfileData, MealType } from '../types';
 import { COACH_PERSONAS } from '../constants';
-import { CheckCircleIcon, XMarkIcon, SmileIcon, MehIcon, FrownIcon } from './icons';
+import { CheckCircleIcon, XMarkIcon, SmileIcon, MehIcon, FrownIcon, InformationCircleIcon } from './icons';
 
 interface FoodRatingModalProps {
   show: boolean;
@@ -12,6 +12,8 @@ interface FoodRatingModalProps {
 }
 
 const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutritionalInfo, mealType, userProfile }) => {
+  const [showInfo, setShowInfo] = useState(false);
+
   if (!show) return null;
 
   const coachStyle = userProfile.coachStyle || 'balanced';
@@ -129,7 +131,26 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
           <button onClick={onClose} className="absolute top-4 right-4 text-neutral-500 hover:text-neutral-dark">
             <XMarkIcon className="w-6 h-6" />
           </button>
-          <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-wider mb-4">Matbetyg</h2>
+          
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <h2 className="text-sm font-bold text-neutral-500 uppercase tracking-wider">Matbetyg</h2>
+            <button 
+              onClick={() => setShowInfo(!showInfo)} 
+              className="text-neutral-400 hover:text-primary transition-colors"
+              title="Hur funkar betyget?"
+            >
+              <InformationCircleIcon className="w-5 h-5" />
+            </button>
+          </div>
+
+          {showInfo && (
+            <div className="mb-6 p-4 bg-primary-50 text-primary-darker text-sm text-left rounded-xl border border-primary-100 animate-fade-in">
+              <p className="font-bold mb-1">Hur tänker AI-coachen?</p>
+              <p className="leading-relaxed">
+                Coachen bedömer dina måltider utifrån en hälsosam helhet. Den ger glada tillrop för måltider som mättar bra (högt protein) och håller sig inom rimliga kalorimängder. Den varnar om en måltid innehåller en väldigt hög andel fett eller kolhydrater i förhållande till proteinet, eller om portionen är ovanligt stor för att vara en huvudmåltid eller ett mellanmål.
+              </p>
+            </div>
+          )}
           
           <div className="flex items-center justify-center gap-4 mb-2">
             <div className={`w-16 h-16 rounded-full flex items-center justify-center text-4xl shadow-md ${ratingColors[rating]}`}>
