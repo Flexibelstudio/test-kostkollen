@@ -1091,6 +1091,33 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
   return snapshot.docs.map(doc => doc.data() as Peppkompis);
 }
 
+export async function fetchUsersByUids(uids: string[]): Promise<BuddyDetails[]> {
+  if (!db || uids.length === 0) return [];
+  
+  const results: BuddyDetails[] = [];
+  // Firestore 'in' queries support max 10 items
+  for (let i = 0; i < uids.length; i += 10) {
+    const chunk = uids.slice(i, i + 10);
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('uid', 'in', chunk));
+    const snapshot = await getDocsSafe(q);
+    
+    snapshot.forEach(doc => {
+      const data = doc.data() as FirestoreUserDocument;
+      results.push({
+        uid: data.uid,
+        name: data.name,
+        email: data.email || '',
+        photoURL: data.photoURL,
+        role: data.role,
+        unlockedAchievements: {}
+      });
+    });
+  }
+  
+  return results;
+}
+
 export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetails[]> {
   if (!db) return [];
   const buddies = await fetchBuddies(userId);

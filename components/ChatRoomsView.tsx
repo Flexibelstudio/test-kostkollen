@@ -5,7 +5,7 @@ import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, 
 import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
-import { searchForBuddies } from '../services/firestoreService';
+import { searchForBuddies, fetchUsersByUids, sendFriendRequest } from '../services/firestoreService';
 import EmojiPicker from 'emoji-picker-react';
 
 const resizeImage = (file: File, maxSize: number): Promise<string> => {
@@ -282,6 +282,9 @@ export const ChatWindow: React.FC<{
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [showAdminMenu, setShowAdminMenu] = useState(false);
     const [showPendingMembers, setShowPendingMembers] = useState(false);
+    const [showMembersList, setShowMembersList] = useState(false);
+    const [allMemberDetails, setAllMemberDetails] = useState<BuddyDetails[]>([]);
+    const [isLoadingMembers, setIsLoadingMembers] = useState(false);
     const [newChatName, setNewChatName] = useState(chat.name || '');
     const [optimisticName, setOptimisticName] = useState(chat.name || '');
     const [isEditingName, setIsEditingName] = useState(false);
@@ -400,6 +403,19 @@ export const ChatWindow: React.FC<{
         setOptimisticName(chat.name || '');
         setNewChatName(chat.name || '');
     }, [chat.name]);
+
+    useEffect(() => {
+        if (showMembersList) {
+            setIsLoadingMembers(true);
+            fetchUsersByUids(chat.members).then(details => {
+                setAllMemberDetails(details);
+                setIsLoadingMembers(false);
+            }).catch(err => {
+                console.error("Failed to fetch members", err);
+                setIsLoadingMembers(false);
+            });
+        }
+    }, [showMembersList, chat.members]);
 
     const creatorName = useMemo(() => {
         if (chat.isSystemGroup) return 'Kostloggen';
@@ -525,12 +541,16 @@ export const ChatWindow: React.FC<{
             if (editingMessageId) {
                 await editMessage(chat.id, editingMessageId, text);
             } else {
+                const isSystemMessage = userRole === 'coach' && chat.isSystemGroup;
+                const senderName = isSystemMessage ? 'Kostloggen' : (userProfile.name || 'Användare');
+                const senderPhoto = isSystemMessage ? undefined : userProfile.photoURL;
+
                 await sendMessage(
                     chat.id, 
                     currentUser.uid, 
-                    userProfile.name || 'Användare', 
+                    senderName, 
                     text, 
-                    userProfile.photoURL,
+                    senderPhoto,
                     imageToSend || undefined
                 );
             }
@@ -602,6 +622,95 @@ export const ChatWindow: React.FC<{
     
     // Filter out buddies that are already in the chat
     const availableBuddies = buddyDetails.filter(b => !chat.members.includes(b.uid));
+
+    if (showMembersList) {
+        return (
+            <div className="flex flex-col flex-grow h-full bg-white">
+                <div className="flex items-center gap-3 p-4 border-b border-neutral-light">
+                    <button onClick={() => setShowMembersList(false)} className="p-2 -ml-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
+                        <ChevronLeftIcon className="w-6 h-6" />
+                    </button>
+                    <h2 className="text-xl font-bold text-neutral-dark">Medlemmar ({chat.members.length})</h2>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {isLoadingMembers ? (
+                        <div className="flex justify-center p-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        </div>
+                    ) : (
+                        allMemberDetails.map(member => {
+                            const isMemberAdmin = chat.admins?.includes(member.uid) || chat.createdBy === member.uid;
+                            const isMemberCoach = member.role === 'coach';
+                            const isMe = member.uid === currentUser.uid;
+                            const isBuddy = buddyDetails.some(b => b.uid === member.uid);
+
+                            return (
+                                <div key={member.uid} className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-neutral-light">
+                                    <div className="flex items-center gap-3">
+                                        <Avatar photoURL={member.photoURL} size={40} />
+                                        <div>
+                                            <p className="font-bold text-neutral-dark flex items-center gap-2">
+                                                {member.name} {isMe && <span className="text-xs font-normal text-neutral">(Du)</span>}
+                                            </p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                {isMemberCoach && (
+                                                    <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                                                        <ShieldIcon className="w-3 h-3" /> Coach
+                                                    </span>
+                                                )}
+                                                {isMemberAdmin && !isMemberCoach && (
+                                                    <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                        Admin
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {!isMe && !isBuddy && (
+                                            <button 
+                                                onClick={async () => {
+                                                    try {
+                                                        await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, member.uid);
+                                                        setToastNotification({ message: 'Vänförfrågan skickad!', type: 'success' });
+                                                    } catch (error) {
+                                                        setToastNotification({ message: 'Kunde inte skicka förfrågan.', type: 'error' });
+                                                    }
+                                                }}
+                                                className="p-2 text-primary hover:bg-primary-50 rounded-full transition-colors"
+                                                title="Lägg till som peppkompis"
+                                            >
+                                                <UserPlusIcon className="w-5 h-5" />
+                                            </button>
+                                        )}
+                                        {isAdmin && !isMe && (
+                                            <button 
+                                                onClick={async () => {
+                                                    if (confirm(`Är du säker på att du vill ta bort ${member.name} från gruppen?`)) {
+                                                        try {
+                                                            await removeMemberFromChat(chat.id, member.uid);
+                                                            setAllMemberDetails(prev => prev.filter(m => m.uid !== member.uid));
+                                                            setToastNotification({ message: 'Medlem borttagen.', type: 'success' });
+                                                        } catch (error) {
+                                                            setToastNotification({ message: 'Kunde inte ta bort medlem.', type: 'error' });
+                                                        }
+                                                    }
+                                                }}
+                                                className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                                                title="Ta bort från grupp"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     if (showPendingMembers) {
         const pendingBuddies = buddyDetails.filter(b => chat.pendingMembers?.includes(b.uid));
@@ -818,6 +927,10 @@ export const ChatWindow: React.FC<{
                                 </button>
                                 <button onClick={() => handleSettingChange('mute')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'mute' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
                                     <BellOffIcon className="w-4 h-4" /> Stör ej (Mute)
+                                </button>
+                                <div className="border-t border-neutral-light my-1"></div>
+                                <button onClick={() => { setShowMembersList(true); setShowSettings(false); }} className="w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 text-neutral-dark">
+                                    <UsersIcon className="w-4 h-4" /> Visa medlemmar
                                 </button>
                             </div>
                         )}
