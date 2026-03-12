@@ -436,9 +436,24 @@ export const ChatWindow: React.FC<{
 
     const [messageLimit, setMessageLimit] = useState(20);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
     const [initialScrollDone, setInitialScrollDone] = useState(false);
     const [prevScrollHeight, setPrevScrollHeight] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setShowSettings(false);
+                setShowAdminMenu(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     useEffect(() => {
         const unsubscribe = subscribeToChatMessages(chat.id, messageLimit, (newMessages) => {
@@ -468,24 +483,29 @@ export const ChatWindow: React.FC<{
         }
     }, [isLoading, messages.length, initialScrollDone]);
 
+    const lastMessageIdRef = useRef<string | null>(null);
+
     // Handle scroll on new messages
     useEffect(() => {
-        if (initialScrollDone && messagesContainerRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-            const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
-            
+        if (initialScrollDone && messagesContainerRef.current && messages.length > 0) {
             const lastMessage = messages[messages.length - 1];
-            const isMyMessage = lastMessage?.senderId === currentUser.uid;
+            
+            if (lastMessageIdRef.current !== lastMessage.id) {
+                const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+                const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+                const isMyMessage = lastMessage.senderId === currentUser.uid;
 
-            if (isNearBottom || isMyMessage) {
-                setTimeout(() => {
-                    if (messagesContainerRef.current) {
-                        messagesContainerRef.current.scrollTo({
-                            top: messagesContainerRef.current.scrollHeight,
-                            behavior: 'smooth'
-                        });
-                    }
-                }, 50);
+                if (isNearBottom || isMyMessage) {
+                    setTimeout(() => {
+                        if (messagesContainerRef.current) {
+                            messagesContainerRef.current.scrollTo({
+                                top: messagesContainerRef.current.scrollHeight,
+                                behavior: 'smooth'
+                            });
+                        }
+                    }, 50);
+                }
+                lastMessageIdRef.current = lastMessage.id;
             }
         }
     }, [messages, initialScrollDone, currentUser.uid]);
@@ -906,7 +926,7 @@ export const ChatWindow: React.FC<{
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1" ref={menuRef}>
                     {canInvite && (
                         <button 
                             onClick={() => {
@@ -923,7 +943,7 @@ export const ChatWindow: React.FC<{
                         </button>
                     )}
                     <div className="relative">
-                        <button onClick={() => setShowSettings(!showSettings)} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
+                        <button onClick={() => { setShowSettings(!showSettings); setShowAdminMenu(false); }} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
                             {currentSetting === 'mute' ? <BellOffIcon className="w-5 h-5" /> : currentSetting === 'mentions' ? <AtSignIcon className="w-5 h-5" /> : <BellIcon className="w-5 h-5" />}
                         </button>
                         {showSettings && (
@@ -946,7 +966,7 @@ export const ChatWindow: React.FC<{
                     </div>
                     {isAdmin && (
                         <div className="relative">
-                            <button onClick={() => setShowAdminMenu(!showAdminMenu)} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100 relative">
+                            <button onClick={() => { setShowAdminMenu(!showAdminMenu); setShowSettings(false); }} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100 relative">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                 {chat.pendingMembers && chat.pendingMembers.length > 0 && (
                                     <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full transform translate-x-1/4 -translate-y-1/4">
