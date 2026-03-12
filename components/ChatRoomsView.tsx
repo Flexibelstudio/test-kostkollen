@@ -1083,13 +1083,13 @@ export const ChatWindow: React.FC<{
                             )}
                             <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : isNewMessage ? 'bg-primary-50 border border-primary-200 text-neutral-dark rounded-bl-sm shadow-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}>
                                 {msg.replyTo && (
-                                    <div className={`mb-2 p-2 rounded-lg text-sm border-l-4 ${isMe ? 'bg-primary-dark/30 border-white/50 text-white/90' : 'bg-gray-100 border-primary text-neutral-dark'}`}>
+                                    <div className={`mb-2 p-2 rounded-lg text-sm border-l-4 ${isMe ? 'bg-black/20 border-white/50 text-white/90' : 'bg-neutral-light/50 border-primary text-neutral-dark'}`}>
                                         <div className="font-bold text-xs mb-0.5">{msg.replyTo.senderName}</div>
                                         <div className="truncate opacity-90">{msg.replyTo.text || (msg.replyTo.imageUrl ? 'Bild' : '')}</div>
                                     </div>
                                 )}
                                 {msg.sharedEventPreview && (
-                                    <div className={`mb-2 p-3 rounded-xl border ${isMe ? 'bg-primary-dark/20 border-white/20' : 'bg-gray-50 border-neutral-light'} cursor-pointer`} onClick={() => window.location.href = `/?view=community&highlight=${msg.sharedEventPreview!.id}`}>
+                                    <div className={`mb-2 p-3 rounded-xl border ${isMe ? 'bg-black/20 border-white/20' : 'bg-neutral-light/50 border-neutral-light'} cursor-pointer`} onClick={() => window.location.href = `/?view=community&highlight=${msg.sharedEventPreview!.id}`}>
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-xl">{msg.sharedEventPreview.icon}</span>
                                             <span className="font-bold text-sm">{msg.sharedEventPreview.title}</span>
@@ -1207,7 +1207,7 @@ export const ChatWindow: React.FC<{
             {/* Input */}
             <div className="flex-shrink-0 bg-white border-t border-neutral-light p-3">
                 {editingMessageId && (
-                    <div className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-t-lg border-b border-gray-200 text-sm text-neutral-dark">
+                    <div className="flex items-center justify-between bg-neutral-light/50 px-3 py-2 rounded-t-lg border-b border-gray-200 text-sm text-neutral-dark">
                         <span className="flex items-center gap-1">
                             <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                             Redigerar meddelande
@@ -1226,7 +1226,7 @@ export const ChatWindow: React.FC<{
                     </div>
                 )}
                 {replyingToMessage && (
-                    <div className="flex items-center justify-between bg-gray-50 p-2 rounded-t-xl border-x border-t border-neutral-light -mb-3 pb-4 relative z-0">
+                    <div className="flex items-center justify-between bg-neutral-light/50 p-2 rounded-t-xl border-x border-t border-neutral-light -mb-3 pb-4 relative z-0">
                         <div className="flex flex-col min-w-0">
                             <span className="text-xs font-bold text-primary">Svarar {replyingToMessage.senderName}</span>
                             <span className="text-sm text-neutral-dark truncate">
@@ -1291,7 +1291,7 @@ export const ChatWindow: React.FC<{
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     </button>
-                    <div className="flex-grow bg-gray-100 rounded-2xl border border-transparent focus-within:border-primary focus-within:bg-white transition-all overflow-hidden">
+                    <div className="flex-grow bg-neutral-light/50 rounded-2xl border border-transparent focus-within:border-primary focus-within:bg-white transition-all overflow-hidden">
                         <textarea 
                             ref={textareaRef}
                             value={newMessage}

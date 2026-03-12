@@ -5,7 +5,7 @@ import { CheckCircleIcon } from './icons'; // Or a more celebratory icon like a 
 interface GoalMetModalProps {
   data: {
     date: string; // YYYY-MM-DD
-    streak: number;
+    description: string;
   };
   onClose: () => void;
 }
@@ -39,14 +39,9 @@ const GoalMetModal: React.FC<GoalMetModalProps> = ({ data, onClose }) => {
         <p className="text-xl text-neutral-dark mb-2">
           Fantastiskt! Du klarade ditt mål för {formattedDate}!
         </p>
-        {data.streak > 0 && (
+        {data.description && (
             <p className="text-2xl font-semibold text-accent mb-6">
-                Din streak är nu: {data.streak} {data.streak === 1 ? 'dag' : 'dagar'}! 🔥
-            </p>
-        )}
-         {data.streak === 0 && ( // Should not happen if this modal is shown based on wasYesterdaySuccessfulForStreak
-            <p className="text-xl text-neutral-dark mb-6">
-                Bra start på en ny streak!
+                {data.description} 🔥
             </p>
         )}
         <button

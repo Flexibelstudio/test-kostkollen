@@ -1076,7 +1076,7 @@ const ShareModal: FC<{
                         <XMarkIcon className="w-6 h-6 text-neutral" />
                     </button>
                 </div>
-                <div className="p-4 border-b border-neutral-light bg-gray-50">
+                <div className="p-4 border-b border-neutral-light bg-neutral-light/50">
                     <textarea
                         value={customMessage}
                         onChange={(e) => setCustomMessage(e.target.value)}

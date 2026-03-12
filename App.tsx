@@ -344,7 +344,7 @@ export const App = () => {
 
   const [showLevelUpModal, setShowLevelUpModal] = useState<Level | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; streak: number} | null>(null);
+  const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; description: string} | null>(null);
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
   const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[] } | null>(null);
@@ -1109,35 +1109,44 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         // Check if goal reached
         if (!userProfile.mainGoalCompleted) {
              let goalMet = false;
+             let metGoalDescription = "";
 
              if (userProfile.measurementMethod === 'scale' && userProfile.goalStartWeight != null && userProfile.desiredWeightChangeKg != null) {
                  const targetWeight = userProfile.goalStartWeight + userProfile.desiredWeightChangeKg;
                  if (userProfile.desiredWeightChangeKg < 0 && data.weightKg <= targetWeight) goalMet = true;
                  if (userProfile.desiredWeightChangeKg > 0 && data.weightKg >= targetWeight) goalMet = true;
+                 if (goalMet) metGoalDescription = `Din målvikt på ${targetWeight.toFixed(1).replace('.', ',')} kg`;
              } else if (userProfile.measurementMethod === 'inbody') {
                  let fatMet = false;
                  let muscleMet = false;
                  let hasFatGoal = userProfile.desiredFatMassChangeKg != null;
                  let hasMuscleGoal = userProfile.desiredMuscleMassChangeKg != null;
+                 let targetFat = 0;
+                 let targetMuscle = 0;
 
                  if (hasFatGoal && userProfile.goalStartFatMassKg != null && data.bodyFatMassKg != null) {
-                     const targetFat = userProfile.goalStartFatMassKg + userProfile.desiredFatMassChangeKg!;
+                     targetFat = userProfile.goalStartFatMassKg + userProfile.desiredFatMassChangeKg!;
                      if (userProfile.desiredFatMassChangeKg! < 0 && data.bodyFatMassKg <= targetFat) fatMet = true;
                      if (userProfile.desiredFatMassChangeKg! > 0 && data.bodyFatMassKg >= targetFat) fatMet = true;
                  }
 
                  if (hasMuscleGoal && userProfile.goalStartMuscleMassKg != null && data.skeletalMuscleMassKg != null) {
-                     const targetMuscle = userProfile.goalStartMuscleMassKg + userProfile.desiredMuscleMassChangeKg!;
+                     targetMuscle = userProfile.goalStartMuscleMassKg + userProfile.desiredMuscleMassChangeKg!;
                      if (userProfile.desiredMuscleMassChangeKg! < 0 && data.skeletalMuscleMassKg <= targetMuscle) muscleMet = true;
                      if (userProfile.desiredMuscleMassChangeKg! > 0 && data.skeletalMuscleMassKg >= targetMuscle) muscleMet = true;
                  }
 
                  if (hasFatGoal && hasMuscleGoal) {
                      goalMet = fatMet || muscleMet;
+                     if (fatMet && muscleMet) metGoalDescription = `Dina mål för fettmassa (${targetFat.toFixed(1).replace('.', ',')} kg) och muskelmassa (${targetMuscle.toFixed(1).replace('.', ',')} kg)`;
+                     else if (fatMet) metGoalDescription = `Ditt mål för fettmassa på ${targetFat.toFixed(1).replace('.', ',')} kg`;
+                     else if (muscleMet) metGoalDescription = `Ditt mål för muskelmassa på ${targetMuscle.toFixed(1).replace('.', ',')} kg`;
                  } else if (hasFatGoal) {
                      goalMet = fatMet;
+                     if (fatMet) metGoalDescription = `Ditt mål för fettmassa på ${targetFat.toFixed(1).replace('.', ',')} kg`;
                  } else if (hasMuscleGoal) {
                      goalMet = muscleMet;
+                     if (muscleMet) metGoalDescription = `Ditt mål för muskelmassa på ${targetMuscle.toFixed(1).replace('.', ',')} kg`;
                  }
              }
 
@@ -1147,7 +1156,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                     const unlocked = await unlockAchievement(currentUser.uid, ach.id, ach.name, ach.icon, ach.description);
                     
                     setShowConfetti(true);
-                    setShowGoalMetModalData({ date: new Date().toISOString().split('T')[0], streak: streakData.currentStreak });
+                    setShowGoalMetModalData({ date: new Date().toISOString().split('T')[0], description: metGoalDescription });
                     playAudio('levelUp');
                     setUserProfile(prev => ({ ...prev, mainGoalCompleted: true }));
                     await updateUserDocument(currentUser.uid, { mainGoalCompleted: true });
