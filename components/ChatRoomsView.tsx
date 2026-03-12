@@ -56,6 +56,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
     const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
     const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         const unsubscribeMyChats = subscribeToUserChats(currentUser.uid, setMyChats);
@@ -84,6 +85,19 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
             }
         }
     }, [myChats, publicRooms, selectedChat]);
+
+    const filteredMyChats = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) return myChats;
+        return myChats.filter(chat => chat.name?.toLowerCase().includes(query));
+    }, [myChats, searchQuery]);
+
+    const filteredDiscoverChats = useMemo(() => {
+        const discoverChats = publicRooms.filter(room => !room.members.includes(currentUser.uid));
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) return discoverChats;
+        return discoverChats.filter(chat => chat.name?.toLowerCase().includes(query));
+    }, [publicRooms, currentUser.uid, searchQuery]);
 
     const handleJoinPublicRoom = async (chat: Chat) => {
         try {
@@ -130,37 +144,38 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
     }
 
     return (
-        <div className="flex flex-col flex-grow h-full bg-neutral-light/30">
-            <div className="flex-shrink-0 bg-white border-b border-neutral-light p-4">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold text-primary-darker">Chattar</h2>
+        <div className="p-4 flex flex-col h-full bg-neutral-light/30">
+            <div className="flex-shrink-0">
+                <nav className="flex items-center -mb-px border-b border-neutral-light">
+                    <button onClick={() => setActiveTab('my_chats')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'my_chats' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina chattar</button>
+                    <button onClick={() => setActiveTab('discover')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'discover' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Upptäck</button>
+                    <div className="flex-grow"></div>
                     <button 
                         onClick={() => setIsCreatingGroup(true)}
-                        className="p-2 bg-primary text-white rounded-full shadow-sm hover:bg-primary-darker transition-colors"
+                        className="p-2 text-primary hover:text-primary-darker hover:bg-primary-50 rounded-full transition-colors mb-1"
+                        title="Skapa ny chatt"
                     >
                         <PlusIcon className="w-5 h-5" />
                     </button>
-                </div>
-                <div className="flex space-x-2">
-                    <button 
-                        onClick={() => setActiveTab('my_chats')}
-                        className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors ${activeTab === 'my_chats' ? 'bg-primary text-white shadow-sm' : 'bg-neutral-light text-neutral-dark hover:bg-gray-200'}`}
-                    >
-                        Mina chattar
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('discover')}
-                        className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors ${activeTab === 'discover' ? 'bg-primary text-white shadow-sm' : 'bg-neutral-light text-neutral-dark hover:bg-gray-200'}`}
-                    >
-                        Upptäck
-                    </button>
-                </div>
+                </nav>
             </div>
 
-            <div className="flex-grow overflow-y-auto p-4 space-y-3">
+            <div className="flex-grow overflow-y-auto custom-scrollbar mt-4 space-y-4">
+                <div className="relative">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input 
+                        type="search" 
+                        value={searchQuery} 
+                        onChange={e => setSearchQuery(e.target.value)} 
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker"
+                        placeholder={activeTab === 'my_chats' ? "Sök bland dina chattar..." : "Sök efter öppna rum..."}
+                    />
+                </div>
+
+                <div className="space-y-3">
                 {activeTab === 'my_chats' ? (
-                    myChats.length > 0 ? (
-                        myChats.map(chat => (
+                    filteredMyChats.length > 0 ? (
+                        filteredMyChats.map(chat => (
                             <ChatListItem 
                                 key={chat.id} 
                                 chat={chat} 
@@ -170,13 +185,13 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                         ))
                     ) : (
                         <div className="text-center py-10">
-                            <p className="text-neutral-dark font-medium">Du är inte med i några chattar än.</p>
-                            <p className="text-neutral text-sm mt-1">Skapa en ny grupp eller upptäck öppna rum!</p>
+                            <p className="text-neutral-dark font-medium">{searchQuery ? 'Inga chattar matchade din sökning.' : 'Du är inte med i några chattar än.'}</p>
+                            {!searchQuery && <p className="text-neutral text-sm mt-1">Skapa en ny grupp eller upptäck öppna rum!</p>}
                         </div>
                     )
                 ) : (
-                    publicRooms.filter(room => !room.members.includes(currentUser.uid)).length > 0 ? (
-                        publicRooms.filter(room => !room.members.includes(currentUser.uid)).map(chat => {
+                    filteredDiscoverChats.length > 0 ? (
+                        filteredDiscoverChats.map(chat => {
                             const creatorName = chat.isSystemGroup ? 'Kostloggen' : (chat.createdBy === currentUser.uid ? 'Dig' : buddyDetails.find(b => b.uid === chat.createdBy)?.name || 'Någon');
                             return (
                             <div key={chat.id} className="bg-white p-4 rounded-xl shadow-sm border border-neutral-light flex justify-between items-center">
@@ -211,10 +226,11 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                         )})
                     ) : (
                         <div className="text-center py-10">
-                            <p className="text-neutral-dark font-medium">Inga nya öppna rum att upptäcka just nu.</p>
+                            <p className="text-neutral-dark font-medium">{searchQuery ? 'Inga rum matchade din sökning.' : 'Inga nya öppna rum att upptäcka just nu.'}</p>
                         </div>
                     )
                 )}
+                </div>
             </div>
         </div>
     );
