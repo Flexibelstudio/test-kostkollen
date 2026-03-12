@@ -464,7 +464,7 @@ export function listenToCommunityTimeline(
   }
   const q = query(
     collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains', userId),
+    where('visibleTo', 'array-contains-any', [userId, 'GLOBAL']),
     orderBy('timestamp', 'desc'),
     limit(limitCount)
   );
@@ -489,7 +489,7 @@ export async function fetchCommunityTimeline(
   
   let q = query(
     collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains', currentUserId),
+    where('visibleTo', 'array-contains-any', [currentUserId, 'GLOBAL']),
     orderBy('timestamp', 'desc'),
     limit(limitCount)
   );
@@ -514,7 +514,8 @@ export async function createUserPost(
   userId: string,
   text: string,
   category: PostCategory,
-  imageBase64?: string
+  imageBase64?: string,
+  isGlobal?: boolean
 ) {
     if (!db) return { id: `post_${Date.now()}`, type: 'user_post', timestamp: Date.now(), title: 'Mock Post', description: text, icon: '📝', userId, userName: 'Mock', userPhotoURL: null, gender: 'female', visibleTo: [], reactions: {}, comments: [], relatedDocPath: '', category, imageUrl: imageBase64 } as any;
     const userDocRef = doc(db, 'users', userId);
@@ -522,9 +523,14 @@ export async function createUserPost(
     if (!userDocSnap.exists()) throw new Error("User not found");
     const userData = userDocSnap.data() as FirestoreUserDocument;
 
-    const buddies = await fetchBuddies(userId);
-    const buddyUids = buddies.map(b => b.uid);
-    const visibleTo = [userId, ...buddyUids];
+    let visibleTo: string[] = [];
+    if (isGlobal) {
+        visibleTo = ['GLOBAL'];
+    } else {
+        const buddies = await fetchBuddies(userId);
+        const buddyUids = buddies.map(b => b.uid);
+        visibleTo = [userId, ...buddyUids];
+    }
 
     const eventId = `post_${userId}_${Date.now()}`;
     const timelineDocRef = doc(db, "communityTimeline", eventId);
@@ -532,9 +538,9 @@ export async function createUserPost(
     const postEvent: Omit<TimelineEvent, 'id'> = {
         type: 'user_post',
         timestamp: Date.now(),
-        title: 'skapade ett inlägg',
+        title: isGlobal ? 'delade ett meddelande till alla' : 'skapade ett inlägg',
         description: text,
-        icon: category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
+        icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
         userId: userId,
         userName: userData.displayName,
         userPhotoURL: userData.photoURL ?? null,
@@ -544,7 +550,8 @@ export async function createUserPost(
         comments: [],
         relatedDocPath: `users/${userId}/posts/${eventId}`,
         category: category,
-        imageUrl: imageBase64 // Note: Saving base64 directly to Firestore doc. Keep images small (<500kb).
+        imageUrl: imageBase64, // Note: Saving base64 directly to Firestore doc. Keep images small (<500kb).
+        isGlobal: isGlobal
     };
 
     await setDoc(timelineDocRef, cleanFirestoreData(postEvent));

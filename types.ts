@@ -642,4 +642,5 @@ export interface TimelineEvent {
   userPhotoURL?: string;
   gender: Gender;
   visibleTo?: string[];
+  isGlobal?: boolean;
 }

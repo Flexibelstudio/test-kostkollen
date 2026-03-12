@@ -1766,6 +1766,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
               onDataChanged={loadCommunityData}
               lastViewTimestamp={lastCommunityViewTimestamp}
               currentStreak={streakData.currentStreak}
+              userRole={userRole || 'member'}
             />
          )}
         </main>
