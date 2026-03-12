@@ -272,9 +272,9 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
             </div>
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                    {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
-                     chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
-                     chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : null}
+                    {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
+                     chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
+                     chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
                     <p className={`text-sm truncate ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
                         {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : chat.lastMessage.senderName || 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
                     </p>
@@ -936,9 +936,9 @@ export const ChatWindow: React.FC<{
                             )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                            {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
-                             chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
-                             chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : null}
+                            {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
+                             chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
+                             chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
                             <p className="text-xs text-neutral">
                                 {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'}
                                 {creatorName && ` • Skapad av ${creatorName}`}
