@@ -1017,8 +1017,21 @@ export const ChatWindow: React.FC<{
                 className="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-4"
             >
                 {messages.map((msg, index) => {
-                    const isMe = msg.senderId === currentUser.uid;
-                    const showHeader = index === 0 || messages[index - 1].senderId !== msg.senderId || (msg.timestamp - messages[index - 1].timestamp > 5 * 60 * 1000);
+                    const isMessageFromCoach = msg.senderName === 'Kostloggen';
+                    const isCurrentViewCoach = userRole === 'coach' && chat.isSystemGroup;
+                    
+                    const isMe = (() => {
+                        if (msg.senderId !== currentUser.uid) return false;
+                        if (isCurrentViewCoach) return isMessageFromCoach;
+                        return !isMessageFromCoach;
+                    })();
+                    
+                    const isMyMessage = msg.senderId === currentUser.uid;
+                    
+                    const showHeader = index === 0 || 
+                        messages[index - 1].senderId !== msg.senderId || 
+                        messages[index - 1].senderName !== msg.senderName ||
+                        (msg.timestamp - messages[index - 1].timestamp > 5 * 60 * 1000);
 
                     // Calculate who has read this message
                     const readBy = Object.entries((chat.memberSettings || {}) as Record<string, ChatMemberSettings>)
@@ -1097,9 +1110,9 @@ export const ChatWindow: React.FC<{
                                                 <PlusIcon className="w-4 h-4" />
                                             </button>
                                         </div>
-                                        {(isMe || isAdmin) && (
+                                        {(isMyMessage || isAdmin) && (
                                             <>
-                                                {isMe && (
+                                                {isMyMessage && (
                                                     <button onClick={() => handleStartEdit(msg)} className="p-1 text-neutral hover:text-primary rounded hover:bg-gray-100" title="Redigera">
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                     </button>
