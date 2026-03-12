@@ -515,9 +515,11 @@ export async function createUserPost(
   text: string,
   category: PostCategory,
   imageBase64?: string,
-  isGlobal?: boolean
+  isGlobal?: boolean,
+  overrideName?: string,
+  overridePhotoURL?: string
 ) {
-    if (!db) return { id: `post_${Date.now()}`, type: 'user_post', timestamp: Date.now(), title: 'Mock Post', description: text, icon: '📝', userId, userName: 'Mock', userPhotoURL: null, gender: 'female', visibleTo: [], reactions: {}, comments: [], relatedDocPath: '', category, imageUrl: imageBase64 } as any;
+    if (!db) return { id: `post_${Date.now()}`, type: 'user_post', timestamp: Date.now(), title: 'Mock Post', description: text, icon: '📝', userId, userName: overrideName || 'Mock', userPhotoURL: overridePhotoURL || null, gender: 'female', visibleTo: [], reactions: {}, comments: [], relatedDocPath: '', category, imageUrl: imageBase64 } as any;
     const userDocRef = doc(db, 'users', userId);
     const userDocSnap = await getDocSafe(userDocRef);
     if (!userDocSnap.exists()) throw new Error("User not found");
@@ -542,8 +544,8 @@ export async function createUserPost(
         description: text,
         icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
         userId: userId,
-        userName: userData.displayName,
-        userPhotoURL: userData.photoURL ?? null,
+        userName: overrideName || userData.displayName,
+        userPhotoURL: overridePhotoURL !== undefined ? overridePhotoURL : (userData.photoURL ?? null),
         gender: userData.gender,
         visibleTo: visibleTo,
         reactions: {},
@@ -1234,11 +1236,16 @@ export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: s
       }
     });
     
+    const updates: Record<string, any> = {};
     if (userPreviousReactionEmoji) {
-      transaction.update(eventRef, { [`reactions.${userPreviousReactionEmoji}.${fromUser.uid}`]: deleteField() });
+      updates[`reactions.${userPreviousReactionEmoji}.${fromUser.uid}`] = deleteField();
     }
     if (userPreviousReactionEmoji !== emoji) {
-      transaction.update(eventRef, { [`reactions.${emoji}.${fromUser.uid}`]: fromUser.name });
+      updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      transaction.update(eventRef, updates);
     }
   });
 }

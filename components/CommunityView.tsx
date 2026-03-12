@@ -158,6 +158,10 @@ export const CreatePostWidget: FC<{
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
 
+    const isCoach = userRole === 'coach';
+    const displayPhotoURL = isCoach ? '/favicon.png' : userProfile.photoURL;
+    const displayName = isCoach ? 'Kostloggen' : (userProfile.name || 'Du');
+
     const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -177,8 +181,8 @@ export const CreatePostWidget: FC<{
         playAudio('uiClick');
 
         try {
-            const isGlobal = true;
-            const newPost = await createUserPost(currentUser.uid, text, category, image || undefined, isGlobal);
+            const isGlobal = isCoach;
+            const newPost = await createUserPost(currentUser.uid, text, category, image || undefined, isGlobal, isCoach ? displayName : undefined, isCoach ? displayPhotoURL : undefined);
             
             const optimisticEvent: TimelineEvent = {
                 id: newPost.id,
@@ -188,8 +192,8 @@ export const CreatePostWidget: FC<{
                 description: text,
                 icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
                 userId: currentUser.uid,
-                userName: userProfile.name || 'Du',
-                userPhotoURL: userProfile.photoURL,
+                userName: displayName,
+                userPhotoURL: displayPhotoURL,
                 gender: userProfile.gender,
                 reactions: {},
                 comments: [],
@@ -232,7 +236,7 @@ export const CreatePostWidget: FC<{
                 onClick={() => setIsExpanded(true)}
                 className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-3 mb-6 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-dark transition-colors active:scale-[0.99] select-none"
             >
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
+                <Avatar photoURL={displayPhotoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
                 <div className="flex-grow bg-[#ffffff] rounded-full px-4 py-2.5 text-[#6B7280] text-sm font-medium border border-[#E5E7EB]">
                     Vad tänker du på? Dela med dig...
                 </div>
@@ -251,8 +255,9 @@ export const CreatePostWidget: FC<{
             </button>
 
             <div className="flex gap-3">
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={48} className="flex-shrink-0" />
+                <Avatar photoURL={displayPhotoURL} gender={userProfile.gender} size={48} className="flex-shrink-0" />
                 <div className="flex-grow">
+                    <p className="font-bold text-sm text-neutral-dark dark:text-white mb-2">{displayName}</p>
                     <textarea
                         autoFocus
                         value={text}
@@ -494,7 +499,7 @@ const TimelineEventCard: FC<{
 
 
     const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
-    const displayName = isGlobalPost ? 'Flexibel Friskvård' : (isCurrentUser ? 'Du' : event.userName);
+    const displayName = isGlobalPost ? 'Kostloggen' : (isCurrentUser ? 'Du' : event.userName);
 
     return (
     <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
@@ -505,7 +510,7 @@ const TimelineEventCard: FC<{
                 : 'bg-white dark:bg-neutral-darker border-neutral-light'
     }`}>
         <div className="flex items-start gap-3">
-            <Avatar photoURL={isGlobalPost ? undefined : event.userPhotoURL} gender={event.gender} size={42} />
+            <Avatar photoURL={isGlobalPost ? '/favicon.png' : event.userPhotoURL} gender={event.gender} size={42} />
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col">
@@ -1283,7 +1288,9 @@ export const CommunityView: React.FC<{
                         <CreatePostWidget 
                             currentUser={currentUser} 
                             userProfile={userProfile} 
+                            onPostCreated={(post) => setTimelineEvents(prev => [post, ...prev])}
                             setToastNotification={setToastNotification} 
+                            userRole={userRole}
                         />
                         {visibleEvents.length > 0 ? (
                             <>

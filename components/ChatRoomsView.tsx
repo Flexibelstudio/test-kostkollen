@@ -1216,7 +1216,7 @@ const CreateGroupView: React.FC<{
                         />
                         <label htmlFor="isSystemGroup" className="text-sm text-neutral-dark">
                             <span className="font-bold block">Officiell Systemgrupp</span>
-                            <span className="text-neutral">Markera som en officiell grupp från Flexibel Friskvård.</span>
+                            <span className="text-neutral">Markera som en officiell grupp från Kostloggen.</span>
                         </label>
                     </div>
                 )}
