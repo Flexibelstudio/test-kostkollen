@@ -187,6 +187,7 @@ export interface NotificationSettings {
   newEvents: boolean;
   comments: boolean;
   likes: boolean; // Add this
+  messages: boolean; // Chat messages
   // Reminder notifications
   waterReminder: boolean;
   foodReminder: boolean;
@@ -486,6 +487,72 @@ export interface CoachViewMember {
   courseInterest?: boolean;
 }
 
+// --- Chat & Community Types ---
+
+export type ChatType = 'coach_group' | 'private_group' | 'public_room' | 'direct';
+
+export type NotificationLevel = 'all' | 'mentions' | 'mute';
+
+export interface ChatMemberSettings {
+  notificationLevel: NotificationLevel;
+  lastReadTimestamp: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  senderPhotoURL?: string;
+  text: string;
+  imageUrl?: string;
+  isEdited?: boolean;
+  isDeleted?: boolean;
+  timestamp: number;
+  mentions?: string[]; // Array of userIds
+  likes?: string[]; // Legacy: Array of userIds who liked the message
+  reactions?: Reactions;
+  replyTo?: {
+    messageId: string;
+    senderName: string;
+    text: string;
+    imageUrl?: string;
+  };
+  sharedEventPreview?: {
+    id: string;
+    title: string;
+    description: string;
+    icon: string;
+    imageUrl?: string;
+    type: string;
+  };
+}
+
+export interface Chat {
+  id: string;
+  type: ChatType;
+  name?: string;
+  description?: string;
+  avatarUrl?: string;
+  members: string[]; // Array of userIds
+  admins: string[]; // Array of userIds
+  invitePermission?: 'admin_only' | 'everyone';
+  requiresApproval?: boolean;
+  isSystemGroup?: boolean;
+  pendingMembers?: string[]; // Array of userIds waiting for approval
+  memberSettings: {
+    [userId: string]: ChatMemberSettings;
+  };
+  lastMessage?: {
+    text: string;
+    timestamp: number;
+    senderId: string;
+    senderName?: string;
+  };
+  createdAt: number;
+  createdBy: string;
+}
+
 // --- Community & Social Types ---
 
 export interface Peppkompis {
@@ -510,6 +577,7 @@ export interface BuddyDetails extends Peppkompis {
   goalSummary?: string;
   currentStreak?: number;
   unlockedAchievements: { [id: string]: string };
+  role?: UserRole;
 
   // For progress bar
   goalStartWeight?: number;
@@ -592,4 +660,5 @@ export interface TimelineEvent {
   userPhotoURL?: string;
   gender: Gender;
   visibleTo?: string[];
+  isGlobal?: boolean;
 }

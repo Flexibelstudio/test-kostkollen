@@ -61,6 +61,7 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
     newEvents: true,
     comments: true,
     likes: true, // New setting for 'dilla'
+    messages: true, // Chat messages
     waterReminder: true,
     foodReminder: true,
     weighInReminder: true,
@@ -78,7 +79,7 @@ export const COACH_PERSONAS = {
     description: 'För dig som vill ha stöd och värme.',
     emoji: '🌸',
     imageUrl: '/coach-maja.png',
-    voice: 'Puck',
+    voice: 'Kore',
     promptTone: 'Du heter "Maja". Du är en empatisk, varm och peppande kompis. Du fokuserar på välmående och att "lyssna på kroppen". Använd emojis som 💚, 🌿, 🤗. Var snäll och uppmuntrande.'
   },
   balanced: {
@@ -87,7 +88,7 @@ export const COACH_PERSONAS = {
     description: 'För dig som vill ha fakta och struktur.',
     emoji: '⏱️',
     imageUrl: '/coach-erik.png',
-    voice: 'Kore',
+    voice: 'Puck',
     promptTone: 'Du heter "Erik". Du är professionell, faktabaserad och lösningsorienterad. Du analyserar data och ger konkreta strategier. Tonen är uppmuntrande men objektiv. Använd emojis som 👊, 📊, ✅.'
   },
   hard: {
@@ -96,7 +97,7 @@ export const COACH_PERSONAS = {
     description: 'För dig som behöver en spark i baken.',
     emoji: '🪖',
     imageUrl: '/coach-borje.png',
-    voice: 'Fenrir',
+    voice: 'Charon',
     promptTone: 'Du heter "Börje". Du är auktoritär, rakt på sak och kör med "tough love". Inga ursäkter accepteras. Korta meningar. VERSALER ibland för betoning. Använd emojis som 💥, 🛑, 🫡.'
   }
 };

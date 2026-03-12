@@ -170,6 +170,10 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                    : value,
         };
 
+        if (name === 'desiredMuscleMassChangeKg' && typeof updatedProfile.desiredMuscleMassChangeKg === 'number' && updatedProfile.desiredMuscleMassChangeKg < 0) {
+            updatedProfile.desiredMuscleMassChangeKg = 0;
+        }
+
         // Enforce one goal at a time for 'inbody'
         if (name === 'desiredFatMassChangeKg' && value !== '' && parseFloat(value) !== 0) {
             updatedProfile.desiredMuscleMassChangeKg = null;
@@ -234,6 +238,10 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
         let newValue = direction === 'increase' ? currentValue + amount : currentValue - amount;
         newValue = Math.round(newValue * 10) / 10;
         
+        if (field === 'desiredMuscleMassChangeKg' && newValue < 0) {
+            newValue = 0;
+        }
+
         const updatedProfile = { ...prev, [field]: newValue };
         
         // Enforce one goal at a time for 'inbody'
@@ -492,7 +500,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                                             <label htmlFor="desiredMuscleMassChangeKg" className="block text-xs font-medium text-neutral-dark mb-1">Muskelmassaförändring (kg)</label>
                                             <div className="flex items-center space-x-2">
                                                 <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska">-</button>
-                                                <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
+                                                <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" min="0" placeholder="0.0"/>
                                                 <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka">+</button>
                                             </div>
                                         </div>

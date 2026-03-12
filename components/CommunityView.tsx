@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, FC, useCallback, useRef } from 'react';
 import type { User } from '@firebase/auth';
-import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory } from '../types';
+import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory, UserRole, Chat } from '../types';
 import { 
     searchForBuddies,
     sendFriendRequest,
@@ -18,6 +18,7 @@ import {
     cancelFriendRequest,
     deleteTimelineEvent
 } from '../services/firestoreService';
+import { subscribeToUserChats, sendMessage } from '../services/chatService';
 import { 
     HeartIcon, 
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
@@ -27,10 +28,11 @@ import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIco
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 import Lightbox from './Lightbox';
+import { ChatRoomsView } from './ChatRoomsView';
 
 // --- HELPER FUNCTIONS ---
 
-const resizeImage = (file: File, maxSize: number): Promise<string> => {
+export const resizeImage = (file: File, maxSize: number): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -142,12 +144,13 @@ const getGoalShortDescription = (
 
 // --- SUB-COMPONENTS ---
 
-const CreatePostWidget: FC<{
+export const CreatePostWidget: FC<{
     currentUser: User;
     userProfile: UserProfileData;
     onPostCreated: (post: TimelineEvent) => void;
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
-}> = ({ currentUser, userProfile, onPostCreated, setToastNotification }) => {
+    userRole?: UserRole;
+}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [text, setText] = useState('');
     const [image, setImage] = useState<string | null>(null);
@@ -155,6 +158,10 @@ const CreatePostWidget: FC<{
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+
+    const isCoach = userRole === 'coach';
+    const displayPhotoURL = isCoach ? '/favicon.png' : userProfile.photoURL;
+    const displayName = isCoach ? 'Kostloggen' : (userProfile.name || 'Du');
 
     const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -175,25 +182,27 @@ const CreatePostWidget: FC<{
         playAudio('uiClick');
 
         try {
-            const newPost = await createUserPost(currentUser.uid, text, category, image || undefined);
+            const isGlobal = isCoach;
+            const newPost = await createUserPost(currentUser.uid, text, category, image || undefined, isGlobal, isCoach ? displayName : undefined, isCoach ? displayPhotoURL : undefined);
             
             const optimisticEvent: TimelineEvent = {
                 id: newPost.id,
                 type: 'user_post',
                 timestamp: Date.now(),
-                title: 'skapade ett inlägg',
+                title: isGlobal ? 'delade ett meddelande till alla' : 'skapade ett inlägg',
                 description: text,
-                icon: category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
+                icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
                 userId: currentUser.uid,
-                userName: userProfile.name || 'Du',
-                userPhotoURL: userProfile.photoURL,
+                userName: displayName,
+                userPhotoURL: displayPhotoURL,
                 gender: userProfile.gender,
                 reactions: {},
                 comments: [],
                 relatedDocPath: `users/${currentUser.uid}/posts/${newPost.id}`,
                 category: category,
                 imageUrl: image || undefined,
-                visibleTo: newPost.visibleTo
+                visibleTo: newPost.visibleTo,
+                isGlobal: isGlobal
             };
             
             onPostCreated(optimisticEvent);
@@ -228,7 +237,7 @@ const CreatePostWidget: FC<{
                 onClick={() => setIsExpanded(true)}
                 className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-3 mb-6 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-dark transition-colors active:scale-[0.99] select-none"
             >
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
+                <Avatar photoURL={displayPhotoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
                 <div className="flex-grow bg-[#ffffff] rounded-full px-4 py-2.5 text-[#6B7280] text-sm font-medium border border-[#E5E7EB]">
                     Vad tänker du på? Dela med dig...
                 </div>
@@ -247,8 +256,9 @@ const CreatePostWidget: FC<{
             </button>
 
             <div className="flex gap-3">
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={48} className="flex-shrink-0" />
+                <Avatar photoURL={displayPhotoURL} gender={userProfile.gender} size={48} className="flex-shrink-0" />
                 <div className="flex-grow">
+                    <p className="font-bold text-sm text-neutral-dark dark:text-white mb-2">{displayName}</p>
                     <textarea
                         autoFocus
                         value={text}
@@ -257,8 +267,8 @@ const CreatePostWidget: FC<{
                         className="w-full bg-[#ffffff] rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3bab5a] min-h-[100px] resize-none pr-8 text-[#000000] border border-[#E5E7EB] placeholder-[#9CA3AF]"
                     />
                     {image && (
-                        <div className="relative mt-2 inline-block">
-                            <img src={image} alt="Preview" className="h-24 w-auto rounded-lg object-cover border border-neutral-light" />
+                        <div className="relative mt-2 inline-block bg-white rounded-lg p-1 border border-neutral-light">
+                            <img src={image} alt="Preview" className="h-24 w-auto rounded-md object-contain" />
                             <button 
                                 onClick={() => setImage(null)}
                                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
@@ -428,10 +438,11 @@ const TimelineEventCard: FC<{
     onToggleLike: (event: TimelineEvent, commentId: string) => void;
     onDelete: (eventId: string) => void;
     onImageClick: (src: string, alt: string) => void;
+    onShare?: (event: TimelineEvent) => void;
     lastViewTimestamp: number | null;
     buddyDetails: BuddyDetails[]; // Passed for stats lookup
     currentStreak: number; // Current user's streak
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, lastViewTimestamp, buddyDetails, currentStreak }) => {
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak }) => {
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -489,20 +500,34 @@ const TimelineEventCard: FC<{
     }, [isCurrentUser, currentStreak, userProfile, buddyDetails, event.userId]);
 
 
+    const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
+    const displayName = isGlobalPost ? 'Kostloggen' : (isCurrentUser ? 'Du' : event.userName);
+
     return (
-    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${isNewEvent ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-white dark:bg-neutral-darker border-neutral-light'}`}>
+    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
+        isNewEvent 
+            ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+            : isGlobalPost
+                ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                : 'bg-white dark:bg-neutral-darker border-neutral-light'
+    }`}>
         <div className="flex items-start gap-3">
-            <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={42} />
+            <Avatar photoURL={isGlobalPost ? '/favicon.png' : event.userPhotoURL} gender={event.gender} size={42} />
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col">
-                        <p className="text-sm text-neutral-dark font-medium leading-tight">
-                            <span className="font-bold">{isCurrentUser ? 'Du' : event.userName}</span>
+                        <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
+                            <span className="font-bold">{displayName}</span>
+                            {isGlobalPost && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    Officiellt
+                                </span>
+                            )}
                             {event.type === 'user_post' ? '' : ` ${event.title}`}
                         </p>
                         
                         {/* --- COMPACT STATS ROW --- */}
-                        {stats && (
+                        {stats && !isGlobalPost && (
                             <div className="mt-1 mb-2 w-full max-w-[200px]">
                                 <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
                                     <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {stats.streak}</span>
@@ -525,10 +550,19 @@ const TimelineEventCard: FC<{
                                     : { month: 'short', day: 'numeric' })
                             })}
                         </span>
+                        {isCurrentUser && onShare && (
+                            <button 
+                                onClick={() => onShare(event)}
+                                className="text-neutral-400 hover:text-primary transition-colors p-0.5 ml-1"
+                                title="Dela till chatt"
+                            >
+                                <ShareIcon className="w-4 h-4" />
+                            </button>
+                        )}
                         {isCurrentUser && (
                             <button 
                                 onClick={handleDelete}
-                                className="text-neutral-400 hover:text-red-500 transition-colors p-0.5"
+                                className="text-neutral-400 hover:text-red-500 transition-colors p-0.5 ml-1"
                                 title="Ta bort inlägg"
                             >
                                 <TrashIcon className="w-4 h-4" />
@@ -552,11 +586,11 @@ const TimelineEventCard: FC<{
                     )}
                     
                     {event.imageUrl && (
-                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px]">
+                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px] bg-white flex items-center justify-center">
                              <img 
                                 src={event.imageUrl} 
                                 alt="Inläggsbild" 
-                                className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                                className="max-w-full max-h-[400px] object-contain cursor-pointer hover:opacity-95 transition-opacity"
                                 onClick={() => onImageClick(event.imageUrl!, `Bild från ${event.userName}`)}
                             />
                         </div>
@@ -983,6 +1017,98 @@ const FriendManagementView: FC<{
     );
 };
 
+const ShareModal: FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    event: TimelineEvent | null;
+    currentUser: User;
+    userProfile: UserProfileData;
+    setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+}> = ({ isOpen, onClose, event, currentUser, userProfile, setToastNotification }) => {
+    const [chats, setChats] = useState<Chat[]>([]);
+    const [isSharing, setIsSharing] = useState(false);
+    const [customMessage, setCustomMessage] = useState('');
+
+    useEffect(() => {
+        if (isOpen && currentUser) {
+            const unsubscribe = subscribeToUserChats(currentUser.uid, (fetchedChats) => {
+                setChats(fetchedChats);
+            });
+            setCustomMessage(''); // Reset message when opened
+            return () => unsubscribe();
+        }
+    }, [isOpen, currentUser]);
+
+    if (!isOpen || !event) return null;
+
+    const handleShare = async (chat: Chat) => {
+        if (isSharing) return;
+        setIsSharing(true);
+        try {
+            const messageText = customMessage.trim();
+            
+            const sharedEventPreview = {
+                id: event.id,
+                title: event.title,
+                description: event.description,
+                icon: event.icon,
+                ...(event.imageUrl ? { imageUrl: event.imageUrl } : {}),
+                type: event.type
+            };
+
+            await sendMessage(chat.id, currentUser.uid, userProfile.name || 'En kompis', messageText, userProfile.photoURL, undefined, undefined, sharedEventPreview);
+            setToastNotification({ message: 'Händelsen har delats!', type: 'success' });
+            onClose();
+        } catch (error) {
+            console.error("Error sharing event:", error);
+            setToastNotification({ message: 'Kunde inte dela händelsen.', type: 'error' });
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl flex flex-col max-h-[80vh]">
+                <div className="p-4 border-b border-neutral-light flex justify-between items-center bg-white sticky top-0 z-10">
+                    <h2 className="text-xl font-bold text-neutral-dark">Dela till chatt</h2>
+                    <button onClick={onClose} className="p-2 hover:bg-neutral-light rounded-full transition-colors">
+                        <XMarkIcon className="w-6 h-6 text-neutral" />
+                    </button>
+                </div>
+                <div className="p-4 border-b border-neutral-light bg-neutral-light/50">
+                    <textarea
+                        value={customMessage}
+                        onChange={(e) => setCustomMessage(e.target.value)}
+                        placeholder="Skriv ett meddelande (frivilligt)..."
+                        className="w-full p-3 rounded-xl border border-neutral-light focus:border-primary focus:ring-1 focus:ring-primary resize-none text-sm"
+                        rows={2}
+                    />
+                </div>
+                <div className="p-4 overflow-y-auto flex-1">
+                    {chats.length === 0 ? (
+                        <p className="text-center text-neutral py-8">Du är inte med i några chattar än.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {chats.map(chat => (
+                                <button
+                                    key={chat.id}
+                                    onClick={() => handleShare(chat)}
+                                    disabled={isSharing}
+                                    className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-light hover:border-primary hover:bg-primary-50/30 transition-colors text-left disabled:opacity-50"
+                                >
+                                    <span className="font-semibold text-neutral-dark truncate pr-4">{chat.name || 'Gruppchatt'}</span>
+                                    <ShareIcon className="w-5 h-5 text-primary flex-shrink-0" />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN COMPONENT ---
 
 export const CommunityView: React.FC<{ 
@@ -992,9 +1118,11 @@ export const CommunityView: React.FC<{
   achievements: Achievement[];
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
   pendingRequestsCount: number;
-  initialTab?: 'flode' | 'hantera';
+  unreadChatsCount: number;
+  initialTab?: 'flode' | 'hantera' | 'chatt';
   initialSubTab?: 'buddies' | 'search' | 'requests';
   highlightEventId?: string | null;
+  initialChatId?: string | null;
   timelineEvents: TimelineEvent[];
   setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
   buddyDetails: BuddyDetails[];
@@ -1002,25 +1130,44 @@ export const CommunityView: React.FC<{
   onDataChanged: () => void;
   lastViewTimestamp: number | null;
   currentStreak: number;
+  userRole: UserRole;
 }> = ({ 
   currentUser,
   userProfile,
   achievements,
   setToastNotification,
   pendingRequestsCount,
+  unreadChatsCount,
   initialTab = 'flode',
   initialSubTab = 'buddies',
   highlightEventId = null,
+  initialChatId = null,
   timelineEvents,
   setTimelineEvents,
   buddyDetails,
   isLoading,
   onDataChanged,
   lastViewTimestamp,
-  currentStreak
+  currentStreak,
+  userRole
 }) => {
-  const [activeTab, setActiveTab] = useState<'flode' | 'hantera'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
+  const [effectiveLastViewTimestamp, setEffectiveLastViewTimestamp] = useState(lastViewTimestamp);
+  
+  const previousTabRef = useRef(activeTab);
+  useEffect(() => {
+    if (previousTabRef.current === 'flode' && activeTab !== 'flode') {
+      setEffectiveLastViewTimestamp(Date.now());
+    }
+    previousTabRef.current = activeTab;
+  }, [activeTab]);
+  
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
+  const [shareEvent, setShareEvent] = useState<TimelineEvent | null>(null);
   
   // Real-time & Pagination State
   // Initialize with timelineEvents to show cached data immediately if available
@@ -1089,10 +1236,6 @@ export const CommunityView: React.FC<{
       }
   };
 
-    const handlePostCreated = (newPost: TimelineEvent) => {
-        setRealtimeEvents(prev => [newPost, ...prev]);
-    };
-    
     const handleTogglePepp = async (event: TimelineEvent, newEmoji: string) => {
         if (!event.id) return;
         playAudio('uiClick', 0.6);
@@ -1129,6 +1272,7 @@ export const CommunityView: React.FC<{
         try { 
             await togglePeppOnTimelineEvent(fromUser, event, newEmoji); 
         } catch (error) {
+            console.error("Error toggling pepp:", error);
             setToastNotification({ message: 'Kunde inte skicka reaktion.', type: 'error' });
         }
     };
@@ -1212,18 +1356,19 @@ export const CommunityView: React.FC<{
     };
     
     const newEventsCount = useMemo(() => {
-        if (!lastViewTimestamp) return 0;
+        if (!effectiveLastViewTimestamp || activeTab === 'flode') return 0;
         let count = 0;
         visibleEvents.forEach(event => {
-            if (event.userId !== currentUser.uid && event.timestamp > lastViewTimestamp) count++;
+            if (event.userId !== currentUser.uid && event.timestamp > effectiveLastViewTimestamp) count++;
         });
         return count;
-    }, [visibleEvents, lastViewTimestamp, currentUser.uid]);
+    }, [visibleEvents, effectiveLastViewTimestamp, currentUser.uid, activeTab]);
 
 
     const tabs = [
         { key: 'flode', label: 'Flöde', notificationCount: newEventsCount },
         { key: 'hantera', label: 'Kompisar', notificationCount: pendingRequestsCount },
+        { key: 'chatt', label: 'Chatt', notificationCount: unreadChatsCount },
     ];
     
     const TabButton: FC<{ tab: typeof tabs[0], isActive: boolean, onClick: () => void }> = ({ tab, isActive, onClick }) => (
@@ -1234,23 +1379,23 @@ export const CommunityView: React.FC<{
     );
 
     return (
-        <div className="flex flex-col h-full bg-transparent">
+        <div className="flex flex-col flex-grow w-full h-full bg-transparent">
             <header className="flex-shrink-0 bg-white dark:bg-neutral-darker shadow-md z-10 sticky top-0">
                 <nav className="flex items-center justify-around">
                     {tabs.map(tab => <TabButton key={tab.key} tab={tab} isActive={activeTab === tab.key} onClick={() => setActiveTab(tab.key as any)} />)}
                 </nav>
             </header>
             
-            <main className="flex-grow overflow-y-auto bg-transparent">
+            <main className={`flex-grow bg-transparent ${activeTab === 'chatt' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
                 {activeTab === 'flode' && (
                     <div className="p-2 sm:p-4 max-w-2xl mx-auto w-full">
                         <CreatePostWidget 
                             currentUser={currentUser} 
                             userProfile={userProfile} 
-                            onPostCreated={handlePostCreated} 
+                            onPostCreated={(post) => setTimelineEvents(prev => [post, ...prev])}
                             setToastNotification={setToastNotification} 
+                            userRole={userRole}
                         />
-                        
                         {visibleEvents.length > 0 ? (
                             <>
                                 <div className="space-y-4">
@@ -1265,7 +1410,8 @@ export const CommunityView: React.FC<{
                                             onToggleLike={handleToggleLike}
                                             onDelete={handleDeleteEvent}
                                             onImageClick={(src, alt) => setLightboxImage({ src, alt })}
-                                            lastViewTimestamp={lastViewTimestamp}
+                                            onShare={(event) => setShareEvent(event)}
+                                            lastViewTimestamp={effectiveLastViewTimestamp}
                                             buddyDetails={buddyDetails}
                                             currentStreak={currentStreak}
                                         />
@@ -1312,6 +1458,17 @@ export const CommunityView: React.FC<{
                         />
                     </div>
                 )}
+                {activeTab === 'chatt' && (
+                    <div className="max-w-4xl mx-auto w-full flex-grow flex flex-col min-h-0">
+                        <ChatRoomsView 
+                            currentUser={currentUser}
+                            userProfile={userProfile}
+                            setToastNotification={setToastNotification}
+                            buddyDetails={buddyDetails}
+                            initialChatId={initialChatId}
+                        />
+                    </div>
+                )}
             </main>
             
             <Lightbox 
@@ -1319,6 +1476,14 @@ export const CommunityView: React.FC<{
                 src={lightboxImage?.src || ''} 
                 alt={lightboxImage?.alt || ''} 
                 onClose={() => setLightboxImage(null)} 
+            />
+            <ShareModal
+                isOpen={!!shareEvent}
+                onClose={() => setShareEvent(null)}
+                event={shareEvent}
+                currentUser={currentUser}
+                userProfile={userProfile}
+                setToastNotification={setToastNotification}
             />
         </div>
     );

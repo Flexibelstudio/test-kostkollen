@@ -190,18 +190,36 @@ exports.onCommentCreated = functions.firestore
     const eventData = eventDoc.data();
     const eventOwnerId = eventData.userId;
 
-    if (comment.authorUid === eventOwnerId) return;
+    // Get all comments to find all users who have participated
+    const commentsSnapshot = await db.collection("communityTimeline").doc(eventId).collection("comments").get();
+    const participantIds = new Set();
+    
+    // Add the post owner
+    participantIds.add(eventOwnerId);
+    
+    // Add all commenters
+    commentsSnapshot.docs.forEach(doc => {
+        participantIds.add(doc.data().authorUid);
+    });
+
+    // Remove the person who just commented
+    participantIds.delete(comment.authorUid);
 
     const payload = {
       notification: {
         title: "Ny kommentar! 💬",
-        body: `${comment.authorName} kommenterade ditt inlägg: "${eventData.title}"`,
+        body: `${comment.authorName} kommenterade på inlägget: "${eventData.title}"`,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
         data: { url: `/?view=community&highlight=${eventId}` }
       }
     };
-    await sendNotificationToUser(eventOwnerId, payload, "comments");
+
+    const notificationPromises = Array.from(participantIds).map(userId => {
+        return sendNotificationToUser(userId, payload, "comments");
+    });
+
+    await Promise.all(notificationPromises);
   });
 
 exports.onUserStreakUpdated = functions.firestore
@@ -704,6 +722,100 @@ exports.cancelSubscription = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', 'Kunde inte avsluta prenumerationen.');
     }
 });
+
+exports.onChatMessageCreated = functions.firestore
+  .document("chats/{chatId}/messages/{messageId}")
+  .onCreate(async (snapshot, context) => {
+    const message = snapshot.data();
+    const chatId = context.params.chatId;
+    if (!message) return;
+
+    const chatRef = db.collection("chats").doc(chatId);
+    const chatDoc = await chatRef.get();
+    if (!chatDoc.exists) return;
+
+    const chatData = chatDoc.data();
+    const members = chatData.members || [];
+    const memberSettings = chatData.memberSettings || {};
+
+    const senderId = message.senderId;
+    
+    // Build notification payload
+    const payload = {
+      notification: {
+        title: chatData.type === 'direct' ? message.senderName : `${message.senderName} i ${chatData.name}`,
+        body: message.text || (message.imageUrl ? 'Skickade en bild' : 'Nytt meddelande'),
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        data: { url: `/?view=chat&chatId=${chatId}` }
+      }
+    };
+
+    const notificationPromises = members.map(async (memberId) => {
+      if (memberId === senderId) return null;
+
+      const settings = memberSettings[memberId] || {};
+      const level = settings.notificationLevel || 'all';
+
+      if (level === 'mute') return null;
+      
+      if (level === 'mentions') {
+        // Since 'mentions' was the default previously, many users have it set without knowing.
+        // For now, we'll treat 'mentions' as 'all' unless they explicitly mute.
+        // If we want to strictly enforce mentions later, we can check for '@'.
+      }
+
+      // Send the notification
+      return sendNotificationToUser(memberId, payload, "messages");
+    });
+
+    await Promise.all(notificationPromises);
+  });
+
+exports.onChatMessageUpdated = functions.firestore
+  .document("chats/{chatId}/messages/{messageId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const chatId = context.params.chatId;
+
+    const beforeReactions = before.reactions || {};
+    const afterReactions = after.reactions || {};
+
+    if (JSON.stringify(beforeReactions) === JSON.stringify(afterReactions)) return;
+
+    const chatRef = db.collection("chats").doc(chatId);
+    const chatDoc = await chatRef.get();
+    if (!chatDoc.exists) return;
+
+    const chatData = chatDoc.data();
+    const messageOwnerId = after.senderId;
+
+    // Find new reactions
+    for (const emoji of Object.keys(afterReactions)) {
+        const usersBefore = beforeReactions[emoji] || {};
+        const usersAfter = afterReactions[emoji] || {};
+
+        for (const newUid of Object.keys(usersAfter)) {
+            if (!usersBefore[newUid]) {
+                // New reaction from newUid
+                if (newUid === messageOwnerId) continue;
+
+                const likerName = usersAfter[newUid];
+                const payload = {
+                    notification: {
+                        title: `Ny reaktion! ${emoji}`,
+                        body: `${likerName} reagerade på ditt meddelande i ${chatData.name || 'chatten'}.`,
+                        icon: "/icons/icon-192x192.png",
+                        badge: "/icons/badge-96x96.png",
+                        data: { url: `/?view=chat&chatId=${chatId}` }
+                    }
+                };
+                await sendNotificationToUser(messageOwnerId, payload, "likes");
+            }
+        }
+    }
+  });
 
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     const signature = req.headers['stripe-signature'];

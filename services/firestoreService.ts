@@ -464,7 +464,7 @@ export function listenToCommunityTimeline(
   }
   const q = query(
     collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains', userId),
+    where('visibleTo', 'array-contains-any', [userId, 'GLOBAL']),
     orderBy('timestamp', 'desc'),
     limit(limitCount)
   );
@@ -489,7 +489,7 @@ export async function fetchCommunityTimeline(
   
   let q = query(
     collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains', currentUserId),
+    where('visibleTo', 'array-contains-any', [currentUserId, 'GLOBAL']),
     orderBy('timestamp', 'desc'),
     limit(limitCount)
   );
@@ -514,17 +514,25 @@ export async function createUserPost(
   userId: string,
   text: string,
   category: PostCategory,
-  imageBase64?: string
+  imageBase64?: string,
+  isGlobal?: boolean,
+  overrideName?: string,
+  overridePhotoURL?: string
 ) {
-    if (!db) return { id: `post_${Date.now()}`, type: 'user_post', timestamp: Date.now(), title: 'Mock Post', description: text, icon: '📝', userId, userName: 'Mock', userPhotoURL: null, gender: 'female', visibleTo: [], reactions: {}, comments: [], relatedDocPath: '', category, imageUrl: imageBase64 } as any;
+    if (!db) return { id: `post_${Date.now()}`, type: 'user_post', timestamp: Date.now(), title: 'Mock Post', description: text, icon: '📝', userId, userName: overrideName || 'Mock', userPhotoURL: overridePhotoURL || null, gender: 'female', visibleTo: [], reactions: {}, comments: [], relatedDocPath: '', category, imageUrl: imageBase64 } as any;
     const userDocRef = doc(db, 'users', userId);
     const userDocSnap = await getDocSafe(userDocRef);
     if (!userDocSnap.exists()) throw new Error("User not found");
     const userData = userDocSnap.data() as FirestoreUserDocument;
 
-    const buddies = await fetchBuddies(userId);
-    const buddyUids = buddies.map(b => b.uid);
-    const visibleTo = [userId, ...buddyUids];
+    let visibleTo: string[] = [];
+    if (isGlobal) {
+        visibleTo = ['GLOBAL'];
+    } else {
+        const buddies = await fetchBuddies(userId);
+        const buddyUids = buddies.map(b => b.uid);
+        visibleTo = [userId, ...buddyUids];
+    }
 
     const eventId = `post_${userId}_${Date.now()}`;
     const timelineDocRef = doc(db, "communityTimeline", eventId);
@@ -532,19 +540,20 @@ export async function createUserPost(
     const postEvent: Omit<TimelineEvent, 'id'> = {
         type: 'user_post',
         timestamp: Date.now(),
-        title: 'skapade ett inlägg',
+        title: isGlobal ? 'delade ett meddelande till alla' : 'skapade ett inlägg',
         description: text,
-        icon: category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
+        icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
         userId: userId,
-        userName: userData.displayName,
-        userPhotoURL: userData.photoURL ?? null,
+        userName: overrideName || userData.displayName,
+        userPhotoURL: overridePhotoURL !== undefined ? overridePhotoURL : (userData.photoURL ?? null),
         gender: userData.gender,
         visibleTo: visibleTo,
         reactions: {},
         comments: [],
         relatedDocPath: `users/${userId}/posts/${eventId}`,
         category: category,
-        imageUrl: imageBase64 // Note: Saving base64 directly to Firestore doc. Keep images small (<500kb).
+        imageUrl: imageBase64, // Note: Saving base64 directly to Firestore doc. Keep images small (<500kb).
+        isGlobal: isGlobal
     };
 
     await setDoc(timelineDocRef, cleanFirestoreData(postEvent));
@@ -668,24 +677,6 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   };
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
-
-  try {
-    let goalDesc = "Nytt mål inställt";
-    if (profile.goalType === 'lose_fat') goalDesc = "Fokus: Minska fettmassa";
-    else if (profile.goalType === 'gain_muscle') goalDesc = "Fokus: Öka muskelmassa";
-    else if (profile.goalType === 'maintain') goalDesc = "Fokus: Bibehålla formen";
-
-    await addTimelineEvent(userId, {
-        type: 'goal_set',
-        timestamp: Date.now(),
-        title: 'har uppdaterat sina mål',
-        description: `${goalDesc} 🎯`,
-        icon: '🎯',
-        relatedDocId: `goal_update_${Date.now()}`
-    });
-  } catch (e) {
-    console.error("Failed to create goal timeline event", e);
-  }
 }
 
 /* ===== Gamification: Achievements ===== */
@@ -704,9 +695,11 @@ export async function unlockAchievement(userId: string, achievementId: string, a
     }
 
     // Unlock in Firestore
-    await updateDoc(userRef, {
-        [`unlockedAchievements.${achievementId}`]: new Date().toISOString()
-    });
+    await setDoc(userRef, {
+        unlockedAchievements: {
+            [achievementId]: new Date().toISOString()
+        }
+    }, { merge: true });
 
     // Create a timeline event for the achievement
     await addTimelineEvent(userId, {
@@ -1100,6 +1093,34 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
   return snapshot.docs.map(doc => doc.data() as Peppkompis);
 }
 
+export async function fetchUsersByUids(uids: string[]): Promise<BuddyDetails[]> {
+  if (!db || uids.length === 0) return [];
+  
+  const results: BuddyDetails[] = [];
+  // Firestore 'in' queries support max 10 items
+  for (let i = 0; i < uids.length; i += 10) {
+    const chunk = uids.slice(i, i + 10);
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('uid', 'in', chunk));
+    const snapshot = await getDocsSafe(q);
+    
+    snapshot.forEach(doc => {
+      const data = doc.data() as FirestoreUserDocument;
+      results.push({
+        uid: data.uid,
+        name: data.displayName,
+        email: data.email || '',
+        photoURL: data.photoURL,
+        role: data.role,
+        goalType: data.goalType || 'maintain',
+        unlockedAchievements: {}
+      });
+    });
+  }
+  
+  return results;
+}
+
 export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetails[]> {
   if (!db) return [];
   const buddies = await fetchBuddies(userId);
@@ -1245,11 +1266,16 @@ export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: s
       }
     });
     
+    const updates: Record<string, any> = {};
     if (userPreviousReactionEmoji) {
-      transaction.update(eventRef, { [`reactions.${userPreviousReactionEmoji}.${fromUser.uid}`]: deleteField() });
+      updates[`reactions.${userPreviousReactionEmoji}.${fromUser.uid}`] = deleteField();
     }
     if (userPreviousReactionEmoji !== emoji) {
-      transaction.update(eventRef, { [`reactions.${emoji}.${fromUser.uid}`]: fromUser.name });
+      updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      transaction.update(eventRef, updates);
     }
   });
 }

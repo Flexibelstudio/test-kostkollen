@@ -132,31 +132,51 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   
       switch (dataType) {
           case 'muscle':
-              if (change > 0) colorClass = 'text-primary-darker'; 
-              else if (change < 0) colorClass = 'text-red-600'; 
+              if (userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0) {
+                  if (change > 0) colorClass = 'text-primary-darker';
+                  else if (change < 0) colorClass = 'text-red-600';
+              } else {
+                  if (change > 0) colorClass = 'text-primary-darker'; 
+                  else if (change < 0) colorClass = 'text-red-600'; 
+              }
               break;
           case 'fat':
-              if (goalType === 'lose_fat') {
+              if (userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg > 0) {
+                  if (change > 0) colorClass = 'text-primary-darker';
+                  else if (change < 0) colorClass = 'text-red-600';
+              } else if (userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0) {
+                  if (change < 0) colorClass = 'text-primary-darker';
+                  else if (change > 0) colorClass = 'text-red-600';
+              } else if (goalType === 'lose_fat') {
                   if (change < 0) colorClass = 'text-primary-darker'; 
                   else if (change > 0) colorClass = 'text-red-600'; 
               }
               break;
           case 'weight':
-              if (measurementMethod === 'inbody') {
-                  if (change < 0 && fatChangeForWeight !== undefined && fatChangeForWeight < 0) {
-                      colorClass = 'text-primary-darker'; 
-                  } else if (change > 0 && muscleChangeForWeight !== undefined && muscleChangeForWeight > 0) {
-                      colorClass = 'text-primary-darker'; 
-                  } else if (change !== 0) {
-                      colorClass = 'text-red-600'; 
-                  }
-              } else { 
-                  if (change < 0 && (goalType === 'lose_fat' || userProfile.desiredWeightChangeKg && userProfile.desiredWeightChangeKg < 0)) {
-                      colorClass = 'text-primary-darker';
-                  } else if (change > 0 && (goalType === 'gain_muscle' || userProfile.desiredWeightChangeKg && userProfile.desiredWeightChangeKg > 0)) {
-                      colorClass = 'text-primary-darker';
-                  } else if (change !== 0) {
-                      colorClass = 'text-red-600';
+              const desiredWeightChange = userProfile.desiredWeightChangeKg || 0;
+              if (desiredWeightChange > 0) {
+                  if (change > 0) colorClass = 'text-primary-darker';
+                  else if (change < 0) colorClass = 'text-red-600';
+              } else if (desiredWeightChange < 0) {
+                  if (change < 0) colorClass = 'text-primary-darker';
+                  else if (change > 0) colorClass = 'text-red-600';
+              } else {
+                  if (measurementMethod === 'inbody') {
+                      if (change < 0 && fatChangeForWeight !== undefined && fatChangeForWeight < 0) {
+                          colorClass = 'text-primary-darker'; 
+                      } else if (change > 0 && muscleChangeForWeight !== undefined && muscleChangeForWeight > 0) {
+                          colorClass = 'text-primary-darker'; 
+                      } else if (change !== 0) {
+                          colorClass = 'text-red-600'; 
+                      }
+                  } else { 
+                      if (change < 0 && goalType === 'lose_fat') {
+                          colorClass = 'text-primary-darker';
+                      } else if (change > 0 && goalType === 'gain_muscle') {
+                          colorClass = 'text-primary-darker';
+                      } else if (change !== 0) {
+                          colorClass = 'text-red-600';
+                      }
                   }
               }
               break;
@@ -173,24 +193,31 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     let startValueKg, currentValueKg, goalChangeKg;
 
     const isScaleGoal = userProfile.measurementMethod === 'scale';
-    // For InBody, check if specific composition goals are set
-    const isFatLossGoal = !isScaleGoal && userProfile.desiredFatMassChangeKg && userProfile.desiredFatMassChangeKg < 0;
-    const isMuscleGainGoal = !isScaleGoal && userProfile.desiredMuscleMassChangeKg && userProfile.desiredMuscleMassChangeKg > 0;
+    const hasFatGoal = !isScaleGoal && userProfile.desiredFatMassChangeKg != null && userProfile.desiredFatMassChangeKg !== 0;
+    const hasMuscleGoal = !isScaleGoal && userProfile.desiredMuscleMassChangeKg != null && userProfile.desiredMuscleMassChangeKg !== 0;
+
+    let primaryGoal = 'weight';
+    if (hasFatGoal && hasMuscleGoal) {
+        primaryGoal = userProfile.goalType === 'gain_muscle' ? 'muscle' : 'fat';
+    } else if (hasFatGoal) {
+        primaryGoal = 'fat';
+    } else if (hasMuscleGoal) {
+        primaryGoal = 'muscle';
+    }
 
     // Logic: Favor specific values if available, otherwise fallback to weight for progress tracking
-    if (isFatLossGoal) {
+    if (primaryGoal === 'fat') {
         if (latestFatValue != null && userProfile.goalStartFatMassKg != null) {
             startValueKg = userProfile.goalStartFatMassKg;
             currentValueKg = latestFatValue;
             goalChangeKg = userProfile.desiredFatMassChangeKg;
         } else {
-            // FALLBACK: User has Fat Loss Goal but logs only Weight
+            // FALLBACK: User has Fat Goal but logs only Weight
             startValueKg = userProfile.goalStartWeight;
             currentValueKg = latestWeightValue;
-            // We assume the desired fat loss amount is the desired weight loss amount in this context
             goalChangeKg = userProfile.desiredFatMassChangeKg; 
         }
-    } else if (isMuscleGainGoal) {
+    } else if (primaryGoal === 'muscle') {
         if (latestMuscleValue != null && userProfile.goalStartMuscleMassKg != null) {
             startValueKg = userProfile.goalStartMuscleMassKg;
             currentValueKg = latestMuscleValue;

@@ -41,6 +41,8 @@ import {
   setPastDaySummary, savePushSubscription, unlockAchievement
 } from './services/firestoreService.ts';
 
+import { subscribeToUserChats } from './services/chatService.ts';
+
 // Context
 import { useUserContext } from './context/UserContext';
 
@@ -290,6 +292,7 @@ export const App = () => {
     highestStreak,
     setHighestStreak,
     highestLevelId,
+    setHighestLevelId,
     unlockedAchievements,
     setUnlockedAchievements,
     achievementInteractions,
@@ -341,7 +344,7 @@ export const App = () => {
 
   const [showLevelUpModal, setShowLevelUpModal] = useState<Level | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; streak: number} | null>(null);
+  const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; description: string} | null>(null);
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
   const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[] } | null>(null);
@@ -358,7 +361,7 @@ export const App = () => {
   useEffect(() => { weeklyBankRef.current = weeklyBank; }, [weeklyBank]);
 
 
-  const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error' | 'info', onClick?: () => void} | null>(null);
   
   const [activeCourse, setActiveCourse] = useState<CourseInfo | null>(null);
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
@@ -384,16 +387,29 @@ export const App = () => {
   const [showMentalWellbeingModal, setShowMentalWellbeingModal] = useState<boolean>(false);
   
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [communityViewKey] = useState(Date.now());
-  const [communityInitialTab] = useState<'flode' | 'hantera'>('flode');
-  const [communityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
-  const [highlightEventId] = useState<string | null>(null);
+  const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera' | 'chatt'>('flode');
+  const [communityInitialSubTab, setCommunityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
+  const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
+  const [initialChatId, setInitialChatId] = useState<string | null>(null);
   const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
   const previousViewModeRef = useRef<ViewMode>(viewMode);
+  const lastSeenMessageTimestamps = useRef<Record<string, number>>({});
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [buddyDetails, setBuddyDetails] = useState<BuddyDetails[]>([]);
-  const [communityNotificationCount] = useState(0);
   const [isLoadingCommunityData, setIsLoadingCommunityData] = useState(true);
+
+  const newEventsCount = useMemo(() => {
+    if (!currentUser || !timelineEvents) return 0;
+    if (viewMode === 'community') return 0;
+    const lastTimestamp = getLocalStorageItem(LOCAL_STORAGE_KEYS.LAST_COMMUNITY_VIEW_TIMESTAMP, 0);
+    let count = 0;
+    timelineEvents.forEach(event => {
+        if (event.userId !== currentUser.uid && event.timestamp > lastTimestamp) count++;
+    });
+    return count;
+  }, [timelineEvents, currentUser, viewMode]);
 
   const [installPromptEvent, setInstallPromptEvent] = useState<any | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -454,6 +470,7 @@ export const App = () => {
         if (!currentUser || !isInitialDataLoaded || userStatus !== 'approved') return;
 
         const checkAndUnlockLessons = async () => {
+            if (!db) return;
             const batch = writeBatch(db);
             let hasUnlockedAny = false;
 
@@ -600,6 +617,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.message === 'push-received-in-foreground') {
         const { title, body } = event.data.notification;
+        
+        // Don't show toast if we are in the community view (which includes chat)
+        // to prevent it from getting in the way while typing.
+        if (previousViewModeRef.current === 'community') {
+            return;
+        }
+        
         setToastNotification({ message: body ? `${title}: ${body}` : title, type: 'success' });
         playAudio('logSuccess', 0.8);
       }
@@ -618,9 +642,48 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         const unsubscribeRequests = listenForFriendRequests(currentUser.uid, (requests) => {
             setPendingRequestsCount(requests.length);
         });
-        return () => { unsubscribeRequests(); };
+        
+        const unsubscribeChats = subscribeToUserChats(currentUser.uid, (chats) => {
+            let unreadCount = 0;
+            chats.forEach(chat => {
+                const mySettings = chat.memberSettings?.[currentUser.uid];
+                const lastRead = mySettings?.lastReadTimestamp || 0;
+                const isMuted = mySettings?.notificationLevel === 'mute';
+
+                if (chat.lastMessage && chat.lastMessage.timestamp > lastRead && chat.lastMessage.senderId !== currentUser.uid) {
+                    unreadCount++;
+                    
+                    const prevTimestamp = lastSeenMessageTimestamps.current[chat.id] || 0;
+                    if (chat.lastMessage.timestamp > prevTimestamp && !isMuted) {
+                        // Show toast if we are not in the community view
+                        if (previousViewModeRef.current !== 'community') {
+                            setToastNotification({ 
+                                message: `Nytt meddelande från ${chat.lastMessage.senderName || 'någon'} i ${chat.name || 'Gruppchatt'}`, 
+                                type: 'info',
+                                onClick: () => {
+                                    setCommunityInitialTab('chatt');
+                                    setViewMode('community');
+                                }
+                            });
+                            playAudio('logSuccess');
+                        }
+                    }
+                }
+                
+                if (chat.lastMessage) {
+                    lastSeenMessageTimestamps.current[chat.id] = chat.lastMessage.timestamp;
+                }
+            });
+            setUnreadChatsCount(unreadCount);
+        });
+
+        return () => { 
+            unsubscribeRequests(); 
+            unsubscribeChats();
+        };
     } else {
         setPendingRequestsCount(0);
+        setUnreadChatsCount(0);
     }
   }, [currentUser, userStatus]);
 
@@ -697,8 +760,27 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('view') === 'community') {
+    const viewParam = params.get('view');
+    
+    if (viewParam === 'community') {
       setViewMode('community');
+      const tabParam = params.get('tab');
+      if (tabParam === 'requests') {
+        setCommunityInitialTab('hantera');
+        setCommunityInitialSubTab('requests');
+      }
+      const highlightParam = params.get('highlight');
+      if (highlightParam) {
+        setHighlightEventId(highlightParam);
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (viewParam === 'chat') {
+      setViewMode('community');
+      setCommunityInitialTab('chatt');
+      const chatIdParam = params.get('chatId');
+      if (chatIdParam) {
+        setInitialChatId(chatIdParam);
+      }
       window.history.replaceState({}, '', window.location.pathname);
     }
     
@@ -1032,25 +1114,61 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setShowLogWeightModal(false);
 
         // Check if goal reached
-        if (!userProfile.mainGoalCompleted && userProfile.goalStartWeight && userProfile.desiredWeightChangeKg) {
-             const isWeightLoss = userProfile.goalType === 'lose_fat';
-             const isMuscleGain = userProfile.goalType === 'gain_muscle';
+        if (!userProfile.mainGoalCompleted) {
              let goalMet = false;
-             const targetWeight = userProfile.goalStartWeight + userProfile.desiredWeightChangeKg;
+             let metGoalDescription = "";
 
-             if (isWeightLoss && data.weightKg <= targetWeight) goalMet = true;
-             if (isMuscleGain && data.weightKg >= targetWeight) goalMet = true;
+             if (userProfile.measurementMethod === 'scale' && userProfile.goalStartWeight != null && userProfile.desiredWeightChangeKg != null) {
+                 const targetWeight = userProfile.goalStartWeight + userProfile.desiredWeightChangeKg;
+                 if (userProfile.desiredWeightChangeKg < 0 && data.weightKg <= targetWeight) goalMet = true;
+                 if (userProfile.desiredWeightChangeKg > 0 && data.weightKg >= targetWeight) goalMet = true;
+                 if (goalMet) metGoalDescription = `Din målvikt på ${targetWeight.toFixed(1).replace('.', ',')} kg`;
+             } else if (userProfile.measurementMethod === 'inbody') {
+                 let fatMet = false;
+                 let muscleMet = false;
+                 let hasFatGoal = userProfile.desiredFatMassChangeKg != null;
+                 let hasMuscleGoal = userProfile.desiredMuscleMassChangeKg != null;
+                 let targetFat = 0;
+                 let targetMuscle = 0;
+
+                 if (hasFatGoal && userProfile.goalStartFatMassKg != null && data.bodyFatMassKg != null) {
+                     targetFat = userProfile.goalStartFatMassKg + userProfile.desiredFatMassChangeKg!;
+                     if (userProfile.desiredFatMassChangeKg! < 0 && data.bodyFatMassKg <= targetFat) fatMet = true;
+                     if (userProfile.desiredFatMassChangeKg! > 0 && data.bodyFatMassKg >= targetFat) fatMet = true;
+                 }
+
+                 if (hasMuscleGoal && userProfile.goalStartMuscleMassKg != null && data.skeletalMuscleMassKg != null) {
+                     targetMuscle = userProfile.goalStartMuscleMassKg + userProfile.desiredMuscleMassChangeKg!;
+                     if (userProfile.desiredMuscleMassChangeKg! < 0 && data.skeletalMuscleMassKg <= targetMuscle) muscleMet = true;
+                     if (userProfile.desiredMuscleMassChangeKg! > 0 && data.skeletalMuscleMassKg >= targetMuscle) muscleMet = true;
+                 }
+
+                 if (hasFatGoal && hasMuscleGoal) {
+                     goalMet = fatMet || muscleMet;
+                     if (fatMet && muscleMet) metGoalDescription = `Dina mål för fettmassa (${targetFat.toFixed(1).replace('.', ',')} kg) och muskelmassa (${targetMuscle.toFixed(1).replace('.', ',')} kg)`;
+                     else if (fatMet) metGoalDescription = `Ditt mål för fettmassa på ${targetFat.toFixed(1).replace('.', ',')} kg`;
+                     else if (muscleMet) metGoalDescription = `Ditt mål för muskelmassa på ${targetMuscle.toFixed(1).replace('.', ',')} kg`;
+                 } else if (hasFatGoal) {
+                     goalMet = fatMet;
+                     if (fatMet) metGoalDescription = `Ditt mål för fettmassa på ${targetFat.toFixed(1).replace('.', ',')} kg`;
+                 } else if (hasMuscleGoal) {
+                     goalMet = muscleMet;
+                     if (muscleMet) metGoalDescription = `Ditt mål för muskelmassa på ${targetMuscle.toFixed(1).replace('.', ',')} kg`;
+                 }
+             }
 
              if (goalMet) {
                 const ach = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'main_goal_reached');
                 if (ach) {
                     const unlocked = await unlockAchievement(currentUser.uid, ach.id, ach.name, ach.icon, ach.description);
+                    
+                    setShowConfetti(true);
+                    setShowGoalMetModalData({ date: new Date().toISOString().split('T')[0], description: metGoalDescription });
+                    playAudio('levelUp');
+                    setUserProfile(prev => ({ ...prev, mainGoalCompleted: true }));
+                    await updateUserDocument(currentUser.uid, { mainGoalCompleted: true });
+                    
                     if (unlocked) {
-                        setShowConfetti(true);
-                        setShowGoalMetModalData({ date: new Date().toISOString().split('T')[0], streak: streakData.currentStreak });
-                        playAudio('levelUp');
-                        setUserProfile(prev => ({ ...prev, mainGoalCompleted: true }));
-                        await updateUserDocument(currentUser.uid, { mainGoalCompleted: true });
                         setUnlockedAchievements(prev => ({ ...prev, [ach.id]: new Date().toISOString() }));
                     }
                 }
@@ -1234,6 +1352,16 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             setHighestStreak(finalNewStreak);
         }
 
+        // Level Check
+        const newLevel = LEVEL_DEFINITIONS.find(l => l.requiredStreak === finalNewStreak);
+        if (newLevel) {
+            setShowLevelUpModal(newLevel);
+            if (highestLevelId !== newLevel.id) {
+                setHighestLevelId(newLevel.id);
+                userUpdates.highestLevelId = newLevel.id;
+            }
+        }
+
         if (bankedAmount > 0) {
             userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
             const newBank = {
@@ -1266,11 +1394,12 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         }
 
         // Streak Achievement Check
-        const streakAch = ACHIEVEMENT_DEFINITIONS.find(a => a.type === 'streak' && a.requiredValue === finalNewStreak);
-        if (streakAch) {
+        const streakAchs = ACHIEVEMENT_DEFINITIONS.filter(a => a.type === 'streak' && a.requiredValue <= finalNewStreak);
+        for (const streakAch of streakAchs) {
              const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
              if (unlocked) {
                  setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
+                 setUnlockedAchievements(prev => ({ ...prev, [streakAch.id]: new Date().toISOString() }));
              }
         }
 
@@ -1456,11 +1585,15 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     return <ArchivedUserScreen onLogout={handleLogout} />;
   }
   
-  if (userRole === 'coach' && currentInterface === 'coach') {
+  if ((userRole === 'coach' || userRole === 'admin') && currentInterface === 'coach') {
     return <CoachDashboard 
               onLogout={handleLogout} 
               currentUserEmail={currentUser.email || "Coach"} 
               currentUserId={currentUser.uid}
+              currentUser={currentUser}
+              userProfile={userProfile}
+              userRole={userRole}
+              setToastNotification={setToastNotification}
               onToggleInterface={toggleInterfaceView}
             />;
   }
@@ -1490,7 +1623,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { setViewMode('main'); setCurrentLessonId(null); } },
     { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { setJourneyInitialTab('calendar'); setViewMode('journey'); } },
     { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { setViewMode('coursesView');} },
-    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setViewMode('community'); }, notificationCount: pendingRequestsCount + communityNotificationCount },
+    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setCommunityInitialTab('flode'); setViewMode('community'); }, notificationCount: pendingRequestsCount + newEventsCount + unreadChatsCount },
   ];
 
   const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
@@ -1500,7 +1633,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
   return (
     <>
-      <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0">
+      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
        <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
@@ -1609,7 +1742,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         </header>
 
         <main className={viewMode === 'community' 
-          ? "w-full flex-grow flex flex-col h-full" 
+          ? "w-full flex-grow flex flex-col overflow-hidden" 
           : `w-full ${mainContentMaxWidth} mx-auto p-2 sm:p-4 flex-grow flex flex-col`
         }>
          {viewMode === 'main' && (
@@ -1702,9 +1835,11 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
               achievements={ACHIEVEMENT_DEFINITIONS}
               setToastNotification={setToastNotification}
               pendingRequestsCount={pendingRequestsCount}
+              unreadChatsCount={unreadChatsCount}
               initialTab={communityInitialTab}
               initialSubTab={communityInitialSubTab}
               highlightEventId={highlightEventId}
+              initialChatId={initialChatId}
               timelineEvents={timelineEvents}
               setTimelineEvents={setTimelineEvents}
               buddyDetails={buddyDetails}
@@ -1712,6 +1847,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
               onDataChanged={loadCommunityData}
               lastViewTimestamp={lastCommunityViewTimestamp}
               currentStreak={streakData.currentStreak}
+              userRole={userRole || 'member'}
             />
          )}
         </main>
@@ -1773,7 +1909,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         <LoadingSpinner message={appStatus === AppStatus.ANALYZING ? "Analyserar bild..." : appStatus === AppStatus.ANALYZING_INGREDIENTS ? "Hittar recept från dina bilder..." : "Sparar..."} />
       )}
       {splashEffect && <WaterSplashEffect key={splashEffect.id} x={splashEffect.x} y={splashEffect.y} count={splashEffect.count} onComplete={() => setSplashEffect(null)} />}
-      {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} />}
+      {toastNotification && <ToastNotification message={toastNotification.message} type={toastNotification.type} onClose={() => setToastNotification(null)} onClick={toastNotification.onClick} />}
       {showConfetti && <ConfettiCelebration isActive={showConfetti} />}
        {showInstallBanner && (
         <div className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 pt-6 shadow-[0_2px_10px_rgba(0,0,0,0.1)] z-[60] animate-slide-down-fade-in">

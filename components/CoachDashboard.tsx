@@ -1,9 +1,13 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { CoachViewMember, UserRole } from '../types';
+import { CreatePostWidget } from './CommunityView';
+import { CreateGroupView, ChatWindow } from './ChatRoomsView';
+import { CoachViewMember, UserRole, UserProfileData, Chat } from '../types';
+import type { User } from '@firebase/auth';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from './icons';
-import { User, PieChart, TrendingDown } from 'lucide-react';
+import { User as UserIconLucide, PieChart, TrendingDown, Users as UsersIcon } from 'lucide-react';
 import { playAudio } from '../services/audioService';
+import { subscribeToSystemGroups } from '../services/chatService';
 import { 
     fetchCoachViewMembers, 
     approveMember,
@@ -12,7 +16,8 @@ import {
     unarchiveMember,
     updateUserRole,
     bulkApproveMembers,
-    bulkUpdateUserRole
+    bulkUpdateUserRole,
+    createUserPost
 } from '../services/firestoreService';
 import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
@@ -319,7 +324,7 @@ const MemberListTable: React.FC<{
                                             <img className="h-10 w-10 rounded-full object-cover border border-neutral-light" src={member.photoURL} alt="" />
                                         ) : (
                                             <div className="h-10 w-10 rounded-full bg-neutral-light flex items-center justify-center text-neutral-400">
-                                                <User className="w-5 h-5" />
+                                                <UserIconLucide className="w-5 h-5" />
                                             </div>
                                         )}
                                     </div>
@@ -385,7 +390,7 @@ const MemberListTable: React.FC<{
                                         <ActionButton 
                                             onClick={() => props.onUpdateRole(member.id, member.role === 'coach' ? 'member' : 'coach')} 
                                             disabled={props.updatingMemberId === member.id}
-                                            icon={member.role === 'coach' ? <User className="w-4 h-4" /> : <TrophyIcon className="w-4 h-4" />}
+                                            icon={member.role === 'coach' ? <UserIconLucide className="w-4 h-4" /> : <TrophyIcon className="w-4 h-4" />}
                                             label={member.role === 'coach' ? '-> Medlem' : '-> Coach'}
                                             className="bg-neutral-light text-neutral-dark hover:bg-gray-200"
                                         />
@@ -548,12 +553,35 @@ interface CoachDashboardProps {
   currentUserEmail: string;
   onToggleInterface: () => void;
   currentUserId: string;
+  currentUser: User;
+  userProfile: UserProfileData;
+  userRole: UserRole;
+  setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
 }
 
-const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEmail, onToggleInterface, currentUserId }) => {
+const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEmail, onToggleInterface, currentUserId, currentUser, userProfile, userRole, setToastNotification }) => {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CoachViewMember | null>(null);
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [myChats, setMyChats] = useState<Chat[]>([]);
+  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+
+  useEffect(() => {
+      const unsubscribe = subscribeToSystemGroups((chats) => {
+          setMyChats(chats);
+      });
+      return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+      if (selectedChat) {
+          const updatedChat = myChats.find(c => c.id === selectedChat.id);
+          if (updatedChat && JSON.stringify(updatedChat) !== JSON.stringify(selectedChat)) {
+              setSelectedChat(updatedChat);
+          }
+      }
+  }, [myChats, selectedChat]);
 
   const {
       membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
@@ -618,70 +646,151 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
 
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         
-        <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} />
-        
-        <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
-            <MemberFilters 
-                searchQuery={searchQuery} 
-                onSearchChange={setSearchQuery} 
-                filterStatus={filterStatus}
-                onFilterStatusChange={setFilterStatus}
-                pendingCount={pendingCount} 
-                onRefresh={fetchMembers} 
-                isRefreshDisabled={isLoadingMembers || isBulkUpdating} 
-            />
-            
-            {selectedMemberIds.size > 0 && (
-                <BulkActionsBar 
-                    selectedCount={selectedMemberIds.size} 
-                    onClearSelection={() => setSelectedMemberIds(new Set())} 
-                    onBulkAction={handleBulkAction} 
-                    isBulkUpdating={isBulkUpdating} 
+        {selectedChat ? (
+            <div className="max-w-2xl mx-auto w-full bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden h-[80vh]">
+                <ChatWindow 
+                    chat={selectedChat}
+                    currentUser={currentUser}
+                    userProfile={userProfile}
+                    userRole={userRole}
+                    onBack={() => setSelectedChat(null)}
+                    setToastNotification={setToastNotification}
+                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
                 />
-            )}
-
-            {(isLoadingMembers || isBulkUpdating) && (
-                <div className="py-12">
-                    <LoadingSpinner message={isBulkUpdating ? "Uppdaterar medlemmar..." : "Laddar medlemmar..."} color="primary" />
-                </div>
-            )}
-            
-            {errorMembers && !isLoadingMembers && (
-                <div className="text-center py-10 bg-red-50 rounded-2xl border border-red-100 my-4">
-                    <p className="text-red-600 font-bold mb-2">Hoppsan!</p>
-                    <p className="text-red-500 text-sm">{errorMembers}</p>
-                    <button onClick={fetchMembers} className="mt-4 px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 font-medium text-sm">Försök igen</button>
-                </div>
-            )}
-
-            {!isLoadingMembers && !isBulkUpdating && !errorMembers && (
-                sortedAndFilteredMembers.length > 0 ? (
-                    <MemberListTable 
-                        members={sortedAndFilteredMembers} 
-                        currentUserId={currentUserId} 
-                        selectedMemberIds={selectedMemberIds} 
-                        sortBy={sortBy} 
-                        sortOrder={sortOrder} 
-                        updatingMemberId={updatingMemberId} 
-                        onSelectAll={handleSelectAll} 
-                        onSelectMember={handleSelectMember} 
-                        onSort={handleSort} 
-                        onShowDetails={handleShowMemberDetails} 
-                        onApprove={handleApproveMember} 
-                        onRevoke={handleRevokeApproval} 
-                        onArchive={handleArchiveMember}
-                        onUnarchive={handleUnarchiveMember}
-                        onUpdateRole={handleUpdateRole} 
+            </div>
+        ) : isCreatingGroup ? (
+            <div className="max-w-2xl mx-auto w-full bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden">
+                <CreateGroupView 
+                    currentUser={currentUser}
+                    userProfile={userProfile}
+                    onBack={() => setIsCreatingGroup(false)}
+                    onGroupCreated={() => {
+                        setIsCreatingGroup(false);
+                        setToastNotification({ message: 'Grupp skapad!', type: 'success' });
+                    }}
+                    setToastNotification={setToastNotification}
+                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
+                    defaultIsSystemGroup={true}
+                    defaultIsPublic={true}
+                    hideSystemGroupOption={true}
+                />
+            </div>
+        ) : (
+            <>
+                <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} />
+                
+                <div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
+                    <CreatePostWidget 
+                        currentUser={currentUser} 
+                        userProfile={userProfile} 
+                        onPostCreated={() => {}} 
+                        setToastNotification={setToastNotification} 
+                        userRole={userRole}
                     />
-                ) : (
-                    <div className="text-center py-16 bg-neutral-light/30 rounded-2xl border border-dashed border-neutral-light">
-                        <UserGroupIcon className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-                        <p className="text-neutral-500 font-medium">Inga medlemmar matchade din sökning.</p>
-                        {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="mt-2 text-primary font-bold hover:underline text-sm">Visa alla medlemmar</button>}
-                    </div>
-                )
-            )}
-        </div>
+                    <button 
+                        onClick={() => setIsCreatingGroup(true)}
+                        className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-4 flex items-center justify-center gap-2 text-primary font-bold hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                    >
+                        <UserGroupIcon className="w-5 h-5" />
+                        Skapa Officiell Chattgrupp
+                    </button>
+
+                    {myChats.length > 0 && (
+                        <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
+                            <h3 className="font-bold text-neutral-darker mb-4 flex items-center gap-2">
+                                <UsersIcon className="w-5 h-5 text-primary" />
+                                Officiella Grupper
+                            </h3>
+                            <div className="space-y-3">
+                                {myChats.map(chat => (
+                                    <div 
+                                        key={chat.id} 
+                                        onClick={() => setSelectedChat(chat)}
+                                        className="bg-gray-50 p-4 rounded-xl border border-neutral-light cursor-pointer hover:bg-primary-50 transition-colors flex justify-between items-center"
+                                    >
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-bold text-neutral-dark">{chat.name}</h4>
+                                                {chat.pendingMembers && chat.pendingMembers.length > 0 && (
+                                                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                        {chat.pendingMembers.length} förfrågningar
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-neutral mt-1">{chat.members.length} medlemmar</p>
+                                        </div>
+                                        <ChevronUpIcon className="w-5 h-5 text-neutral transform rotate-90" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+                    <MemberFilters 
+                        searchQuery={searchQuery} 
+                        onSearchChange={setSearchQuery} 
+                        filterStatus={filterStatus}
+                        onFilterStatusChange={setFilterStatus}
+                        pendingCount={pendingCount} 
+                        onRefresh={fetchMembers} 
+                        isRefreshDisabled={isLoadingMembers || isBulkUpdating} 
+                    />
+                    
+                    {selectedMemberIds.size > 0 && (
+                        <BulkActionsBar 
+                            selectedCount={selectedMemberIds.size} 
+                            onClearSelection={() => setSelectedMemberIds(new Set())} 
+                            onBulkAction={handleBulkAction} 
+                            isBulkUpdating={isBulkUpdating} 
+                        />
+                    )}
+
+                    {(isLoadingMembers || isBulkUpdating) && (
+                        <div className="py-12">
+                            <LoadingSpinner message={isBulkUpdating ? "Uppdaterar medlemmar..." : "Laddar medlemmar..."} color="primary" />
+                        </div>
+                    )}
+                    
+                    {errorMembers && !isLoadingMembers && (
+                        <div className="text-center py-10 bg-red-50 rounded-2xl border border-red-100 my-4">
+                            <p className="text-red-600 font-bold mb-2">Hoppsan!</p>
+                            <p className="text-red-500 text-sm">{errorMembers}</p>
+                            <button onClick={fetchMembers} className="mt-4 px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 font-medium text-sm">Försök igen</button>
+                        </div>
+                    )}
+
+                    {!isLoadingMembers && !isBulkUpdating && !errorMembers && (
+                        sortedAndFilteredMembers.length > 0 ? (
+                            <MemberListTable 
+                                members={sortedAndFilteredMembers} 
+                                currentUserId={currentUserId} 
+                                selectedMemberIds={selectedMemberIds} 
+                                sortBy={sortBy} 
+                                sortOrder={sortOrder} 
+                                updatingMemberId={updatingMemberId} 
+                                onSelectAll={handleSelectAll} 
+                                onSelectMember={handleSelectMember} 
+                                onSort={handleSort} 
+                                onShowDetails={handleShowMemberDetails} 
+                                onApprove={handleApproveMember} 
+                                onRevoke={handleRevokeApproval} 
+                                onArchive={handleArchiveMember}
+                                onUnarchive={handleUnarchiveMember}
+                                onUpdateRole={handleUpdateRole} 
+                            />
+                        ) : (
+                            <div className="text-center py-16 bg-neutral-light/30 rounded-2xl border border-dashed border-neutral-light">
+                                <UserGroupIcon className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+                                <p className="text-neutral-500 font-medium">Inga medlemmar matchade din sökning.</p>
+                                {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="mt-2 text-primary font-bold hover:underline text-sm">Visa alla medlemmar</button>}
+                            </div>
+                        )
+                    )}
+                </div>
+            </>
+        )}
       </main>
 
       <footer className="text-center py-8 text-neutral-400 text-sm font-medium">

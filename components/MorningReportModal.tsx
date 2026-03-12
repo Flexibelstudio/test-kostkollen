@@ -3,7 +3,7 @@ import { PastDaySummary, UserProfileData, LoggedMeal } from '../types';
 import { CheckCircleIcon, XCircleIcon, TrophyIcon, SparklesIcon } from './icons';
 import { getMorningBriefingText, getMorningBriefingAudio } from '../services/geminiService';
 import { COACH_PERSONAS } from '../constants';
-import { Volume2, VolumeX, PiggyBank, Flame } from 'lucide-react';
+import { Volume2, VolumeX, PiggyBank, Flame, Loader2 } from 'lucide-react';
 
 interface MorningReportModalProps {
   show: boolean;
@@ -45,8 +45,10 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
   const [briefingText, setBriefingText] = useState<string | null>(null);
   const [isLoadingBriefing, setIsLoadingBriefing] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const cachedAudioBufferRef = useRef<AudioBuffer | null>(null);
 
   useEffect(() => {
     if (show) {
@@ -60,6 +62,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
     } else {
         setBriefingText(null);
         stopAudio();
+        cachedAudioBufferRef.current = null;
     }
   }, [show, summary, currentStreak, userProfile]);
 
@@ -79,22 +82,31 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
           return;
       }
 
-      if (!briefingText) return;
+      if (!briefingText || isGeneratingAudio) return;
 
       try {
-          setIsPlayingAudio(true);
-          const base64Audio = await getMorningBriefingAudio(briefingText, userProfile.coachStyle || 'balanced');
+          setIsGeneratingAudio(true);
           
-          if (!base64Audio) throw new Error("No audio returned");
-
           if (!audioContextRef.current) {
               audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
           }
           const ctx = audioContextRef.current;
           if (ctx.state === 'suspended') await ctx.resume();
 
-          // Use manual PCM decoding
-          const audioBuffer = decodePCM(base64Audio, ctx);
+          let audioBuffer = cachedAudioBufferRef.current;
+
+          if (!audioBuffer) {
+              const base64Audio = await getMorningBriefingAudio(briefingText, userProfile.coachStyle || 'balanced');
+              
+              if (!base64Audio) throw new Error("No audio returned");
+
+              // Use manual PCM decoding
+              audioBuffer = decodePCM(base64Audio, ctx);
+              cachedAudioBufferRef.current = audioBuffer;
+          }
+
+          setIsGeneratingAudio(false);
+          setIsPlayingAudio(true);
           
           const source = ctx.createBufferSource();
           source.buffer = audioBuffer;
@@ -105,6 +117,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
 
       } catch (error) {
           console.error("Failed to play audio", error);
+          setIsGeneratingAudio(false);
           setIsPlayingAudio(false);
       }
   };
@@ -223,10 +236,11 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
                     {!isLoadingBriefing && briefingText && (
                         <button 
                             onClick={handlePlayAudio}
-                            className={`absolute -bottom-3 -right-3 p-2 rounded-full shadow-md transition-all active:scale-90 ${isPlayingAudio ? 'bg-secondary text-white animate-pulse' : 'bg-white text-neutral-dark hover:bg-gray-50'}`}
+                            disabled={isGeneratingAudio}
+                            className={`absolute -bottom-3 -right-3 p-2 rounded-full shadow-md transition-all active:scale-90 ${isPlayingAudio ? 'bg-secondary text-white animate-pulse' : 'bg-white text-neutral-dark hover:bg-gray-50'} ${isGeneratingAudio ? 'opacity-70 cursor-not-allowed' : ''}`}
                             aria-label={isPlayingAudio ? "Stoppa uppläsning" : "Lyssna på briefing"}
                         >
-                            {isPlayingAudio ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                            {isGeneratingAudio ? <Loader2 className="w-5 h-5 animate-spin" /> : isPlayingAudio ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                         </button>
                     )}
                 </div>
