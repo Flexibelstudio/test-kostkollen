@@ -1106,10 +1106,11 @@ export async function fetchUsersByUids(uids: string[]): Promise<BuddyDetails[]> 
       const data = doc.data() as FirestoreUserDocument;
       results.push({
         uid: data.uid,
-        name: data.name,
+        name: data.displayName,
         email: data.email || '',
         photoURL: data.photoURL,
         role: data.role,
+        goalType: data.goalType || 'maintain',
         unlockedAchievements: {}
       });
     });

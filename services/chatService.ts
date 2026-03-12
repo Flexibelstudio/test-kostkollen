@@ -325,7 +325,7 @@ export const joinPublicRoom = async (chatId: string, userId: string, requiresApp
       members: arrayUnion(userId),
       memberSettings: {
         [userId]: {
-          notificationLevel: 'mentions',
+          notificationLevel: 'all',
           lastReadTimestamp: Date.now()
         }
       }
@@ -341,7 +341,7 @@ export const approveMember = async (chatId: string, userId: string) => {
     members: arrayUnion(userId),
     memberSettings: {
       [userId]: {
-        notificationLevel: 'mentions',
+        notificationLevel: 'all',
         lastReadTimestamp: Date.now()
       }
     }

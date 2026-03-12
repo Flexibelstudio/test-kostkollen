@@ -758,6 +758,51 @@ exports.onChatMessageCreated = functions.firestore
     await Promise.all(notificationPromises);
   });
 
+exports.onChatMessageUpdated = functions.firestore
+  .document("chats/{chatId}/messages/{messageId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const chatId = context.params.chatId;
+
+    const beforeReactions = before.reactions || {};
+    const afterReactions = after.reactions || {};
+
+    if (JSON.stringify(beforeReactions) === JSON.stringify(afterReactions)) return;
+
+    const chatRef = db.collection("chats").doc(chatId);
+    const chatDoc = await chatRef.get();
+    if (!chatDoc.exists) return;
+
+    const chatData = chatDoc.data();
+    const messageOwnerId = after.senderId;
+
+    // Find new reactions
+    for (const emoji of Object.keys(afterReactions)) {
+        const usersBefore = beforeReactions[emoji] || {};
+        const usersAfter = afterReactions[emoji] || {};
+
+        for (const newUid of Object.keys(usersAfter)) {
+            if (!usersBefore[newUid]) {
+                // New reaction from newUid
+                if (newUid === messageOwnerId) continue;
+
+                const likerName = usersAfter[newUid];
+                const payload = {
+                    notification: {
+                        title: `Ny reaktion! ${emoji}`,
+                        body: `${likerName} reagerade på ditt meddelande i ${chatData.name || 'chatten'}.`,
+                        icon: "/icons/icon-192x192.png",
+                        badge: "/icons/badge-96x96.png",
+                        data: { url: `/?view=chat&chatId=${chatId}` }
+                    }
+                };
+                await sendNotificationToUser(messageOwnerId, payload, "likes");
+            }
+        }
+    }
+  });
+
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     const signature = req.headers['stripe-signature'];
     // Hämta webhook secret från .env ELLER molnet

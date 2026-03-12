@@ -256,9 +256,6 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
                     {chat.isSystemGroup && (
                         <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">OFFICIELL</span>
                     )}
-                    {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-blue-500 flex-shrink-0" /> : 
-                     chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-orange-400 flex-shrink-0" /> : 
-                     chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                     {hasPendingRequests && (
@@ -274,9 +271,14 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
                 </div>
             </div>
             <div className="flex justify-between items-center">
-                <p className={`text-sm truncate pr-2 ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
-                    {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : chat.lastMessage.senderName || 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
-                </p>
+                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                    {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
+                     chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
+                     chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : null}
+                    <p className={`text-sm truncate ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
+                        {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : chat.lastMessage.senderName || 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
+                    </p>
+                </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                     {isMuted && <BellOffIcon className="w-3.5 h-3.5 text-neutral" />}
                     {hasUnread && (
@@ -932,14 +934,16 @@ export const ChatWindow: React.FC<{
                                     )}
                                 </div>
                             )}
-                            {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-blue-500 flex-shrink-0" /> : 
-                             chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-orange-400 flex-shrink-0" /> : 
-                             chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
                         </div>
-                        <p className="text-xs text-neutral">
-                            {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'}
-                            {creatorName && ` • Skapad av ${creatorName}`}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
+                             chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : 
+                             chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-neutral flex-shrink-0" /> : null}
+                            <p className="text-xs text-neutral">
+                                {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'}
+                                {creatorName && ` • Skapad av ${creatorName}`}
+                            </p>
+                        </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-1" ref={menuRef}>
