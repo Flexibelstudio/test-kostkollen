@@ -523,6 +523,9 @@ export interface Chat {
   members: string[]; // Array of userIds
   admins: string[]; // Array of userIds
   invitePermission?: 'admin_only' | 'everyone';
+  requiresApproval?: boolean;
+  isSystemGroup?: boolean;
+  pendingMembers?: string[]; // Array of userIds waiting for approval
   memberSettings: {
     [userId: string]: ChatMemberSettings;
   };

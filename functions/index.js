@@ -725,7 +725,7 @@ exports.onChatMessageCreated = functions.firestore
     // Build notification payload
     const payload = {
       notification: {
-        title: chatData.type === 'direct_message' ? message.senderName : `${message.senderName} i ${chatData.name}`,
+        title: chatData.type === 'direct' ? message.senderName : `${message.senderName} i ${chatData.name}`,
         body: message.text || (message.imageUrl ? 'Skickade en bild' : 'Nytt meddelande'),
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",

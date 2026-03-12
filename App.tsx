@@ -389,8 +389,9 @@ export const App = () => {
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [communityViewKey] = useState(Date.now());
   const [communityInitialTab, setCommunityInitialTab] = useState<'flode' | 'hantera' | 'chatt'>('flode');
-  const [communityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
-  const [highlightEventId] = useState<string | null>(null);
+  const [communityInitialSubTab, setCommunityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
+  const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
+  const [initialChatId, setInitialChatId] = useState<string | null>(null);
   const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
   const previousViewModeRef = useRef<ViewMode>(viewMode);
   const lastSeenMessageTimestamps = useRef<Record<string, number>>({});
@@ -751,8 +752,27 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('view') === 'community') {
+    const viewParam = params.get('view');
+    
+    if (viewParam === 'community') {
       setViewMode('community');
+      const tabParam = params.get('tab');
+      if (tabParam === 'requests') {
+        setCommunityInitialTab('hantera');
+        setCommunityInitialSubTab('requests');
+      }
+      const highlightParam = params.get('highlight');
+      if (highlightParam) {
+        setHighlightEventId(highlightParam);
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (viewParam === 'chat') {
+      setViewMode('community');
+      setCommunityInitialTab('chatt');
+      const chatIdParam = params.get('chatId');
+      if (chatIdParam) {
+        setInitialChatId(chatIdParam);
+      }
       window.history.replaceState({}, '', window.location.pathname);
     }
     
@@ -1764,6 +1784,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
               initialTab={communityInitialTab}
               initialSubTab={communityInitialSubTab}
               highlightEventId={highlightEventId}
+              initialChatId={initialChatId}
               timelineEvents={timelineEvents}
               setTimelineEvents={setTimelineEvents}
               buddyDetails={buddyDetails}

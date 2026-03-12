@@ -27,7 +27,9 @@ export const createChat = async (
   description: string,
   creatorId: string,
   initialMembers: string[] = [],
-  invitePermission: 'admin_only' | 'everyone' = 'everyone'
+  invitePermission: 'admin_only' | 'everyone' = 'everyone',
+  requiresApproval: boolean = false,
+  isSystemGroup: boolean = false
 ): Promise<string> => {
   if (!db) return '';
   const members = Array.from(new Set([creatorId, ...initialMembers]));
@@ -48,6 +50,9 @@ export const createChat = async (
     members,
     admins: [creatorId],
     invitePermission,
+    requiresApproval,
+    isSystemGroup,
+    pendingMembers: [],
     memberSettings,
     createdAt: now,
     createdBy: creatorId,
@@ -281,15 +286,43 @@ export const toggleReactionMessage = async (
   }
 };
 
-export const joinPublicRoom = async (chatId: string, userId: string) => {
+export const joinPublicRoom = async (chatId: string, userId: string, requiresApproval: boolean = false) => {
+  if (!db) return;
+  const chatRef = doc(db, 'chats', chatId);
+  
+  if (requiresApproval) {
+    await updateDoc(chatRef, {
+      pendingMembers: arrayUnion(userId)
+    });
+  } else {
+    await updateDoc(chatRef, {
+      members: arrayUnion(userId),
+      [`memberSettings.${userId}`]: {
+        notificationLevel: 'mentions', // Default to mentions for public rooms
+        lastReadTimestamp: Date.now()
+      }
+    });
+  }
+};
+
+export const approveMember = async (chatId: string, userId: string) => {
   if (!db) return;
   const chatRef = doc(db, 'chats', chatId);
   await updateDoc(chatRef, {
+    pendingMembers: arrayRemove(userId),
     members: arrayUnion(userId),
     [`memberSettings.${userId}`]: {
-      notificationLevel: 'mentions', // Default to mentions for public rooms
+      notificationLevel: 'mentions',
       lastReadTimestamp: Date.now()
     }
+  });
+};
+
+export const rejectMember = async (chatId: string, userId: string) => {
+  if (!db) return;
+  const chatRef = doc(db, 'chats', chatId);
+  await updateDoc(chatRef, {
+    pendingMembers: arrayRemove(userId)
   });
 };
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings } from '../types';
-import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleReactionMessage } from '../services/chatService';
+import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleReactionMessage, approveMember, rejectMember } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
@@ -47,9 +47,10 @@ interface ChatRoomsViewProps {
     userProfile: UserProfileData;
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     buddyDetails: BuddyDetails[];
+    initialChatId?: string | null;
 }
 
-export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userProfile, setToastNotification, buddyDetails }) => {
+export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userProfile, setToastNotification, buddyDetails, initialChatId = null }) => {
     const [activeTab, setActiveTab] = useState<'my_chats' | 'discover'>('my_chats');
     const [myChats, setMyChats] = useState<Chat[]>([]);
     const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
@@ -66,10 +67,23 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
         };
     }, [currentUser.uid]);
 
+    useEffect(() => {
+        if (initialChatId && myChats.length > 0 && !selectedChat) {
+            const chatToOpen = myChats.find(c => c.id === initialChatId);
+            if (chatToOpen) {
+                setSelectedChat(chatToOpen);
+            }
+        }
+    }, [initialChatId, myChats, selectedChat]);
+
     const handleJoinPublicRoom = async (chat: Chat) => {
         try {
-            await joinPublicRoom(chat.id, currentUser.uid);
-            setSelectedChat(chat);
+            await joinPublicRoom(chat.id, currentUser.uid, chat.requiresApproval);
+            if (chat.requiresApproval) {
+                setToastNotification({ message: 'Förfrågan om att gå med har skickats.', type: 'success' });
+            } else {
+                setSelectedChat(chat);
+            }
         } catch (error) {
             setToastNotification({ message: 'Kunde inte gå med i rummet.', type: 'error' });
         }
@@ -154,18 +168,32 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                         publicRooms.filter(room => !room.members.includes(currentUser.uid)).map(chat => (
                             <div key={chat.id} className="bg-white p-4 rounded-xl shadow-sm border border-neutral-light flex justify-between items-center">
                                 <div>
-                                    <h3 className="font-bold text-neutral-dark">{chat.name}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-neutral-dark">{chat.name}</h3>
+                                        {chat.isSystemGroup && (
+                                            <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Officiell</span>
+                                        )}
+                                    </div>
                                     <p className="text-sm text-neutral">{chat.description}</p>
                                     <p className="text-xs text-neutral mt-1 flex items-center gap-1">
                                         <UsersIcon className="w-3 h-3" /> {chat.members.length} medlemmar
                                     </p>
                                 </div>
-                                <button 
-                                    onClick={() => handleJoinPublicRoom(chat)}
-                                    className="px-4 py-2 bg-primary-100 text-primary-darker font-semibold rounded-lg hover:bg-primary-200 transition-colors"
-                                >
-                                    Gå med
-                                </button>
+                                {chat.pendingMembers?.includes(currentUser.uid) ? (
+                                    <button 
+                                        disabled
+                                        className="px-4 py-2 bg-gray-100 text-neutral font-semibold rounded-lg cursor-not-allowed"
+                                    >
+                                        Väntar...
+                                    </button>
+                                ) : (
+                                    <button 
+                                        onClick={() => handleJoinPublicRoom(chat)}
+                                        className="px-4 py-2 bg-primary-100 text-primary-darker font-semibold rounded-lg hover:bg-primary-200 transition-colors"
+                                    >
+                                        Gå med
+                                    </button>
+                                )}
                             </div>
                         ))
                     ) : (
@@ -193,6 +221,9 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
             <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2 min-w-0 pr-2">
                     <h3 className={`truncate text-[17px] ${hasUnread ? 'font-black text-neutral-darker' : 'font-bold text-neutral-dark'}`}>{chat.name || 'Gruppchatt'}</h3>
+                    {chat.isSystemGroup && (
+                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">Officiell</span>
+                    )}
                     {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-blue-500 flex-shrink-0" /> : 
                      chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-orange-400 flex-shrink-0" /> : 
                      chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
@@ -235,6 +266,7 @@ const ChatWindow: React.FC<{
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [showAdminMenu, setShowAdminMenu] = useState(false);
+    const [showPendingMembers, setShowPendingMembers] = useState(false);
     const [newChatName, setNewChatName] = useState(chat.name || '');
     const [optimisticName, setOptimisticName] = useState(chat.name || '');
     const [isEditingName, setIsEditingName] = useState(false);
@@ -555,6 +587,67 @@ const ChatWindow: React.FC<{
     // Filter out buddies that are already in the chat
     const availableBuddies = buddyDetails.filter(b => !chat.members.includes(b.uid));
 
+    if (showPendingMembers) {
+        const pendingBuddies = buddyDetails.filter(b => chat.pendingMembers?.includes(b.uid));
+        
+        return (
+            <div className="flex flex-col flex-grow h-full bg-white">
+                <div className="flex items-center gap-3 p-4 border-b border-neutral-light">
+                    <button onClick={() => setShowPendingMembers(false)} className="p-2 -ml-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
+                        <ChevronLeftIcon className="w-6 h-6" />
+                    </button>
+                    <h2 className="text-xl font-bold text-neutral-dark">Förfrågningar</h2>
+                </div>
+                <div className="p-4 flex-grow overflow-y-auto">
+                    {pendingBuddies.length > 0 ? (
+                        <div className="space-y-2">
+                            {pendingBuddies.map(buddy => (
+                                <div key={buddy.uid} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-neutral-light bg-gray-50">
+                                    <div className="flex items-center gap-3">
+                                        <Avatar photoURL={buddy.photoURL} size={40} />
+                                        <span className="font-bold text-neutral-dark">{buddy.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={async () => {
+                                                try {
+                                                    await approveMember(chat.id, buddy.uid);
+                                                    setToastNotification({ message: `${buddy.name} har godkänts.`, type: 'success' });
+                                                } catch (e) {
+                                                    setToastNotification({ message: 'Kunde inte godkänna.', type: 'error' });
+                                                }
+                                            }}
+                                            className="px-3 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary-darker transition-colors"
+                                        >
+                                            Godkänn
+                                        </button>
+                                        <button 
+                                            onClick={async () => {
+                                                try {
+                                                    await rejectMember(chat.id, buddy.uid);
+                                                    setToastNotification({ message: `${buddy.name} har nekats.`, type: 'success' });
+                                                } catch (e) {
+                                                    setToastNotification({ message: 'Kunde inte neka.', type: 'error' });
+                                                }
+                                            }}
+                                            className="px-3 py-1.5 bg-red-100 text-red-600 text-sm font-bold rounded-lg hover:bg-red-200 transition-colors"
+                                        >
+                                            Neka
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-10">
+                            <p className="text-neutral-dark font-medium">Inga väntande förfrågningar.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
     if (isAddingMembers) {
         return (
             <div className="flex flex-col flex-grow h-full bg-white">
@@ -662,7 +755,12 @@ const ChatWindow: React.FC<{
                                     </button>
                                 </div>
                             ) : (
-                                <h2 className="font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
+                                    {chat.isSystemGroup && (
+                                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">Officiell</span>
+                                    )}
+                                </div>
                             )}
                             {chat.type === 'public_room' ? <GlobeIcon className="w-4 h-4 text-blue-500 flex-shrink-0" /> : 
                              chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-orange-400 flex-shrink-0" /> : 
@@ -718,6 +816,16 @@ const ChatWindow: React.FC<{
                                     <button onClick={() => { setIsEditingName(true); setShowAdminMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-neutral-dark hover:bg-gray-50 flex items-center gap-2">
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg> Byt namn
                                     </button>
+                                    {chat.requiresApproval && (
+                                        <button onClick={() => { setShowPendingMembers(true); setShowAdminMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-neutral-dark hover:bg-gray-50 flex items-center gap-2 justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <UsersIcon className="w-4 h-4" /> Förfrågningar
+                                            </div>
+                                            {chat.pendingMembers && chat.pendingMembers.length > 0 && (
+                                                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{chat.pendingMembers.length}</span>
+                                            )}
+                                        </button>
+                                    )}
                                     <button onClick={async () => {
                                         if (window.confirm('Är du säker på att du vill radera gruppen? Detta kan inte ångras.')) {
                                             try {
@@ -995,6 +1103,8 @@ const CreateGroupView: React.FC<{
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [isPublic, setIsPublic] = useState(false);
+    const [requiresApproval, setRequiresApproval] = useState(false);
+    const [isSystemGroup, setIsSystemGroup] = useState(false);
     const [invitePermission, setInvitePermission] = useState<'admin_only' | 'everyone'>('everyone');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedBuddies, setSelectedBuddies] = useState<string[]>([]);
@@ -1006,8 +1116,6 @@ const CreateGroupView: React.FC<{
 
         try {
             const type: ChatType = isPublic ? 'public_room' : 'private_group';
-            // For coach_group, we'd check if userProfile.role === 'coach' and add an option, 
-            // but let's keep it simple for now or assume coaches create coach_groups.
             const finalType = (userProfile as any).role === 'coach' && isPublic ? 'coach_group' : type;
 
             const chatId = await createChat(
@@ -1016,7 +1124,9 @@ const CreateGroupView: React.FC<{
                 description.trim(),
                 currentUser.uid,
                 selectedBuddies,
-                isPublic ? 'everyone' : invitePermission
+                isPublic ? 'everyone' : invitePermission,
+                requiresApproval,
+                isSystemGroup
             );
 
             // We don't have the full chat object immediately, but the subscription will pick it up.
@@ -1078,6 +1188,38 @@ const CreateGroupView: React.FC<{
                         <span className="text-neutral">Alla i appen kan se och gå med i detta rum.</span>
                     </label>
                 </div>
+
+                {isPublic && (
+                    <div className="mt-4 flex items-center gap-3 p-3 bg-orange-50/50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                        <input 
+                            type="checkbox" 
+                            id="requiresApproval"
+                            checked={requiresApproval}
+                            onChange={e => setRequiresApproval(e.target.checked)}
+                            className="w-5 h-5 text-primary rounded focus:ring-primary"
+                        />
+                        <label htmlFor="requiresApproval" className="text-sm text-neutral-dark">
+                            <span className="font-bold block">Kräver godkännande</span>
+                            <span className="text-neutral">Admin måste godkänna nya medlemmar innan de kan delta.</span>
+                        </label>
+                    </div>
+                )}
+
+                {(userProfile as any).role === 'coach' && isPublic && (
+                    <div className="mt-4 flex items-center gap-3 p-3 bg-purple-50/50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                        <input 
+                            type="checkbox" 
+                            id="isSystemGroup"
+                            checked={isSystemGroup}
+                            onChange={e => setIsSystemGroup(e.target.checked)}
+                            className="w-5 h-5 text-primary rounded focus:ring-primary"
+                        />
+                        <label htmlFor="isSystemGroup" className="text-sm text-neutral-dark">
+                            <span className="font-bold block">Officiell Systemgrupp</span>
+                            <span className="text-neutral">Markera som en officiell grupp från Flexibel Friskvård.</span>
+                        </label>
+                    </div>
+                )}
 
                 {!isPublic && (
                     <div className="mt-4 bg-gray-50 dark:bg-neutral-dark p-3 rounded-lg border border-neutral-light dark:border-neutral-600">

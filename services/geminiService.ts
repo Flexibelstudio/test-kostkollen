@@ -502,7 +502,7 @@ export const getAICoachResponseStream = async (
   chatHistory: Content[],
   context: AIDataForJourneyAnalysis
 ) => {
-  const { userProfile, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = context;
+  const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = context;
 
   const formattedWeightLogsForAI = allWeightLogs.map(log => ({
     date: new Date(log.loggedAt).toISOString().split('T')[0],
@@ -577,8 +577,9 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 
 Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VIKTIGA REGLER FOR TEXT-SVAR".
 
-**TILLGÄNÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
-- **Profil & Mål:** ${JSON.stringify(userProfile)}
+**TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
+- **Profil:** ${JSON.stringify(userProfile)}
+- **Aktuella Mål (VIKTIGT: Använd dessa mål för kalorier och protein):** ${JSON.stringify(goals)}
 - **Streak:** ${currentStreak} dagar
 - **Viktloggar (ENDAST för vikt, muskler, fett):** ${JSON.stringify(formattedWeightLogsForAI)}
 - **Dagliga Summeringar (ENDAST för protein, kalorier, etc.):** ${JSON.stringify(formattedDailySummariesForAI)}

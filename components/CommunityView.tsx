@@ -494,6 +494,7 @@ const TimelineEventCard: FC<{
 
 
     const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
+    const displayName = isGlobalPost ? 'Flexibel Friskvård' : (isCurrentUser ? 'Du' : event.userName);
 
     return (
     <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
@@ -504,15 +505,15 @@ const TimelineEventCard: FC<{
                 : 'bg-white dark:bg-neutral-darker border-neutral-light'
     }`}>
         <div className="flex items-start gap-3">
-            <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={42} />
+            <Avatar photoURL={isGlobalPost ? undefined : event.userPhotoURL} gender={event.gender} size={42} />
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col">
                         <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
-                            <span className="font-bold">{isCurrentUser ? 'Du' : event.userName}</span>
+                            <span className="font-bold">{displayName}</span>
                             {isGlobalPost && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                    Coach
+                                    Officiellt
                                 </span>
                             )}
                             {event.type === 'user_post' ? '' : ` ${event.title}`}
@@ -1013,6 +1014,7 @@ export const CommunityView: React.FC<{
   initialTab?: 'flode' | 'hantera' | 'chatt';
   initialSubTab?: 'buddies' | 'search' | 'requests';
   highlightEventId?: string | null;
+  initialChatId?: string | null;
   timelineEvents: TimelineEvent[];
   setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
   buddyDetails: BuddyDetails[];
@@ -1031,6 +1033,7 @@ export const CommunityView: React.FC<{
   initialTab = 'flode',
   initialSubTab = 'buddies',
   highlightEventId = null,
+  initialChatId = null,
   timelineEvents,
   setTimelineEvents,
   buddyDetails,
@@ -1277,7 +1280,11 @@ export const CommunityView: React.FC<{
             <main className={`flex-grow bg-transparent ${activeTab === 'chatt' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
                 {activeTab === 'flode' && (
                     <div className="p-2 sm:p-4 max-w-2xl mx-auto w-full">
-                        
+                        <CreatePostWidget 
+                            currentUser={currentUser} 
+                            userProfile={userProfile} 
+                            setToastNotification={setToastNotification} 
+                        />
                         {visibleEvents.length > 0 ? (
                             <>
                                 <div className="space-y-4">
@@ -1346,6 +1353,7 @@ export const CommunityView: React.FC<{
                             userProfile={userProfile}
                             setToastNotification={setToastNotification}
                             buddyDetails={buddyDetails}
+                            initialChatId={initialChatId}
                         />
                     </div>
                 )}
