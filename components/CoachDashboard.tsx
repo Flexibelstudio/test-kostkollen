@@ -686,6 +686,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         onPostCreated={() => {}} 
                         setToastNotification={setToastNotification} 
                         userRole={userRole}
+                        isCoachDashboard={true}
                     />
                     <button 
                         onClick={() => setIsCreatingGroup(true)}
