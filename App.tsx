@@ -1509,11 +1509,15 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     return <ArchivedUserScreen onLogout={handleLogout} />;
   }
   
-  if (userRole === 'coach' && currentInterface === 'coach') {
+  if ((userRole === 'coach' || userRole === 'admin') && currentInterface === 'coach') {
     return <CoachDashboard 
               onLogout={handleLogout} 
               currentUserEmail={currentUser.email || "Coach"} 
               currentUserId={currentUser.uid}
+              currentUser={currentUser}
+              userProfile={userProfile}
+              userRole={userRole}
+              setToastNotification={setToastNotification}
               onToggleInterface={toggleInterfaceView}
             />;
   }

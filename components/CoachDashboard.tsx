@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { CoachViewMember, UserRole } from '../types';
+import { CreatePostWidget } from './CommunityView';
+import { CoachViewMember, UserRole, UserProfileData } from '../types';
+import type { User } from '@firebase/auth';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from './icons';
-import { User, PieChart, TrendingDown } from 'lucide-react';
+import { User as UserIconLucide, PieChart, TrendingDown } from 'lucide-react';
 import { playAudio } from '../services/audioService';
 import { 
     fetchCoachViewMembers, 
@@ -12,7 +14,8 @@ import {
     unarchiveMember,
     updateUserRole,
     bulkApproveMembers,
-    bulkUpdateUserRole
+    bulkUpdateUserRole,
+    createUserPost
 } from '../services/firestoreService';
 import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
@@ -319,7 +322,7 @@ const MemberListTable: React.FC<{
                                             <img className="h-10 w-10 rounded-full object-cover border border-neutral-light" src={member.photoURL} alt="" />
                                         ) : (
                                             <div className="h-10 w-10 rounded-full bg-neutral-light flex items-center justify-center text-neutral-400">
-                                                <User className="w-5 h-5" />
+                                                <UserIconLucide className="w-5 h-5" />
                                             </div>
                                         )}
                                     </div>
@@ -385,7 +388,7 @@ const MemberListTable: React.FC<{
                                         <ActionButton 
                                             onClick={() => props.onUpdateRole(member.id, member.role === 'coach' ? 'member' : 'coach')} 
                                             disabled={props.updatingMemberId === member.id}
-                                            icon={member.role === 'coach' ? <User className="w-4 h-4" /> : <TrophyIcon className="w-4 h-4" />}
+                                            icon={member.role === 'coach' ? <UserIconLucide className="w-4 h-4" /> : <TrophyIcon className="w-4 h-4" />}
                                             label={member.role === 'coach' ? '-> Medlem' : '-> Coach'}
                                             className="bg-neutral-light text-neutral-dark hover:bg-gray-200"
                                         />
@@ -548,9 +551,13 @@ interface CoachDashboardProps {
   currentUserEmail: string;
   onToggleInterface: () => void;
   currentUserId: string;
+  currentUser: User;
+  userProfile: UserProfileData;
+  userRole: UserRole;
+  setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
 }
 
-const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEmail, onToggleInterface, currentUserId }) => {
+const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEmail, onToggleInterface, currentUserId, currentUser, userProfile, userRole, setToastNotification }) => {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CoachViewMember | null>(null);
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
@@ -620,6 +627,16 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         
         <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} />
         
+        <div className="max-w-2xl mx-auto w-full">
+            <CreatePostWidget 
+                currentUser={currentUser} 
+                userProfile={userProfile} 
+                onPostCreated={() => {}} 
+                setToastNotification={setToastNotification} 
+                userRole={userRole}
+            />
+        </div>
+
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
             <MemberFilters 
                 searchQuery={searchQuery} 

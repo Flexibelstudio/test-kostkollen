@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, FC, useCallback, useRef } from 'react';
 import type { User } from '@firebase/auth';
-import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory } from '../types';
+import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory, UserRole } from '../types';
 import { 
     searchForBuddies,
     sendFriendRequest,
@@ -31,7 +31,7 @@ import { ChatRoomsView } from './ChatRoomsView';
 
 // --- HELPER FUNCTIONS ---
 
-const resizeImage = (file: File, maxSize: number): Promise<string> => {
+export const resizeImage = (file: File, maxSize: number): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -143,16 +143,18 @@ const getGoalShortDescription = (
 
 // --- SUB-COMPONENTS ---
 
-const CreatePostWidget: FC<{
+export const CreatePostWidget: FC<{
     currentUser: User;
     userProfile: UserProfileData;
     onPostCreated: (post: TimelineEvent) => void;
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
-}> = ({ currentUser, userProfile, onPostCreated, setToastNotification }) => {
+    userRole?: UserRole;
+}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [text, setText] = useState('');
     const [image, setImage] = useState<string | null>(null);
     const [category, setCategory] = useState<PostCategory>('general');
+    const [isGlobal, setIsGlobal] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -176,15 +178,15 @@ const CreatePostWidget: FC<{
         playAudio('uiClick');
 
         try {
-            const newPost = await createUserPost(currentUser.uid, text, category, image || undefined);
+            const newPost = await createUserPost(currentUser.uid, text, category, image || undefined, isGlobal);
             
             const optimisticEvent: TimelineEvent = {
                 id: newPost.id,
                 type: 'user_post',
                 timestamp: Date.now(),
-                title: 'skapade ett inlägg',
+                title: isGlobal ? 'delade ett meddelande till alla' : 'skapade ett inlägg',
                 description: text,
-                icon: category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
+                icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
                 userId: currentUser.uid,
                 userName: userProfile.name || 'Du',
                 userPhotoURL: userProfile.photoURL,
@@ -194,13 +196,15 @@ const CreatePostWidget: FC<{
                 relatedDocPath: `users/${currentUser.uid}/posts/${newPost.id}`,
                 category: category,
                 imageUrl: image || undefined,
-                visibleTo: newPost.visibleTo
+                visibleTo: newPost.visibleTo,
+                isGlobal: isGlobal
             };
             
             onPostCreated(optimisticEvent);
             setText('');
             setImage(null);
             setCategory('general');
+            setIsGlobal(false);
             setToastNotification({ message: 'Inlägg publicerat!', type: 'success' });
             playAudio('logSuccess');
             setIsExpanded(false);
@@ -289,6 +293,17 @@ const CreatePostWidget: FC<{
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    {(userRole === 'coach' || userRole === 'admin') && (
+                        <label className="flex items-center gap-2 text-sm text-neutral-dark mr-2 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={isGlobal} 
+                                onChange={(e) => setIsGlobal(e.target.checked)}
+                                className="rounded text-primary focus:ring-primary w-4 h-4"
+                            />
+                            Synlig för alla (Global)
+                        </label>
+                    )}
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
                     <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
                     
@@ -490,15 +505,28 @@ const TimelineEventCard: FC<{
     }, [isCurrentUser, currentStreak, userProfile, buddyDetails, event.userId]);
 
 
+    const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
+
     return (
-    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${isNewEvent ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-white dark:bg-neutral-darker border-neutral-light'}`}>
+    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
+        isNewEvent 
+            ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+            : isGlobalPost
+                ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                : 'bg-white dark:bg-neutral-darker border-neutral-light'
+    }`}>
         <div className="flex items-start gap-3">
             <Avatar photoURL={event.userPhotoURL} gender={event.gender} size={42} />
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col">
-                        <p className="text-sm text-neutral-dark font-medium leading-tight">
+                        <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
                             <span className="font-bold">{isCurrentUser ? 'Du' : event.userName}</span>
+                            {isGlobalPost && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    Coach
+                                </span>
+                            )}
                             {event.type === 'user_post' ? '' : ` ${event.title}`}
                         </p>
                         
@@ -1004,6 +1032,7 @@ export const CommunityView: React.FC<{
   onDataChanged: () => void;
   lastViewTimestamp: number | null;
   currentStreak: number;
+  userRole: UserRole;
 }> = ({ 
   currentUser,
   userProfile,
@@ -1020,7 +1049,8 @@ export const CommunityView: React.FC<{
   isLoading,
   onDataChanged,
   lastViewTimestamp,
-  currentStreak
+  currentStreak,
+  userRole
 }) => {
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
   
@@ -1097,10 +1127,6 @@ export const CommunityView: React.FC<{
       }
   };
 
-    const handlePostCreated = (newPost: TimelineEvent) => {
-        setRealtimeEvents(prev => [newPost, ...prev]);
-    };
-    
     const handleTogglePepp = async (event: TimelineEvent, newEmoji: string) => {
         if (!event.id) return;
         playAudio('uiClick', 0.6);
@@ -1253,12 +1279,6 @@ export const CommunityView: React.FC<{
             <main className={`flex-grow bg-transparent ${activeTab === 'chatt' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
                 {activeTab === 'flode' && (
                     <div className="p-2 sm:p-4 max-w-2xl mx-auto w-full">
-                        <CreatePostWidget 
-                            currentUser={currentUser} 
-                            userProfile={userProfile} 
-                            onPostCreated={handlePostCreated} 
-                            setToastNotification={setToastNotification} 
-                        />
                         
                         {visibleEvents.length > 0 ? (
                             <>
