@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { CreatePostWidget } from './CommunityView';
-import { CreateGroupView } from './ChatRoomsView';
-import { CoachViewMember, UserRole, UserProfileData } from '../types';
+import { CreateGroupView, ChatWindow } from './ChatRoomsView';
+import { CoachViewMember, UserRole, UserProfileData, Chat } from '../types';
 import type { User } from '@firebase/auth';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from './icons';
-import { User as UserIconLucide, PieChart, TrendingDown } from 'lucide-react';
+import { User as UserIconLucide, PieChart, TrendingDown, Users as UsersIcon } from 'lucide-react';
 import { playAudio } from '../services/audioService';
+import { subscribeToUserChats } from '../services/chatService';
 import { 
     fetchCoachViewMembers, 
     approveMember,
@@ -563,6 +564,15 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [selectedMember, setSelectedMember] = useState<CoachViewMember | null>(null);
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [myChats, setMyChats] = useState<Chat[]>([]);
+  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+
+  useEffect(() => {
+      const unsubscribe = subscribeToUserChats(currentUserId, (chats) => {
+          setMyChats(chats.filter(c => c.isSystemGroup || c.createdBy === currentUserId));
+      });
+      return () => unsubscribe();
+  }, [currentUserId]);
 
   const {
       membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
@@ -627,7 +637,18 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
 
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         
-        {isCreatingGroup ? (
+        {selectedChat ? (
+            <div className="max-w-2xl mx-auto w-full bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden h-[80vh]">
+                <ChatWindow 
+                    chat={selectedChat}
+                    currentUser={currentUser}
+                    userProfile={userProfile}
+                    onBack={() => setSelectedChat(null)}
+                    setToastNotification={setToastNotification}
+                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
+                />
+            </div>
+        ) : isCreatingGroup ? (
             <div className="max-w-2xl mx-auto w-full bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden">
                 <CreateGroupView 
                     currentUser={currentUser}
@@ -638,7 +659,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         setToastNotification({ message: 'Grupp skapad!', type: 'success' });
                     }}
                     setToastNotification={setToastNotification}
-                    buddyDetails={[]}
+                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
                     defaultIsSystemGroup={true}
                     defaultIsPublic={true}
                 />
@@ -662,6 +683,37 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         <UserGroupIcon className="w-5 h-5" />
                         Skapa Officiell Chattgrupp
                     </button>
+
+                    {myChats.length > 0 && (
+                        <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
+                            <h3 className="font-bold text-neutral-darker mb-4 flex items-center gap-2">
+                                <UsersIcon className="w-5 h-5 text-primary" />
+                                Mina Officiella Grupper
+                            </h3>
+                            <div className="space-y-3">
+                                {myChats.map(chat => (
+                                    <div 
+                                        key={chat.id} 
+                                        onClick={() => setSelectedChat(chat)}
+                                        className="bg-gray-50 p-4 rounded-xl border border-neutral-light cursor-pointer hover:bg-primary-50 transition-colors flex justify-between items-center"
+                                    >
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-bold text-neutral-dark">{chat.name}</h4>
+                                                {chat.pendingMembers && chat.pendingMembers.length > 0 && (
+                                                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                        {chat.pendingMembers.length} förfrågningar
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-neutral mt-1">{chat.members.length} medlemmar</p>
+                                        </div>
+                                        <ChevronUpIcon className="w-5 h-5 text-neutral transform rotate-90" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">

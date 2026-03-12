@@ -215,6 +215,9 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
     const lastRead = mySettings?.lastReadTimestamp || 0;
     const hasUnread = chat.lastMessage && chat.lastMessage.timestamp > lastRead && chat.lastMessage.senderId !== currentUser.uid;
     const isMuted = mySettings?.notificationLevel === 'mute';
+    const isAdmin = chat.admins.includes(currentUser.uid);
+    const pendingCount = chat.pendingMembers?.length || 0;
+    const hasPendingRequests = isAdmin && pendingCount > 0;
 
     return (
         <div 
@@ -231,11 +234,18 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
                      chat.type === 'private_group' ? <LockIcon className="w-4 h-4 text-orange-400 flex-shrink-0" /> : 
                      chat.type === 'coach_group' ? <ShieldIcon className="w-4 h-4 text-primary flex-shrink-0" /> : null}
                 </div>
-                {chat.lastMessage && (
-                    <span className={`text-xs flex-shrink-0 mt-1 ${hasUnread ? 'text-primary font-bold' : 'text-neutral'}`}>
-                        {new Date(chat.lastMessage.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                )}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    {hasPendingRequests && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            {pendingCount}
+                        </span>
+                    )}
+                    {chat.lastMessage && (
+                        <span className={`text-xs ${hasUnread ? 'text-primary font-bold' : 'text-neutral'}`}>
+                            {new Date(chat.lastMessage.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    )}
+                </div>
             </div>
             <div className="flex justify-between items-center">
                 <p className={`text-sm truncate pr-2 ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
@@ -252,7 +262,7 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
     );
 };
 
-const ChatWindow: React.FC<{ 
+export const ChatWindow: React.FC<{ 
     chat: Chat, 
     currentUser: User, 
     userProfile: UserProfileData, 
@@ -812,8 +822,13 @@ const ChatWindow: React.FC<{
                     </div>
                     {isAdmin && (
                         <div className="relative">
-                            <button onClick={() => setShowAdminMenu(!showAdminMenu)} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100">
+                            <button onClick={() => setShowAdminMenu(!showAdminMenu)} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100 relative">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                {chat.pendingMembers && chat.pendingMembers.length > 0 && (
+                                    <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full transform translate-x-1/4 -translate-y-1/4">
+                                        {chat.pendingMembers.length}
+                                    </span>
+                                )}
                             </button>
                             {showAdminMenu && (
                                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-neutral-light py-1 z-20">
