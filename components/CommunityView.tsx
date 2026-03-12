@@ -1044,7 +1044,17 @@ const ShareModal: FC<{
         setIsSharing(true);
         try {
             const messageText = `Kolla in min senaste händelse: ${event.title}\nhttps://kostloggen.se/?view=community&highlight=${event.id}`;
-            await sendMessage(chat.id, currentUser.uid, userProfile.name || 'En kompis', messageText, userProfile.photoURL);
+            
+            const sharedEventPreview = {
+                id: event.id,
+                title: event.title,
+                description: event.description,
+                icon: event.icon,
+                imageUrl: event.imageUrl,
+                type: event.type
+            };
+
+            await sendMessage(chat.id, currentUser.uid, userProfile.name || 'En kompis', messageText, userProfile.photoURL, undefined, undefined, sharedEventPreview);
             setToastNotification({ message: 'Händelsen har delats!', type: 'success' });
             onClose();
         } catch (error) {

@@ -305,6 +305,7 @@ export const ChatWindow: React.FC<{
     const [isAddingMembers, setIsAddingMembers] = useState(false);
     const [selectedBuddies, setSelectedBuddies] = useState<string[]>([]);
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+    const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [showAdminMenu, setShowAdminMenu] = useState(false);
@@ -583,6 +584,14 @@ export const ChatWindow: React.FC<{
         setNewMessage('');
         setSelectedImage(null);
         setEditingMessageId(null);
+        
+        const replyToData = replyingToMessage ? {
+            messageId: replyingToMessage.id,
+            senderName: replyingToMessage.senderName,
+            text: replyingToMessage.text,
+            imageUrl: replyingToMessage.imageUrl
+        } : undefined;
+        setReplyingToMessage(null);
 
         try {
             if (editingMessageId) {
@@ -598,7 +607,8 @@ export const ChatWindow: React.FC<{
                     senderName, 
                     text, 
                     senderPhoto,
-                    imageToSend || undefined
+                    imageToSend || undefined,
+                    replyToData
                 );
             }
         } catch (error) {
@@ -1072,6 +1082,21 @@ export const ChatWindow: React.FC<{
                                 </div>
                             )}
                             <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : isNewMessage ? 'bg-primary-50 border border-primary-200 text-neutral-dark rounded-bl-sm shadow-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}>
+                                {msg.replyTo && (
+                                    <div className={`mb-2 p-2 rounded-lg text-sm border-l-4 ${isMe ? 'bg-primary-dark/30 border-white/50 text-white/90' : 'bg-gray-100 border-primary text-neutral-dark'}`}>
+                                        <div className="font-bold text-xs mb-0.5">{msg.replyTo.senderName}</div>
+                                        <div className="truncate opacity-90">{msg.replyTo.text || (msg.replyTo.imageUrl ? 'Bild' : '')}</div>
+                                    </div>
+                                )}
+                                {msg.sharedEventPreview && (
+                                    <div className={`mb-2 p-3 rounded-xl border ${isMe ? 'bg-primary-dark/20 border-white/20' : 'bg-gray-50 border-neutral-light'} cursor-pointer`} onClick={() => window.location.href = `/?view=community&highlight=${msg.sharedEventPreview!.id}`}>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-xl">{msg.sharedEventPreview.icon}</span>
+                                            <span className="font-bold text-sm">{msg.sharedEventPreview.title}</span>
+                                        </div>
+                                        <p className="text-xs opacity-90 line-clamp-2">{msg.sharedEventPreview.description}</p>
+                                    </div>
+                                )}
                                 {msg.imageUrl && (
                                     <div className="bg-white rounded-lg p-1 mb-2">
                                         <img src={msg.imageUrl} alt="Bifogad bild" className="max-w-full rounded-lg" />
@@ -1130,6 +1155,9 @@ export const ChatWindow: React.FC<{
                                                 <PlusIcon className="w-4 h-4" />
                                             </button>
                                         </div>
+                                        <button onClick={() => setReplyingToMessage(msg)} className="p-1 text-neutral hover:text-primary rounded hover:bg-gray-100" title="Svara">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                        </button>
                                         {(isMyMessage || isAdmin) && (
                                             <>
                                                 {isMyMessage && (
@@ -1195,7 +1223,24 @@ export const ChatWindow: React.FC<{
                         </button>
                     </div>
                 )}
-                <form onSubmit={handleSend} className="flex items-end gap-2 relative">
+                {replyingToMessage && (
+                    <div className="flex items-center justify-between bg-gray-50 p-2 rounded-t-xl border-x border-t border-neutral-light -mb-3 pb-4 relative z-0">
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-bold text-primary">Svarar {replyingToMessage.senderName}</span>
+                            <span className="text-sm text-neutral-dark truncate">
+                                {replyingToMessage.text || (replyingToMessage.imageUrl ? 'Bild' : '')}
+                            </span>
+                        </div>
+                        <button 
+                            type="button"
+                            onClick={() => setReplyingToMessage(null)}
+                            className="p-1 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-200 transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                )}
+                <form onSubmit={handleSend} className="flex items-end gap-2 relative z-10">
                     {mentionSearch !== null && filteredMembers.length > 0 && (
                         <div className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-xl shadow-lg border border-neutral-light overflow-hidden z-50">
                             {filteredMembers.map((member, idx) => (

@@ -178,7 +178,9 @@ export const sendMessage = async (
   senderName: string,
   text: string,
   senderPhotoURL?: string,
-  imageUrl?: string
+  imageUrl?: string,
+  replyTo?: ChatMessage['replyTo'],
+  sharedEventPreview?: ChatMessage['sharedEventPreview']
 ) => {
   if (!db) return;
   const timestamp = Date.now();
@@ -191,7 +193,9 @@ export const sendMessage = async (
     text,
     timestamp,
     ...(senderPhotoURL ? { senderPhotoURL } : {}),
-    ...(imageUrl ? { imageUrl } : {})
+    ...(imageUrl ? { imageUrl } : {}),
+    ...(replyTo ? { replyTo } : {}),
+    ...(sharedEventPreview ? { sharedEventPreview } : {})
   };
 
   await addDoc(collection(db, `chats/${chatId}/messages`), messageData);

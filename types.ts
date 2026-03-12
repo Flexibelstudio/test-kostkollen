@@ -512,6 +512,20 @@ export interface ChatMessage {
   mentions?: string[]; // Array of userIds
   likes?: string[]; // Legacy: Array of userIds who liked the message
   reactions?: Reactions;
+  replyTo?: {
+    messageId: string;
+    senderName: string;
+    text: string;
+    imageUrl?: string;
+  };
+  sharedEventPreview?: {
+    id: string;
+    title: string;
+    description: string;
+    icon: string;
+    imageUrl?: string;
+    type: string;
+  };
 }
 
 export interface Chat {
