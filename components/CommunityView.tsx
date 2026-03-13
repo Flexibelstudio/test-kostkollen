@@ -735,7 +735,7 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const inviteText = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nAnvänd koden GRATIS30 när du skapar ditt konto så får du 30 dagar helt gratis!\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
+    const inviteText = `Haka på mig och gå ner i vikt med Kostloggen så kan vi peppa varandra! 🌟\n\nAnvänd koden GRATIS30 när du skapar ditt konto så får du 30 dagar helt gratis!\n\nLadda ner appen och lägg till mig som kompis här: https://app.kostloggen.se`;
 
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
@@ -861,18 +861,6 @@ const FriendManagementView: FC<{
             case 'buddies':
                 return (
                     <div className="space-y-4">
-                        <div className="bg-gradient-to-r from-primary to-primary-darker rounded-xl p-4 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div>
-                                <h3 className="font-bold text-lg mb-1">Bjud in en vän! 🎁</h3>
-                                <p className="text-sm text-primary-50">Ge bort 30 dagar gratis med koden <span className="font-bold bg-white/20 px-2 py-0.5 rounded">GRATIS30</span></p>
-                            </div>
-                            <button 
-                                onClick={() => setShowInviteOptionsModal(true)}
-                                className="whitespace-nowrap px-4 py-2 bg-white text-primary font-bold rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
-                            >
-                                Bjud in nu
-                            </button>
-                        </div>
                         <div className="relative">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                             <input 
@@ -905,12 +893,6 @@ const FriendManagementView: FC<{
             case 'search':
                 return (
                     <div className="animate-fade-in space-y-4">
-                        <button
-                            onClick={() => setShowInviteOptionsModal(true)}
-                            className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
-                        >
-                            Bjud in en vän
-                        </button>
                         <div className="relative">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                              <input 
@@ -982,6 +964,20 @@ const FriendManagementView: FC<{
                 </nav>
             </div>
             <div className="flex-grow overflow-y-auto custom-scrollbar mt-4">
+                {(activeTab === 'buddies' || activeTab === 'search') && (
+                    <div className="-mx-4 -mt-4 mb-4 px-4 py-2.5 bg-gradient-to-r from-primary to-primary-darker text-white flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2 text-sm">
+                            <span className="font-medium">Ge bort 30 dagar gratis! 🎁</span>
+                            <span className="hidden sm:inline text-primary-50 text-xs">Använd kod: <span className="font-bold bg-white/20 px-1.5 py-0.5 rounded">GRATIS30</span></span>
+                        </div>
+                        <button 
+                            onClick={() => setShowInviteOptionsModal(true)}
+                            className="whitespace-nowrap px-3 py-1 bg-white text-primary text-xs font-bold rounded shadow-sm hover:bg-gray-50 transition-colors"
+                        >
+                            Bjud in
+                        </button>
+                    </div>
+                )}
                 {renderTabContent()}
             </div>
             {buddyToRemove && (
