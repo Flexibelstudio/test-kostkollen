@@ -952,9 +952,9 @@ const FriendManagementView: FC<{
     };
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden">
-            <div className="flex-shrink-0 px-4 pt-4 w-full overflow-x-auto hide-scrollbar">
-                <nav className="flex -mb-px border-b border-neutral-light min-w-max">
+        <div className="flex flex-col h-full w-full">
+            <div className="flex-shrink-0 px-4 pt-4">
+                <nav className="flex -mb-px border-b border-neutral-light">
                     <button onClick={() => setActiveTab('buddies')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'buddies' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina kompisar</button>
                     <button onClick={() => setActiveTab('search')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'search' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Hitta kompisar</button>
                     <button onClick={() => setActiveTab('requests')} className={`relative py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'requests' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>
@@ -965,7 +965,7 @@ const FriendManagementView: FC<{
             </div>
             
             {(activeTab === 'buddies' || activeTab === 'search') && (
-                <div className="flex-shrink-0 w-full bg-gradient-to-r from-primary to-primary-darker text-white flex items-center justify-between px-4 py-2.5 shadow-sm mt-2">
+                <div className="flex-shrink-0 w-full bg-gradient-to-r from-primary to-primary-darker text-white flex items-center justify-between px-4 py-2.5 shadow-sm mt-0">
                     <div className="flex items-center gap-2 text-sm">
                         <span className="font-medium">Ge bort 30 dagar gratis! 🎁</span>
                         <span className="hidden sm:inline text-primary-50 text-xs">Använd kod: <span className="font-bold bg-white/20 px-1.5 py-0.5 rounded">GRATIS30</span></span>
