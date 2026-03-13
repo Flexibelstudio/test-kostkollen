@@ -18,6 +18,74 @@ export interface AIDataForMorningBriefing {
   yesterdayMeals?: any[];
 }
 
+export const generateGrowthEngineMessage = async (context: string, userNames: string[]): Promise<string> => {
+  const prompt = `Du är en professionell och peppande hälsocoach. Din uppgift är att skriva ett utkast till ett direktmeddelande som ska skickas till en eller flera medlemmar i din app.
+
+Kontext för meddelandet: "${context}"
+Mottagare (namn): ${userNames.join(', ')}
+
+Instruktioner:
+1. Skriv ett kort, personligt och engagerande meddelande på SVENSKA.
+2. Om det är flera mottagare, skriv det så att det passar att skickas till var och en individuellt (t.ex. "Hej [Namn]!"). Använd platshållaren [Namn] om det är flera, annars använd personens namn direkt om det bara är en.
+3. Håll det kort (max 3-4 meningar).
+4. Tonen ska vara uppmuntrande, stöttande och inte dömande.
+5. Avsluta med en öppen fråga eller en enkel uppmaning (call to action).
+
+Svara ENDAST med själva meddelandetexten, inga kommentarer eller extra text.`;
+
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL_NAME_TEXT,
+      contents: prompt,
+      config: {
+        temperature: 0.7,
+      },
+    });
+    
+    const text = response.text;
+    if (!text || text.trim().length === 0) {
+        throw new Error("Empty response from AI");
+    }
+    return text.trim();
+  } catch (error) {
+    console.error("Error generating growth engine message:", error);
+    return `Hej! Jag ville bara kika in och se hur det går för dig. Säg till om du behöver någon hjälp eller pepp!`;
+  }
+};
+
+export const generateCommunityPost = async (context: string): Promise<string> => {
+  const prompt = `Du är en professionell och peppande hälsocoach. Din uppgift är att skriva ett utkast till ett inlägg i appens community för att driva engagemang.
+
+Kontext för inlägget: "${context}"
+
+Instruktioner:
+1. Skriv ett engagerande och peppande inlägg på SVENSKA.
+2. Inlägget ska uppmuntra till diskussion och interaktion (t.ex. ställ en fråga, be om tips, skapa en omröstning i textform).
+3. Håll det lagom långt (ca 3-5 meningar).
+4. Tonen ska vara inbjudande och positiv.
+
+Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text.`;
+
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL_NAME_TEXT,
+      contents: prompt,
+      config: {
+        temperature: 0.8,
+      },
+    });
+    
+    const text = response.text;
+    if (!text || text.trim().length === 0) {
+        throw new Error("Empty response from AI");
+    }
+    return text.trim();
+  } catch (error) {
+    console.error("Error generating community post:", error);
+    return `Hej allihopa! Hur går det med era mål den här veckan? Dela gärna med er av era bästa tips för att hålla motivationen uppe! 👇`;
+  }
+};
+
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
   const { userProfile, summary, currentStreak } = data;
   const style = userProfile.coachStyle || 'balanced';
