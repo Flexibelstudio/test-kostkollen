@@ -7,7 +7,7 @@ import type { User } from '@firebase/auth';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from './icons';
 import { User as UserIconLucide, PieChart, TrendingDown, Users as UsersIcon } from 'lucide-react';
 import { playAudio } from '../services/audioService';
-import { subscribeToSystemGroups } from '../services/chatService';
+import { subscribeToSystemGroups, subscribeToPublicRooms } from '../services/chatService';
 import { 
     fetchCoachViewMembers, 
     approveMember,
@@ -95,12 +95,30 @@ const BulkActionButton: React.FC<{ onClick: () => void; children: React.ReactNod
     </button>
 );
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void }> = ({ membersList, isExpanded, onToggle }) => {
+const getTodayKey = () => {
+    const z = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+    const year = z.getFullYear();
+    const month = String(z.getMonth() + 1).padStart(2, '0');
+    const day = String(z.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
+        const todayKey = getTodayKey();
+        const activeTodayCount = activeMembers.filter(m => m.lastLogDate === todayKey).length;
+        
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const newMembers7d = activeMembers.filter(m => {
+            if (!m.memberSince || m.memberSince === 'Aldrig') return false;
+            const memberDate = new Date(m.memberSince);
+            return memberDate >= sevenDaysAgo;
+        }).length;
 
-        if (totalActiveCount === 0) return { totalActiveCount: 0, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0 };
+        if (totalActiveCount === 0) return { totalActiveCount: 0, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0, activeTodayCount: 0, newMembers7d: 0 };
 
         const membersWithStreak = activeMembers.filter(m => (m.currentStreak || 0) > 0);
         const percentWithStreak = (membersWithStreak.length / totalActiveCount) * 100;
@@ -131,7 +149,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
         const maintainCount = activeMembers.filter(m => m.goalSummary === 'Bibehålla').length;
         const proteinGoalMetPercentage7d = activeMembers.reduce((sum, m) => sum + (m.proteinGoalMetPercentage7d || 0), 0) / totalActiveCount;
 
-        return { totalActiveCount, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d };
+        return { totalActiveCount, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d, activeTodayCount, newMembers7d };
     }, [membersList]);
 
     return (
@@ -157,7 +175,9 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
                 id="group-insights-panel" 
                 className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6 transition-all duration-500 ease-in-out ${isExpanded ? 'opacity-100 max-h-[1000px]' : 'opacity-0 max-h-0 overflow-hidden mt-0'}`}
             >
-                <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} colorClass="bg-blue-100" textClass="text-blue-600" />
+                <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-blue-100" textClass="text-blue-600" />
+                <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-emerald-100" textClass="text-emerald-600" />
+                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" />
                 <StatCard icon={<CheckCircleIcon />} title="Väntar godkännande" value={groupInsights.pendingCount.toString()} colorClass="bg-yellow-100" textClass="text-yellow-600" />
                 <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
@@ -565,13 +585,20 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [myChats, setMyChats] = useState<Chat[]>([]);
+  const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
 
   useEffect(() => {
-      const unsubscribe = subscribeToSystemGroups((chats) => {
+      const unsubscribeSystem = subscribeToSystemGroups((chats) => {
           setMyChats(chats);
       });
-      return () => unsubscribe();
+      const unsubscribePublic = subscribeToPublicRooms((chats) => {
+          setPublicRooms(chats);
+      });
+      return () => {
+          unsubscribeSystem();
+          unsubscribePublic();
+      };
   }, []);
 
   useEffect(() => {
@@ -677,7 +704,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             </div>
         ) : (
             <>
-                <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} />
+                <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} systemGroupsCount={myChats.length} publicRoomsCount={publicRooms.length} />
                 
                 <div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
                     <CreatePostWidget 
