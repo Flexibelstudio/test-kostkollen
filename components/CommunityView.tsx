@@ -735,7 +735,7 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const inviteText = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
+    const inviteText = `Haka på mig och gå ner i vikt med Kostloggen så kan vi peppa varandra! 🌟\n\nAnvänd koden GRATIS30 när du skapar ditt konto så får du 30 dagar helt gratis!\n\nLadda ner appen och lägg till mig som kompis här: https://app.kostloggen.se`;
 
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
@@ -893,12 +893,6 @@ const FriendManagementView: FC<{
             case 'search':
                 return (
                     <div className="animate-fade-in space-y-4">
-                        <button
-                            onClick={() => setShowInviteOptionsModal(true)}
-                            className="w-full flex items-center justify-center px-5 py-3 bg-primary hover:bg-primary-darker text-white text-lg font-medium rounded-lg shadow-sm active:scale-95 interactive-transition"
-                        >
-                            Bjud in en vän
-                        </button>
                         <div className="relative">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                              <input 
@@ -958,8 +952,8 @@ const FriendManagementView: FC<{
     };
 
     return (
-        <div className="p-4 flex flex-col h-full">
-            <div className="flex-shrink-0">
+        <div className="flex flex-col h-full w-full">
+            <div className="flex-shrink-0 px-4 pt-4">
                 <nav className="flex -mb-px border-b border-neutral-light">
                     <button onClick={() => setActiveTab('buddies')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'buddies' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina kompisar</button>
                     <button onClick={() => setActiveTab('search')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'search' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Hitta kompisar</button>
@@ -969,7 +963,25 @@ const FriendManagementView: FC<{
                     </button>
                 </nav>
             </div>
-            <div className="flex-grow overflow-y-auto custom-scrollbar mt-4">
+            
+            {(activeTab === 'buddies' || activeTab === 'search') && (
+                <div className="flex-shrink-0 w-full bg-gradient-to-r from-primary to-primary-darker text-white flex items-center justify-between px-4 py-2.5 shadow-sm mt-0">
+                    <div className="flex flex-col text-sm">
+                        <span className="font-medium">Ge bort 30 dagar gratis! 🎁</span>
+                        <span className="text-primary-50 text-xs mt-0.5">
+                            app.kostloggen.se | Kod: <span className="font-bold bg-white/20 px-1 py-0.5 rounded ml-0.5">GRATIS30</span>
+                        </span>
+                    </div>
+                    <button 
+                        onClick={() => setShowInviteOptionsModal(true)}
+                        className="whitespace-nowrap px-3 py-1.5 bg-white text-primary text-xs font-bold rounded shadow-sm hover:bg-gray-50 transition-colors"
+                    >
+                        Bjud in
+                    </button>
+                </div>
+            )}
+
+            <div className="flex-grow overflow-y-auto custom-scrollbar p-4">
                 {renderTabContent()}
             </div>
             {buddyToRemove && (
