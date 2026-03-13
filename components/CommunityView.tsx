@@ -735,7 +735,7 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const inviteText = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
+    const inviteText = `Hej! Jag använder en app som heter Kostloggen för att få koll på min hälsa och det är faktiskt riktigt bra. Tänkte om du ville haka på så kan vi peppa varandra?\n\nAnvänd koden GRATIS30 när du skapar ditt konto så får du 30 dagar helt gratis!\n\nLadda ner den och lägg till mig som kompis här: https://app.kostloggen.se`;
 
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
@@ -861,6 +861,18 @@ const FriendManagementView: FC<{
             case 'buddies':
                 return (
                     <div className="space-y-4">
+                        <div className="bg-gradient-to-r from-primary to-primary-darker rounded-xl p-4 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                                <h3 className="font-bold text-lg mb-1">Bjud in en vän! 🎁</h3>
+                                <p className="text-sm text-primary-50">Ge bort 30 dagar gratis med koden <span className="font-bold bg-white/20 px-2 py-0.5 rounded">GRATIS30</span></p>
+                            </div>
+                            <button 
+                                onClick={() => setShowInviteOptionsModal(true)}
+                                className="whitespace-nowrap px-4 py-2 bg-white text-primary font-bold rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
+                            >
+                                Bjud in nu
+                            </button>
+                        </div>
                         <div className="relative">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                             <input 
