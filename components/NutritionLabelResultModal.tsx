@@ -143,22 +143,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                         </select>
                     </div>
                     {(unit === 'portion' || unit === 'st') && (
-                        <div className="flex items-center justify-center gap-1 max-w-xs mx-auto">
-                            {[0.5, 0.75, 1, 1.5, 2].map(multiplier => (
-                                <button
-                                    key={multiplier}
-                                    type="button"
-                                    onClick={() => setAmountInput(multiplier.toString())}
-                                    className={`flex-1 py-1 px-1 rounded-md font-bold text-xs transition-all ${
-                                        parseFloat(amountInput) === multiplier
-                                            ? 'bg-primary text-white shadow-sm'
-                                            : 'bg-neutral-light text-neutral-dark hover:bg-neutral-200'
-                                    }`}
-                                >
-                                    {multiplier * 100}%
-                                </button>
-                            ))}
-                        </div>
+                        <p className="text-[10px] text-neutral-500 mt-1.5 text-center">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                     )}
                 </div>
 

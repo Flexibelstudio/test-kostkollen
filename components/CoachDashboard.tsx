@@ -1054,45 +1054,48 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     </button>
                 </div>
                 
-                <div className="overflow-y-auto custom-scrollbar flex-1 pr-2 space-y-4">
-                    {[...myChats, ...publicRooms].sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0)).map(chat => (
-                        <div key={chat.id} className="bg-neutral-50 p-4 rounded-xl border border-neutral-100 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h4 className="font-bold text-neutral-dark">{chat.name}</h4>
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                                        {chat.isSystemGroup ? 'Officiell' : 'Publik'}
-                                    </span>
-                                </div>
-                                <p className="text-xs text-neutral mt-1.5 flex items-center gap-2 flex-wrap">
-                                    <span className="flex items-center gap-1">
-                                        <UsersIcon className="w-3.5 h-3.5" /> {chat.members?.length || 0} medlemmar
-                                    </span>
-                                    {!chat.isSystemGroup && (
-                                        <>
-                                            <span className="text-neutral-300">•</span>
+                <div className="overflow-y-auto custom-scrollbar flex-1 pr-2">
+                    <div className="divide-y divide-neutral-light/50">
+                        {[...myChats, ...publicRooms].sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0)).map(chat => (
+                            <div key={chat.id} className="py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h4 className="font-bold text-neutral-dark text-lg">{chat.name}</h4>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                            {chat.isSystemGroup ? 'Officiell' : 'Publik'}
+                                        </span>
+                                        {!chat.isSystemGroup && chat.requiresApproval && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                                                Kräver godkännande
+                                            </span>
+                                        )}
+                                        {!chat.isSystemGroup && !chat.requiresApproval && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                                Öppen
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-neutral flex items-center gap-3 flex-wrap">
+                                        <span className="flex items-center gap-1">
+                                            <UsersIcon className="w-4 h-4" /> {chat.members?.length || 0} medlemmar
+                                        </span>
+                                        {!chat.isSystemGroup && (
                                             <span className="flex items-center gap-1">
-                                                <span className="text-[10px]">👑</span> 
+                                                <span className="text-xs">👑</span> 
                                                 Admin: {chat.admins?.map(adminId => membersList.find(m => m.id === adminId)?.name || 'Okänd').join(', ') || 'Ingen admin'}
                                             </span>
-                                        </>
+                                        )}
+                                    </p>
+                                    {chat.description && (
+                                        <p className="text-sm text-neutral-500 mt-2 italic">"{chat.description}"</p>
                                     )}
-                                </p>
+                                </div>
                             </div>
-                            <button 
-                                onClick={() => {
-                                    setSelectedChat(chat);
-                                    setShowAllGroupsModal(false);
-                                }}
-                                className="px-3 py-1.5 bg-white border border-neutral-light text-sm font-medium rounded-lg hover:bg-neutral-light/50 transition-colors"
-                            >
-                                Visa grupp
-                            </button>
-                        </div>
-                    ))}
-                    {myChats.length === 0 && publicRooms.length === 0 && (
-                        <p className="text-center text-neutral-500 py-8">Inga grupper finns i systemet ännu.</p>
-                    )}
+                        ))}
+                        {myChats.length === 0 && publicRooms.length === 0 && (
+                            <p className="text-center text-neutral-500 py-8">Inga grupper finns i systemet ännu.</p>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

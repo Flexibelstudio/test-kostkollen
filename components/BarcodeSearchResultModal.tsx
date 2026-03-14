@@ -124,27 +124,12 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
           <div className="grid grid-cols-2 gap-4">
               <div>
                   <label htmlFor="amount" className={labelClass}>Mängd</label>
-                  <div className="relative mb-2">
+                  <div className="relative">
                       <input type="text" id="amount" value={amount} onChange={handleAmountChange} className={`${inputClass} pr-8`} inputMode="decimal" />
                       <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                   </div>
                   {(unit === 'portion' || unit === 'st') && (
-                      <div className="flex items-center gap-1">
-                          {[0.5, 0.75, 1, 1.5, 2].map(multiplier => (
-                              <button
-                                  key={multiplier}
-                                  type="button"
-                                  onClick={() => setAmount(multiplier.toString())}
-                                  className={`flex-1 py-1 px-1 rounded-md font-bold text-xs transition-all ${
-                                      parseFloat(amount) === multiplier
-                                          ? 'bg-primary text-white shadow-sm'
-                                          : 'bg-neutral-light text-neutral-dark hover:bg-neutral-200'
-                                  }`}
-                              >
-                                  {multiplier * 100}%
-                              </button>
-                          ))}
-                      </div>
+                      <p className="text-[10px] text-neutral-500 mt-1.5 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                   )}
               </div>
                <div>

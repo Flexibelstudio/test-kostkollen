@@ -412,21 +412,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                     </button>
                     </div>
                 </div>
-                <div className="flex items-center justify-end gap-1">
-                    {[0.5, 0.75, 1, 1.5, 2].map(multiplier => (
-                        <button
-                            key={multiplier}
-                            type="button"
-                            onClick={() => setPortionsToLog(multiplier.toString())}
-                            className={`py-1 px-2 rounded-md font-bold text-xs transition-all ${
-                                parseFloat(portionsToLog) === multiplier
-                                    ? 'bg-primary text-white shadow-sm'
-                                    : 'bg-neutral-light text-neutral-dark hover:bg-neutral-200'
-                            }`}
-                        >
-                            {multiplier * 100}%
-                        </button>
-                    ))}
+                <div className="flex items-center justify-end mt-1">
+                    <p className="text-[10px] text-neutral-500">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                 </div>
             </div>
           </div>
