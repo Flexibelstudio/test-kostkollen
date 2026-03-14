@@ -66,26 +66,31 @@ const StatCard: React.FC<{
   </div>
 );
 
-const SubscriptionBadge: React.FC<{ status?: 'active' | 'canceling' | 'canceled' }> = ({ status }) => {
+const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive' }> = ({ status }) => {
     let classes = "";
     let label = "";
     
     switch(status) {
         case 'active':
             classes = 'bg-green-50 text-green-700 border-green-200';
-            label = 'Aktiv';
+            label = '🟢 Aktiv (Betalande)';
+            break;
+        case 'trialing':
+            classes = 'bg-yellow-50 text-yellow-700 border-yellow-200';
+            label = '🟡 Testperiod';
             break;
         case 'canceling':
-            classes = 'bg-yellow-50 text-yellow-700 border-yellow-200';
-            label = 'Sägs upp';
+            classes = 'bg-orange-50 text-orange-700 border-orange-200';
+            label = '🟡 Sägs upp';
             break;
         case 'canceled':
+        case 'inactive':
             classes = 'bg-red-50 text-red-700 border-red-200';
-            label = 'Avslutad';
+            label = '🔴 Inaktiv / Avbruten';
             break;
         default:
-            classes = 'bg-gray-50 text-gray-600 border-gray-200';
-            label = 'Okänd';
+            classes = 'bg-red-50 text-red-700 border-red-200';
+            label = '🔴 Inaktiv / Avbruten';
             break;
     }
 
@@ -496,6 +501,12 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         });
     }, [handleAction]);
 
+    const handleUpdateSubscriptionStatus = useCallback((memberId: string, newStatus: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive') => {
+        handleAction(updateUserDocument(memberId, { subscriptionStatus: newStatus }), memberId).then(() => {
+            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, subscriptionStatus: newStatus } : m));
+        });
+    }, [handleAction]);
+
     const handleBulkAction = useCallback(async (action: 'setRoleCoach' | 'setRoleMember') => {
         const idsToUpdate = Array.from(selectedMemberIds) as string[];
         if (idsToUpdate.length === 0) return;
@@ -549,7 +560,7 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
         selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
         searchQuery, setSearchQuery, fetchMembers, handleArchiveMember, handleUnarchiveMember,
-        handleUpdateRole, handleBulkAction, sortedAndFilteredMembers
+        handleUpdateRole, handleUpdateSubscriptionStatus, handleBulkAction, sortedAndFilteredMembers
     };
 };
 
@@ -615,7 +626,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
       selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
       searchQuery, setSearchQuery, fetchMembers, handleArchiveMember, handleUnarchiveMember,
-      handleUpdateRole, handleBulkAction, sortedAndFilteredMembers
+      handleUpdateRole, handleUpdateSubscriptionStatus, handleBulkAction, sortedAndFilteredMembers
   } = useCoachDashboard();
   
   const handleSort = (column: SortableKeys) => {
@@ -930,7 +941,11 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         </div>
       )}
     </div>
-    <MemberDetailModal member={selectedMember} onClose={() => setSelectedMember(null)} />
+    <MemberDetailModal 
+        member={selectedMember} 
+        onClose={() => setSelectedMember(null)} 
+        onUpdateSubscriptionStatus={handleUpdateSubscriptionStatus}
+    />
     </>
   );
 };
