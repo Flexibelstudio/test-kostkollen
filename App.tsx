@@ -6,8 +6,8 @@ import {
 } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
+import PendingApprovalScreen from './components/PendingApprovalScreen';
 import ArchivedUserScreen from './components/ArchivedUserScreen';
-import PendingSubscriptionScreen from './components/PendingSubscriptionScreen';
 import SplashScreen from './components/SplashScreen';
 import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
 
@@ -1577,12 +1577,12 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
   if (!currentUser) return <AuthForm onAuthStateChange={setCurrentUser} />;
   if (!isInitialDataLoaded) return <SplashScreen />;
 
-  if (userStatus === 'archived') {
-    return <ArchivedUserScreen onLogout={handleLogout} />;
+  if (userStatus === 'pending') {
+    return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} userId={currentUser.uid} />;
   }
 
-  if (userStatus === 'pending' && userRole !== 'coach' && userRole !== 'admin') {
-    return <PendingSubscriptionScreen onLogout={handleLogout} />;
+  if (userStatus === 'archived') {
+    return <ArchivedUserScreen onLogout={handleLogout} />;
   }
   
   if ((userRole === 'coach' || userRole === 'admin') && currentInterface === 'coach') {

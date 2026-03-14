@@ -830,19 +830,6 @@ export async function savePushSubscription(userId: string, subscription: object)
 
 /* ===== Course ===== */
 
-export async function fetchCourseProgressForUser(userId: string): Promise<UserCourseProgress> {
-  if (!db) return {};
-  const courseProgressRef = collection(db, 'users', userId, 'courseProgress');
-  const snapshot = await getDocsSafe(courseProgressRef);
-  
-  const courseProgress: UserCourseProgress = {};
-  snapshot.forEach(doc => {
-    courseProgress[doc.id] = doc.data() as UserLessonProgress;
-  });
-  
-  return courseProgress;
-}
-
 export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved' | 'archived') {
   if (!db) return;
   const courseProgressRef = doc(db, 'users', userId, 'courseProgress', lessonId);
@@ -925,7 +912,6 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
       email: data.email || 'N/A',
       role: data.role,
       status: data.status,
-      subscriptionStatus: data.subscriptionStatus,
       photoURL: data.photoURL ?? undefined,
       memberSince: toDateString(data.createdAt),
       lastLogDate: data.lastLogDate ?? undefined,
