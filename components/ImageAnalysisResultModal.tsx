@@ -9,7 +9,7 @@ interface ImageAnalysisResultModalProps {
   show: boolean;
   analysisResult: NutritionalInfo | null;
   imageDataUrl: string | null;
-  onLog: (editedInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void; 
+  onLog: (editedInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType, portionMultiplier?: number }) => void; 
   onClose: () => void;
   defaultMealType?: MealType | null;
 }
@@ -18,6 +18,7 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
   const [editedInfo, setEditedInfo] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
   const [saveAsCommon, setSaveAsCommon] = useState<boolean>(false); 
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
+  const [portionMultiplier, setPortionMultiplier] = useState<number>(1);
 
   useEffect(() => {
     if (analysisResult) {
@@ -30,6 +31,7 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
       });
     }
     setSaveAsCommon(false); 
+    setPortionMultiplier(1);
   }, [analysisResult]);
 
   useEffect(() => {
@@ -69,7 +71,7 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
         carbohydrates: editedInfo.carbohydrates || 0,
         fat: editedInfo.fat || 0,
     };
-    onLog(validatedInfo, { saveAsCommon, mealType: selectedMealType }); 
+    onLog(validatedInfo, { saveAsCommon, mealType: selectedMealType, portionMultiplier }); 
     onClose(); // Close modal immediately after logging
   };
 
@@ -113,6 +115,26 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
                 <label className={labelClass + " mb-1"}>Måltidstyp</label>
                 <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
                 {!selectedMealType && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
+            </div>
+
+            <div>
+                <label className={labelClass + " mb-1"}>Portionsstorlek</label>
+                <div className="flex items-center gap-2">
+                    {[0.5, 0.75, 1, 1.5, 2].map(multiplier => (
+                        <button
+                            key={multiplier}
+                            type="button"
+                            onClick={() => setPortionMultiplier(multiplier)}
+                            className={`flex-1 py-2 px-1 rounded-xl font-bold text-sm transition-all ${
+                                portionMultiplier === multiplier
+                                    ? 'bg-primary text-white shadow-md'
+                                    : 'bg-neutral-light text-neutral-dark hover:bg-neutral-200'
+                            }`}
+                        >
+                            {multiplier * 100}%
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div>

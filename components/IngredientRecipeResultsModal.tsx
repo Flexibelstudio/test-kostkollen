@@ -211,10 +211,26 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                                     id={`portions-${recipe.title}`}
                                     value={portionsToLog[recipe.title] || "1"}
                                     onChange={(e) => handlePortionsChange(recipe.title, e.target.value)}
-                                    className={`${inputClass} w-full sm:w-32 py-1.5 text-sm`}
+                                    className={`${inputClass} w-full sm:w-32 py-1.5 text-sm mb-2`}
                                     placeholder="1"
                                     disabled={isLoggingDisabled}
                                 />
+                                <div className="flex items-center gap-1 w-full sm:w-64">
+                                    {[0.5, 0.75, 1, 1.5, 2].map(multiplier => (
+                                        <button
+                                            key={multiplier}
+                                            type="button"
+                                            onClick={() => handlePortionsChange(recipe.title, multiplier.toString())}
+                                            className={`flex-1 py-1 px-1 rounded-md font-bold text-xs transition-all ${
+                                                parseFloat(portionsToLog[recipe.title] || "1") === multiplier
+                                                    ? 'bg-primary text-white shadow-sm'
+                                                    : 'bg-neutral-light text-neutral-dark hover:bg-neutral-200'
+                                            }`}
+                                        >
+                                            {multiplier * 100}%
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 

@@ -17,7 +17,8 @@ import {
     updateUserRole,
     bulkApproveMembers,
     bulkUpdateUserRole,
-    createUserPost
+    createUserPost,
+    updateUserDocument
 } from '../services/firestoreService';
 import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
@@ -819,7 +820,16 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-neutral mt-1">{chat.members.length} medlemmar</p>
+                                            <p className="text-xs text-neutral mt-1.5 flex items-center gap-2 flex-wrap">
+                                                <span className="flex items-center gap-1">
+                                                    <UsersIcon className="w-3.5 h-3.5" /> {chat.members.length} medlemmar
+                                                </span>
+                                                <span className="text-neutral-300">•</span>
+                                                <span className="flex items-center gap-1">
+                                                    <span className="text-[10px]">👑</span> 
+                                                    Admin: {chat.admins?.map(adminId => membersList.find(m => m.id === adminId)?.name || 'Okänd').join(', ') || 'Ingen admin'}
+                                                </span>
+                                            </p>
                                         </div>
                                         <ChevronUpIcon className="w-5 h-5 text-neutral transform rotate-90" />
                                     </div>

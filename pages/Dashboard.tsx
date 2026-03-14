@@ -40,7 +40,8 @@ import {
 import { 
     analyzeFoodImage, 
     getRecipeSuggestion, 
-    getRecipesFromIngredientsImage, 
+    getRecipesFromIngredientsImage,
+    analyzeNutritionLabelImage 
 } from '../services/geminiService';
 import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
 
@@ -259,6 +260,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [foodRatingData, setFoodRatingData] = useState<{ nutritionalInfo: NutritionalInfo, mealType: MealType } | null>(null);
     const [showCommonMealsPopup, setShowCommonMealsPopup] = useState<CommonMeal | null>(null);
     const [selectedCommonMealType, setSelectedCommonMealType] = useState<MealType | null>(null);
+    const [selectedCommonMealPortion, setSelectedCommonMealPortion] = useState<number>(1);
 
     // Data states for modals
     const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
@@ -521,12 +523,13 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Handlers
     const handleAddMealToLog = async (
         data: LoggedMeal | Omit<LoggedMeal, 'id'> | NutritionalInfo | SearchedFoodInfo, 
-        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean }
+        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean; portionMultiplier?: number }
     ) => {
         if (!currentUser) return;
         
         const timestamp = Date.now();
         const mealType = options?.mealType || defaultMealTypeForModal || 'breakfast'; 
+        const multiplier = options?.portionMultiplier || 1;
         
         setIsSaving(true);
         setAppStatus('saving');
@@ -550,6 +553,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                 mealType: mealType,
                 nutritionalInfo: data as NutritionalInfo,
                 caloriesCoveredByBank: 0
+            };
+        }
+
+        if (multiplier !== 1) {
+            newMeal.nutritionalInfo = {
+                ...newMeal.nutritionalInfo,
+                calories: Math.round(newMeal.nutritionalInfo.calories * multiplier),
+                protein: Math.round(newMeal.nutritionalInfo.protein * multiplier),
+                carbohydrates: Math.round(newMeal.nutritionalInfo.carbohydrates * multiplier),
+                fat: Math.round(newMeal.nutritionalInfo.fat * multiplier),
             };
         }
 
@@ -663,6 +676,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const handleCommonMealLog = (commonMeal: CommonMeal) => {
         setSelectedCommonMealType(getSuggestedMealType());
+        setSelectedCommonMealPortion(1);
         setShowCommonMealsPopup(commonMeal);
     };
 
@@ -670,10 +684,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (showCommonMealsPopup) {
             handleAddMealToLog(
                 showCommonMealsPopup.nutritionalInfo, 
-                { mealType: type, skipRatingModal: true }
+                { mealType: type, skipRatingModal: true, portionMultiplier: selectedCommonMealPortion }
             );
             setShowCommonMealsPopup(null);
             setSelectedCommonMealType(null);
+            setSelectedCommonMealPortion(1);
         }
     }
 
@@ -1094,6 +1109,25 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onSelect={(type) => setSelectedCommonMealType(type)} 
                                 className="w-full" 
                             />
+                        </div>
+
+                        <div className="mb-8">
+                            <label className="block text-sm font-bold text-neutral-500 mb-3 uppercase tracking-wider">Portionsstorlek:</label>
+                            <div className="flex items-center gap-2">
+                                {[0.5, 0.75, 1, 1.5, 2].map(multiplier => (
+                                    <button
+                                        key={multiplier}
+                                        onClick={() => setSelectedCommonMealPortion(multiplier)}
+                                        className={`flex-1 py-2 px-1 rounded-xl font-bold text-sm transition-all ${
+                                            selectedCommonMealPortion === multiplier
+                                                ? 'bg-primary text-white shadow-md'
+                                                : 'bg-neutral-light text-neutral-dark hover:bg-neutral-200'
+                                        }`}
+                                    >
+                                        {multiplier * 100}%
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         <div className="flex flex-col gap-3">

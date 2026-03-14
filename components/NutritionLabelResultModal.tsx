@@ -117,7 +117,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
 
                 <div>
                     <label htmlFor="amountInput" className={`${labelClass} text-center`}>Hur mycket åt/drack du?</label>
-                    <div className="relative mt-1 max-w-xs mx-auto flex items-center shadow-sm rounded-lg">
+                    <div className="relative mt-1 max-w-xs mx-auto flex items-center shadow-sm rounded-lg mb-2">
                         <input
                             type="text"
                             id="amountInput"
@@ -142,6 +142,24 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                             <option value="portion">portion</option>
                         </select>
                     </div>
+                    {(unit === 'portion' || unit === 'st') && (
+                        <div className="flex items-center justify-center gap-1 max-w-xs mx-auto">
+                            {[0.5, 0.75, 1, 1.5, 2].map(multiplier => (
+                                <button
+                                    key={multiplier}
+                                    type="button"
+                                    onClick={() => setAmountInput(multiplier.toString())}
+                                    className={`flex-1 py-1 px-1 rounded-md font-bold text-xs transition-all ${
+                                        parseFloat(amountInput) === multiplier
+                                            ? 'bg-primary text-white shadow-sm'
+                                            : 'bg-neutral-light text-neutral-dark hover:bg-neutral-200'
+                                    }`}
+                                >
+                                    {multiplier * 100}%
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="pt-4 mt-2 border-t border-neutral-light/60">
