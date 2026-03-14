@@ -832,7 +832,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         
         {!selectedChat && !isCreatingGroup && (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-2">
-                <div className="flex space-x-6 border-b border-neutral-light">
+                <div className="flex justify-center space-x-4 sm:space-x-8 border-b border-neutral-light">
                     <button
                         onClick={() => setActiveTab('members')}
                         className={`py-3 px-2 font-bold text-sm border-b-2 transition-colors ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
