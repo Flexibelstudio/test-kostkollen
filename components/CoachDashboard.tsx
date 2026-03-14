@@ -786,20 +786,23 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         userRole={userRole}
                         isCoachDashboard={true}
                     />
-                    <button 
-                        onClick={() => setIsCreatingGroup(true)}
-                        className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-4 flex items-center justify-center gap-2 text-primary font-bold hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                    >
-                        <UserGroupIcon className="w-5 h-5" />
-                        Skapa Officiell Chattgrupp
-                    </button>
-
                     {myChats.length > 0 && (
                         <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
-                            <h3 className="font-bold text-neutral-darker mb-4 flex items-center gap-2">
-                                <UsersIcon className="w-5 h-5 text-primary" />
-                                Officiella Grupper
-                            </h3>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-neutral-darker flex items-center gap-2">
+                                    <UsersIcon className="w-5 h-5 text-primary" />
+                                    Officiella Grupper
+                                </h3>
+                                <button 
+                                    onClick={() => setIsCreatingGroup(true)}
+                                    className="p-2 bg-primary-50 text-primary rounded-full hover:bg-primary-100 transition-colors"
+                                    title="Skapa ny grupp"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                    </svg>
+                                </button>
+                            </div>
                             <div className="space-y-3">
                                 {myChats.map(chat => (
                                     <div 
