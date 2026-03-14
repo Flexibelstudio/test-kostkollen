@@ -149,7 +149,7 @@ const getTodayKey = () => {
     return `${year}-${month}-${day}`;
 };
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; onGroupsClick: () => void; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, onGroupsClick }) => {
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; onGroupsClick: () => void; onCourseClick: () => void; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, onGroupsClick, onCourseClick }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
@@ -229,7 +229,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
                 <StatCard icon={<ProteinIcon />} title="Proteinmål (7d)" value={`${groupInsights.proteinGoalMetPercentage7d.toFixed(0)}%`} subtitle="Genomsnittlig uppfyllnad" colorClass="bg-indigo-100" textClass="text-indigo-600" />
                 <StatCard icon={<TrophyIcon />} title="Streak-engagemang" value={`${groupInsights.percentWithStreak.toFixed(0)}%`} subtitle={`Snitt: ${groupInsights.averageStreak.toFixed(1)} dagar`} colorClass="bg-orange-100" textClass="text-orange-600" />
-                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} subtitle={`Snitt-slutförande: ${groupInsights.averageCourseProgress.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" />
+                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} subtitle={`Snitt-slutförande: ${groupInsights.averageCourseProgress.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" onClick={onCourseClick} />
             </div>
         </section>
     );
@@ -612,6 +612,11 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [showAllGroupsModal, setShowAllGroupsModal] = useState(false);
+  const [showCourseInsightsModal, setShowCourseInsightsModal] = useState(false);
+  const [courseInsightsData, setCourseInsightsData] = useState<{
+    isLoading: boolean;
+    data: { member: CoachViewMember; courseId: string; courseName: string }[];
+  }>({ isLoading: false, data: [] });
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
 
@@ -794,7 +799,52 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             />
         ) : (
             <>
-                <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} systemGroupsCount={myChats.length} publicRoomsCount={publicRooms.length} onGroupsClick={() => setShowAllGroupsModal(true)} />
+                <GroupInsights 
+                    membersList={membersList} 
+                    isExpanded={isInsightsExpanded} 
+                    onToggle={() => setIsInsightsExpanded(prev => !prev)} 
+                    systemGroupsCount={myChats.length} 
+                    publicRoomsCount={publicRooms.length} 
+                    onGroupsClick={() => setShowAllGroupsModal(true)} 
+                    onCourseClick={async () => {
+                        setShowCourseInsightsModal(true);
+                        setCourseInsightsData({ isLoading: true, data: [] });
+                        
+                        try {
+                            const { fetchCourseProgressForUser } = await import('../services/firestoreService');
+                            const { ALL_COURSES } = await import('./CoursesView');
+                            
+                            const membersOnCourse = membersList.filter(m => m.courseProgressSummary && m.courseProgressSummary.started);
+                            
+                            const dataPromises = membersOnCourse.map(async (member) => {
+                                const progress = await fetchCourseProgressForUser(member.id);
+                                
+                                let courseId = 'Okänd';
+                                let courseName = 'Okänd kurs';
+                                
+                                if (progress['lektion1']?.unlockedAt) {
+                                    courseId = 'praktisk-viktkontroll';
+                                } else if (progress['m-lektion1']?.unlockedAt) {
+                                    courseId = 'maxa-klimakteriet';
+                                }
+                                
+                                const courseInfo = ALL_COURSES.find(c => c.id === courseId);
+                                if (courseInfo) {
+                                    courseName = courseInfo.title;
+                                }
+                                
+                                return { member, courseId, courseName };
+                            });
+                            
+                            const results = await Promise.all(dataPromises);
+                            setCourseInsightsData({ isLoading: false, data: results });
+                        } catch (error) {
+                            console.error("Error fetching course insights:", error);
+                            setCourseInsightsData({ isLoading: false, data: [] });
+                            setToastNotification({ message: 'Kunde inte hämta kursdata', type: 'error' });
+                        }
+                    }}
+                />
                 
                 <div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
                     <CreatePostWidget 
@@ -1042,6 +1092,57 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     ))}
                     {myChats.length === 0 && publicRooms.length === 0 && (
                         <p className="text-center text-neutral-500 py-8">Inga grupper finns i systemet ännu.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
+
+      {showCourseInsightsModal && (
+        <div className="fixed inset-0 bg-neutral-dark/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowCourseInsightsModal(false)}>
+            <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-purple-100 p-2.5 rounded-full">
+                            <CourseIcon className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-neutral-dark">Kurs-engagemang</h3>
+                    </div>
+                    <button onClick={() => setShowCourseInsightsModal(false)} className="p-2 text-neutral-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
+                        <XMarkIcon className="w-6 h-6" /> 
+                    </button>
+                </div>
+                
+                <div className="overflow-y-auto custom-scrollbar flex-1 pr-2 space-y-4">
+                    {courseInsightsData.isLoading ? (
+                        <div className="flex justify-center items-center py-12">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        </div>
+                    ) : courseInsightsData.data.length > 0 ? (
+                        courseInsightsData.data.map(({ member, courseId, courseName }) => (
+                            <div key={member.id} className="bg-neutral-50 p-4 rounded-xl border border-neutral-100 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                                <div>
+                                    <h4 className="font-bold text-neutral-dark">{member.name}</h4>
+                                    <p className="text-sm text-neutral mt-1 flex items-center gap-2">
+                                        <span className="font-medium text-purple-600">{courseName}</span>
+                                        <span className="text-xs px-2 py-0.5 bg-neutral-200 rounded-full">
+                                            {(member.courseProgressSummary?.completedLessons || 0)} / {(member.courseProgressSummary?.totalLessons || 0)} lektioner
+                                        </span>
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        setSelectedMember(member);
+                                        setShowCourseInsightsModal(false);
+                                    }}
+                                    className="px-3 py-1.5 bg-white border border-neutral-light text-sm font-medium rounded-lg hover:bg-neutral-light/50 transition-colors"
+                                >
+                                    Visa profil
+                                </button>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-center text-neutral-500 py-8">Inga medlemmar har startat en kurs ännu.</p>
                     )}
                 </div>
             </div>
