@@ -477,7 +477,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             )}
             <button 
                 onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
-                className={`pointer-events-auto w-16 h-16 rounded-full shadow-soft-xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 border-primary ${isSpeedDialOpen ? 'bg-red-500 text-white rotate-45 border-red-500' : 'bg-white dark:bg-neutral-darker text-primary'}`}
+                className={`pointer-events-auto w-16 h-16 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 border-primary ${isSpeedDialOpen ? 'bg-red-500 text-white rotate-45 border-red-500' : 'bg-white dark:bg-neutral-darker text-primary'}`}
                 aria-label="Lägg till"
             >
                 {isSpeedDialOpen ? (
