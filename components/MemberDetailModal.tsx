@@ -9,6 +9,7 @@ import { Avatar } from './UserProfileModal';
 interface MemberDetailModalProps {
     member: CoachViewMember | null;
     onClose: () => void;
+    onUpdateSubscriptionStatus?: (memberId: string, newStatus: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive') => void;
 }
 
 const StatDisplay: React.FC<{ label: string; value: string | number | undefined }> = ({ label, value }) => (
@@ -18,11 +19,12 @@ const StatDisplay: React.FC<{ label: string; value: string | number | undefined 
     </div>
 );
 
-const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ member, onClose }) => {
+const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ member, onClose, onUpdateSubscriptionStatus }) => {
     const [summary, setSummary] = useState<string | null>(null);
     const [detailedData, setDetailedData] = useState<AIDataForCoachSummary | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false);
 
     useEffect(() => {
         if (member) {
@@ -89,6 +91,31 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({ member, onClose }
                         <StatDisplay label="Streak" value={`${member.currentStreak || 0} dagar`} />
                         <StatDisplay label="Senaste Logg" value={member.lastLogDate} />
                         <StatDisplay label="Mål" value={member.goalSummary} />
+                    </div>
+
+                    <div className="mb-5">
+                        <p className="text-sm text-neutral mb-1">Prenumeration</p>
+                        <select
+                            value={member.subscriptionStatus || 'inactive'}
+                            onChange={async (e) => {
+                                if (onUpdateSubscriptionStatus) {
+                                    setIsUpdatingSubscription(true);
+                                    try {
+                                        await onUpdateSubscriptionStatus(member.id, e.target.value as any);
+                                    } finally {
+                                        setIsUpdatingSubscription(false);
+                                    }
+                                }
+                            }}
+                            disabled={!onUpdateSubscriptionStatus || isUpdatingSubscription}
+                            className="bg-neutral-light border border-neutral-light text-neutral-dark text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5"
+                        >
+                            <option value="active">🟢 Aktiv (Betalande)</option>
+                            <option value="trialing">🟡 Testperiod</option>
+                            <option value="canceling">🟡 Avslutas snart</option>
+                            <option value="canceled">🔴 Avbruten</option>
+                            <option value="inactive">🔴 Inaktiv</option>
+                        </select>
                     </div>
                     
                     {latestLog && (

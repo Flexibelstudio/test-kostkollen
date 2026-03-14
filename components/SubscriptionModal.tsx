@@ -6,7 +6,7 @@ import { cancelSubscription } from '../services/firestoreService';
 interface SubscriptionModalProps {
   show: boolean;
   onClose: () => void;
-  status: 'active' | 'canceling' | 'canceled' | undefined;
+  status: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive' | undefined;
   currentPeriodEnd?: string;
 }
 

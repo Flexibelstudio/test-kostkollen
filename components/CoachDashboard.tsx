@@ -7,7 +7,7 @@ import type { User } from '@firebase/auth';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from './icons';
 import { User as UserIconLucide, PieChart, TrendingDown, Users as UsersIcon } from 'lucide-react';
 import { playAudio } from '../services/audioService';
-import { subscribeToSystemGroups } from '../services/chatService';
+import { subscribeToSystemGroups, subscribeToPublicRooms } from '../services/chatService';
 import { 
     fetchCoachViewMembers, 
     approveMember,
@@ -17,14 +17,36 @@ import {
     updateUserRole,
     bulkApproveMembers,
     bulkUpdateUserRole,
-    createUserPost
+    createUserPost,
+    updateUserDocument
 } from '../services/firestoreService';
 import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
+import GrowthEngineView from './GrowthEngineView';
+import CoachStudioView from './CoachStudioView';
+import { Avatar } from './UserProfileModal';
+import { TrendingUp } from 'lucide-react';
 
 type SortableKeys = keyof CoachViewMember;
 
 // --- UI COMPONENTS ---
+
+const DropdownMenuItem: React.FC<{
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+    className?: string;
+}> = ({ icon, label, onClick, className = "text-neutral-dark hover:bg-neutral-light/50" }) => (
+    <button
+        onClick={onClick}
+        className={`w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors rounded-md font-medium ${className}`}
+    >
+        <div className="w-5 h-5 flex items-center justify-center opacity-80">
+            {icon}
+        </div>
+        {label}
+    </button>
+);
 
 const StatCard: React.FC<{
   icon: React.ReactNode;
@@ -33,36 +55,69 @@ const StatCard: React.FC<{
   subtitle?: string;
   colorClass: string;
   textClass: string;
-}> = ({ icon, title, value, subtitle, colorClass, textClass }) => (
-  <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex items-start space-x-4 transition-transform hover:scale-[1.02] duration-300 cursor-default">
-    <div className={`p-3.5 rounded-xl ${colorClass} flex items-center justify-center shadow-sm`}>
-      {React.cloneElement(icon as React.ReactElement<any>, { className: `w-6 h-6 ${textClass}` })}
-    </div>
-    <div>
-      <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide mb-0.5">{title}</p>
-      <p className="text-2xl font-extrabold text-neutral-dark leading-tight">{value}</p>
-      {subtitle && <p className="text-xs text-neutral font-medium mt-1">{subtitle}</p>}
-    </div>
-  </div>
-);
+  onClick?: () => void;
+}> = ({ icon, title, value, subtitle, colorClass, textClass, onClick }) => {
+  const content = (
+    <>
+      <div className={`p-2.5 sm:p-3.5 rounded-xl ${colorClass} flex items-center justify-center shadow-sm`}>
+        {React.cloneElement(icon as React.ReactElement<any>, { className: `w-5 h-5 sm:w-6 sm:h-6 ${textClass}` })}
+      </div>
+      <div className="text-left">
+        <p className="text-[10px] sm:text-xs font-bold text-neutral-500 uppercase tracking-wide mb-0.5">{title}</p>
+        <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-tight">{value}</p>
+        {subtitle && <p className="text-[10px] sm:text-xs text-neutral font-medium mt-1">{subtitle}</p>}
+      </div>
+    </>
+  );
 
-const StatusBadge: React.FC<{ status: 'pending' | 'approved' | 'archived' }> = ({ status }) => {
+  if (onClick) {
+    return (
+      <button onClick={onClick} className="bg-white p-3 sm:p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col sm:flex-row items-start sm:space-x-4 space-y-2 sm:space-y-0 transition-all hover:scale-[1.02] hover:border-primary/30 duration-300 cursor-pointer w-full focus:outline-none relative group">
+        {content}
+        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 text-primary">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
+        </div>
+        <div className="absolute bottom-2 right-3">
+            <span className="text-[9px] text-primary/70 font-bold uppercase tracking-wider group-hover:text-primary transition-colors">Klicka för detaljer</span>
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-white p-3 sm:p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col sm:flex-row items-start sm:space-x-4 space-y-2 sm:space-y-0 transition-transform hover:scale-[1.02] duration-300 cursor-default">
+      {content}
+    </div>
+  );
+};
+
+const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive' }> = ({ status }) => {
     let classes = "";
     let label = "";
     
     switch(status) {
-        case 'pending':
-            classes = 'bg-yellow-50 text-yellow-700 border-yellow-200 animate-pulse';
-            label = 'Väntar';
-            break;
-        case 'archived':
-            classes = 'bg-gray-100 text-gray-600 border-gray-200';
-            label = 'Arkiverad';
-            break;
-        case 'approved':
-        default:
+        case 'active':
             classes = 'bg-green-50 text-green-700 border-green-200';
-            label = 'Godkänd';
+            label = '🟢 Aktiv (Betalande)';
+            break;
+        case 'trialing':
+            classes = 'bg-yellow-50 text-yellow-700 border-yellow-200';
+            label = '🟡 Testperiod';
+            break;
+        case 'canceling':
+            classes = 'bg-orange-50 text-orange-700 border-orange-200';
+            label = '🟡 Sägs upp';
+            break;
+        case 'canceled':
+        case 'inactive':
+            classes = 'bg-red-50 text-red-700 border-red-200';
+            label = '🔴 Inaktiv / Avbruten';
+            break;
+        default:
+            classes = 'bg-red-50 text-red-700 border-red-200';
+            label = '🔴 Inaktiv / Avbruten';
             break;
     }
 
@@ -74,7 +129,7 @@ const StatusBadge: React.FC<{ status: 'pending' | 'approved' | 'archived' }> = (
 };
 
 const SortableHeader: React.FC<{ column: SortableKeys; label: string; tooltip?: string; sortBy: SortableKeys | null; sortOrder: 'asc' | 'desc'; onSort: (column: SortableKeys) => void; }> = ({ column, label, tooltip, sortBy, sortOrder, onSort }) => (
-    <th scope="col" className="px-4 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 backdrop-blur-md z-10 border-b border-gray-100">
+    <th scope="col" className="px-3 py-2.5 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 backdrop-blur-md z-10 border-b border-gray-100">
         <button onClick={() => onSort(column)} className="flex items-center gap-1.5 group hover:text-primary transition-colors focus:outline-none">
             {label}
             {tooltip && <span className="relative" title={tooltip}><InformationCircleIcon className="w-3.5 h-3.5 text-neutral-400 hover:text-primary transition-colors cursor-help" /></span>}
@@ -95,12 +150,30 @@ const BulkActionButton: React.FC<{ onClick: () => void; children: React.ReactNod
     </button>
 );
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void }> = ({ membersList, isExpanded, onToggle }) => {
+const getTodayKey = () => {
+    const z = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+    const year = z.getFullYear();
+    const month = String(z.getMonth() + 1).padStart(2, '0');
+    const day = String(z.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; onGroupsClick: () => void; onCourseClick: () => void; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, onGroupsClick, onCourseClick }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
+        const todayKey = getTodayKey();
+        const activeTodayCount = activeMembers.filter(m => m.lastLogDate === todayKey).length;
+        
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const newMembers7d = activeMembers.filter(m => {
+            if (!m.memberSince || m.memberSince === 'Aldrig') return false;
+            const memberDate = new Date(m.memberSince);
+            return memberDate >= sevenDaysAgo;
+        }).length;
 
-        if (totalActiveCount === 0) return { totalActiveCount: 0, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0 };
+        if (totalActiveCount === 0) return { totalActiveCount: 0, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0, activeTodayCount: 0, newMembers7d: 0 };
 
         const membersWithStreak = activeMembers.filter(m => (m.currentStreak || 0) > 0);
         const percentWithStreak = (membersWithStreak.length / totalActiveCount) * 100;
@@ -131,7 +204,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
         const maintainCount = activeMembers.filter(m => m.goalSummary === 'Bibehålla').length;
         const proteinGoalMetPercentage7d = activeMembers.reduce((sum, m) => sum + (m.proteinGoalMetPercentage7d || 0), 0) / totalActiveCount;
 
-        return { totalActiveCount, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d };
+        return { totalActiveCount, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d, activeTodayCount, newMembers7d };
     }, [membersList]);
 
     return (
@@ -155,16 +228,17 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             
             <div 
                 id="group-insights-panel" 
-                className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6 transition-all duration-500 ease-in-out ${isExpanded ? 'opacity-100 max-h-[1000px]' : 'opacity-0 max-h-0 overflow-hidden mt-0'}`}
+                className={`grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6 transition-all duration-500 ease-in-out ${isExpanded ? 'opacity-100 max-h-[3000px]' : 'opacity-0 max-h-0 overflow-hidden mt-0'}`}
             >
-                <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} colorClass="bg-blue-100" textClass="text-blue-600" />
-                <StatCard icon={<CheckCircleIcon />} title="Väntar godkännande" value={groupInsights.pendingCount.toString()} colorClass="bg-yellow-100" textClass="text-yellow-600" />
+                <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-blue-100" textClass="text-blue-600" />
+                <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-emerald-100" textClass="text-emerald-600" />
+                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" onClick={onGroupsClick} />
                 <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
                 <StatCard icon={<ProteinIcon />} title="Proteinmål (7d)" value={`${groupInsights.proteinGoalMetPercentage7d.toFixed(0)}%`} subtitle="Genomsnittlig uppfyllnad" colorClass="bg-indigo-100" textClass="text-indigo-600" />
                 <StatCard icon={<TrophyIcon />} title="Streak-engagemang" value={`${groupInsights.percentWithStreak.toFixed(0)}%`} subtitle={`Snitt: ${groupInsights.averageStreak.toFixed(1)} dagar`} colorClass="bg-orange-100" textClass="text-orange-600" />
-                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} subtitle={`Snitt-slutförande: ${groupInsights.averageCourseProgress.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" />
+                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} subtitle={`Snitt-slutförande: ${groupInsights.averageCourseProgress.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" onClick={onCourseClick} />
             </div>
         </section>
     );
@@ -172,43 +246,41 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
 
 const MemberFilters: React.FC<{
     searchQuery: string; onSearchChange: (q: string) => void;
-    filterStatus: 'all' | 'pending' | 'approved' | 'archived'; onFilterStatusChange: (s: 'all' | 'pending' | 'approved' | 'archived') => void;
-    pendingCount: number;
+    filterStatus: 'all' | 'approved' | 'archived'; onFilterStatusChange: (s: 'all' | 'approved' | 'archived') => void;
     onRefresh: () => void; isRefreshDisabled: boolean;
-}> = ({ searchQuery, onSearchChange, filterStatus, onFilterStatusChange, pendingCount, onRefresh, isRefreshDisabled }) => (
-    <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-neutral-dark self-start md:self-center">Medlemslista</h2>
+}> = ({ searchQuery, onSearchChange, filterStatus, onFilterStatusChange, onRefresh, isRefreshDisabled }) => (
+    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-3 gap-3">
+        <h2 className="text-xl font-bold text-neutral-dark">Medlemslista</h2>
         
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-row items-center gap-2 w-full lg:w-auto">
             {/* Search Bar */}
-            <div className="relative w-full sm:w-64 group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <SearchIcon className="w-5 h-5 text-gray-400 group-focus-within:text-primary transition-colors" />
+            <div className="relative w-full sm:w-48 group">
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                    <SearchIcon className="w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
                 </div>
                 <input 
                     type="text" 
                     placeholder="Sök namn/e-post..." 
                     value={searchQuery} 
                     onChange={(e) => onSearchChange(e.target.value)} 
-                    className="w-full pl-10 pr-4 py-2.5 text-sm bg-neutral-light/50 border border-neutral-light rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none" 
+                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-neutral-light/50 border border-neutral-light rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none" 
                     aria-label="Sök medlemmar" 
                 />
             </div>
 
             {/* Filter Pills */}
-            <div className="flex bg-neutral-light/30 p-1 rounded-xl">
-                {(['all', 'pending', 'approved', 'archived'] as const).map((status) => (
+            <div className="flex bg-neutral-light/30 p-0.5 rounded-lg">
+                {(['all', 'approved', 'archived'] as const).map((status) => (
                     <button
                         key={status}
                         onClick={() => onFilterStatusChange(status)}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                        className={`px-2 py-1 text-xs font-semibold rounded-md transition-all ${
                             filterStatus === status 
                                 ? 'bg-white shadow-sm text-primary' 
                                 : 'text-neutral hover:text-neutral-dark hover:bg-neutral-light/50'
                         }`}
                     >
                         {status === 'all' && 'Alla'}
-                        {status === 'pending' && `Väntar (${pendingCount})`}
                         {status === 'approved' && 'Aktiva'}
                         {status === 'archived' && 'Arkiv'}
                     </button>
@@ -218,11 +290,11 @@ const MemberFilters: React.FC<{
             {/* Refresh Button */}
             <button 
                 onClick={onRefresh} 
-                className="p-2.5 text-primary bg-white border border-neutral-light rounded-xl hover:bg-primary-50 hover:border-primary/30 active:scale-95 transition-all disabled:opacity-50" 
+                className="p-1.5 text-primary bg-white border border-neutral-light rounded-lg hover:bg-primary-50 hover:border-primary/30 active:scale-95 transition-all disabled:opacity-50" 
                 disabled={isRefreshDisabled}
                 title="Uppdatera lista"
             >
-                <SwitchHorizontalIcon className={`w-5 h-5 ${isRefreshDisabled ? 'animate-spin' : ''}`} />
+                <SwitchHorizontalIcon className={`w-4 h-4 ${isRefreshDisabled ? 'animate-spin' : ''}`} />
             </button>
         </div>
     </div>
@@ -231,7 +303,7 @@ const MemberFilters: React.FC<{
 const BulkActionsBar: React.FC<{
     selectedCount: number;
     onClearSelection: () => void;
-    onBulkAction: (action: 'approve' | 'setRoleCoach' | 'setRoleMember') => void;
+    onBulkAction: (action: 'setRoleCoach' | 'setRoleMember') => void;
     isBulkUpdating: boolean;
 }> = ({ selectedCount, onClearSelection, onBulkAction, isBulkUpdating }) => (
     <div className="bg-primary-darker text-white p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-[80px] z-30 mb-6 animate-slide-up-fade-in shadow-xl">
@@ -240,7 +312,6 @@ const BulkActionsBar: React.FC<{
             <button onClick={onClearSelection} className="text-sm text-white/80 hover:text-white hover:underline">Avbryt</button>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-center">
-            <BulkActionButton onClick={() => onBulkAction('approve')} disabled={isBulkUpdating} className="bg-white text-primary-darker hover:bg-gray-100">Godkänn</BulkActionButton>
             <BulkActionButton onClick={() => onBulkAction('setRoleCoach')} disabled={isBulkUpdating} className="bg-purple-600 text-white hover:bg-purple-700 border border-purple-500">Till Coach</BulkActionButton>
             <BulkActionButton onClick={() => onBulkAction('setRoleMember')} disabled={isBulkUpdating} className="bg-transparent border border-white/40 text-white hover:bg-white/10">Till Medlem</BulkActionButton>
         </div>
@@ -269,8 +340,6 @@ const MemberListTable: React.FC<{
     onSelectMember: (id: string) => void;
     onSort: (column: SortableKeys) => void;
     onShowDetails: (member: CoachViewMember) => void;
-    onApprove: (id: string) => void;
-    onRevoke: (id: string) => void;
     onArchive: (id: string) => void;
     onUnarchive: (id: string) => void;
     onUpdateRole: (id: string, newRole: UserRole) => void;
@@ -280,7 +349,7 @@ const MemberListTable: React.FC<{
             <table className="min-w-full divide-y divide-gray-100">
                 <thead>
                     <tr>
-                        <th scope="col" className="px-4 py-4 bg-gray-50/80 w-12 sticky top-0 z-10 border-b border-gray-100 backdrop-blur-sm">
+                        <th scope="col" className="px-3 py-2.5 bg-gray-50/80 w-12 sticky top-0 z-10 border-b border-gray-100 backdrop-blur-sm">
                             <div className="flex items-center justify-center">
                                 <input 
                                     type="checkbox" 
@@ -295,8 +364,8 @@ const MemberListTable: React.FC<{
                         <SortableHeader column="lastLogDate" label="Senaste Aktivitet" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                         <SortableHeader column="currentStreak" label="Streak" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                         <SortableHeader column="goalSummary" label="Mål" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
-                        <SortableHeader column="status" label="Status" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
-                        <th scope="col" className="px-4 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 z-10 border-b border-gray-100 backdrop-blur-sm">Åtgärder</th>
+                        <SortableHeader column="subscriptionStatus" label="Prenumeration" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
+                        <th scope="col" className="px-3 py-2.5 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 z-10 border-b border-gray-100 backdrop-blur-sm">Åtgärder</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-50">
@@ -306,7 +375,7 @@ const MemberListTable: React.FC<{
                             onClick={() => props.onShowDetails(member)}
                             className={`group transition-all cursor-pointer ${props.selectedMemberIds.has(member.id) ? 'bg-primary-50' : 'hover:bg-neutral-light/40'} ${member.status === 'archived' ? 'opacity-70 grayscale-[0.5]' : ''}`}
                         >
-                            <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-3 py-2.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-center">
                                     <input 
                                         type="checkbox" 
@@ -317,7 +386,7 @@ const MemberListTable: React.FC<{
                                     />
                                 </div>
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap">
+                            <td className="px-3 py-2.5 whitespace-nowrap">
                                 <div className="flex items-center">
                                     <div className="h-10 w-10 flex-shrink-0">
                                         {member.photoURL ? (
@@ -334,41 +403,28 @@ const MemberListTable: React.FC<{
                                     </div>
                                 </div>
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral">
+                            <td className="px-3 py-2.5 whitespace-nowrap text-sm text-neutral">
                                 <span className={`${!member.lastLogDate ? 'text-neutral-400 italic' : 'text-neutral-dark font-medium'}`}>
                                     {member.lastLogDate || 'Ingen aktivitet'}
                                 </span>
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap">
+                            <td className="px-3 py-2.5 whitespace-nowrap">
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-lg">🔥</span>
                                     <span className="text-sm font-bold text-neutral-dark">{member.currentStreak}</span>
                                 </div>
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral-dark">{member.goalSummary}</td>
-                            <td className="px-4 py-4 whitespace-nowrap">
-                                <StatusBadge status={member.status} />
+                            <td className="px-3 py-2.5 whitespace-nowrap text-sm text-neutral-dark">{member.goalSummary}</td>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                                {member.status === 'archived' ? (
+                                    <span className="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border bg-gray-100 text-gray-600 border-gray-200">Arkiverad</span>
+                                ) : (
+                                    <SubscriptionBadge status={member.subscriptionStatus} />
+                                )}
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                            <td className="px-3 py-2.5 whitespace-nowrap text-sm font-medium">
                                 <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    {member.status === 'pending' ? (
-                                        <>
-                                            <ActionButton 
-                                                onClick={() => props.onApprove(member.id)} 
-                                                disabled={props.updatingMemberId === member.id}
-                                                icon={<CheckCircleIcon className="w-4 h-4" />}
-                                                label="Godkänn"
-                                                className="bg-green-100 text-green-700 hover:bg-green-200"
-                                            />
-                                            <ActionButton 
-                                                onClick={() => props.onRevoke(member.id)} 
-                                                disabled={props.updatingMemberId === member.id}
-                                                icon={<XCircleIcon className="w-4 h-4" />}
-                                                label="Neka"
-                                                className="bg-red-100 text-red-800 hover:bg-red-200"
-                                            />
-                                        </>
-                                    ) : member.status === 'archived' ? (
+                                    {member.status === 'archived' ? (
                                         <ActionButton 
                                             onClick={() => props.onUnarchive(member.id)} 
                                             disabled={props.updatingMemberId === member.id}
@@ -386,7 +442,7 @@ const MemberListTable: React.FC<{
                                         />
                                     )}
                                     
-                                    {member.status === 'approved' && member.id !== props.currentUserId && (
+                                    {member.status !== 'archived' && member.id !== props.currentUserId && (
                                         <ActionButton 
                                             onClick={() => props.onUpdateRole(member.id, member.role === 'coach' ? 'member' : 'coach')} 
                                             disabled={props.updatingMemberId === member.id}
@@ -415,13 +471,18 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
     
     // New filter status state
-    const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'archived'>('all');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'archived'>('all');
     
     const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
     const [sortBy, setSortBy] = useState<SortableKeys | null>(initialSortBy);
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialSortOrder);
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [visibleCount, setVisibleCount] = useState(20);
+
+    useEffect(() => {
+        setVisibleCount(20);
+    }, [searchQuery, filterStatus, sortBy, sortOrder]);
 
     const fetchMembers = useCallback(async () => {
         setIsLoadingMembers(true);
@@ -454,18 +515,6 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         }
     }, []);
 
-    const handleApproveMember = useCallback((memberId: string) => {
-        handleAction(approveMember(memberId), memberId).then(() => {
-            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, status: 'approved' } : m));
-        });
-    }, [handleAction]);
-
-    const handleRevokeApproval = useCallback((memberId: string) => {
-        handleAction(revokeApproval(memberId), memberId).then(() => {
-            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, status: 'pending' } : m));
-        });
-    }, [handleAction]);
-
     const handleArchiveMember = useCallback((memberId: string) => {
         handleAction(archiveMember(memberId), memberId).then(() => {
             setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, status: 'archived' } : m));
@@ -484,13 +533,18 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         });
     }, [handleAction]);
 
-    const handleBulkAction = useCallback(async (action: 'approve' | 'setRoleCoach' | 'setRoleMember') => {
+    const handleUpdateSubscriptionStatus = useCallback((memberId: string, newStatus: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive') => {
+        handleAction(updateUserDocument(memberId, { subscriptionStatus: newStatus }), memberId).then(() => {
+            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, subscriptionStatus: newStatus } : m));
+        });
+    }, [handleAction]);
+
+    const handleBulkAction = useCallback(async (action: 'setRoleCoach' | 'setRoleMember') => {
         const idsToUpdate = Array.from(selectedMemberIds) as string[];
         if (idsToUpdate.length === 0) return;
         setIsBulkUpdating(true);
         try {
             const actions = {
-                'approve': bulkApproveMembers(idsToUpdate),
                 'setRoleCoach': bulkUpdateUserRole(idsToUpdate, 'coach'),
                 'setRoleMember': bulkUpdateUserRole(idsToUpdate, 'member')
             };
@@ -534,14 +588,12 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         return sortable;
     }, [filteredMembers, sortBy, sortOrder]);
     
-    const pendingCount = useMemo(() => membersList.filter(m => m.status === 'pending').length, [membersList]);
-
-
     return {
         membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
         selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
-        searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval, handleArchiveMember, handleUnarchiveMember,
-        handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount
+        searchQuery, setSearchQuery, fetchMembers, handleArchiveMember, handleUnarchiveMember,
+        handleUpdateRole, handleUpdateSubscriptionStatus, handleBulkAction, sortedAndFilteredMembers,
+        visibleCount, setVisibleCount
     };
 };
 
@@ -563,15 +615,41 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CoachViewMember | null>(null);
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio'>('members');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [myChats, setMyChats] = useState<Chat[]>([]);
+  const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  const [showAllGroupsModal, setShowAllGroupsModal] = useState(false);
+  const [showCourseInsightsModal, setShowCourseInsightsModal] = useState(false);
+  const [courseInsightsData, setCourseInsightsData] = useState<{
+    isLoading: boolean;
+    data: { courseId: string; courseName: string; participants: number; completions: number; averageProgress: number }[];
+  }>({ isLoading: false, data: [] });
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-      const unsubscribe = subscribeToSystemGroups((chats) => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+              setShowProfileDropdown(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+      const unsubscribeSystem = subscribeToSystemGroups((chats) => {
           setMyChats(chats);
       });
-      return () => unsubscribe();
+      const unsubscribePublic = subscribeToPublicRooms((chats) => {
+          setPublicRooms(chats);
+      });
+      return () => {
+          unsubscribeSystem();
+          unsubscribePublic();
+      };
   }, []);
 
   useEffect(() => {
@@ -586,14 +664,100 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const {
       membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
       selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
-      searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval, handleArchiveMember, handleUnarchiveMember,
-      handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount
+      searchQuery, setSearchQuery, fetchMembers, handleArchiveMember, handleUnarchiveMember,
+      handleUpdateRole, handleUpdateSubscriptionStatus, handleBulkAction, sortedAndFilteredMembers,
+      visibleCount, setVisibleCount
   } = useCoachDashboard();
+  
+  const visibleMembers = sortedAndFilteredMembers.slice(0, visibleCount);
   
   const handleSort = (column: SortableKeys) => {
     playAudio('uiClick', 0.6);
     if (sortBy === column) setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
     else { setSortBy(column); setSortOrder('asc'); }
+  };
+
+  const handleCourseInsightsClick = async () => {
+    setShowCourseInsightsModal(true);
+    setCourseInsightsData({ isLoading: true, data: [] });
+    
+    try {
+        const { fetchCourseProgressForUser } = await import('../services/firestoreService');
+        const { ALL_COURSES } = await import('./CoursesView');
+        const { courseLessons, menopauseCourseLessons } = await import('../courseData');
+        
+        const membersOnCourse = membersList.filter(m => m.courseProgressSummary && m.courseProgressSummary.started);
+        
+        const courseStats: Record<string, {
+            courseId: string;
+            courseName: string;
+            participants: number;
+            completions: number;
+            totalProgress: number;
+            totalLessons: number;
+        }> = {};
+
+        ALL_COURSES.forEach(c => {
+            courseStats[c.id] = {
+                courseId: c.id,
+                courseName: c.title,
+                participants: 0,
+                completions: 0,
+                totalProgress: 0,
+                totalLessons: c.id === 'praktisk-viktkontroll' ? courseLessons.length : menopauseCourseLessons.length
+            };
+        });
+        
+        const dataPromises = membersOnCourse.map(async (member) => {
+            const progress = await fetchCourseProgressForUser(member.id);
+            
+            // Check Praktisk Viktkontroll
+            const pvLessons = Object.keys(progress).filter(k => k.startsWith('lektion'));
+            if (pvLessons.length > 0) {
+                const courseId = 'praktisk-viktkontroll';
+                const completed = pvLessons.filter(k => progress[k].isCompleted).length;
+                if (courseStats[courseId]) {
+                    courseStats[courseId].participants++;
+                    courseStats[courseId].totalProgress += (completed / courseStats[courseId].totalLessons);
+                    if (completed === courseStats[courseId].totalLessons) {
+                        courseStats[courseId].completions++;
+                    }
+                }
+            }
+
+            // Check Maxa Klimakteriet
+            const mkLessons = Object.keys(progress).filter(k => k.startsWith('m-lektion'));
+            if (mkLessons.length > 0) {
+                const courseId = 'maxa-klimakteriet';
+                const completed = mkLessons.filter(k => progress[k].isCompleted).length;
+                if (courseStats[courseId]) {
+                    courseStats[courseId].participants++;
+                    courseStats[courseId].totalProgress += (completed / courseStats[courseId].totalLessons);
+                    if (completed === courseStats[courseId].totalLessons) {
+                        courseStats[courseId].completions++;
+                    }
+                }
+            }
+        });
+        
+        await Promise.all(dataPromises);
+        
+        const results = Object.values(courseStats)
+            .filter(c => c.participants > 0)
+            .map(c => ({
+                courseId: c.courseId,
+                courseName: c.courseName,
+                participants: c.participants,
+                completions: c.completions,
+                averageProgress: (c.totalProgress / c.participants) * 100
+            }));
+        
+        setCourseInsightsData({ isLoading: false, data: results });
+    } catch (error) {
+        console.error("Error fetching course insights:", error);
+        setCourseInsightsData({ isLoading: false, data: [] });
+        setToastNotification({ message: 'Kunde inte hämta kursdata', type: 'error' });
+    }
   };
 
   const handleSelectMember = (memberId: string) => {
@@ -606,7 +770,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedMemberIds(e.target.checked ? new Set(sortedAndFilteredMembers.map(m => m.id)) : new Set());
+    setSelectedMemberIds(e.target.checked ? new Set(visibleMembers.map(m => m.id)) : new Set());
   };
 
   const handleShowMemberDetails = (member: CoachViewMember) => {
@@ -617,31 +781,82 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   return (
     <>
     <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed text-neutral-dark">
-      <header className="bg-white/85 backdrop-blur-lg shadow-sm sticky top-0 z-40 border-b border-white/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center">
-              <div className="bg-primary-100 p-2 rounded-xl mr-3">
-                <UserGroupIcon className="w-8 h-8 text-primary-darker" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-extrabold text-neutral-dark leading-none">Admin Dashboard</h1>
-                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mt-1">Kostloggen Studio</p>
-              </div>
-          </div>
-          <nav className="flex items-center gap-3">
-            <button onClick={() => setShowInfoModal(true)} className="p-2.5 text-neutral-500 hover:text-primary hover:bg-primary-50 rounded-xl transition-all" aria-label="Information">
-                <InformationCircleIcon className="w-6 h-6" />
-            </button>
-            <button onClick={onToggleInterface} className="flex items-center px-4 py-2.5 bg-white border border-neutral-light hover:border-primary/30 hover:shadow-md text-neutral-dark font-semibold rounded-xl active:scale-95 transform transition-all group">
-                <SwitchHorizontalIcon className="w-5 h-5 mr-2 text-neutral-400 group-hover:text-primary transition-colors" /> 
-                <span className="text-sm">Medlemsvy</span>
-            </button>
-            <button onClick={onLogout} className="flex items-center px-4 py-2.5 bg-neutral-dark hover:bg-black text-white font-semibold rounded-xl shadow-lg shadow-neutral-dark/20 active:scale-95 transform transition-all">
-                <ArrowRightOnRectangleIcon className="w-5 h-5 mr-2" /> 
-                <span className="text-sm">Logga ut</span>
-            </button>
-          </nav>
+      <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('members')}>
+                <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
+            </div>
+            <div className="flex flex-wrap justify-end items-center gap-1">
+                <div className="relative" ref={profileDropdownRef}>
+                    <button
+                        aria-label="Konto"
+                        className={`nav-btn ${showProfileDropdown ? "active" : ""}`}
+                        onClick={() => setShowProfileDropdown(prev => !prev)}
+                    >
+                         <div className="icon-wrap p-0 relative">
+                            <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
+                         </div>
+                    </button>
+                    {showProfileDropdown && (
+                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-neutral-light/70 p-2 z-50 animate-fade-slide-in">
+                            <DropdownMenuItem
+                                icon={<InformationCircleIcon />}
+                                label="Information"
+                                onClick={() => {
+                                    setShowInfoModal(true);
+                                    setShowProfileDropdown(false);
+                                }}
+                            />
+                            
+                            <div className="my-1 border-t border-neutral-light/70"></div>
+                            
+                            <DropdownMenuItem
+                                icon={<SwitchHorizontalIcon />}
+                                label="Medlemsvy"
+                                onClick={onToggleInterface}
+                                className="text-indigo-600 hover:bg-indigo-50 font-medium"
+                            />
+
+                            <div className="my-1 border-t border-neutral-light/70"></div>
+                            <DropdownMenuItem
+                                icon={<ArrowRightOnRectangleIcon />}
+                                label="Logga ut"
+                                onClick={onLogout}
+                                className="text-red-600 hover:bg-red-50"
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
+        
+        {!selectedChat && !isCreatingGroup && (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-2">
+                <div className="flex w-full border-b border-neutral-light">
+                    <button
+                        onClick={() => setActiveTab('members')}
+                        className={`flex-1 py-3 px-1 sm:px-2 flex justify-center items-center gap-1.5 sm:gap-2 font-bold text-[11px] sm:text-sm whitespace-nowrap border-b-2 transition-colors ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                    >
+                        <UsersIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        Medlemsregister
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('growth')}
+                        className={`flex-1 py-3 px-1 sm:px-2 flex justify-center items-center gap-1.5 sm:gap-2 font-bold text-[11px] sm:text-sm whitespace-nowrap border-b-2 transition-colors ${activeTab === 'growth' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                    >
+                        <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        Tillväxtmotor
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('studio')}
+                        className={`flex-1 py-3 px-1 sm:px-2 flex justify-center items-center gap-1.5 sm:gap-2 font-bold text-[11px] sm:text-sm whitespace-nowrap border-b-2 transition-colors ${activeTab === 'studio' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                    >
+                        <SparklesIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        Coach Studio
+                    </button>
+                </div>
+            </div>
+        )}
       </header>
 
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
@@ -655,7 +870,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     userRole={userRole}
                     onBack={() => setSelectedChat(null)}
                     setToastNotification={setToastNotification}
-                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
+                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL } as any))}
                 />
             </div>
         ) : isCreatingGroup ? (
@@ -669,15 +884,56 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         setToastNotification({ message: 'Grupp skapad!', type: 'success' });
                     }}
                     setToastNotification={setToastNotification}
-                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
+                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL } as any))}
                     defaultIsSystemGroup={true}
                     defaultIsPublic={true}
                     hideSystemGroupOption={true}
                 />
             </div>
+        ) : activeTab === 'growth' ? (
+            <GrowthEngineView 
+                membersList={membersList} 
+                setToastNotification={setToastNotification} 
+                currentUser={currentUser}
+                userProfile={userProfile}
+            />
+        ) : activeTab === 'studio' ? (
+            <CoachStudioView 
+                currentUser={currentUser}
+                setToastNotification={setToastNotification}
+            />
         ) : (
             <>
-                <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} />
+                <GroupInsights 
+                    membersList={membersList} 
+                    isExpanded={isInsightsExpanded} 
+                    onToggle={() => setIsInsightsExpanded(prev => !prev)} 
+                    systemGroupsCount={myChats.length} 
+                    publicRoomsCount={publicRooms.length} 
+                    onGroupsClick={() => setShowAllGroupsModal(true)} 
+                    onCourseClick={handleCourseInsightsClick}
+                />
+                
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                    <button 
+                        onClick={() => setShowAllGroupsModal(true)}
+                        className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col items-center justify-center gap-3 hover:border-pink-300 hover:bg-pink-50/30 transition-all group focus:outline-none"
+                    >
+                        <div className="bg-pink-100 p-3 sm:p-4 rounded-full text-pink-600 group-hover:scale-110 transition-transform duration-300">
+                            <UsersIcon className="w-6 h-6 sm:w-8 sm:h-8" />
+                        </div>
+                        <span className="font-bold text-neutral-dark text-sm sm:text-base">Hantera Grupper</span>
+                    </button>
+                    <button 
+                        onClick={handleCourseInsightsClick}
+                        className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col items-center justify-center gap-3 hover:border-purple-300 hover:bg-purple-50/30 transition-all group focus:outline-none"
+                    >
+                        <div className="bg-purple-100 p-3 sm:p-4 rounded-full text-purple-600 group-hover:scale-110 transition-transform duration-300">
+                            <CourseIcon className="w-6 h-6 sm:w-8 sm:h-8" />
+                        </div>
+                        <span className="font-bold text-neutral-dark text-sm sm:text-base">Kursöversikt</span>
+                    </button>
+                </div>
                 
                 <div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
                     <CreatePostWidget 
@@ -688,20 +944,23 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         userRole={userRole}
                         isCoachDashboard={true}
                     />
-                    <button 
-                        onClick={() => setIsCreatingGroup(true)}
-                        className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-4 flex items-center justify-center gap-2 text-primary font-bold hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-                    >
-                        <UserGroupIcon className="w-5 h-5" />
-                        Skapa Officiell Chattgrupp
-                    </button>
-
                     {myChats.length > 0 && (
                         <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
-                            <h3 className="font-bold text-neutral-darker mb-4 flex items-center gap-2">
-                                <UsersIcon className="w-5 h-5 text-primary" />
-                                Officiella Grupper
-                            </h3>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-neutral-darker flex items-center gap-2">
+                                    <UsersIcon className="w-5 h-5 text-primary" />
+                                    Officiella Grupper
+                                </h3>
+                                <button 
+                                    onClick={() => setIsCreatingGroup(true)}
+                                    className="p-2 bg-primary-50 text-primary rounded-full hover:bg-primary-100 transition-colors"
+                                    title="Skapa ny grupp"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                    </svg>
+                                </button>
+                            </div>
                             <div className="space-y-3">
                                 {myChats.map(chat => (
                                     <div 
@@ -718,7 +977,11 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-neutral mt-1">{chat.members.length} medlemmar</p>
+                                            <p className="text-xs text-neutral mt-1.5 flex items-center gap-2 flex-wrap">
+                                                <span className="flex items-center gap-1">
+                                                    <UsersIcon className="w-3.5 h-3.5" /> {chat.members.length} medlemmar
+                                                </span>
+                                            </p>
                                         </div>
                                         <ChevronUpIcon className="w-5 h-5 text-neutral transform rotate-90" />
                                     </div>
@@ -728,13 +991,12 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     )}
                 </div>
 
-                <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+                <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
                     <MemberFilters 
                         searchQuery={searchQuery} 
                         onSearchChange={setSearchQuery} 
                         filterStatus={filterStatus}
                         onFilterStatusChange={setFilterStatus}
-                        pendingCount={pendingCount} 
                         onRefresh={fetchMembers} 
                         isRefreshDisabled={isLoadingMembers || isBulkUpdating} 
                     />
@@ -750,7 +1012,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
 
                     {(isLoadingMembers || isBulkUpdating) && (
                         <div className="py-12">
-                            <LoadingSpinner message={isBulkUpdating ? "Uppdaterar medlemmar..." : "Laddar medlemmar..."} color="primary" />
+                            <LoadingSpinner message={isBulkUpdating ? "Uppdaterar medlemmar..." : "Laddar medlemmar..."} color="primary" fullScreen={false} />
                         </div>
                     )}
                     
@@ -764,23 +1026,34 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
 
                     {!isLoadingMembers && !isBulkUpdating && !errorMembers && (
                         sortedAndFilteredMembers.length > 0 ? (
-                            <MemberListTable 
-                                members={sortedAndFilteredMembers} 
-                                currentUserId={currentUserId} 
-                                selectedMemberIds={selectedMemberIds} 
-                                sortBy={sortBy} 
-                                sortOrder={sortOrder} 
-                                updatingMemberId={updatingMemberId} 
-                                onSelectAll={handleSelectAll} 
-                                onSelectMember={handleSelectMember} 
-                                onSort={handleSort} 
-                                onShowDetails={handleShowMemberDetails} 
-                                onApprove={handleApproveMember} 
-                                onRevoke={handleRevokeApproval} 
-                                onArchive={handleArchiveMember}
-                                onUnarchive={handleUnarchiveMember}
-                                onUpdateRole={handleUpdateRole} 
-                            />
+                            <>
+                                <MemberListTable 
+                                    members={visibleMembers} 
+                                    currentUserId={currentUserId} 
+                                    selectedMemberIds={selectedMemberIds} 
+                                    sortBy={sortBy} 
+                                    sortOrder={sortOrder} 
+                                    updatingMemberId={updatingMemberId} 
+                                    onSelectAll={handleSelectAll} 
+                                    onSelectMember={handleSelectMember} 
+                                    onSort={handleSort} 
+                                    onShowDetails={handleShowMemberDetails} 
+                                    onArchive={handleArchiveMember}
+                                    onUnarchive={handleUnarchiveMember}
+                                    onUpdateRole={handleUpdateRole} 
+                                />
+                                {visibleCount < sortedAndFilteredMembers.length && (
+                                    <div className="mt-6 flex justify-center">
+                                        <button
+                                            onClick={() => setVisibleCount(prev => prev + 20)}
+                                            className="px-6 py-2.5 bg-white border border-neutral-light text-primary font-bold rounded-xl hover:bg-primary-50 transition-colors shadow-sm flex items-center gap-2"
+                                        >
+                                            Visa fler ({sortedAndFilteredMembers.length - visibleCount} kvar)
+                                            <ChevronDownIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div className="text-center py-16 bg-neutral-light/30 rounded-2xl border border-dashed border-neutral-light">
                                 <UserGroupIcon className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
@@ -795,7 +1068,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       </main>
 
       <footer className="text-center py-8 text-neutral-400 text-sm font-medium">
-        <p>© 2025 Flexibel Hälsostudio.</p>
+        <p>© 2026 Flexibel Hälsostudio.</p>
       </footer>
 
       {showInfoModal && (
@@ -818,10 +1091,10 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     
                     <div className="bg-neutral-50 p-4 rounded-xl space-y-2 border border-neutral-100">
                         <div className="flex gap-3">
-                            <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                            <ArchiveBoxIcon className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
                             <div>
-                                <p className="font-bold text-neutral-dark text-sm">Godkänn medlemmar</p>
-                                <p className="text-xs">Nya konton markeras som 'Väntar'. Godkänn dem för att ge access.</p>
+                                <p className="font-bold text-neutral-dark text-sm">Hantera medlemmar</p>
+                                <p className="text-xs">Arkivera inaktiva medlemmar för att dölja dem från listan.</p>
                             </div>
                         </div>
                         <div className="flex gap-3">
@@ -854,8 +1127,135 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             </div>
         </div>
       )}
+
+      {showAllGroupsModal && (
+        <div className="fixed inset-0 bg-neutral-dark/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowAllGroupsModal(false)}>
+            <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-pink-100 p-2.5 rounded-full">
+                            <UsersIcon className="w-6 h-6 text-pink-600" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-neutral-dark">Alla Grupper</h3>
+                    </div>
+                    <button onClick={() => setShowAllGroupsModal(false)} className="p-2 text-neutral-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
+                        <XMarkIcon className="w-6 h-6" /> 
+                    </button>
+                </div>
+                
+                <div className="overflow-y-auto custom-scrollbar flex-1 pr-2">
+                    <div className="divide-y divide-neutral-light/50">
+                        {[...myChats, ...publicRooms].sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0)).map(chat => (
+                            <div key={chat.id} className="py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h4 className="font-bold text-neutral-dark text-lg">{chat.name}</h4>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                            {chat.isSystemGroup ? 'Officiell' : 'Publik'}
+                                        </span>
+                                        {!chat.isSystemGroup && chat.requiresApproval && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                                                Kräver godkännande
+                                            </span>
+                                        )}
+                                        {!chat.isSystemGroup && !chat.requiresApproval && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                                Öppen
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-neutral flex items-center gap-3 flex-wrap">
+                                        <span className="flex items-center gap-1">
+                                            <UsersIcon className="w-4 h-4" /> {chat.members?.length || 0} medlemmar
+                                        </span>
+                                        {!chat.isSystemGroup && (
+                                            <span className="flex items-center gap-1">
+                                                <span className="text-xs">👑</span> 
+                                                Admin: {chat.admins?.map(adminId => membersList.find(m => m.id === adminId)?.name || 'Okänd').join(', ') || 'Ingen admin'}
+                                            </span>
+                                        )}
+                                    </p>
+                                    {chat.description && (
+                                        <p className="text-sm text-neutral-500 mt-2 italic">"{chat.description}"</p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                        {myChats.length === 0 && publicRooms.length === 0 && (
+                            <p className="text-center text-neutral-500 py-8">Inga grupper finns i systemet ännu.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {showCourseInsightsModal && (
+        <div className="fixed inset-0 bg-neutral-dark/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowCourseInsightsModal(false)}>
+            <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-purple-100 p-2.5 rounded-full">
+                            <CourseIcon className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-neutral-dark">Kurs-engagemang</h3>
+                    </div>
+                    <button onClick={() => setShowCourseInsightsModal(false)} className="p-2 text-neutral-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
+                        <XMarkIcon className="w-6 h-6" /> 
+                    </button>
+                </div>
+                
+                <div className="overflow-y-auto custom-scrollbar flex-1 pr-2">
+                    {courseInsightsData.isLoading ? (
+                        <div className="flex justify-center items-center py-12">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        </div>
+                    ) : courseInsightsData.data.length > 0 ? (
+                        <div className="divide-y divide-neutral-light/50">
+                            {courseInsightsData.data.map((course) => (
+                                <div key={course.courseId} className="py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                                    <div className="flex-1">
+                                        <h4 className="font-bold text-neutral-dark text-lg mb-2">{course.courseName}</h4>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                            <div>
+                                                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Deltagare</p>
+                                                <p className="font-semibold text-neutral-dark flex items-center gap-1">
+                                                    <UsersIcon className="w-4 h-4 text-primary" />
+                                                    {course.participants}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Slutfört</p>
+                                                <p className="font-semibold text-neutral-dark flex items-center gap-1">
+                                                    <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
+                                                    {course.completions}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Snitt-progress</p>
+                                                <p className="font-semibold text-neutral-dark flex items-center gap-1">
+                                                    <TrendingUp className="w-4 h-4 text-purple-500" />
+                                                    {course.averageProgress.toFixed(0)}%
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-center text-neutral-500 py-8">Inga medlemmar har startat en kurs ännu.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
     </div>
-    <MemberDetailModal member={selectedMember} onClose={() => setSelectedMember(null)} />
+    <MemberDetailModal 
+        member={selectedMember} 
+        onClose={() => setSelectedMember(null)} 
+        onUpdateSubscriptionStatus={handleUpdateSubscriptionStatus}
+    />
     </>
   );
 };

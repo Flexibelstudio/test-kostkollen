@@ -9,7 +9,7 @@ interface ImageAnalysisResultModalProps {
   show: boolean;
   analysisResult: NutritionalInfo | null;
   imageDataUrl: string | null;
-  onLog: (editedInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void; 
+  onLog: (editedInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType, portionMultiplier?: number }) => void; 
   onClose: () => void;
   defaultMealType?: MealType | null;
 }
@@ -18,6 +18,7 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
   const [editedInfo, setEditedInfo] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
   const [saveAsCommon, setSaveAsCommon] = useState<boolean>(false); 
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
+  const [portionMultiplier, setPortionMultiplier] = useState<string>('1');
 
   useEffect(() => {
     if (analysisResult) {
@@ -30,6 +31,7 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
       });
     }
     setSaveAsCommon(false); 
+    setPortionMultiplier('1');
   }, [analysisResult]);
 
   useEffect(() => {
@@ -69,7 +71,8 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
         carbohydrates: editedInfo.carbohydrates || 0,
         fat: editedInfo.fat || 0,
     };
-    onLog(validatedInfo, { saveAsCommon, mealType: selectedMealType }); 
+    const parsedMultiplier = parseFloat(portionMultiplier.replace(',', '.')) || 1;
+    onLog(validatedInfo, { saveAsCommon, mealType: selectedMealType, portionMultiplier: parsedMultiplier }); 
     onClose(); // Close modal immediately after logging
   };
 
@@ -113,6 +116,22 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
                 <label className={labelClass + " mb-1"}>Måltidstyp</label>
                 <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
                 {!selectedMealType && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
+            </div>
+
+            <div>
+                <label className={labelClass + " mb-1"}>Portionsstorlek (Antal)</label>
+                <div className="relative">
+                    <input 
+                        type="text" 
+                        value={portionMultiplier} 
+                        onChange={(e) => setPortionMultiplier(e.target.value)} 
+                        className={`${inputClass} pr-8`} 
+                        inputMode="decimal" 
+                        placeholder="1"
+                    />
+                    <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
+                </div>
+                <p className="text-[10px] text-neutral-500 mt-1.5 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
             </div>
 
             <div>

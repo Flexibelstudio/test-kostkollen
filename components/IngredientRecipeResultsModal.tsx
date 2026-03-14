@@ -211,10 +211,11 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                                     id={`portions-${recipe.title}`}
                                     value={portionsToLog[recipe.title] || "1"}
                                     onChange={(e) => handlePortionsChange(recipe.title, e.target.value)}
-                                    className={`${inputClass} w-full sm:w-32 py-1.5 text-sm`}
+                                    className={`${inputClass} w-full sm:w-32 py-1.5 text-sm mb-1`}
                                     placeholder="1"
                                     disabled={isLoggingDisabled}
                                 />
+                                <p className="text-[10px] text-neutral-500 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                             </div>
                         </div>
 

@@ -5,6 +5,18 @@ import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, BarcodeIcon, Pen
 import { playAudio } from '../services/audioService.ts';
 import MealTypeSelector from './MealTypeSelector';
 
+type Unit = 'g' | 'ml' | 'dl' | 'msk' | 'tsk' | 'st' | 'portion';
+
+const unitToGrams: Record<Unit, number> = {
+  'g': 1,
+  'ml': 1,
+  'dl': 100,
+  'msk': 15,
+  'tsk': 5,
+  'st': 100, // Schablonvärde
+  'portion': 150 // Schablonvärde
+};
+
 interface BarcodeSearchResultModalProps {
   show: boolean;
   scanResult: BarcodeScannedFoodInfo | null;
@@ -15,27 +27,28 @@ interface BarcodeSearchResultModalProps {
 
 const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ show, scanResult, onLog, onClose, defaultMealType = null }) => {
   const [amount, setAmount] = useState('100'); // Default to 100g
-  const [unit, setUnit] = useState<'g' | 'servings'>('g');
+  const [unit, setUnit] = useState<Unit>('g');
   const [calculatedNutrients, setCalculatedNutrients] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
   const [saveAsCommon, setSaveAsCommon] = useState<boolean>(false);
 
   useEffect(() => {
     if (scanResult) {
-      const numAmount = parseFloat(amount) || 0;
+      const numAmount = parseFloat(amount.replace(',', '.')) || 0;
       let multiplier = 0;
       
-      if (unit === 'g') {
-        multiplier = numAmount / 100;
-      } else if (unit === 'servings' && scanResult.servingSizeG) {
+      if (unit === 'portion' && scanResult.servingSizeG) {
         multiplier = (numAmount * scanResult.servingSizeG) / 100;
+      } else {
+        const grams = numAmount * unitToGrams[unit];
+        multiplier = grams / 100;
       }
 
       setCalculatedNutrients({
         calories: Math.round(scanResult.nutrientsPer100g.calories * multiplier),
-        protein: Math.round(scanResult.nutrientsPer100g.protein * multiplier),
-        carbohydrates: Math.round(scanResult.nutrientsPer100g.carbohydrates * multiplier),
-        fat: Math.round(scanResult.nutrientsPer100g.fat * multiplier),
+        protein: Number((scanResult.nutrientsPer100g.protein * multiplier).toFixed(1)),
+        carbohydrates: Number((scanResult.nutrientsPer100g.carbohydrates * multiplier).toFixed(1)),
+        fat: Number((scanResult.nutrientsPer100g.fat * multiplier).toFixed(1)),
       });
     }
   }, [amount, unit, scanResult]);
@@ -46,7 +59,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
 
   useEffect(() => {
       if (scanResult && scanResult.servingSizeG) {
-          setUnit('servings');
+          setUnit('portion');
           setAmount('1');
       } else {
           setUnit('g');
@@ -60,7 +73,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
     playAudio('uiClick');
     onLog({
       ...calculatedNutrients,
-      foodItem: `${scanResult.name} (${scanResult.brand})`
+      foodItem: `${scanResult.name} (${scanResult.brand}) (${amount} ${unit})`
     }, { saveAsCommon: saveAsCommon, mealType: selectedMealType });
     onClose(); // Close modal immediately after logging
   };
@@ -115,12 +128,22 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
                       <input type="text" id="amount" value={amount} onChange={handleAmountChange} className={`${inputClass} pr-8`} inputMode="decimal" />
                       <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                   </div>
+                  {(unit === 'portion' || unit === 'st') && (
+                      <p className="text-[10px] text-neutral-500 mt-1.5 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
+                  )}
               </div>
                <div>
                   <label htmlFor="unit" className={labelClass}>Enhet</label>
-                   <select id="unit" value={unit} onChange={(e) => setUnit(e.target.value as 'g' | 'servings')} className={inputClass}>
-                      <option value="g">gram</option>
-                      {scanResult.servingSizeG && <option value="servings">portion(er) ({scanResult.servingSizeG}g)</option>}
+                   <select id="unit" value={unit} onChange={(e) => setUnit(e.target.value as Unit)} className={inputClass}>
+                      <option value="g">gram (g)</option>
+                      <option value="ml">milliliter (ml)</option>
+                      <option value="dl">deciliter (dl)</option>
+                      <option value="msk">matsked (msk)</option>
+                      <option value="tsk">tesked (tsk)</option>
+                      <option value="st">styck (st)</option>
+                      <option value="portion">
+                        portion {scanResult.servingSizeG ? `(${scanResult.servingSizeG}g)` : ''}
+                      </option>
                    </select>
               </div>
           </div>

@@ -40,7 +40,8 @@ import {
 import { 
     analyzeFoodImage, 
     getRecipeSuggestion, 
-    getRecipesFromIngredientsImage, 
+    getRecipesFromIngredientsImage,
+    analyzeNutritionLabelImage 
 } from '../services/geminiService';
 import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
 
@@ -259,6 +260,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [foodRatingData, setFoodRatingData] = useState<{ nutritionalInfo: NutritionalInfo, mealType: MealType } | null>(null);
     const [showCommonMealsPopup, setShowCommonMealsPopup] = useState<CommonMeal | null>(null);
     const [selectedCommonMealType, setSelectedCommonMealType] = useState<MealType | null>(null);
+    const [selectedCommonMealPortion, setSelectedCommonMealPortion] = useState<number>(1);
 
     // Data states for modals
     const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
@@ -274,7 +276,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [defaultMealTypeForModal, setDefaultMealTypeForModal] = useState<MealType | null>(null);
     
     // Camera context state
-    const [cameraMode, setCameraMode] = useState<'mealAnalysis' | 'ingredientCapture'>('mealAnalysis');
+    const [cameraMode, setCameraMode] = useState<'mealAnalysis' | 'ingredientCapture' | 'nutritionLabel'>('mealAnalysis');
 
     // UI States
     const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
@@ -521,12 +523,13 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Handlers
     const handleAddMealToLog = async (
         data: LoggedMeal | Omit<LoggedMeal, 'id'> | NutritionalInfo | SearchedFoodInfo, 
-        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean }
+        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean; portionMultiplier?: number }
     ) => {
         if (!currentUser) return;
         
         const timestamp = Date.now();
         const mealType = options?.mealType || defaultMealTypeForModal || 'breakfast'; 
+        const multiplier = options?.portionMultiplier || 1;
         
         setIsSaving(true);
         setAppStatus('saving');
@@ -550,6 +553,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                 mealType: mealType,
                 nutritionalInfo: data as NutritionalInfo,
                 caloriesCoveredByBank: 0
+            };
+        }
+
+        if (multiplier !== 1) {
+            newMeal.nutritionalInfo = {
+                ...newMeal.nutritionalInfo,
+                calories: Math.round(newMeal.nutritionalInfo.calories * multiplier),
+                protein: Math.round(newMeal.nutritionalInfo.protein * multiplier),
+                carbohydrates: Math.round(newMeal.nutritionalInfo.carbohydrates * multiplier),
+                fat: Math.round(newMeal.nutritionalInfo.fat * multiplier),
             };
         }
 
@@ -663,6 +676,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const handleCommonMealLog = (commonMeal: CommonMeal) => {
         setSelectedCommonMealType(getSuggestedMealType());
+        setSelectedCommonMealPortion(1);
         setShowCommonMealsPopup(commonMeal);
     };
 
@@ -670,10 +684,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (showCommonMealsPopup) {
             handleAddMealToLog(
                 showCommonMealsPopup.nutritionalInfo, 
-                { mealType: type, skipRatingModal: true }
+                { mealType: type, skipRatingModal: true, portionMultiplier: selectedCommonMealPortion }
             );
             setShowCommonMealsPopup(null);
             setSelectedCommonMealType(null);
+            setSelectedCommonMealPortion(1);
         }
     }
 
@@ -1030,7 +1045,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     )}
                     <button 
                         onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
-                        className={`pointer-events-auto w-16 h-16 rounded-full shadow-soft-xl flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 ${isSpeedDialOpen ? 'bg-neutral-dark text-white border-neutral-dark rotate-45' : 'bg-white border-primary'}`}
+                        className={`pointer-events-auto w-16 h-16 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 ${isSpeedDialOpen ? 'bg-neutral-dark text-white border-neutral-dark rotate-45' : 'bg-white border-primary'}`}
                         aria-label="Lägg till"
                     >
                         {isSpeedDialOpen ? (
@@ -1096,6 +1111,25 @@ const Dashboard: React.FC<DashboardProps> = ({
                             />
                         </div>
 
+                        <div className="mb-8">
+                            <label className="block text-sm font-bold text-neutral-500 mb-3 uppercase tracking-wider">Portionsstorlek:</label>
+                            <div className="flex items-center gap-2">
+                                {[0.5, 0.75, 1, 1.5, 2].map(multiplier => (
+                                    <button
+                                        key={multiplier}
+                                        onClick={() => setSelectedCommonMealPortion(multiplier)}
+                                        className={`flex-1 py-2 px-1 rounded-xl font-bold text-sm transition-all ${
+                                            selectedCommonMealPortion === multiplier
+                                                ? 'bg-primary text-white shadow-md'
+                                                : 'bg-neutral-light text-neutral-dark hover:bg-neutral-200'
+                                        }`}
+                                    >
+                                        {multiplier * 100}%
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="flex flex-col gap-3">
                             <button 
                                 onClick={() => selectedCommonMealType && confirmCommonMealLog(selectedCommonMealType)}
@@ -1135,6 +1169,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                         } else if (cameraMode === 'ingredientCapture') {
                             setIngredientImages(prev => [...prev, `data:image/jpeg;base64,${imgData}`]);
                             setShowIngredientCaptureModal(true); 
+                        } else if (cameraMode === 'nutritionLabel') {
+                            setAppStatus('analyzing');
+                            try {
+                                const result = await analyzeNutritionLabelImage(imgData);
+                                setNutritionLabelResult(result);
+                                setShowNutritionLabelResultModal(true);
+                            } catch (e: any) {
+                                alert(e.message);
+                            } finally {
+                                setAppStatus('idle');
+                            }
                         }
                     }} 
                     onCameraError={(err) => alert(err)} 
@@ -1159,7 +1204,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 />
             )}
             {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} />}
-            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setShowCameraModal(true); }} />}
+            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setCameraMode('nutritionLabel'); setShowCameraModal(true); }} />}
             {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}

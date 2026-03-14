@@ -170,7 +170,50 @@ export const subscribeToChatMessages = (
   });
 };
 
-// --- CHAT ACTIONS ---
+export const sendDirectMessage = async (
+  senderId: string,
+  senderName: string,
+  recipientId: string,
+  recipientName: string,
+  text: string
+) => {
+  if (!db) return;
+  
+  // Try to find an existing direct chat between these two users
+  const q = query(
+    collection(db, 'chats'),
+    where('type', '==', 'direct'),
+    where('members', 'array-contains', senderId)
+  );
+  
+  const snapshot = await getDocs(q);
+  let chatId: string | null = null;
+  
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    if (data.members.includes(recipientId)) {
+      chatId = doc.id;
+    }
+  });
+  
+  // If no chat exists, create one
+  if (!chatId) {
+    const chatName = `${senderName} & ${recipientName}`;
+    chatId = await createChat(
+      'direct',
+      chatName,
+      'Direktmeddelande',
+      senderId,
+      [recipientId],
+      'admin_only',
+      false,
+      false
+    );
+  }
+  
+  // Send the message
+  await sendMessage(chatId, senderId, senderName, text);
+};
 
 export const sendMessage = async (
   chatId: string,

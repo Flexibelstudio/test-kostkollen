@@ -29,6 +29,7 @@ import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 import Lightbox from './Lightbox';
 import { ChatRoomsView } from './ChatRoomsView';
+import { COACH_PERSONAS } from '../constants';
 
 // --- HELPER FUNCTIONS ---
 
@@ -502,7 +503,18 @@ const TimelineEventCard: FC<{
 
 
     const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
-    const displayName = isGlobalPost ? 'Kostloggen' : (isCurrentUser ? 'Du' : event.userName);
+    
+    // Check if the post was made by a coach persona
+    const isCoachPersona = isGlobalPost && event.userName && 
+        Object.values(COACH_PERSONAS).some(coach => coach.label === event.userName);
+
+    const displayName = isGlobalPost 
+        ? (isCoachPersona ? event.userName : 'Kostloggen') 
+        : (isCurrentUser ? 'Du' : event.userName);
+        
+    const displayPhotoURL = isGlobalPost 
+        ? (isCoachPersona ? event.userPhotoURL : '/favicon.png') 
+        : event.userPhotoURL;
 
     return (
     <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
@@ -513,7 +525,7 @@ const TimelineEventCard: FC<{
                 : 'bg-white dark:bg-neutral-darker border-neutral-light'
     }`}>
         <div className="flex items-start gap-3">
-            <Avatar photoURL={isGlobalPost ? '/favicon.png' : event.userPhotoURL} gender={event.gender} size={42} />
+            <Avatar photoURL={displayPhotoURL} gender={event.gender} size={42} />
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col">

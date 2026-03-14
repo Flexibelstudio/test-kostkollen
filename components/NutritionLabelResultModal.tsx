@@ -6,6 +6,18 @@ import { FileText } from 'lucide-react';
 import { playAudio } from '../services/audioService.ts';
 import MealTypeSelector from './MealTypeSelector';
 
+type Unit = 'g' | 'ml' | 'dl' | 'msk' | 'tsk' | 'st' | 'portion';
+
+const unitToGrams: Record<Unit, number> = {
+  'g': 1,
+  'ml': 1,
+  'dl': 100,
+  'msk': 15,
+  'tsk': 5,
+  'st': 100, // Schablonvärde
+  'portion': 150 // Schablonvärde
+};
+
 interface NutritionLabelResultModalProps {
   show: boolean;
   onClose: () => void;
@@ -15,14 +27,16 @@ interface NutritionLabelResultModalProps {
 }
 
 const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ show, onClose, analysisResult, onLog, defaultMealType = null }) => {
-  const [amountGrams, setAmountGrams] = useState('100');
+  const [amountInput, setAmountInput] = useState('100');
+  const [unit, setUnit] = useState<Unit>('g');
   const [finalNutrients, setFinalNutrients] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
 
   useEffect(() => {
     if (analysisResult) {
         setFinalNutrients(analysisResult);
-        setAmountGrams('100');
+        setAmountInput('100');
+        setUnit('g');
     }
   }, [analysisResult]);
 
@@ -34,25 +48,26 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
 
   useEffect(() => {
     if (analysisResult) {
-        const grams = parseFloat(amountGrams.replace(',', '.')) || 0;
+        const amount = parseFloat(amountInput.replace(',', '.')) || 0;
+        const grams = amount * unitToGrams[unit];
         const multiplier = grams / 100.0;
         
         setFinalNutrients({
-        foodItem: analysisResult.foodItem,
-        calories: Math.round((analysisResult.calories || 0) * multiplier),
-        protein: Math.round((analysisResult.protein || 0) * multiplier),
-        carbohydrates: Math.round((analysisResult.carbohydrates || 0) * multiplier),
-        fat: Math.round((analysisResult.fat || 0) * multiplier),
+          foodItem: analysisResult.foodItem,
+          calories: Math.round((analysisResult.calories || 0) * multiplier),
+          protein: Number(((analysisResult.protein || 0) * multiplier).toFixed(1)),
+          carbohydrates: Number(((analysisResult.carbohydrates || 0) * multiplier).toFixed(1)),
+          fat: Number(((analysisResult.fat || 0) * multiplier).toFixed(1)),
         });
     }
-  }, [amountGrams, analysisResult]);
+  }, [amountInput, unit, analysisResult]);
   
   const handleLog = () => {
     if (!selectedMealType) return;
     playAudio('uiClick');
     onLog({
         ...finalNutrients,
-        foodItem: `${finalNutrients.foodItem || 'Skannad produkt'} (${amountGrams}g)`
+        foodItem: `${finalNutrients.foodItem || 'Skannad produkt'} (${amountInput} ${unit})`
     }, { saveAsCommon: false, mealType: selectedMealType });
     onClose(); // Close modal immediately after logging
   };
@@ -60,7 +75,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(',', '.');
     if (val === "" || /^\d*\.?\d*$/.test(val)) {
-        setAmountGrams(val);
+        setAmountInput(val);
     }
   };
 
@@ -101,19 +116,35 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                 </div>
 
                 <div>
-                    <label htmlFor="amountGrams" className={`${labelClass} text-center`}>Hur många gram åt/drack du?</label>
-                    <div className="relative mt-1 max-w-xs mx-auto">
+                    <label htmlFor="amountInput" className={`${labelClass} text-center`}>Hur mycket åt/drack du?</label>
+                    <div className="relative mt-1 max-w-xs mx-auto flex items-center shadow-sm rounded-lg mb-2">
                         <input
                             type="text"
-                            id="amountGrams"
-                            value={amountGrams}
+                            id="amountInput"
+                            value={amountInput}
                             onChange={handleAmountChange}
-                            className="w-full px-4 py-3 text-center text-xl font-bold bg-white border-2 border-primary-lighter rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-2/3 px-4 py-3 text-center text-xl font-bold bg-white border-2 border-r-0 border-primary-lighter rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary z-10"
                             inputMode="decimal"
                             autoFocus
                         />
-                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-neutral">g</span>
+                        <select
+                            value={unit}
+                            onChange={(e) => setUnit(e.target.value as Unit)}
+                            className="w-1/3 px-2 py-3 text-center text-lg font-semibold bg-neutral-light border-2 border-primary-lighter rounded-r-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary appearance-none cursor-pointer z-10"
+                            style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23111827%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .7rem top 50%', backgroundSize: '.65rem auto' }}
+                        >
+                            <option value="g">g</option>
+                            <option value="ml">ml</option>
+                            <option value="dl">dl</option>
+                            <option value="msk">msk</option>
+                            <option value="tsk">tsk</option>
+                            <option value="st">st</option>
+                            <option value="portion">portion</option>
+                        </select>
                     </div>
+                    {(unit === 'portion' || unit === 'st') && (
+                        <p className="text-[10px] text-neutral-500 mt-1.5 text-center">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
+                    )}
                 </div>
 
                 <div className="pt-4 mt-2 border-t border-neutral-light/60">
