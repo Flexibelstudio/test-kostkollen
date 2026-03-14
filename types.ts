@@ -229,7 +229,7 @@ export interface UserProfileData {
   coachStyle: CoachStyle; // New field for coaching style
   
   // Subscription fields
-  subscriptionStatus?: 'active' | 'canceling' | 'canceled';
+  subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
   currentPeriodEnd?: string; // ISO date string
 }
 
@@ -478,6 +478,7 @@ export interface CoachViewMember {
     completedLessons: number;
     totalLessons: number;
   };
+  subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
   weeklyWeightChange?: number;
   ageYears?: number;
   gender: Gender;
