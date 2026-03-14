@@ -831,25 +831,25 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         </div>
         
         {!selectedChat && !isCreatingGroup && (
-            <div className="max-w-7xl mx-auto px-1 sm:px-4 lg:px-8 mt-2">
+            <div className="w-full mt-2">
                 <div className="flex w-full border-b border-neutral-light">
                     <button
                         onClick={() => setActiveTab('members')}
-                        className={`flex-1 py-3 px-1 sm:px-2 flex justify-center items-center gap-1.5 sm:gap-2 font-bold text-xs sm:text-base whitespace-nowrap border-b-2 transition-colors ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <UsersIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                         Medlemsregister
                     </button>
                     <button
                         onClick={() => setActiveTab('growth')}
-                        className={`flex-1 py-3 px-1 sm:px-2 flex justify-center items-center gap-1.5 sm:gap-2 font-bold text-xs sm:text-base whitespace-nowrap border-b-2 transition-colors ${activeTab === 'growth' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'growth' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
                         Tillväxtmotor
                     </button>
                     <button
                         onClick={() => setActiveTab('studio')}
-                        className={`flex-1 py-3 px-1 sm:px-2 flex justify-center items-center gap-1.5 sm:gap-2 font-bold text-xs sm:text-base whitespace-nowrap border-b-2 transition-colors ${activeTab === 'studio' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'studio' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <SparklesIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                         Coach Studio

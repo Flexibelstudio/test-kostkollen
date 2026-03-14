@@ -175,7 +175,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       email: fbUser.email,
       displayName: fbUser.displayName || "Ny användare",
       role: 'member',
-      status: 'approved',
+      status: 'pending',
       hasCompletedOnboarding: false,
       createdAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),

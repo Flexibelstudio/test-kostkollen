@@ -7,6 +7,7 @@ import {
 
 import CoachDashboard from './components/CoachDashboard';
 import ArchivedUserScreen from './components/ArchivedUserScreen';
+import PendingSubscriptionScreen from './components/PendingSubscriptionScreen';
 import SplashScreen from './components/SplashScreen';
 import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
 
@@ -1578,6 +1579,10 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
   if (userStatus === 'archived') {
     return <ArchivedUserScreen onLogout={handleLogout} />;
+  }
+
+  if (userStatus === 'pending' && userRole !== 'coach' && userRole !== 'admin') {
+    return <PendingSubscriptionScreen onLogout={handleLogout} />;
   }
   
   if ((userRole === 'coach' || userRole === 'admin') && currentInterface === 'coach') {
