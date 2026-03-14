@@ -678,10 +678,16 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     }
 
     try {
+        // --- FIX FÖR ACCOUNTS V2: Skapa kund först ---
+        const customer = await stripe.customers.create({
+            email: context.auth.token.email,
+            metadata: { firebaseUid: context.auth.uid }
+        });
+
         const session = await stripe.checkout.sessions.create({
+            customer: customer.id, // Koppla sessionen till den nyskapade kunden
             payment_method_types: ['card'],
             mode: 'subscription',
-            customer_email: context.auth.token.email,
             line_items: [{ price: priceId, quantity: 1 }],
             metadata: { firebaseUid: context.auth.uid },
             allow_promotion_codes: true,
@@ -760,9 +766,7 @@ exports.onChatMessageCreated = functions.firestore
       if (level === 'mute') return null;
       
       if (level === 'mentions') {
-        // Since 'mentions' was the default previously, many users have it set without knowing.
-        // For now, we'll treat 'mentions' as 'all' unless they explicitly mute.
-        // If we want to strictly enforce mentions later, we can check for '@'.
+        // For now, treat 'mentions' as 'all'
       }
 
       // Send the notification
