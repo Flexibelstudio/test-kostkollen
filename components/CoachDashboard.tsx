@@ -903,7 +903,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       </main>
 
       <footer className="text-center py-8 text-neutral-400 text-sm font-medium">
-        <p>© 2025 Flexibel Hälsostudio.</p>
+        <p>© 2026 Flexibel Hälsostudio.</p>
       </footer>
 
       {showInfoModal && (
