@@ -869,7 +869,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     userRole={userRole}
                     onBack={() => setSelectedChat(null)}
                     setToastNotification={setToastNotification}
-                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
+                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL } as any))}
                 />
             </div>
         ) : isCreatingGroup ? (
@@ -883,7 +883,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         setToastNotification({ message: 'Grupp skapad!', type: 'success' });
                     }}
                     setToastNotification={setToastNotification}
-                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL }))}
+                    buddyDetails={membersList.map(m => ({ uid: m.id, name: m.name, photoURL: m.photoURL } as any))}
                     defaultIsSystemGroup={true}
                     defaultIsPublic={true}
                     hideSystemGroupOption={true}

@@ -163,8 +163,8 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
                 setUnlockedAchievements(appData.unlockedAchievements || {});
                 setAchievementInteractions(appData.achievementInteractions || {});
                 setHasCompletedOnboarding(appData.hasCompletedOnboarding || false);
-                setUserRole(appData.role || 'member');
-                setUserStatus(appData.status || 'pending');
+                setUserRole((appData.role as UserRole) || 'member');
+                setUserStatus((appData.status as 'pending' | 'approved' | 'archived') || 'pending');
                 setJourneyAnalysisFeedback(appData.journeyAnalysisFeedback || null);
                 
                 setIsInitialDataLoaded(true);

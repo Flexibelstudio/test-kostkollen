@@ -3,7 +3,7 @@ import { COACH_PERSONAS } from '../constants';
 import { createUserPost } from '../services/firestoreService';
 import { GoogleGenAI } from '@google/genai';
 import { PostCategory } from '../types';
-import { SparklesIcon, XMarkIcon } from './icons';
+import { SparklesIcon } from './icons';
 import { Send } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -27,14 +27,19 @@ const CoachStudioView: React.FC<CoachStudioViewProps> = ({ currentUser, setToast
   const [category, setCategory] = useState<PostCategory>('general');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, isGenerating]);
 
   const handleGenerate = async () => {
     if (!brief.trim()) return;
+
+    if (!process.env.GEMINI_API_KEY) {
+      setToastNotification({ message: 'Gemini API-nyckel saknas.', type: 'error' });
+      return;
+    }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     const userMessage = brief.trim();
     setChatHistory(prev => [...prev, { role: 'user', text: userMessage }]);
@@ -61,7 +66,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
       ];
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
+        model: 'gemini-3-flash-preview',
         contents: contents as any,
         config: {
           systemInstruction,
@@ -130,10 +135,9 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
             >
                 <option value="general">Allmänt</option>
                 <option value="question">Fråga</option>
-                <option value="tip">Tips</option>
-                <option value="recipe">Recept</option>
+                <option value="food">Mat & Recept</option>
                 <option value="workout">Träning</option>
-                <option value="motivation">Motivation</option>
+                <option value="pepp">Pepp & Motivation</option>
             </select>
         </div>
       </div>
