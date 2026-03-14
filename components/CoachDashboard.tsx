@@ -23,6 +23,7 @@ import {
 import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
 import GrowthEngineView from './GrowthEngineView';
+import CoachStudioView from './CoachStudioView';
 import { Avatar } from './UserProfileModal';
 import { TrendingUp } from 'lucide-react';
 
@@ -614,7 +615,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CoachViewMember | null>(null);
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState<'members' | 'growth'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio'>('members');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [myChats, setMyChats] = useState<Chat[]>([]);
   const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
@@ -845,6 +846,13 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         <TrendingUp className="w-4 h-4" />
                         Tillväxtmotor
                     </button>
+                    <button
+                        onClick={() => setActiveTab('studio')}
+                        className={`py-3 px-2 font-bold text-sm border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'studio' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                    >
+                        <SparklesIcon className="w-4 h-4" />
+                        Coach Studio
+                    </button>
                 </div>
             </div>
         )}
@@ -887,6 +895,11 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 setToastNotification={setToastNotification} 
                 currentUser={currentUser}
                 userProfile={userProfile}
+            />
+        ) : activeTab === 'studio' ? (
+            <CoachStudioView 
+                currentUser={currentUser}
+                setToastNotification={setToastNotification}
             />
         ) : (
             <>
