@@ -102,7 +102,7 @@ const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling'
 };
 
 const SortableHeader: React.FC<{ column: SortableKeys; label: string; tooltip?: string; sortBy: SortableKeys | null; sortOrder: 'asc' | 'desc'; onSort: (column: SortableKeys) => void; }> = ({ column, label, tooltip, sortBy, sortOrder, onSort }) => (
-    <th scope="col" className="px-4 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 backdrop-blur-md z-10 border-b border-gray-100">
+    <th scope="col" className="px-3 py-2.5 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 backdrop-blur-md z-10 border-b border-gray-100">
         <button onClick={() => onSort(column)} className="flex items-center gap-1.5 group hover:text-primary transition-colors focus:outline-none">
             {label}
             {tooltip && <span className="relative" title={tooltip}><InformationCircleIcon className="w-3.5 h-3.5 text-neutral-400 hover:text-primary transition-colors cursor-help" /></span>}
@@ -222,32 +222,32 @@ const MemberFilters: React.FC<{
     filterStatus: 'all' | 'approved' | 'archived'; onFilterStatusChange: (s: 'all' | 'approved' | 'archived') => void;
     onRefresh: () => void; isRefreshDisabled: boolean;
 }> = ({ searchQuery, onSearchChange, filterStatus, onFilterStatusChange, onRefresh, isRefreshDisabled }) => (
-    <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-neutral-dark self-start md:self-center">Medlemslista</h2>
+    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-3 gap-3">
+        <h2 className="text-xl font-bold text-neutral-dark">Medlemslista</h2>
         
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-row items-center gap-2 w-full lg:w-auto">
             {/* Search Bar */}
-            <div className="relative w-full sm:w-64 group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <SearchIcon className="w-5 h-5 text-gray-400 group-focus-within:text-primary transition-colors" />
+            <div className="relative w-full sm:w-48 group">
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                    <SearchIcon className="w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
                 </div>
                 <input 
                     type="text" 
                     placeholder="Sök namn/e-post..." 
                     value={searchQuery} 
                     onChange={(e) => onSearchChange(e.target.value)} 
-                    className="w-full pl-10 pr-4 py-2.5 text-sm bg-neutral-light/50 border border-neutral-light rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none" 
+                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-neutral-light/50 border border-neutral-light rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none" 
                     aria-label="Sök medlemmar" 
                 />
             </div>
 
             {/* Filter Pills */}
-            <div className="flex bg-neutral-light/30 p-1 rounded-xl">
+            <div className="flex bg-neutral-light/30 p-0.5 rounded-lg">
                 {(['all', 'approved', 'archived'] as const).map((status) => (
                     <button
                         key={status}
                         onClick={() => onFilterStatusChange(status)}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                        className={`px-2 py-1 text-xs font-semibold rounded-md transition-all ${
                             filterStatus === status 
                                 ? 'bg-white shadow-sm text-primary' 
                                 : 'text-neutral hover:text-neutral-dark hover:bg-neutral-light/50'
@@ -263,11 +263,11 @@ const MemberFilters: React.FC<{
             {/* Refresh Button */}
             <button 
                 onClick={onRefresh} 
-                className="p-2.5 text-primary bg-white border border-neutral-light rounded-xl hover:bg-primary-50 hover:border-primary/30 active:scale-95 transition-all disabled:opacity-50" 
+                className="p-1.5 text-primary bg-white border border-neutral-light rounded-lg hover:bg-primary-50 hover:border-primary/30 active:scale-95 transition-all disabled:opacity-50" 
                 disabled={isRefreshDisabled}
                 title="Uppdatera lista"
             >
-                <SwitchHorizontalIcon className={`w-5 h-5 ${isRefreshDisabled ? 'animate-spin' : ''}`} />
+                <SwitchHorizontalIcon className={`w-4 h-4 ${isRefreshDisabled ? 'animate-spin' : ''}`} />
             </button>
         </div>
     </div>
@@ -322,7 +322,7 @@ const MemberListTable: React.FC<{
             <table className="min-w-full divide-y divide-gray-100">
                 <thead>
                     <tr>
-                        <th scope="col" className="px-4 py-4 bg-gray-50/80 w-12 sticky top-0 z-10 border-b border-gray-100 backdrop-blur-sm">
+                        <th scope="col" className="px-3 py-2.5 bg-gray-50/80 w-12 sticky top-0 z-10 border-b border-gray-100 backdrop-blur-sm">
                             <div className="flex items-center justify-center">
                                 <input 
                                     type="checkbox" 
@@ -338,7 +338,7 @@ const MemberListTable: React.FC<{
                         <SortableHeader column="currentStreak" label="Streak" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                         <SortableHeader column="goalSummary" label="Mål" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                         <SortableHeader column="subscriptionStatus" label="Prenumeration" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
-                        <th scope="col" className="px-4 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 z-10 border-b border-gray-100 backdrop-blur-sm">Åtgärder</th>
+                        <th scope="col" className="px-3 py-2.5 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 z-10 border-b border-gray-100 backdrop-blur-sm">Åtgärder</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-50">
@@ -348,7 +348,7 @@ const MemberListTable: React.FC<{
                             onClick={() => props.onShowDetails(member)}
                             className={`group transition-all cursor-pointer ${props.selectedMemberIds.has(member.id) ? 'bg-primary-50' : 'hover:bg-neutral-light/40'} ${member.status === 'archived' ? 'opacity-70 grayscale-[0.5]' : ''}`}
                         >
-                            <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-3 py-2.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-center">
                                     <input 
                                         type="checkbox" 
@@ -359,7 +359,7 @@ const MemberListTable: React.FC<{
                                     />
                                 </div>
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap">
+                            <td className="px-3 py-2.5 whitespace-nowrap">
                                 <div className="flex items-center">
                                     <div className="h-10 w-10 flex-shrink-0">
                                         {member.photoURL ? (
@@ -376,26 +376,26 @@ const MemberListTable: React.FC<{
                                     </div>
                                 </div>
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral">
+                            <td className="px-3 py-2.5 whitespace-nowrap text-sm text-neutral">
                                 <span className={`${!member.lastLogDate ? 'text-neutral-400 italic' : 'text-neutral-dark font-medium'}`}>
                                     {member.lastLogDate || 'Ingen aktivitet'}
                                 </span>
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap">
+                            <td className="px-3 py-2.5 whitespace-nowrap">
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-lg">🔥</span>
                                     <span className="text-sm font-bold text-neutral-dark">{member.currentStreak}</span>
                                 </div>
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral-dark">{member.goalSummary}</td>
-                            <td className="px-4 py-4 whitespace-nowrap">
+                            <td className="px-3 py-2.5 whitespace-nowrap text-sm text-neutral-dark">{member.goalSummary}</td>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
                                 {member.status === 'archived' ? (
                                     <span className="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border bg-gray-100 text-gray-600 border-gray-200">Arkiverad</span>
                                 ) : (
                                     <SubscriptionBadge status={member.subscriptionStatus} />
                                 )}
                             </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                            <td className="px-3 py-2.5 whitespace-nowrap text-sm font-medium">
                                 <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                     {member.status === 'archived' ? (
                                         <ActionButton 
@@ -817,7 +817,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     )}
                 </div>
 
-                <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+                <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
                     <MemberFilters 
                         searchQuery={searchQuery} 
                         onSearchChange={setSearchQuery} 
