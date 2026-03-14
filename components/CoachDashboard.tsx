@@ -54,18 +54,35 @@ const StatCard: React.FC<{
   subtitle?: string;
   colorClass: string;
   textClass: string;
-}> = ({ icon, title, value, subtitle, colorClass, textClass }) => (
-  <div className="bg-white p-3 sm:p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col sm:flex-row items-start sm:space-x-4 space-y-2 sm:space-y-0 transition-transform hover:scale-[1.02] duration-300 cursor-default">
-    <div className={`p-2.5 sm:p-3.5 rounded-xl ${colorClass} flex items-center justify-center shadow-sm`}>
-      {React.cloneElement(icon as React.ReactElement<any>, { className: `w-5 h-5 sm:w-6 sm:h-6 ${textClass}` })}
+  onClick?: () => void;
+}> = ({ icon, title, value, subtitle, colorClass, textClass, onClick }) => {
+  const content = (
+    <>
+      <div className={`p-2.5 sm:p-3.5 rounded-xl ${colorClass} flex items-center justify-center shadow-sm`}>
+        {React.cloneElement(icon as React.ReactElement<any>, { className: `w-5 h-5 sm:w-6 sm:h-6 ${textClass}` })}
+      </div>
+      <div className="text-left">
+        <p className="text-[10px] sm:text-xs font-bold text-neutral-500 uppercase tracking-wide mb-0.5">{title}</p>
+        <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-tight">{value}</p>
+        {subtitle && <p className="text-[10px] sm:text-xs text-neutral font-medium mt-1">{subtitle}</p>}
+      </div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button onClick={onClick} className="bg-white p-3 sm:p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col sm:flex-row items-start sm:space-x-4 space-y-2 sm:space-y-0 transition-all hover:scale-[1.02] hover:border-primary/30 duration-300 cursor-pointer w-full focus:outline-none">
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-white p-3 sm:p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col sm:flex-row items-start sm:space-x-4 space-y-2 sm:space-y-0 transition-transform hover:scale-[1.02] duration-300 cursor-default">
+      {content}
     </div>
-    <div>
-      <p className="text-[10px] sm:text-xs font-bold text-neutral-500 uppercase tracking-wide mb-0.5">{title}</p>
-      <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-tight">{value}</p>
-      {subtitle && <p className="text-[10px] sm:text-xs text-neutral font-medium mt-1">{subtitle}</p>}
-    </div>
-  </div>
-);
+  );
+};
 
 const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive' }> = ({ status }) => {
     let classes = "";
@@ -132,7 +149,7 @@ const getTodayKey = () => {
     return `${year}-${month}-${day}`;
 };
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount }) => {
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; onGroupsClick: () => void; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, onGroupsClick }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
@@ -206,7 +223,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             >
                 <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-blue-100" textClass="text-blue-600" />
                 <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-emerald-100" textClass="text-emerald-600" />
-                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" />
+                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" onClick={onGroupsClick} />
                 <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
@@ -594,6 +611,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [myChats, setMyChats] = useState<Chat[]>([]);
   const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  const [showAllGroupsModal, setShowAllGroupsModal] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
 
@@ -776,7 +794,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             />
         ) : (
             <>
-                <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} systemGroupsCount={myChats.length} publicRoomsCount={publicRooms.length} />
+                <GroupInsights membersList={membersList} isExpanded={isInsightsExpanded} onToggle={() => setIsInsightsExpanded(prev => !prev)} systemGroupsCount={myChats.length} publicRoomsCount={publicRooms.length} onGroupsClick={() => setShowAllGroupsModal(true)} />
                 
                 <div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
                     <CreatePostWidget 
@@ -823,11 +841,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                             <p className="text-xs text-neutral mt-1.5 flex items-center gap-2 flex-wrap">
                                                 <span className="flex items-center gap-1">
                                                     <UsersIcon className="w-3.5 h-3.5" /> {chat.members.length} medlemmar
-                                                </span>
-                                                <span className="text-neutral-300">•</span>
-                                                <span className="flex items-center gap-1">
-                                                    <span className="text-[10px]">👑</span> 
-                                                    Admin: {chat.admins?.map(adminId => membersList.find(m => m.id === adminId)?.name || 'Okänd').join(', ') || 'Ingen admin'}
                                                 </span>
                                             </p>
                                         </div>
@@ -972,6 +985,65 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 <button onClick={() => setShowInfoModal(false)} className="mt-8 w-full py-3.5 bg-neutral-dark text-white font-bold rounded-xl hover:bg-black transition-colors shadow-lg active:scale-95">
                     Fattar!
                 </button>
+            </div>
+        </div>
+      )}
+
+      {showAllGroupsModal && (
+        <div className="fixed inset-0 bg-neutral-dark/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowAllGroupsModal(false)}>
+            <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-pink-100 p-2.5 rounded-full">
+                            <UsersIcon className="w-6 h-6 text-pink-600" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-neutral-dark">Alla Grupper</h3>
+                    </div>
+                    <button onClick={() => setShowAllGroupsModal(false)} className="p-2 text-neutral-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
+                        <XMarkIcon className="w-6 h-6" /> 
+                    </button>
+                </div>
+                
+                <div className="overflow-y-auto custom-scrollbar flex-1 pr-2 space-y-4">
+                    {[...myChats, ...publicRooms].sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0)).map(chat => (
+                        <div key={chat.id} className="bg-neutral-50 p-4 rounded-xl border border-neutral-100 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h4 className="font-bold text-neutral-dark">{chat.name}</h4>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                        {chat.isSystemGroup ? 'Officiell' : 'Publik'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-neutral mt-1.5 flex items-center gap-2 flex-wrap">
+                                    <span className="flex items-center gap-1">
+                                        <UsersIcon className="w-3.5 h-3.5" /> {chat.members?.length || 0} medlemmar
+                                    </span>
+                                    {!chat.isSystemGroup && (
+                                        <>
+                                            <span className="text-neutral-300">•</span>
+                                            <span className="flex items-center gap-1">
+                                                <span className="text-[10px]">👑</span> 
+                                                Admin: {chat.admins?.map(adminId => membersList.find(m => m.id === adminId)?.name || 'Okänd').join(', ') || 'Ingen admin'}
+                                            </span>
+                                        </>
+                                    )}
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setSelectedChat(chat);
+                                    setShowAllGroupsModal(false);
+                                }}
+                                className="px-3 py-1.5 bg-white border border-neutral-light text-sm font-medium rounded-lg hover:bg-neutral-light/50 transition-colors"
+                            >
+                                Visa grupp
+                            </button>
+                        </div>
+                    ))}
+                    {myChats.length === 0 && publicRooms.length === 0 && (
+                        <p className="text-center text-neutral-500 py-8">Inga grupper finns i systemet ännu.</p>
+                    )}
+                </div>
             </div>
         </div>
       )}
