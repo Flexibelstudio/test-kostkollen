@@ -145,27 +145,27 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Top Bar: Coach Selection */}
         <div className="w-full border-b border-neutral-light bg-neutral-50/50 p-4 shrink-0">
-          <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">Välj Avsändare</h3>
-          <div className="flex flex-row gap-3 overflow-x-auto custom-scrollbar pb-2">
+          <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3 text-center sm:text-left">Välj Avsändare</h3>
+          <div className="flex flex-row gap-2 sm:gap-3 justify-between">
             {(Object.entries(COACH_PERSONAS) as [keyof typeof COACH_PERSONAS, any][]).map(([key, coach]) => (
               <button
                 key={key}
                 onClick={() => setSelectedCoach(key)}
-                className={`flex-1 min-w-[200px] flex items-center gap-3 p-3 rounded-2xl transition-all text-left ${
+                className={`flex-1 flex flex-col items-center justify-center gap-2 p-2 sm:p-3 rounded-2xl transition-all text-center ${
                   selectedCoach === key 
                     ? 'bg-white border-2 border-primary shadow-sm' 
                     : 'bg-transparent border-2 border-transparent hover:bg-neutral-100'
                 }`}
               >
                 <div className="relative shrink-0">
-                  <img src={coach.imageUrl} alt={coach.label} className="w-12 h-12 rounded-full object-cover border border-neutral-200" />
+                  <img src={coach.imageUrl} alt={coach.label} className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border border-neutral-200" />
                   <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                    <span className="text-xs">{coach.emoji}</span>
+                    <span className="text-[10px] sm:text-xs">{coach.emoji}</span>
                   </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="font-bold text-neutral-dark text-sm truncate">{coach.label}</p>
-                  <p className="text-xs text-neutral capitalize truncate">{coach.roleTitle}</p>
+                <div className="min-w-0 w-full">
+                  <p className="font-bold text-neutral-dark text-xs sm:text-sm truncate">{coach.label}</p>
+                  <p className="text-[10px] sm:text-xs text-neutral capitalize truncate">{coach.roleTitle}</p>
                 </div>
               </button>
             ))}
