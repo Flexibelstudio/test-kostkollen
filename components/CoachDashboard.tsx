@@ -451,6 +451,11 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialSortOrder);
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [visibleCount, setVisibleCount] = useState(20);
+
+    useEffect(() => {
+        setVisibleCount(20);
+    }, [searchQuery, filterStatus, sortBy, sortOrder]);
 
     const fetchMembers = useCallback(async () => {
         setIsLoadingMembers(true);
@@ -560,7 +565,8 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
         selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
         searchQuery, setSearchQuery, fetchMembers, handleArchiveMember, handleUnarchiveMember,
-        handleUpdateRole, handleUpdateSubscriptionStatus, handleBulkAction, sortedAndFilteredMembers
+        handleUpdateRole, handleUpdateSubscriptionStatus, handleBulkAction, sortedAndFilteredMembers,
+        visibleCount, setVisibleCount
     };
 };
 
@@ -626,8 +632,11 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
       selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
       searchQuery, setSearchQuery, fetchMembers, handleArchiveMember, handleUnarchiveMember,
-      handleUpdateRole, handleUpdateSubscriptionStatus, handleBulkAction, sortedAndFilteredMembers
+      handleUpdateRole, handleUpdateSubscriptionStatus, handleBulkAction, sortedAndFilteredMembers,
+      visibleCount, setVisibleCount
   } = useCoachDashboard();
+  
+  const visibleMembers = sortedAndFilteredMembers.slice(0, visibleCount);
   
   const handleSort = (column: SortableKeys) => {
     playAudio('uiClick', 0.6);
@@ -645,7 +654,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedMemberIds(e.target.checked ? new Set(sortedAndFilteredMembers.map(m => m.id)) : new Set());
+    setSelectedMemberIds(e.target.checked ? new Set(visibleMembers.map(m => m.id)) : new Set());
   };
 
   const handleShowMemberDetails = (member: CoachViewMember) => {
@@ -852,21 +861,34 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
 
                     {!isLoadingMembers && !isBulkUpdating && !errorMembers && (
                         sortedAndFilteredMembers.length > 0 ? (
-                            <MemberListTable 
-                                members={sortedAndFilteredMembers} 
-                                currentUserId={currentUserId} 
-                                selectedMemberIds={selectedMemberIds} 
-                                sortBy={sortBy} 
-                                sortOrder={sortOrder} 
-                                updatingMemberId={updatingMemberId} 
-                                onSelectAll={handleSelectAll} 
-                                onSelectMember={handleSelectMember} 
-                                onSort={handleSort} 
-                                onShowDetails={handleShowMemberDetails} 
-                                onArchive={handleArchiveMember}
-                                onUnarchive={handleUnarchiveMember}
-                                onUpdateRole={handleUpdateRole} 
-                            />
+                            <>
+                                <MemberListTable 
+                                    members={visibleMembers} 
+                                    currentUserId={currentUserId} 
+                                    selectedMemberIds={selectedMemberIds} 
+                                    sortBy={sortBy} 
+                                    sortOrder={sortOrder} 
+                                    updatingMemberId={updatingMemberId} 
+                                    onSelectAll={handleSelectAll} 
+                                    onSelectMember={handleSelectMember} 
+                                    onSort={handleSort} 
+                                    onShowDetails={handleShowMemberDetails} 
+                                    onArchive={handleArchiveMember}
+                                    onUnarchive={handleUnarchiveMember}
+                                    onUpdateRole={handleUpdateRole} 
+                                />
+                                {visibleCount < sortedAndFilteredMembers.length && (
+                                    <div className="mt-6 flex justify-center">
+                                        <button
+                                            onClick={() => setVisibleCount(prev => prev + 20)}
+                                            className="px-6 py-2.5 bg-white border border-neutral-light text-primary font-bold rounded-xl hover:bg-primary-50 transition-colors shadow-sm flex items-center gap-2"
+                                        >
+                                            Visa fler ({sortedAndFilteredMembers.length - visibleCount} kvar)
+                                            <ChevronDownIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div className="text-center py-16 bg-neutral-light/30 rounded-2xl border border-dashed border-neutral-light">
                                 <UserGroupIcon className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
