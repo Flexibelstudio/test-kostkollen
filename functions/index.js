@@ -766,7 +766,9 @@ exports.onChatMessageCreated = functions.firestore
       if (level === 'mute') return null;
       
       if (level === 'mentions') {
-        // For now, treat 'mentions' as 'all'
+        // Since 'mentions' was the default previously, many users have it set without knowing.
+        // For now, we'll treat 'mentions' as 'all' unless they explicitly mute.
+        // If we want to strictly enforce mentions later, we can check for '@'.
       }
 
       // Send the notification
