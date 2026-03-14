@@ -71,8 +71,16 @@ const StatCard: React.FC<{
 
   if (onClick) {
     return (
-      <button onClick={onClick} className="bg-white p-3 sm:p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col sm:flex-row items-start sm:space-x-4 space-y-2 sm:space-y-0 transition-all hover:scale-[1.02] hover:border-primary/30 duration-300 cursor-pointer w-full focus:outline-none">
+      <button onClick={onClick} className="bg-white p-3 sm:p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col sm:flex-row items-start sm:space-x-4 space-y-2 sm:space-y-0 transition-all hover:scale-[1.02] hover:border-primary/30 duration-300 cursor-pointer w-full focus:outline-none relative group">
         {content}
+        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 text-primary">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
+        </div>
+        <div className="absolute bottom-2 right-3">
+            <span className="text-[9px] text-primary/70 font-bold uppercase tracking-wider group-hover:text-primary transition-colors">Klicka för detaljer</span>
+        </div>
       </button>
     );
   }
@@ -668,6 +676,89 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
     else { setSortBy(column); setSortOrder('asc'); }
   };
 
+  const handleCourseInsightsClick = async () => {
+    setShowCourseInsightsModal(true);
+    setCourseInsightsData({ isLoading: true, data: [] });
+    
+    try {
+        const { fetchCourseProgressForUser } = await import('../services/firestoreService');
+        const { ALL_COURSES } = await import('./CoursesView');
+        const { courseLessons, menopauseCourseLessons } = await import('../courseData');
+        
+        const membersOnCourse = membersList.filter(m => m.courseProgressSummary && m.courseProgressSummary.started);
+        
+        const courseStats: Record<string, {
+            courseId: string;
+            courseName: string;
+            participants: number;
+            completions: number;
+            totalProgress: number;
+            totalLessons: number;
+        }> = {};
+
+        ALL_COURSES.forEach(c => {
+            courseStats[c.id] = {
+                courseId: c.id,
+                courseName: c.title,
+                participants: 0,
+                completions: 0,
+                totalProgress: 0,
+                totalLessons: c.id === 'praktisk-viktkontroll' ? courseLessons.length : menopauseCourseLessons.length
+            };
+        });
+        
+        const dataPromises = membersOnCourse.map(async (member) => {
+            const progress = await fetchCourseProgressForUser(member.id);
+            
+            // Check Praktisk Viktkontroll
+            const pvLessons = Object.keys(progress).filter(k => k.startsWith('lektion'));
+            if (pvLessons.length > 0) {
+                const courseId = 'praktisk-viktkontroll';
+                const completed = pvLessons.filter(k => progress[k].isCompleted).length;
+                if (courseStats[courseId]) {
+                    courseStats[courseId].participants++;
+                    courseStats[courseId].totalProgress += (completed / courseStats[courseId].totalLessons);
+                    if (completed === courseStats[courseId].totalLessons) {
+                        courseStats[courseId].completions++;
+                    }
+                }
+            }
+
+            // Check Maxa Klimakteriet
+            const mkLessons = Object.keys(progress).filter(k => k.startsWith('m-lektion'));
+            if (mkLessons.length > 0) {
+                const courseId = 'maxa-klimakteriet';
+                const completed = mkLessons.filter(k => progress[k].isCompleted).length;
+                if (courseStats[courseId]) {
+                    courseStats[courseId].participants++;
+                    courseStats[courseId].totalProgress += (completed / courseStats[courseId].totalLessons);
+                    if (completed === courseStats[courseId].totalLessons) {
+                        courseStats[courseId].completions++;
+                    }
+                }
+            }
+        });
+        
+        await Promise.all(dataPromises);
+        
+        const results = Object.values(courseStats)
+            .filter(c => c.participants > 0)
+            .map(c => ({
+                courseId: c.courseId,
+                courseName: c.courseName,
+                participants: c.participants,
+                completions: c.completions,
+                averageProgress: (c.totalProgress / c.participants) * 100
+            }));
+        
+        setCourseInsightsData({ isLoading: false, data: results });
+    } catch (error) {
+        console.error("Error fetching course insights:", error);
+        setCourseInsightsData({ isLoading: false, data: [] });
+        setToastNotification({ message: 'Kunde inte hämta kursdata', type: 'error' });
+    }
+  };
+
   const handleSelectMember = (memberId: string) => {
     setSelectedMemberIds(prev => {
         const newSet = new Set(prev);
@@ -806,89 +897,29 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     systemGroupsCount={myChats.length} 
                     publicRoomsCount={publicRooms.length} 
                     onGroupsClick={() => setShowAllGroupsModal(true)} 
-                    onCourseClick={async () => {
-                        setShowCourseInsightsModal(true);
-                        setCourseInsightsData({ isLoading: true, data: [] });
-                        
-                        try {
-                            const { fetchCourseProgressForUser } = await import('../services/firestoreService');
-                            const { ALL_COURSES } = await import('./CoursesView');
-                            const { courseLessons, menopauseCourseLessons } = await import('../courseData');
-                            
-                            const membersOnCourse = membersList.filter(m => m.courseProgressSummary && m.courseProgressSummary.started);
-                            
-                            const courseStats: Record<string, {
-                                courseId: string;
-                                courseName: string;
-                                participants: number;
-                                completions: number;
-                                totalProgress: number;
-                                totalLessons: number;
-                            }> = {};
-
-                            ALL_COURSES.forEach(c => {
-                                courseStats[c.id] = {
-                                    courseId: c.id,
-                                    courseName: c.title,
-                                    participants: 0,
-                                    completions: 0,
-                                    totalProgress: 0,
-                                    totalLessons: c.id === 'praktisk-viktkontroll' ? courseLessons.length : menopauseCourseLessons.length
-                                };
-                            });
-                            
-                            const dataPromises = membersOnCourse.map(async (member) => {
-                                const progress = await fetchCourseProgressForUser(member.id);
-                                
-                                // Check Praktisk Viktkontroll
-                                const pvLessons = Object.keys(progress).filter(k => k.startsWith('lektion'));
-                                if (pvLessons.length > 0) {
-                                    const courseId = 'praktisk-viktkontroll';
-                                    const completed = pvLessons.filter(k => progress[k].isCompleted).length;
-                                    if (courseStats[courseId]) {
-                                        courseStats[courseId].participants++;
-                                        courseStats[courseId].totalProgress += (completed / courseStats[courseId].totalLessons);
-                                        if (completed === courseStats[courseId].totalLessons) {
-                                            courseStats[courseId].completions++;
-                                        }
-                                    }
-                                }
-
-                                // Check Maxa Klimakteriet
-                                const mkLessons = Object.keys(progress).filter(k => k.startsWith('m-lektion'));
-                                if (mkLessons.length > 0) {
-                                    const courseId = 'maxa-klimakteriet';
-                                    const completed = mkLessons.filter(k => progress[k].isCompleted).length;
-                                    if (courseStats[courseId]) {
-                                        courseStats[courseId].participants++;
-                                        courseStats[courseId].totalProgress += (completed / courseStats[courseId].totalLessons);
-                                        if (completed === courseStats[courseId].totalLessons) {
-                                            courseStats[courseId].completions++;
-                                        }
-                                    }
-                                }
-                            });
-                            
-                            await Promise.all(dataPromises);
-                            
-                            const results = Object.values(courseStats)
-                                .filter(c => c.participants > 0)
-                                .map(c => ({
-                                    courseId: c.courseId,
-                                    courseName: c.courseName,
-                                    participants: c.participants,
-                                    completions: c.completions,
-                                    averageProgress: (c.totalProgress / c.participants) * 100
-                                }));
-                            
-                            setCourseInsightsData({ isLoading: false, data: results });
-                        } catch (error) {
-                            console.error("Error fetching course insights:", error);
-                            setCourseInsightsData({ isLoading: false, data: [] });
-                            setToastNotification({ message: 'Kunde inte hämta kursdata', type: 'error' });
-                        }
-                    }}
+                    onCourseClick={handleCourseInsightsClick}
                 />
+                
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                    <button 
+                        onClick={() => setShowAllGroupsModal(true)}
+                        className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col items-center justify-center gap-3 hover:border-pink-300 hover:bg-pink-50/30 transition-all group focus:outline-none"
+                    >
+                        <div className="bg-pink-100 p-3 sm:p-4 rounded-full text-pink-600 group-hover:scale-110 transition-transform duration-300">
+                            <UsersIcon className="w-6 h-6 sm:w-8 sm:h-8" />
+                        </div>
+                        <span className="font-bold text-neutral-dark text-sm sm:text-base">Hantera Grupper</span>
+                    </button>
+                    <button 
+                        onClick={handleCourseInsightsClick}
+                        className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col items-center justify-center gap-3 hover:border-purple-300 hover:bg-purple-50/30 transition-all group focus:outline-none"
+                    >
+                        <div className="bg-purple-100 p-3 sm:p-4 rounded-full text-purple-600 group-hover:scale-110 transition-transform duration-300">
+                            <CourseIcon className="w-6 h-6 sm:w-8 sm:h-8" />
+                        </div>
+                        <span className="font-bold text-neutral-dark text-sm sm:text-base">Kursöversikt</span>
+                    </button>
+                </div>
                 
                 <div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
                     <CreatePostWidget 
