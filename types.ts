@@ -478,6 +478,7 @@ export interface CoachViewMember {
     completedLessons: number;
     totalLessons: number;
   };
+  subscriptionStatus?: 'active' | 'canceling' | 'canceled';
   weeklyWeightChange?: number;
   ageYears?: number;
   gender: Gender;

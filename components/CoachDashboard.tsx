@@ -22,11 +22,29 @@ import {
 import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
 import GrowthEngineView from './GrowthEngineView';
+import { Avatar } from './UserProfileModal';
 import { TrendingUp } from 'lucide-react';
 
 type SortableKeys = keyof CoachViewMember;
 
 // --- UI COMPONENTS ---
+
+const DropdownMenuItem: React.FC<{
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+    className?: string;
+}> = ({ icon, label, onClick, className = "text-neutral-dark hover:bg-neutral-light/50" }) => (
+    <button
+        onClick={onClick}
+        className={`w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors rounded-md font-medium ${className}`}
+    >
+        <div className="w-5 h-5 flex items-center justify-center opacity-80">
+            {icon}
+        </div>
+        {label}
+    </button>
+);
 
 const StatCard: React.FC<{
   icon: React.ReactNode;
@@ -36,35 +54,38 @@ const StatCard: React.FC<{
   colorClass: string;
   textClass: string;
 }> = ({ icon, title, value, subtitle, colorClass, textClass }) => (
-  <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex items-start space-x-4 transition-transform hover:scale-[1.02] duration-300 cursor-default">
-    <div className={`p-3.5 rounded-xl ${colorClass} flex items-center justify-center shadow-sm`}>
-      {React.cloneElement(icon as React.ReactElement<any>, { className: `w-6 h-6 ${textClass}` })}
+  <div className="bg-white p-3 sm:p-5 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col sm:flex-row items-start sm:space-x-4 space-y-2 sm:space-y-0 transition-transform hover:scale-[1.02] duration-300 cursor-default">
+    <div className={`p-2.5 sm:p-3.5 rounded-xl ${colorClass} flex items-center justify-center shadow-sm`}>
+      {React.cloneElement(icon as React.ReactElement<any>, { className: `w-5 h-5 sm:w-6 sm:h-6 ${textClass}` })}
     </div>
     <div>
-      <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide mb-0.5">{title}</p>
-      <p className="text-2xl font-extrabold text-neutral-dark leading-tight">{value}</p>
-      {subtitle && <p className="text-xs text-neutral font-medium mt-1">{subtitle}</p>}
+      <p className="text-[10px] sm:text-xs font-bold text-neutral-500 uppercase tracking-wide mb-0.5">{title}</p>
+      <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-tight">{value}</p>
+      {subtitle && <p className="text-[10px] sm:text-xs text-neutral font-medium mt-1">{subtitle}</p>}
     </div>
   </div>
 );
 
-const StatusBadge: React.FC<{ status: 'pending' | 'approved' | 'archived' }> = ({ status }) => {
+const SubscriptionBadge: React.FC<{ status?: 'active' | 'canceling' | 'canceled' }> = ({ status }) => {
     let classes = "";
     let label = "";
     
     switch(status) {
-        case 'pending':
-            classes = 'bg-yellow-50 text-yellow-700 border-yellow-200 animate-pulse';
-            label = 'Väntar';
-            break;
-        case 'archived':
-            classes = 'bg-gray-100 text-gray-600 border-gray-200';
-            label = 'Arkiverad';
-            break;
-        case 'approved':
-        default:
+        case 'active':
             classes = 'bg-green-50 text-green-700 border-green-200';
-            label = 'Godkänd';
+            label = 'Aktiv';
+            break;
+        case 'canceling':
+            classes = 'bg-yellow-50 text-yellow-700 border-yellow-200';
+            label = 'Sägs upp';
+            break;
+        case 'canceled':
+            classes = 'bg-red-50 text-red-700 border-red-200';
+            label = 'Avslutad';
+            break;
+        default:
+            classes = 'bg-gray-50 text-gray-600 border-gray-200';
+            label = 'Okänd';
             break;
     }
 
@@ -120,7 +141,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             return memberDate >= sevenDaysAgo;
         }).length;
 
-        if (totalActiveCount === 0) return { totalActiveCount: 0, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0, activeTodayCount: 0, newMembers7d: 0 };
+        if (totalActiveCount === 0) return { totalActiveCount: 0, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0, activeTodayCount: 0, newMembers7d: 0 };
 
         const membersWithStreak = activeMembers.filter(m => (m.currentStreak || 0) > 0);
         const percentWithStreak = (membersWithStreak.length / totalActiveCount) * 100;
@@ -151,7 +172,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
         const maintainCount = activeMembers.filter(m => m.goalSummary === 'Bibehålla').length;
         const proteinGoalMetPercentage7d = activeMembers.reduce((sum, m) => sum + (m.proteinGoalMetPercentage7d || 0), 0) / totalActiveCount;
 
-        return { totalActiveCount, pendingCount: membersList.filter(m => m.status === 'pending').length, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d, activeTodayCount, newMembers7d };
+        return { totalActiveCount, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d, activeTodayCount, newMembers7d };
     }, [membersList]);
 
     return (
@@ -175,12 +196,11 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             
             <div 
                 id="group-insights-panel" 
-                className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6 transition-all duration-500 ease-in-out ${isExpanded ? 'opacity-100 max-h-[1000px]' : 'opacity-0 max-h-0 overflow-hidden mt-0'}`}
+                className={`grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6 transition-all duration-500 ease-in-out ${isExpanded ? 'opacity-100 max-h-[3000px]' : 'opacity-0 max-h-0 overflow-hidden mt-0'}`}
             >
                 <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-blue-100" textClass="text-blue-600" />
                 <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-emerald-100" textClass="text-emerald-600" />
                 <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" />
-                <StatCard icon={<CheckCircleIcon />} title="Väntar godkännande" value={groupInsights.pendingCount.toString()} colorClass="bg-yellow-100" textClass="text-yellow-600" />
                 <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
@@ -194,10 +214,9 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
 
 const MemberFilters: React.FC<{
     searchQuery: string; onSearchChange: (q: string) => void;
-    filterStatus: 'all' | 'pending' | 'approved' | 'archived'; onFilterStatusChange: (s: 'all' | 'pending' | 'approved' | 'archived') => void;
-    pendingCount: number;
+    filterStatus: 'all' | 'approved' | 'archived'; onFilterStatusChange: (s: 'all' | 'approved' | 'archived') => void;
     onRefresh: () => void; isRefreshDisabled: boolean;
-}> = ({ searchQuery, onSearchChange, filterStatus, onFilterStatusChange, pendingCount, onRefresh, isRefreshDisabled }) => (
+}> = ({ searchQuery, onSearchChange, filterStatus, onFilterStatusChange, onRefresh, isRefreshDisabled }) => (
     <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold text-neutral-dark self-start md:self-center">Medlemslista</h2>
         
@@ -219,7 +238,7 @@ const MemberFilters: React.FC<{
 
             {/* Filter Pills */}
             <div className="flex bg-neutral-light/30 p-1 rounded-xl">
-                {(['all', 'pending', 'approved', 'archived'] as const).map((status) => (
+                {(['all', 'approved', 'archived'] as const).map((status) => (
                     <button
                         key={status}
                         onClick={() => onFilterStatusChange(status)}
@@ -230,7 +249,6 @@ const MemberFilters: React.FC<{
                         }`}
                     >
                         {status === 'all' && 'Alla'}
-                        {status === 'pending' && `Väntar (${pendingCount})`}
                         {status === 'approved' && 'Aktiva'}
                         {status === 'archived' && 'Arkiv'}
                     </button>
@@ -253,7 +271,7 @@ const MemberFilters: React.FC<{
 const BulkActionsBar: React.FC<{
     selectedCount: number;
     onClearSelection: () => void;
-    onBulkAction: (action: 'approve' | 'setRoleCoach' | 'setRoleMember') => void;
+    onBulkAction: (action: 'setRoleCoach' | 'setRoleMember') => void;
     isBulkUpdating: boolean;
 }> = ({ selectedCount, onClearSelection, onBulkAction, isBulkUpdating }) => (
     <div className="bg-primary-darker text-white p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-[80px] z-30 mb-6 animate-slide-up-fade-in shadow-xl">
@@ -262,7 +280,6 @@ const BulkActionsBar: React.FC<{
             <button onClick={onClearSelection} className="text-sm text-white/80 hover:text-white hover:underline">Avbryt</button>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-center">
-            <BulkActionButton onClick={() => onBulkAction('approve')} disabled={isBulkUpdating} className="bg-white text-primary-darker hover:bg-gray-100">Godkänn</BulkActionButton>
             <BulkActionButton onClick={() => onBulkAction('setRoleCoach')} disabled={isBulkUpdating} className="bg-purple-600 text-white hover:bg-purple-700 border border-purple-500">Till Coach</BulkActionButton>
             <BulkActionButton onClick={() => onBulkAction('setRoleMember')} disabled={isBulkUpdating} className="bg-transparent border border-white/40 text-white hover:bg-white/10">Till Medlem</BulkActionButton>
         </div>
@@ -291,8 +308,6 @@ const MemberListTable: React.FC<{
     onSelectMember: (id: string) => void;
     onSort: (column: SortableKeys) => void;
     onShowDetails: (member: CoachViewMember) => void;
-    onApprove: (id: string) => void;
-    onRevoke: (id: string) => void;
     onArchive: (id: string) => void;
     onUnarchive: (id: string) => void;
     onUpdateRole: (id: string, newRole: UserRole) => void;
@@ -317,7 +332,7 @@ const MemberListTable: React.FC<{
                         <SortableHeader column="lastLogDate" label="Senaste Aktivitet" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                         <SortableHeader column="currentStreak" label="Streak" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                         <SortableHeader column="goalSummary" label="Mål" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
-                        <SortableHeader column="status" label="Status" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
+                        <SortableHeader column="subscriptionStatus" label="Prenumeration" sortBy={props.sortBy} sortOrder={props.sortOrder} onSort={props.onSort} />
                         <th scope="col" className="px-4 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider bg-gray-50/80 sticky top-0 z-10 border-b border-gray-100 backdrop-blur-sm">Åtgärder</th>
                     </tr>
                 </thead>
@@ -369,28 +384,15 @@ const MemberListTable: React.FC<{
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-neutral-dark">{member.goalSummary}</td>
                             <td className="px-4 py-4 whitespace-nowrap">
-                                <StatusBadge status={member.status} />
+                                {member.status === 'archived' ? (
+                                    <span className="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border bg-gray-100 text-gray-600 border-gray-200">Arkiverad</span>
+                                ) : (
+                                    <SubscriptionBadge status={member.subscriptionStatus} />
+                                )}
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                                 <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    {member.status === 'pending' ? (
-                                        <>
-                                            <ActionButton 
-                                                onClick={() => props.onApprove(member.id)} 
-                                                disabled={props.updatingMemberId === member.id}
-                                                icon={<CheckCircleIcon className="w-4 h-4" />}
-                                                label="Godkänn"
-                                                className="bg-green-100 text-green-700 hover:bg-green-200"
-                                            />
-                                            <ActionButton 
-                                                onClick={() => props.onRevoke(member.id)} 
-                                                disabled={props.updatingMemberId === member.id}
-                                                icon={<XCircleIcon className="w-4 h-4" />}
-                                                label="Neka"
-                                                className="bg-red-100 text-red-800 hover:bg-red-200"
-                                            />
-                                        </>
-                                    ) : member.status === 'archived' ? (
+                                    {member.status === 'archived' ? (
                                         <ActionButton 
                                             onClick={() => props.onUnarchive(member.id)} 
                                             disabled={props.updatingMemberId === member.id}
@@ -408,7 +410,7 @@ const MemberListTable: React.FC<{
                                         />
                                     )}
                                     
-                                    {member.status === 'approved' && member.id !== props.currentUserId && (
+                                    {member.status !== 'archived' && member.id !== props.currentUserId && (
                                         <ActionButton 
                                             onClick={() => props.onUpdateRole(member.id, member.role === 'coach' ? 'member' : 'coach')} 
                                             disabled={props.updatingMemberId === member.id}
@@ -437,7 +439,7 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
     
     // New filter status state
-    const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'archived'>('all');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'archived'>('all');
     
     const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
     const [sortBy, setSortBy] = useState<SortableKeys | null>(initialSortBy);
@@ -476,18 +478,6 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         }
     }, []);
 
-    const handleApproveMember = useCallback((memberId: string) => {
-        handleAction(approveMember(memberId), memberId).then(() => {
-            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, status: 'approved' } : m));
-        });
-    }, [handleAction]);
-
-    const handleRevokeApproval = useCallback((memberId: string) => {
-        handleAction(revokeApproval(memberId), memberId).then(() => {
-            setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, status: 'pending' } : m));
-        });
-    }, [handleAction]);
-
     const handleArchiveMember = useCallback((memberId: string) => {
         handleAction(archiveMember(memberId), memberId).then(() => {
             setMembersList(prev => prev.map(m => m.id === memberId ? { ...m, status: 'archived' } : m));
@@ -506,13 +496,12 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         });
     }, [handleAction]);
 
-    const handleBulkAction = useCallback(async (action: 'approve' | 'setRoleCoach' | 'setRoleMember') => {
+    const handleBulkAction = useCallback(async (action: 'setRoleCoach' | 'setRoleMember') => {
         const idsToUpdate = Array.from(selectedMemberIds) as string[];
         if (idsToUpdate.length === 0) return;
         setIsBulkUpdating(true);
         try {
             const actions = {
-                'approve': bulkApproveMembers(idsToUpdate),
                 'setRoleCoach': bulkUpdateUserRole(idsToUpdate, 'coach'),
                 'setRoleMember': bulkUpdateUserRole(idsToUpdate, 'member')
             };
@@ -556,14 +545,11 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         return sortable;
     }, [filteredMembers, sortBy, sortOrder]);
     
-    const pendingCount = useMemo(() => membersList.filter(m => m.status === 'pending').length, [membersList]);
-
-
     return {
         membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
         selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
-        searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval, handleArchiveMember, handleUnarchiveMember,
-        handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount
+        searchQuery, setSearchQuery, fetchMembers, handleArchiveMember, handleUnarchiveMember,
+        handleUpdateRole, handleBulkAction, sortedAndFilteredMembers
     };
 };
 
@@ -590,6 +576,18 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [myChats, setMyChats] = useState<Chat[]>([]);
   const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+              setShowProfileDropdown(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
       const unsubscribeSystem = subscribeToSystemGroups((chats) => {
@@ -616,8 +614,8 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const {
       membersList, isLoadingMembers, errorMembers, updatingMemberId, filterStatus, setFilterStatus,
       selectedMemberIds, setSelectedMemberIds, sortBy, setSortBy, sortOrder, setSortOrder, isBulkUpdating,
-      searchQuery, setSearchQuery, fetchMembers, handleApproveMember, handleRevokeApproval, handleArchiveMember, handleUnarchiveMember,
-      handleUpdateRole, handleBulkAction, sortedAndFilteredMembers, pendingCount
+      searchQuery, setSearchQuery, fetchMembers, handleArchiveMember, handleUnarchiveMember,
+      handleUpdateRole, handleBulkAction, sortedAndFilteredMembers
   } = useCoachDashboard();
   
   const handleSort = (column: SortableKeys) => {
@@ -647,30 +645,53 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   return (
     <>
     <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed text-neutral-dark">
-      <header className="bg-white/85 backdrop-blur-lg shadow-sm sticky top-0 z-40 border-b border-white/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center">
-              <div className="bg-primary-100 p-2 rounded-xl mr-3">
-                <UserGroupIcon className="w-8 h-8 text-primary-darker" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-extrabold text-neutral-dark leading-none">Admin Dashboard</h1>
-                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mt-1">Kostloggen Studio</p>
-              </div>
-          </div>
-          <nav className="flex items-center gap-3">
-            <button onClick={() => setShowInfoModal(true)} className="p-2.5 text-neutral-500 hover:text-primary hover:bg-primary-50 rounded-xl transition-all" aria-label="Information">
-                <InformationCircleIcon className="w-6 h-6" />
-            </button>
-            <button onClick={onToggleInterface} className="flex items-center px-4 py-2.5 bg-white border border-neutral-light hover:border-primary/30 hover:shadow-md text-neutral-dark font-semibold rounded-xl active:scale-95 transform transition-all group">
-                <SwitchHorizontalIcon className="w-5 h-5 mr-2 text-neutral-400 group-hover:text-primary transition-colors" /> 
-                <span className="text-sm">Medlemsvy</span>
-            </button>
-            <button onClick={onLogout} className="flex items-center px-4 py-2.5 bg-neutral-dark hover:bg-black text-white font-semibold rounded-xl shadow-lg shadow-neutral-dark/20 active:scale-95 transform transition-all">
-                <ArrowRightOnRectangleIcon className="w-5 h-5 mr-2" /> 
-                <span className="text-sm">Logga ut</span>
-            </button>
-          </nav>
+      <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('members')}>
+                <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
+            </div>
+            <div className="flex flex-wrap justify-end items-center gap-1">
+                <div className="relative" ref={profileDropdownRef}>
+                    <button
+                        aria-label="Konto"
+                        className={`nav-btn ${showProfileDropdown ? "active" : ""}`}
+                        onClick={() => setShowProfileDropdown(prev => !prev)}
+                    >
+                         <div className="icon-wrap p-0 relative">
+                            <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
+                         </div>
+                    </button>
+                    {showProfileDropdown && (
+                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-neutral-light/70 p-2 z-50 animate-fade-slide-in">
+                            <DropdownMenuItem
+                                icon={<InformationCircleIcon />}
+                                label="Information"
+                                onClick={() => {
+                                    setShowInfoModal(true);
+                                    setShowProfileDropdown(false);
+                                }}
+                            />
+                            
+                            <div className="my-1 border-t border-neutral-light/70"></div>
+                            
+                            <DropdownMenuItem
+                                icon={<SwitchHorizontalIcon />}
+                                label="Medlemsvy"
+                                onClick={onToggleInterface}
+                                className="text-indigo-600 hover:bg-indigo-50 font-medium"
+                            />
+
+                            <div className="my-1 border-t border-neutral-light/70"></div>
+                            <DropdownMenuItem
+                                icon={<ArrowRightOnRectangleIcon />}
+                                label="Logga ut"
+                                onClick={onLogout}
+                                className="text-red-600 hover:bg-red-50"
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
         
         {!selectedChat && !isCreatingGroup && (
@@ -791,7 +812,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         onSearchChange={setSearchQuery} 
                         filterStatus={filterStatus}
                         onFilterStatusChange={setFilterStatus}
-                        pendingCount={pendingCount} 
                         onRefresh={fetchMembers} 
                         isRefreshDisabled={isLoadingMembers || isBulkUpdating} 
                     />
@@ -807,7 +827,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
 
                     {(isLoadingMembers || isBulkUpdating) && (
                         <div className="py-12">
-                            <LoadingSpinner message={isBulkUpdating ? "Uppdaterar medlemmar..." : "Laddar medlemmar..."} color="primary" />
+                            <LoadingSpinner message={isBulkUpdating ? "Uppdaterar medlemmar..." : "Laddar medlemmar..."} color="primary" fullScreen={false} />
                         </div>
                     )}
                     
@@ -832,8 +852,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                 onSelectMember={handleSelectMember} 
                                 onSort={handleSort} 
                                 onShowDetails={handleShowMemberDetails} 
-                                onApprove={handleApproveMember} 
-                                onRevoke={handleRevokeApproval} 
                                 onArchive={handleArchiveMember}
                                 onUnarchive={handleUnarchiveMember}
                                 onUpdateRole={handleUpdateRole} 
@@ -875,10 +893,10 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     
                     <div className="bg-neutral-50 p-4 rounded-xl space-y-2 border border-neutral-100">
                         <div className="flex gap-3">
-                            <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                            <ArchiveBoxIcon className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
                             <div>
-                                <p className="font-bold text-neutral-dark text-sm">Godkänn medlemmar</p>
-                                <p className="text-xs">Nya konton markeras som 'Väntar'. Godkänn dem för att ge access.</p>
+                                <p className="font-bold text-neutral-dark text-sm">Hantera medlemmar</p>
+                                <p className="text-xs">Arkivera inaktiva medlemmar för att dölja dem från listan.</p>
                             </div>
                         </div>
                         <div className="flex gap-3">

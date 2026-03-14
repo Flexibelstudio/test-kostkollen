@@ -6,7 +6,6 @@ import {
 } from "@firebase/firestore";
 
 import CoachDashboard from './components/CoachDashboard';
-import PendingApprovalScreen from './components/PendingApprovalScreen';
 import ArchivedUserScreen from './components/ArchivedUserScreen';
 import SplashScreen from './components/SplashScreen';
 import { CoursesView, CourseInfo, ALL_COURSES } from './components/CoursesView.tsx';
@@ -1576,10 +1575,6 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
   if (authLoading) return <SplashScreen />;
   if (!currentUser) return <AuthForm onAuthStateChange={setCurrentUser} />;
   if (!isInitialDataLoaded) return <SplashScreen />;
-
-  if (userStatus === 'pending') {
-    return <PendingApprovalScreen onLogout={handleLogout} userEmail={currentUser.email} userId={currentUser.uid} />;
-  }
 
   if (userStatus === 'archived') {
     return <ArchivedUserScreen onLogout={handleLogout} />;
