@@ -615,7 +615,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [showCourseInsightsModal, setShowCourseInsightsModal] = useState(false);
   const [courseInsightsData, setCourseInsightsData] = useState<{
     isLoading: boolean;
-    data: { member: CoachViewMember; courseId: string; courseName: string }[];
+    data: { courseId: string; courseName: string; participants: number; completions: number; averageProgress: number }[];
   }>({ isLoading: false, data: [] });
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
@@ -813,30 +813,74 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         try {
                             const { fetchCourseProgressForUser } = await import('../services/firestoreService');
                             const { ALL_COURSES } = await import('./CoursesView');
+                            const { courseLessons, menopauseCourseLessons } = await import('../courseData');
                             
                             const membersOnCourse = membersList.filter(m => m.courseProgressSummary && m.courseProgressSummary.started);
+                            
+                            const courseStats: Record<string, {
+                                courseId: string;
+                                courseName: string;
+                                participants: number;
+                                completions: number;
+                                totalProgress: number;
+                                totalLessons: number;
+                            }> = {};
+
+                            ALL_COURSES.forEach(c => {
+                                courseStats[c.id] = {
+                                    courseId: c.id,
+                                    courseName: c.title,
+                                    participants: 0,
+                                    completions: 0,
+                                    totalProgress: 0,
+                                    totalLessons: c.id === 'praktisk-viktkontroll' ? courseLessons.length : menopauseCourseLessons.length
+                                };
+                            });
                             
                             const dataPromises = membersOnCourse.map(async (member) => {
                                 const progress = await fetchCourseProgressForUser(member.id);
                                 
-                                let courseId = 'Okänd';
-                                let courseName = 'Okänd kurs';
-                                
-                                if (progress['lektion1']?.unlockedAt) {
-                                    courseId = 'praktisk-viktkontroll';
-                                } else if (progress['m-lektion1']?.unlockedAt) {
-                                    courseId = 'maxa-klimakteriet';
+                                // Check Praktisk Viktkontroll
+                                const pvLessons = Object.keys(progress).filter(k => k.startsWith('lektion'));
+                                if (pvLessons.length > 0) {
+                                    const courseId = 'praktisk-viktkontroll';
+                                    const completed = pvLessons.filter(k => progress[k].isCompleted).length;
+                                    if (courseStats[courseId]) {
+                                        courseStats[courseId].participants++;
+                                        courseStats[courseId].totalProgress += (completed / courseStats[courseId].totalLessons);
+                                        if (completed === courseStats[courseId].totalLessons) {
+                                            courseStats[courseId].completions++;
+                                        }
+                                    }
                                 }
-                                
-                                const courseInfo = ALL_COURSES.find(c => c.id === courseId);
-                                if (courseInfo) {
-                                    courseName = courseInfo.title;
+
+                                // Check Maxa Klimakteriet
+                                const mkLessons = Object.keys(progress).filter(k => k.startsWith('m-lektion'));
+                                if (mkLessons.length > 0) {
+                                    const courseId = 'maxa-klimakteriet';
+                                    const completed = mkLessons.filter(k => progress[k].isCompleted).length;
+                                    if (courseStats[courseId]) {
+                                        courseStats[courseId].participants++;
+                                        courseStats[courseId].totalProgress += (completed / courseStats[courseId].totalLessons);
+                                        if (completed === courseStats[courseId].totalLessons) {
+                                            courseStats[courseId].completions++;
+                                        }
+                                    }
                                 }
-                                
-                                return { member, courseId, courseName };
                             });
                             
-                            const results = await Promise.all(dataPromises);
+                            await Promise.all(dataPromises);
+                            
+                            const results = Object.values(courseStats)
+                                .filter(c => c.participants > 0)
+                                .map(c => ({
+                                    courseId: c.courseId,
+                                    courseName: c.courseName,
+                                    participants: c.participants,
+                                    completions: c.completions,
+                                    averageProgress: (c.totalProgress / c.participants) * 100
+                                }));
+                            
                             setCourseInsightsData({ isLoading: false, data: results });
                         } catch (error) {
                             console.error("Error fetching course insights:", error);
@@ -1116,34 +1160,44 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     </button>
                 </div>
                 
-                <div className="overflow-y-auto custom-scrollbar flex-1 pr-2 space-y-4">
+                <div className="overflow-y-auto custom-scrollbar flex-1 pr-2">
                     {courseInsightsData.isLoading ? (
                         <div className="flex justify-center items-center py-12">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                         </div>
                     ) : courseInsightsData.data.length > 0 ? (
-                        courseInsightsData.data.map(({ member, courseId, courseName }) => (
-                            <div key={member.id} className="bg-neutral-50 p-4 rounded-xl border border-neutral-100 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                                <div>
-                                    <h4 className="font-bold text-neutral-dark">{member.name}</h4>
-                                    <p className="text-sm text-neutral mt-1 flex items-center gap-2">
-                                        <span className="font-medium text-purple-600">{courseName}</span>
-                                        <span className="text-xs px-2 py-0.5 bg-neutral-200 rounded-full">
-                                            {(member.courseProgressSummary?.completedLessons || 0)} / {(member.courseProgressSummary?.totalLessons || 0)} lektioner
-                                        </span>
-                                    </p>
+                        <div className="divide-y divide-neutral-light/50">
+                            {courseInsightsData.data.map((course) => (
+                                <div key={course.courseId} className="py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                                    <div className="flex-1">
+                                        <h4 className="font-bold text-neutral-dark text-lg mb-2">{course.courseName}</h4>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                            <div>
+                                                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Deltagare</p>
+                                                <p className="font-semibold text-neutral-dark flex items-center gap-1">
+                                                    <UsersIcon className="w-4 h-4 text-primary" />
+                                                    {course.participants}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Slutfört</p>
+                                                <p className="font-semibold text-neutral-dark flex items-center gap-1">
+                                                    <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
+                                                    {course.completions}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Snitt-progress</p>
+                                                <p className="font-semibold text-neutral-dark flex items-center gap-1">
+                                                    <TrendingUp className="w-4 h-4 text-purple-500" />
+                                                    {course.averageProgress.toFixed(0)}%
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <button 
-                                    onClick={() => {
-                                        setSelectedMember(member);
-                                        setShowCourseInsightsModal(false);
-                                    }}
-                                    className="px-3 py-1.5 bg-white border border-neutral-light text-sm font-medium rounded-lg hover:bg-neutral-light/50 transition-colors"
-                                >
-                                    Visa profil
-                                </button>
-                            </div>
-                        ))
+                            ))}
+                        </div>
                     ) : (
                         <p className="text-center text-neutral-500 py-8">Inga medlemmar har startat en kurs ännu.</p>
                     )}
