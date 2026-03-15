@@ -158,7 +158,7 @@ const getTodayKey = () => {
     return `${year}-${month}-${day}`;
 };
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; onGroupsClick: () => void; onCourseClick: () => void; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, onGroupsClick, onCourseClick }) => {
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
@@ -232,13 +232,13 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             >
                 <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-blue-100" textClass="text-blue-600" />
                 <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-emerald-100" textClass="text-emerald-600" />
-                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" onClick={onGroupsClick} />
+                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" />
                 <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
                 <StatCard icon={<ProteinIcon />} title="Proteinmål (7d)" value={`${groupInsights.proteinGoalMetPercentage7d.toFixed(0)}%`} subtitle="Genomsnittlig uppfyllnad" colorClass="bg-indigo-100" textClass="text-indigo-600" />
                 <StatCard icon={<TrophyIcon />} title="Streak-engagemang" value={`${groupInsights.percentWithStreak.toFixed(0)}%`} subtitle={`Snitt: ${groupInsights.averageStreak.toFixed(1)} dagar`} colorClass="bg-orange-100" textClass="text-orange-600" />
-                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} subtitle={`Snitt-slutförande: ${groupInsights.averageCourseProgress.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" onClick={onCourseClick} />
+                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" />
             </div>
         </section>
     );
@@ -686,8 +686,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         const { ALL_COURSES } = await import('./CoursesView');
         const { courseLessons, menopauseCourseLessons } = await import('../courseData');
         
-        const membersOnCourse = membersList.filter(m => m.courseProgressSummary && m.courseProgressSummary.started);
-        
         const courseStats: Record<string, {
             courseId: string;
             courseName: string;
@@ -708,7 +706,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             };
         });
         
-        const dataPromises = membersOnCourse.map(async (member) => {
+        const dataPromises = membersList.map(async (member) => {
             const progress = await fetchCourseProgressForUser(member.id);
             
             // Check Praktisk Viktkontroll
@@ -743,13 +741,12 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         await Promise.all(dataPromises);
         
         const results = Object.values(courseStats)
-            .filter(c => c.participants > 0)
             .map(c => ({
                 courseId: c.courseId,
                 courseName: c.courseName,
                 participants: c.participants,
                 completions: c.completions,
-                averageProgress: (c.totalProgress / c.participants) * 100
+                averageProgress: c.participants > 0 ? (c.totalProgress / c.participants) * 100 : 0
             }));
         
         setCourseInsightsData({ isLoading: false, data: results });
@@ -831,27 +828,27 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         </div>
         
         {!selectedChat && !isCreatingGroup && (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-2">
+            <div className="w-full mt-2">
                 <div className="flex w-full border-b border-neutral-light">
                     <button
                         onClick={() => setActiveTab('members')}
-                        className={`flex-1 py-3 px-1 sm:px-2 flex justify-center items-center gap-1.5 sm:gap-2 font-bold text-[11px] sm:text-sm whitespace-nowrap border-b-2 transition-colors ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
-                        <UsersIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <UsersIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                         Medlemsregister
                     </button>
                     <button
                         onClick={() => setActiveTab('growth')}
-                        className={`flex-1 py-3 px-1 sm:px-2 flex justify-center items-center gap-1.5 sm:gap-2 font-bold text-[11px] sm:text-sm whitespace-nowrap border-b-2 transition-colors ${activeTab === 'growth' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'growth' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
-                        <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
                         Tillväxtmotor
                     </button>
                     <button
                         onClick={() => setActiveTab('studio')}
-                        className={`flex-1 py-3 px-1 sm:px-2 flex justify-center items-center gap-1.5 sm:gap-2 font-bold text-[11px] sm:text-sm whitespace-nowrap border-b-2 transition-colors ${activeTab === 'studio' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'studio' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
-                        <SparklesIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <SparklesIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                         Coach Studio
                     </button>
                 </div>
@@ -910,8 +907,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     onToggle={() => setIsInsightsExpanded(prev => !prev)} 
                     systemGroupsCount={myChats.length} 
                     publicRoomsCount={publicRooms.length} 
-                    onGroupsClick={() => setShowAllGroupsModal(true)} 
-                    onCourseClick={handleCourseInsightsClick}
                 />
                 
                 <div className="grid grid-cols-2 gap-4 mb-6">
@@ -1066,10 +1061,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             </>
         )}
       </main>
-
-      <footer className="text-center py-8 text-neutral-400 text-sm font-medium">
-        <p>© 2026 Flexibel Hälsostudio.</p>
-      </footer>
 
       {showInfoModal && (
         <div className="fixed inset-0 bg-neutral-dark/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowInfoModal(false)}>

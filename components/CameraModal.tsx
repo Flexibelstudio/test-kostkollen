@@ -211,9 +211,12 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
                 aria-hidden={isCameraLoading || !!cameraError}
             />
              {!isCameraLoading && !cameraError && (
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 w-11/12 pointer-events-none">
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 w-11/12 pointer-events-none flex flex-col gap-2">
                   <p className="text-white text-base font-semibold bg-black/50 px-3 py-1 rounded-md text-center">
                       {instructionText || 'Placera maten i rutan och ta en bild'}
+                  </p>
+                  <p className="text-white text-xs font-medium bg-black/50 px-3 py-1 rounded-md text-center">
+                      💡 Tips: Ha gärna med bestick i bilden så AI:n lättare kan bedöma portionsstorleken.
                   </p>
               </div>
             )}

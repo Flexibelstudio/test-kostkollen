@@ -175,7 +175,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       email: fbUser.email,
       displayName: fbUser.displayName || "Ny användare",
       role: 'member',
-      status: 'approved',
+      status: 'pending',
       hasCompletedOnboarding: false,
       createdAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
@@ -830,17 +830,17 @@ export async function savePushSubscription(userId: string, subscription: object)
 
 /* ===== Course ===== */
 
-export async function fetchCourseProgressForUser(userId: string): Promise<UserCourseProgress> {
+export async function fetchCourseProgressForUser(userId: string): Promise<Record<string, UserLessonProgress>> {
   if (!db) return {};
-  const courseProgressRef = collection(db, 'users', userId, 'courseProgress');
-  const snapshot = await getDocsSafe(courseProgressRef);
+  const progressCollectionRef = collection(db, 'users', userId, 'courseProgress');
+  const snapshot = await getDocsSafe(progressCollectionRef);
   
-  const courseProgress: UserCourseProgress = {};
+  const progress: Record<string, UserLessonProgress> = {};
   snapshot.forEach(doc => {
-    courseProgress[doc.id] = doc.data() as UserLessonProgress;
+    progress[doc.id] = doc.data() as UserLessonProgress;
   });
   
-  return courseProgress;
+  return progress;
 }
 
 export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved' | 'archived') {
@@ -925,13 +925,13 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
       email: data.email || 'N/A',
       role: data.role,
       status: data.status,
-      subscriptionStatus: data.subscriptionStatus,
       photoURL: data.photoURL ?? undefined,
       memberSince: toDateString(data.createdAt),
       lastLogDate: data.lastLogDate ?? undefined,
       currentStreak: data.currentStreak,
       goalSummary: goalSummary,
       courseProgressSummary: data.courseProgressSummary,
+      subscriptionStatus: data.subscriptionStatus || (data.status === 'approved' ? 'active' : 'inactive'),
       ageYears: data.ageYears ?? undefined,
       gender: data.gender,
       numberOfBuddies: numberOfBuddies,
@@ -992,6 +992,7 @@ export async function fetchDetailedMemberDataForCoach(memberId: string): Promise
     notificationSettings: userDocData.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
     preferredWeighInDay: userDocData.preferredWeighInDay,
     coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
+    subscriptionStatus: userDocData.subscriptionStatus || (userDocData.status === 'approved' ? 'active' : 'inactive'),
   };
 
   return {

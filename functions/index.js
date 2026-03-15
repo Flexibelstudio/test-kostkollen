@@ -678,10 +678,21 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     }
 
     try {
+        // --- FIX FÖR ACCOUNTS V2: Skapa kunden först för att stödja Sandbox-miljön ---
+        const userEmail = context.auth.token.email || data.email;
+        
+        logger.log("Skapar Stripe-kund för att förbereda Checkout:", userEmail);
+        
+        const customer = await stripe.customers.create({
+            email: userEmail,
+            metadata: { firebaseUid: context.auth.uid }
+        });
+
+        // Skapa sessionen kopplad till den nyskapade kunden
         const session = await stripe.checkout.sessions.create({
+            customer: customer.id, // KRITISKT för Accounts V2
             payment_method_types: ['card'],
             mode: 'subscription',
-            customer_email: context.auth.token.email,
             line_items: [{ price: priceId, quantity: 1 }],
             metadata: { firebaseUid: context.auth.uid },
             allow_promotion_codes: true,
@@ -691,7 +702,7 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
         
         return { sessionId: session.id, url: session.url };
     } catch (error) {
-        console.error("Stripe fel:", error);
+        console.error("Stripe fel i createCheckoutSession:", error);
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
