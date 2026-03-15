@@ -158,7 +158,7 @@ const getTodayKey = () => {
     return `${year}-${month}-${day}`;
 };
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; onGroupsClick: () => void; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, onGroupsClick }) => {
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
@@ -232,7 +232,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             >
                 <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-blue-100" textClass="text-blue-600" />
                 <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-emerald-100" textClass="text-emerald-600" />
-                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" onClick={onGroupsClick} />
+                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" />
                 <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
@@ -907,7 +907,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     onToggle={() => setIsInsightsExpanded(prev => !prev)} 
                     systemGroupsCount={myChats.length} 
                     publicRoomsCount={publicRooms.length} 
-                    onGroupsClick={() => setShowAllGroupsModal(true)} 
                 />
                 
                 <div className="grid grid-cols-2 gap-4 mb-6">
@@ -1062,10 +1061,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             </>
         )}
       </main>
-
-      <footer className="text-center py-8 text-neutral-400 text-sm font-medium">
-        <p>© 2026 Flexibel Hälsostudio.</p>
-      </footer>
 
       {showInfoModal && (
         <div className="fixed inset-0 bg-neutral-dark/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowInfoModal(false)}>
