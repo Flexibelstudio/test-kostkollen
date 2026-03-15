@@ -92,8 +92,8 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
 
   return (
     <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
+      <div className="bg-white rounded-xl shadow-soft-xl w-full max-w-lg flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-6 sm:p-8 pb-4 border-b border-neutral-light/60 shrink-0">
           <div className="flex items-center">
             <BarcodeIcon className="w-7 h-7 text-primary mr-2.5" />
             <h2 className="text-2xl font-semibold text-neutral-dark">Skannad Produkt</h2>
@@ -103,7 +103,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="p-6 sm:p-8 pt-4 space-y-4 overflow-y-auto custom-scrollbar">
           {scanResult.imageUrl && (
               <div className="w-full h-40 flex justify-center items-center bg-neutral-light rounded-lg overflow-hidden">
                   <img src={scanResult.imageUrl} alt={scanResult.name} className="max-h-full max-w-full object-contain"/>
@@ -173,11 +173,11 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
           </div>
         </div>
         
-         <div className="mt-6 flex flex-col sm:flex-row sm:justify-end sm:space-x-3.5 space-y-3 sm:space-y-0">
+         <div className="p-6 sm:p-8 pt-4 border-t border-neutral-light/60 shrink-0 flex flex-col sm:flex-row sm:justify-end sm:space-x-3.5 space-y-3 sm:space-y-0 bg-neutral-50 rounded-b-xl">
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-5 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm active:scale-95"
+            className="w-full sm:w-auto px-5 py-2.5 text-base font-medium text-neutral-dark bg-white border border-neutral-light hover:bg-gray-50 rounded-md shadow-sm active:scale-95"
           >
             <XMarkIcon className="w-5 h-5 inline mr-1.5" />
             Avbryt
