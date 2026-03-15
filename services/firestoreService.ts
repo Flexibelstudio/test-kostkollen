@@ -931,6 +931,7 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
       currentStreak: data.currentStreak,
       goalSummary: goalSummary,
       courseProgressSummary: data.courseProgressSummary,
+      subscriptionStatus: data.subscriptionStatus || (data.status === 'approved' ? 'active' : 'inactive'),
       ageYears: data.ageYears ?? undefined,
       gender: data.gender,
       numberOfBuddies: numberOfBuddies,
@@ -991,6 +992,7 @@ export async function fetchDetailedMemberDataForCoach(memberId: string): Promise
     notificationSettings: userDocData.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
     preferredWeighInDay: userDocData.preferredWeighInDay,
     coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
+    subscriptionStatus: userDocData.subscriptionStatus || (userDocData.status === 'approved' ? 'active' : 'inactive'),
   };
 
   return {
