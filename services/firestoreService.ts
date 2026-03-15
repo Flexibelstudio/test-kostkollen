@@ -830,6 +830,19 @@ export async function savePushSubscription(userId: string, subscription: object)
 
 /* ===== Course ===== */
 
+export async function fetchCourseProgressForUser(userId: string): Promise<Record<string, UserLessonProgress>> {
+  if (!db) return {};
+  const progressCollectionRef = collection(db, 'users', userId, 'courseProgress');
+  const snapshot = await getDocsSafe(progressCollectionRef);
+  
+  const progress: Record<string, UserLessonProgress> = {};
+  snapshot.forEach(doc => {
+    progress[doc.id] = doc.data() as UserLessonProgress;
+  });
+  
+  return progress;
+}
+
 export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved' | 'archived') {
   if (!db) return;
   const courseProgressRef = doc(db, 'users', userId, 'courseProgress', lessonId);

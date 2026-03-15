@@ -158,7 +158,7 @@ const getTodayKey = () => {
     return `${year}-${month}-${day}`;
 };
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; onGroupsClick: () => void; onCourseClick: () => void; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, onGroupsClick, onCourseClick }) => {
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; onGroupsClick: () => void; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, onGroupsClick }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
@@ -238,7 +238,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
                 <StatCard icon={<ProteinIcon />} title="Proteinmål (7d)" value={`${groupInsights.proteinGoalMetPercentage7d.toFixed(0)}%`} subtitle="Genomsnittlig uppfyllnad" colorClass="bg-indigo-100" textClass="text-indigo-600" />
                 <StatCard icon={<TrophyIcon />} title="Streak-engagemang" value={`${groupInsights.percentWithStreak.toFixed(0)}%`} subtitle={`Snitt: ${groupInsights.averageStreak.toFixed(1)} dagar`} colorClass="bg-orange-100" textClass="text-orange-600" />
-                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} subtitle={`Snitt-slutförande: ${groupInsights.averageCourseProgress.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" onClick={onCourseClick} />
+                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" />
             </div>
         </section>
     );
@@ -686,8 +686,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         const { ALL_COURSES } = await import('./CoursesView');
         const { courseLessons, menopauseCourseLessons } = await import('../courseData');
         
-        const membersOnCourse = membersList.filter(m => m.courseProgressSummary && m.courseProgressSummary.started);
-        
         const courseStats: Record<string, {
             courseId: string;
             courseName: string;
@@ -708,7 +706,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             };
         });
         
-        const dataPromises = membersOnCourse.map(async (member) => {
+        const dataPromises = membersList.map(async (member) => {
             const progress = await fetchCourseProgressForUser(member.id);
             
             // Check Praktisk Viktkontroll
@@ -743,13 +741,12 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         await Promise.all(dataPromises);
         
         const results = Object.values(courseStats)
-            .filter(c => c.participants > 0)
             .map(c => ({
                 courseId: c.courseId,
                 courseName: c.courseName,
                 participants: c.participants,
                 completions: c.completions,
-                averageProgress: (c.totalProgress / c.participants) * 100
+                averageProgress: c.participants > 0 ? (c.totalProgress / c.participants) * 100 : 0
             }));
         
         setCourseInsightsData({ isLoading: false, data: results });
@@ -911,7 +908,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     systemGroupsCount={myChats.length} 
                     publicRoomsCount={publicRooms.length} 
                     onGroupsClick={() => setShowAllGroupsModal(true)} 
-                    onCourseClick={handleCourseInsightsClick}
                 />
                 
                 <div className="grid grid-cols-2 gap-4 mb-6">
