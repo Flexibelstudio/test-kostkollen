@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { db } from './firebase';
 import {
@@ -785,13 +786,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     
     if (params.get('payment_success') === 'true' && userStatus === 'approved') {
         setToastNotification({ message: "Betalning bekräftad! Välkommen in!", type: 'success' });
-        
-        // --- SKICKA KÖP TILL META PIXEL ---
-        if (typeof window !== 'undefined' && (window as any).fbq) {
-            (window as any).fbq('track', 'Purchase', { currency: 'SEK', value: 95.00 });
-        }
-        // ----------------------------------
-
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
         window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
@@ -1327,7 +1321,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             consumedProtein: totals.protein,
             proteinGoal: goals.proteinGoal,
             consumedCarbohydrates: totals.carbohydrates,
-            carbohydratesGoal: goals.carbohydrateGoal,
+            carbohydrateGoal: goals.carbohydrateGoal,
             consumedFat: totals.fat,
             fatGoal: goals.fatGoal,
             goalType: userProfile.goalType,
@@ -1641,110 +1635,106 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     <>
       <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
        <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-30">
-            <div className="max-w-7xl mx-auto flex items-center justify-between">
-                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
-                    <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
-                </div>
-                <div className="flex flex-wrap justify-end items-center gap-1">
-                    {navItems.map(item => (
-                        <button
-                            key={item.key}
-                            aria-label={item.label}
-                            className={`nav-btn ${item.isActive ? "active" : ""}`}
-                            onClick={item.onClick}
-                        >
-                            <span className="icon-wrap">
-                                <item.Icon color="#3bab5a" size={24} strokeWidth={1.5} />
-                            </span>
-                            {item.notificationCount > 0 && (
-                                <span className="absolute top-[-4px] right-[-4px] flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold ring-2 ring-white">
-                                    {item.notificationCount > 9 ? '9+' : item.notificationCount}
-                                </span>
-                            )}
-                        </button>
-                    ))}
-                    <div className="relative" ref={profileDropdownRef}>
-                        <button
-                            aria-label="Konto"
-                            className={`nav-btn ${showProfileDropdown ? "active" : ""}`}
-                            onClick={() => setShowProfileDropdown(prev => !prev)}
-                        >
-                             <div className="icon-wrap p-0 relative">
-                                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
-                             </div>
-                        </button>
-                        {showProfileDropdown && (
-                            <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-neutral-light/70 p-2 z-40 animate-fade-slide-in">
-                                <DropdownMenuItem
-                                    icon={<PencilIcon/>}
-                                    label="Redigera Profil"
-                                    onClick={() => {
-                                        setShowUserProfileModal(true);
-                                        setIsProfileModalOnboarding(false);
-                                        setShowProfileDropdown(false);
-                                    }}
-                                />
-                                <DropdownMenuItem
-                                    icon={<TrophyIcon />}
-                                    label="Streak & Rekord"
-                                    onClick={() => {
-                                        playAudio('uiClick');
-                                        setShowGamificationModal(true);
-                                        setShowProfileDropdown(false);
-                                    }}
-                                />
-                                <DropdownMenuItem
-                                    icon={<CreditCardIcon />}
-                                    label="Prenumeration"
-                                    onClick={() => {
-                                        setShowSubscriptionModal(true);
-                                        setShowProfileDropdown(false);
-                                    }}
-                                />
-                                <DropdownMenuItem
-                                    icon={<InformationCircleIcon />}
-                                    label="Information"
-                                    onClick={() => {
-                                        handleOpenInfoModal();
-                                        setShowProfileDropdown(false);
-                                    }}
-                                />
-                                
-                                <div className="my-1 border-t border-neutral-light/70"></div>
-                                
-                                <DropdownMenuItem
-                                    icon={isDarkMode ? <Sun className="w-5 h-5 text-neutral" /> : <Moon className="w-5 h-5 text-neutral" />}
-                                    label={isDarkMode ? "Ljust läge" : "Mörkt läge"}
-                                    onClick={() => {
-                                        setIsDarkMode(!isDarkMode);
-                                        setShowProfileDropdown(false);
-                                    }}
-                                />
-                                
-                                {(userRole === 'coach' || userRole === 'admin') && (
-                                    <>
-                                        <div className="my-1 border-t border-neutral-light/70"></div>
-                                        <DropdownMenuItem
-                                            icon={<SwitchHorizontalIcon />}
-                                            label="Coach Dashboard"
-                                            onClick={toggleInterfaceView}
-                                            className="text-indigo-600 hover:bg-indigo-50 font-medium"
-                                        />
-                                    </>
-                                )}
-
-                                <div className="my-1 border-t border-neutral-light/70"></div>
-                                <DropdownMenuItem
-                                    icon={<ArrowRightOnRectangleIcon />}
-                                    label="Logga ut"
-                                    onClick={handleLogout}
-                                    className="text-red-600 hover:bg-red-50"
-                                />
-                            </div>
-                        )}
-                    </div>
-                </div>
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
+              <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
             </div>
+            <div className="flex flex-wrap justify-end items-center gap-1">
+              {navItems.map(item => (
+                <button
+                  key={item.key}
+                  aria-label={item.label}
+                  className={`nav-btn ${item.isActive ? "active" : ""}`}
+                  onClick={item.onClick}
+                >
+                  <span className="icon-wrap">
+                    <item.Icon color="#3bab5a" size={24} strokeWidth={1.5} />
+                  </span>
+                  {item.notificationCount > 0 && (
+                    <span className="absolute top-[-4px] right-[-4px] flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold ring-2 ring-white">
+                      {item.notificationCount > 9 ? '9+' : item.notificationCount}
+                    </span>
+                  )}
+                </button>
+              ))}
+              <div className="relative" ref={profileDropdownRef}>
+                <button
+                  aria-label="Konto"
+                  className={`nav-btn ${showProfileDropdown ? "active" : ""}`}
+                  onClick={() => setShowProfileDropdown(prev => !prev)}
+                >
+                  <div className="icon-wrap p-0 relative">
+                    <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
+                  </div>
+                </button>
+                {showProfileDropdown && (
+                  <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-neutral-light/70 p-2 z-40 animate-fade-slide-in">
+                    <DropdownMenuItem
+                      icon={<PencilIcon/>}
+                      label="Redigera Profil"
+                      onClick={() => {
+                        setShowUserProfileModal(true);
+                        setIsProfileModalOnboarding(false);
+                        setShowProfileDropdown(false);
+                      }}
+                    />
+                    <DropdownMenuItem
+                      icon={<TrophyIcon />}
+                      label="Streak & Rekord"
+                      onClick={() => {
+                        playAudio('uiClick');
+                        setShowGamificationModal(true);
+                        setShowProfileDropdown(false);
+                      }}
+                    />
+                    <DropdownMenuItem
+                      icon={<CreditCardIcon />}
+                      label="Prenumeration"
+                      onClick={() => {
+                        setShowSubscriptionModal(true);
+                        setShowProfileDropdown(false);
+                      }}
+                    />
+                    <DropdownMenuItem
+                      icon={<InformationCircleIcon />}
+                      label="Information"
+                      onClick={() => {
+                        handleOpenInfoModal();
+                        setShowProfileDropdown(false);
+                      }}
+                    />
+                    <div className="my-1 border-t border-neutral-light/70"></div>
+                    <DropdownMenuItem
+                      icon={isDarkMode ? <Sun className="w-5 h-5 text-neutral" /> : <Moon className="w-5 h-5 text-neutral" />}
+                      label={isDarkMode ? "Ljust läge" : "Mörkt läge"}
+                      onClick={() => {
+                        setIsDarkMode(!isDarkMode);
+                        setShowProfileDropdown(false);
+                      }}
+                    />
+                    {(userRole === 'coach' || userRole === 'admin') && (
+                      <>
+                        <div className="my-1 border-t border-neutral-light/70"></div>
+                        <DropdownMenuItem
+                          icon={<SwitchHorizontalIcon />}
+                          label="Coach Dashboard"
+                          onClick={toggleInterfaceView}
+                          className="text-indigo-600 hover:bg-indigo-50 font-medium"
+                        />
+                      </>
+                    )}
+                    <div className="my-1 border-t border-neutral-light/70"></div>
+                    <DropdownMenuItem
+                      icon={<ArrowRightOnRectangleIcon />}
+                      label="Logga ut"
+                      onClick={handleLogout}
+                      className="text-red-600 hover:bg-red-50"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </header>
 
         <main className={viewMode === 'community' 
