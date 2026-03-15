@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, JSX } from 'react';
 import { db } from './firebase';
 import {
@@ -786,6 +785,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     
     if (params.get('payment_success') === 'true' && userStatus === 'approved') {
         setToastNotification({ message: "Betalning bekräftad! Välkommen in!", type: 'success' });
+        
+        // --- SKICKA KÖP TILL META PIXEL ---
+        if (typeof window !== 'undefined' && (window as any).fbq) {
+            (window as any).fbq('track', 'Purchase', { currency: 'SEK', value: 95.00 });
+        }
+        // ----------------------------------
+
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
         window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
@@ -1321,7 +1327,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             consumedProtein: totals.protein,
             proteinGoal: goals.proteinGoal,
             consumedCarbohydrates: totals.carbohydrates,
-            carbohydrateGoal: goals.carbohydrateGoal,
+            carbohydratesGoal: goals.carbohydrateGoal,
             consumedFat: totals.fat,
             fatGoal: goals.fatGoal,
             goalType: userProfile.goalType,
