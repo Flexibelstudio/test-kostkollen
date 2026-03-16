@@ -939,23 +939,23 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         userRole={userRole}
                         isCoachDashboard={true}
                     />
-                    {myChats.length > 0 && (
-                        <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-bold text-neutral-darker flex items-center gap-2">
-                                    <UsersIcon className="w-5 h-5 text-primary" />
-                                    Officiella Grupper
-                                </h3>
-                                <button 
-                                    onClick={() => setIsCreatingGroup(true)}
-                                    className="p-2 bg-primary-50 text-primary rounded-full hover:bg-primary-100 transition-colors"
-                                    title="Skapa ny grupp"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                    </svg>
-                                </button>
-                            </div>
+                    <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-neutral-darker flex items-center gap-2">
+                                <UsersIcon className="w-5 h-5 text-primary" />
+                                Officiella Grupper
+                            </h3>
+                            <button 
+                                onClick={() => setIsCreatingGroup(true)}
+                                className="p-2 bg-primary-50 text-primary rounded-full hover:bg-primary-100 transition-colors"
+                                title="Skapa ny grupp"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                </svg>
+                            </button>
+                        </div>
+                        {myChats.length > 0 ? (
                             <div className="space-y-3">
                                 {myChats.map(chat => (
                                     <div 
@@ -982,8 +982,18 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                    )}
+                        ) : (
+                            <div className="text-center py-6 bg-gray-50 rounded-xl border border-neutral-light border-dashed">
+                                <p className="text-neutral-500 text-sm mb-3">Inga officiella grupper skapade ännu.</p>
+                                <button 
+                                    onClick={() => setIsCreatingGroup(true)}
+                                    className="text-primary font-medium text-sm hover:underline"
+                                >
+                                    Skapa din första grupp här
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="bg-white p-4 rounded-3xl shadow-soft-xl border border-neutral-light">
