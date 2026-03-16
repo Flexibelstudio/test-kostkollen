@@ -7,7 +7,7 @@ import type { User } from '@firebase/auth';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from './icons';
 import { User as UserIconLucide, PieChart, TrendingDown, Users as UsersIcon } from 'lucide-react';
 import { playAudio } from '../services/audioService';
-import { subscribeToSystemGroups, subscribeToPublicRooms } from '../services/chatService';
+import { subscribeToSystemGroups, subscribeToPublicRooms, subscribeToAllChats } from '../services/chatService';
 import { 
     fetchCoachViewMembers, 
     approveMember,
@@ -158,7 +158,7 @@ const getTodayKey = () => {
     return `${year}-${month}-${day}`;
 };
 
-const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount }) => {
+const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; allChatsCount: number; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, allChatsCount }) => {
     const groupInsights = useMemo(() => {
         const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
         const totalActiveCount = activeMembers.length;
@@ -232,7 +232,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             >
                 <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-blue-100" textClass="text-blue-600" />
                 <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-emerald-100" textClass="text-emerald-600" />
-                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={(systemGroupsCount + publicRoomsCount).toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika`} colorClass="bg-pink-100" textClass="text-pink-600" />
+                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={allChatsCount.toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika, ${allChatsCount - systemGroupsCount - publicRoomsCount} Privata`} colorClass="bg-pink-100" textClass="text-pink-600" />
                 <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
@@ -619,6 +619,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [myChats, setMyChats] = useState<Chat[]>([]);
   const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
+  const [allChats, setAllChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [showAllGroupsModal, setShowAllGroupsModal] = useState(false);
   const [showCourseInsightsModal, setShowCourseInsightsModal] = useState(false);
@@ -646,9 +647,13 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       const unsubscribePublic = subscribeToPublicRooms((chats) => {
           setPublicRooms(chats);
       });
+      const unsubscribeAll = subscribeToAllChats((chats) => {
+          setAllChats(chats);
+      });
       return () => {
           unsubscribeSystem();
           unsubscribePublic();
+          unsubscribeAll();
       };
   }, []);
 
@@ -907,6 +912,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     onToggle={() => setIsInsightsExpanded(prev => !prev)} 
                     systemGroupsCount={myChats.length} 
                     publicRoomsCount={publicRooms.length} 
+                    allChatsCount={allChats.length}
                 />
                 
                 <div className="grid grid-cols-2 gap-4 mb-6">
@@ -1146,20 +1152,20 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 
                 <div className="overflow-y-auto custom-scrollbar flex-1 pr-2">
                     <div className="divide-y divide-neutral-light/50">
-                        {[...myChats, ...publicRooms].sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0)).map(chat => (
+                        {allChats.sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0)).map(chat => (
                             <div key={chat.id} className="py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <h4 className="font-bold text-neutral-dark text-lg">{chat.name}</h4>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                                            {chat.isSystemGroup ? 'Officiell' : 'Publik'}
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-blue-100 text-blue-700' : chat.type === 'public_room' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'}`}>
+                                            {chat.isSystemGroup ? 'Officiell' : chat.type === 'public_room' ? 'Publik' : 'Privat'}
                                         </span>
                                         {!chat.isSystemGroup && chat.requiresApproval && (
                                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
                                                 Kräver godkännande
                                             </span>
                                         )}
-                                        {!chat.isSystemGroup && !chat.requiresApproval && (
+                                        {!chat.isSystemGroup && !chat.requiresApproval && chat.type === 'public_room' && (
                                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
                                                 Öppen
                                             </span>
@@ -1182,7 +1188,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                 </div>
                             </div>
                         ))}
-                        {myChats.length === 0 && publicRooms.length === 0 && (
+                        {allChats.length === 0 && (
                             <p className="text-center text-neutral-500 py-8">Inga grupper finns i systemet ännu.</p>
                         )}
                     </div>

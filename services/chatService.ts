@@ -125,6 +125,30 @@ export const subscribeToSystemGroups = (
   });
 };
 
+export const subscribeToAllChats = (
+  callback: (chats: Chat[]) => void
+) => {
+  if (!db) return () => {};
+  
+  const allChatsQuery = query(collection(db, 'chats'));
+
+  return onSnapshot(allChatsQuery, (snapshot) => {
+    const chats: Chat[] = [];
+    snapshot.forEach(doc => {
+      chats.push({ id: doc.id, ...doc.data() } as Chat);
+    });
+    
+    // Sort in memory (newest first)
+    chats.sort((a, b) => {
+      const timeA = a.lastMessage?.timestamp || a.createdAt;
+      const timeB = b.lastMessage?.timestamp || b.createdAt;
+      return timeB - timeA;
+    });
+    
+    callback(chats);
+  });
+};
+
 export const subscribeToPublicRooms = (
   callback: (chats: Chat[]) => void
 ) => {
