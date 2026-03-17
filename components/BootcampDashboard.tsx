@@ -282,13 +282,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                 </div>
 
                 <div>
-                  <label className="block font-bold text-neutral-dark mb-2">Kommentar till Generalen</label>
+                  <label className="block font-bold text-neutral-dark mb-2">Kommentar till Generalen (Frivilligt)</label>
                   <textarea 
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     placeholder="Hur kändes dagen? Några utmaningar?"
                     className="w-full p-4 rounded-2xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent min-h-[120px] resize-none"
-                    required
                   />
                 </div>
 

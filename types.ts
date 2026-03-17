@@ -476,6 +476,7 @@ export interface EveningReport {
   date: string; // YYYY-MM-DD
   steps: number;
   mood: number; // 1-10
+  moodComment?: string; // Free text for mood
   strengthTrained: boolean;
   sleep?: number; // Hours of sleep
   proteinMet?: boolean;
