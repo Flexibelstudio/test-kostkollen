@@ -24,6 +24,7 @@ import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
 import GrowthEngineView from './GrowthEngineView';
 import CoachStudioView from './CoachStudioView';
+import { BootcampLedningscentral } from './BootcampLedningscentral';
 import { Avatar } from './UserProfileModal';
 import { TrendingUp } from 'lucide-react';
 
@@ -615,7 +616,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CoachViewMember | null>(null);
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio' | 'bootcamp'>('members');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [myChats, setMyChats] = useState<Chat[]>([]);
   const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
@@ -856,6 +857,13 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         <SparklesIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                         Coach Studio
                     </button>
+                    <button
+                        onClick={() => setActiveTab('bootcamp')}
+                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'bootcamp' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                    >
+                        <TrophyIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                        Bootcamp
+                    </button>
                 </div>
             </div>
         )}
@@ -903,6 +911,13 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             <CoachStudioView 
                 currentUser={currentUser}
                 setToastNotification={setToastNotification}
+            />
+        ) : activeTab === 'bootcamp' ? (
+            <BootcampLedningscentral
+                currentUser={currentUser}
+                userProfile={userProfile}
+                setToastNotification={setToastNotification}
+                membersList={membersList}
             />
         ) : (
             <>

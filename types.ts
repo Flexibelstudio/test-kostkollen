@@ -458,6 +458,42 @@ export interface InBodyScanData {
   timestamp?: number;
 }
 
+// --- Bootcamp Types ---
+
+export interface BootcampCohort {
+  id: string;
+  name: string; // e.g., "Generalens April-trupp"
+  inviteCode: string; // e.g., "BÖRJE-APRIL"
+  startDate: string; // YYYY-MM-DD
+  chatGroupId: string; // ID of the official chat group
+  status: 'upcoming' | 'active' | 'completed';
+  createdAt: number;
+  createdBy: string; // Coach ID
+}
+
+export interface EveningReport {
+  date: string; // YYYY-MM-DD
+  steps: number;
+  mood: number; // 1-10
+  strengthTrained: boolean;
+  comment: string;
+  isGreenDay: boolean; // Calculated based on rules
+  createdAt: number;
+}
+
+export interface BootcampParticipant {
+  userId: string;
+  cohortId: string;
+  status: 'fas1' | 'fas2' | 'completed' | 'dropped';
+  currentStreak: number;
+  longestStreak: number;
+  fas1StartDate: string; // Resets if they fail in Fas 1
+  fas2StartDate?: string;
+  needsCoachAttention: boolean;
+  attentionReason?: string;
+  joinedAt: number;
+}
+
 // --- Coach & Admin Types ---
 
 export interface CoachViewMember {
