@@ -93,6 +93,7 @@ export const ALL_COURSES: CourseInfo[] = [
 
 interface CoursesViewProps {
   userProfile: UserProfileData;
+  goals: GoalSettings;
   userProgress: UserCourseProgress;
   onNavigateToCourse: (courseId: CourseInfo['id']) => void;
 }
@@ -151,7 +152,7 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, userProgress, onNavigateToCourse }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, onNavigateToCourse }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(false);
   const [activeBootcamp, setActiveBootcamp] = useState<BootcampParticipant | null>(null);
@@ -170,7 +171,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, userProgr
 
   if (showBootcampLanding) {
     if (activeBootcamp) {
-      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} onBack={() => setShowBootcampLanding(false)} />;
+      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} onBack={() => setShowBootcampLanding(false)} />;
     }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} />;
   }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
-import { BootcampParticipant, EveningReport, UserProfileData } from '../types';
+import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings } from '../types';
 import { subscribeToUserEveningReports, submitEveningReport } from '../services/bootcampService';
 import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreService';
 import { auth } from '../firebase';
@@ -9,10 +9,11 @@ import ToastNotification from './ToastNotification';
 interface BootcampDashboardProps {
   participant: BootcampParticipant;
   userProfile: UserProfileData;
+  goals: GoalSettings;
   onBack: () => void;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, onBack }) => {
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, onBack }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,14 +54,14 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         // We consider "logged all meals" as having logged at least something substantial (e.g. > 500 kcal)
         // or just having logged any meals. Let's use meals.length > 0 for simplicity, or maybe > 400 kcal.
         setLoggedAllMeals(meals.length > 0 && totalCalories > 400);
-        setProteinMet(totalProtein >= userProfile.goals.proteinGoal);
+        setProteinMet(totalProtein >= goals.proteinGoal);
         setWaterMet(water >= 2000); // 2 liters
       } catch (error) {
         console.error("Error fetching today's progress:", error);
       }
     };
     fetchTodayProgress();
-  }, [todayStr, userProfile.goals.proteinGoal]);
+  }, [todayStr, goals.proteinGoal]);
 
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,7 +210,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                     <div className="flex-1">
                       <span className={`font-bold block ${proteinMet ? 'text-emerald-800' : 'text-neutral-dark'}`}>Proteinkravet</span>
                       <span className={`text-sm ${proteinMet ? 'text-emerald-600' : 'text-neutral-500'}`}>
-                        {proteinMet ? `Du har nått ditt mål (${userProfile.goals.proteinGoal}g).` : `Du har inte nått ditt proteinmål (${userProfile.goals.proteinGoal}g).`}
+                        {proteinMet ? `Du har nått ditt mål (${goals.proteinGoal}g).` : `Du har inte nått ditt proteinmål (${goals.proteinGoal}g).`}
                       </span>
                     </div>
                   </div>

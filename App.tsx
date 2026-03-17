@@ -1804,6 +1804,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
          {viewMode === 'coursesView' && (
             <CoursesView
                 userProfile={userProfile}
+                goals={goals}
                 userProgress={userCourseProgress}
                 onNavigateToCourse={handleNavigateToCourse}
             />
