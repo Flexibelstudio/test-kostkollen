@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { UserProfileData, UserCourseProgress } from '../types';
-import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon, ArrowRightIcon } from './icons';
+import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon, ArrowRightIcon, ShieldCheckIcon } from './icons';
 import CourseInfoModal from './course/CourseInfoModal';
+import BootcampLandingView from './BootcampLandingView';
 
 export interface Review {
   quote: string;
@@ -11,7 +12,7 @@ export interface Review {
 }
 
 export interface CourseInfo {
-  id: 'praktisk-viktkontroll' | 'maxa-klimakteriet';
+  id: 'praktisk-viktkontroll' | 'maxa-klimakteriet' | 'bootcamp';
   title: string;
   cardDescription: string;
   longDescription: string;
@@ -23,6 +24,21 @@ export interface CourseInfo {
 }
 
 export const ALL_COURSES: CourseInfo[] = [
+  {
+    id: 'bootcamp',
+    title: 'General Börjes 12-veckors Bootcamp',
+    cardDescription: 'En stenhård kickstart för fettnedgång. 12 veckor av disciplin, svett och resultat. Antingen kör du solo eller mönstrar in i en trupp.',
+    longDescription: 'Detta är inget för veklingar. General Börjes Bootcamp är designat för att krossa fettet med disciplin och tydliga regler. Du loggar allt, du når dina mål, och du gör det varje dag.',
+    whatYouGet: [
+        'En 12-veckors strukturerad plan uppdelad i faser.',
+        'Stenhård uppföljning av kalorier, protein, vatten och steg.',
+        'Daglig kvällsrapport till General Börje.',
+        'Möjlighet att köra solo eller i en gemensam trupp med chatt.'
+    ],
+    howItWorks: 'Du måste uppfylla alla dagliga krav för att få en "Grön Dag". Klarar du 14 gröna dagar i rad låser du upp nästa fas. Misslyckas du bryts din streak och du får börja om (eller rädda den med en retroaktiv loggning).',
+    forWhom: 'För dig som vill ha snabba resultat, tydliga regler och en spark i baken.',
+    Icon: ShieldCheckIcon,
+  },
   {
     id: 'praktisk-viktkontroll',
     title: 'Praktisk Viktkontroll',
@@ -134,19 +150,38 @@ const CourseCard: React.FC<{
 
 export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, userProgress, onNavigateToCourse }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
+  const [showBootcampLanding, setShowBootcampLanding] = useState(false);
+
+  if (showBootcampLanding) {
+    return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} />;
+  }
 
   return (
     <>
         <div className="animate-fade-in flex flex-col gap-3 pb-0">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {ALL_COURSES.map(course => {
-                const firstLessonId = course.id === 'praktisk-viktkontroll' ? 'lektion1' : 'm-lektion1';
-                const hasStarted = !!userProgress[firstLessonId]?.unlockedAt;
+                let hasStarted = false;
+                if (course.id === 'praktisk-viktkontroll') {
+                  hasStarted = !!userProgress['lektion1']?.unlockedAt;
+                } else if (course.id === 'maxa-klimakteriet') {
+                  hasStarted = !!userProgress['m-lektion1']?.unlockedAt;
+                } else if (course.id === 'bootcamp') {
+                  // We'll handle bootcamp start status differently later, for now just show the landing page
+                  hasStarted = false; 
+                }
+
                 return (
                     <CourseCard
                         key={course.id}
                         course={course}
-                        onActivate={() => onNavigateToCourse(course.id)}
+                        onActivate={() => {
+                          if (course.id === 'bootcamp') {
+                            setShowBootcampLanding(true);
+                          } else {
+                            onNavigateToCourse(course.id);
+                          }
+                        }}
                         onShowInfo={() => setSelectedCourseForInfo(course)}
                         hasStarted={hasStarted} 
                     />

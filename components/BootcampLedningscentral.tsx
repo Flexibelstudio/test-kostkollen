@@ -23,6 +23,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
   const [newCohortName, setNewCohortName] = useState('');
   const [newCohortCode, setNewCohortCode] = useState('');
   const [newCohortStartDate, setNewCohortStartDate] = useState('');
+  const [newCohortIsPublic, setNewCohortIsPublic] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -59,7 +60,8 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         newCohortCode,
         newCohortStartDate,
         chatGroupId,
-        currentUser.uid
+        currentUser.uid,
+        newCohortIsPublic
       );
 
       setToastNotification({ message: 'Bootcamp-trupp skapad!', type: 'success' });
@@ -67,6 +69,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
       setNewCohortName('');
       setNewCohortCode('');
       setNewCohortStartDate('');
+      setNewCohortIsPublic(false);
     } catch (error) {
       console.error("Error creating cohort:", error);
       setToastNotification({ message: 'Ett fel uppstod', type: 'error' });
@@ -136,6 +139,19 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                 required
               />
             </div>
+            <div className="flex items-center gap-3 p-4 bg-neutral-50 rounded-xl border border-neutral-light">
+              <input
+                type="checkbox"
+                id="isPublic"
+                checked={newCohortIsPublic}
+                onChange={(e) => setNewCohortIsPublic(e.target.checked)}
+                className="w-5 h-5 text-primary rounded border-neutral-300 focus:ring-primary"
+              />
+              <div>
+                <label htmlFor="isPublic" className="font-bold text-neutral-dark block cursor-pointer">Gör truppen publik i appen</label>
+                <p className="text-xs text-neutral-500">Om ikryssad kan vem som helst se och gå med i truppen utan kod.</p>
+              </div>
+            </div>
             <div className="flex justify-end gap-3 pt-4">
               <button
                 type="button"
@@ -160,7 +176,12 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         {cohorts.map(cohort => (
           <div key={cohort.id} className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light hover:border-primary/30 transition-colors cursor-pointer group">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-bold text-neutral-dark group-hover:text-primary transition-colors">{cohort.name}</h3>
+              <div>
+                <h3 className="text-lg font-bold text-neutral-dark group-hover:text-primary transition-colors">{cohort.name}</h3>
+                <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${cohort.isPublic ? 'bg-purple-100 text-purple-700' : 'bg-neutral-200 text-neutral-700'}`}>
+                  {cohort.isPublic ? 'Publik Trupp' : 'Privat Trupp'}
+                </span>
+              </div>
               <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                 cohort.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
                 cohort.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :

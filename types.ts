@@ -467,6 +467,7 @@ export interface BootcampCohort {
   startDate: string; // YYYY-MM-DD
   chatGroupId: string; // ID of the official chat group
   status: 'upcoming' | 'active' | 'completed';
+  isPublic: boolean; // If true, visible in the app for anyone to join
   createdAt: number;
   createdBy: string; // Coach ID
 }

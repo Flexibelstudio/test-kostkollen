@@ -9,7 +9,8 @@ export const createCohort = async (
   inviteCode: string,
   startDate: string,
   chatGroupId: string,
-  coachId: string
+  coachId: string,
+  isPublic: boolean
 ): Promise<string> => {
   if (!db) throw new Error("Firestore not initialized");
 
@@ -19,6 +20,7 @@ export const createCohort = async (
     startDate,
     chatGroupId,
     status: 'upcoming',
+    isPublic,
     createdAt: Date.now(),
     createdBy: coachId,
   };
@@ -42,7 +44,53 @@ export const subscribeToCohorts = (callback: (cohorts: BootcampCohort[]) => void
   });
 };
 
+export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) => void) => {
+  if (!db) return () => {};
+  
+  const q = query(collection(db, 'bootcampCohorts'), where('isPublic', '==', true), where('status', '==', 'upcoming'));
+  return onSnapshot(q, (snapshot) => {
+    const cohorts: BootcampCohort[] = [];
+    snapshot.forEach(doc => {
+      cohorts.push({ id: doc.id, ...doc.data() } as BootcampCohort);
+    });
+    // Sort by start date ascending (closest first)
+    cohorts.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    callback(cohorts);
+  });
+};
+
 // --- Participant Management ---
+
+export const joinSoloBootcamp = async (userId: string): Promise<{ success: boolean; message: string }> => {
+  if (!db) throw new Error("Firestore not initialized");
+
+  // Check if already joined any bootcamp
+  const participantRef = doc(db, 'bootcampCohorts', 'solo', 'participants', userId);
+  const participantSnap = await getDoc(participantRef);
+
+  if (participantSnap.exists()) {
+    return { success: false, message: 'Du är redan med i ett Bootcamp.' };
+  }
+
+  // Add participant
+  const participantData: BootcampParticipant = {
+    userId,
+    cohortId: 'solo', // Special ID for solo participants
+    status: 'fas1',
+    currentStreak: 0,
+    longestStreak: 0,
+    fas1StartDate: new Date().toISOString().split('T')[0], // Starts today
+    needsCoachAttention: false,
+    joinedAt: Date.now(),
+  };
+
+  await setDoc(participantRef, participantData);
+
+  return { 
+    success: true, 
+    message: 'Välkommen till Bootcampet, rekryt! Din första dag börjar nu.' 
+  };
+};
 
 export const joinCohort = async (userId: string, inviteCode: string): Promise<{ success: boolean; message: string; cohortId?: string; chatGroupId?: string }> => {
   if (!db) throw new Error("Firestore not initialized");
