@@ -189,10 +189,17 @@ export const submitEveningReport = async (
 ) => {
   if (!db) throw new Error("Firestore not initialized");
 
-  const reportData: EveningReport = {
+  const reportData: any = {
     ...report,
     createdAt: Date.now(),
   };
+
+  // Firestore does not support undefined values
+  Object.keys(reportData).forEach(key => {
+    if (reportData[key] === undefined) {
+      delete reportData[key];
+    }
+  });
 
   const reportRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId, 'eveningReports', report.date);
   await setDoc(reportRef, reportData);
@@ -224,12 +231,19 @@ export const submitEveningReport = async (
       attentionReason = 'Bröt sin streak (Röd dag)';
     }
 
-    await updateDoc(participantRef, {
+    const updateData: any = {
       currentStreak: newStreak,
       longestStreak: newLongest,
       status: newStatus,
       needsCoachAttention: needsAttention,
-      attentionReason: attentionReason
-    });
+    };
+
+    if (attentionReason !== undefined) {
+      updateData.attentionReason = attentionReason;
+    } else {
+      updateData.attentionReason = null;
+    }
+
+    await updateDoc(participantRef, updateData);
   }
 };
