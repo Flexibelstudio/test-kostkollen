@@ -1,9 +1,12 @@
 
-import React, { useState } from 'react';
-import { UserProfileData, UserCourseProgress } from '../types';
+import React, { useState, useEffect } from 'react';
+import { UserProfileData, UserCourseProgress, BootcampParticipant } from '../types';
 import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon, ArrowRightIcon, ShieldCheckIcon } from './icons';
 import CourseInfoModal from './course/CourseInfoModal';
 import BootcampLandingView from './BootcampLandingView';
+import BootcampDashboard from './BootcampDashboard';
+import { getUserActiveBootcamp } from '../services/bootcampService';
+import { auth } from '../firebase';
 
 export interface Review {
   quote: string;
@@ -151,8 +154,24 @@ const CourseCard: React.FC<{
 export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, userProgress, onNavigateToCourse }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(false);
+  const [activeBootcamp, setActiveBootcamp] = useState<BootcampParticipant | null>(null);
+  const [isLoadingBootcamp, setIsLoadingBootcamp] = useState(true);
+
+  useEffect(() => {
+    const fetchBootcamp = async () => {
+      if (auth.currentUser) {
+        const participant = await getUserActiveBootcamp(auth.currentUser.uid);
+        setActiveBootcamp(participant);
+      }
+      setIsLoadingBootcamp(false);
+    };
+    fetchBootcamp();
+  }, []);
 
   if (showBootcampLanding) {
+    if (activeBootcamp) {
+      return <BootcampDashboard participant={activeBootcamp} onBack={() => setShowBootcampLanding(false)} />;
+    }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} />;
   }
 
@@ -167,8 +186,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, userProgr
                 } else if (course.id === 'maxa-klimakteriet') {
                   hasStarted = !!userProgress['m-lektion1']?.unlockedAt;
                 } else if (course.id === 'bootcamp') {
-                  // We'll handle bootcamp start status differently later, for now just show the landing page
-                  hasStarted = false; 
+                  hasStarted = !!activeBootcamp; 
                 }
 
                 return (

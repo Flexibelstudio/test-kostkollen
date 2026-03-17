@@ -477,6 +477,9 @@ export interface EveningReport {
   steps: number;
   mood: number; // 1-10
   strengthTrained: boolean;
+  proteinMet?: boolean;
+  waterMet?: boolean;
+  loggedAllMeals?: boolean;
   comment: string;
   isGreenDay: boolean; // Calculated based on rules
   createdAt: number;

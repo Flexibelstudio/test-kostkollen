@@ -1,4 +1,4 @@
-import { collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, updateDoc, onSnapshot, serverTimestamp, collectionGroup, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { BootcampCohort, BootcampParticipant, EveningReport } from '../types';
 
@@ -151,6 +151,37 @@ export const subscribeToCohortParticipants = (cohortId: string, callback: (parti
 
 // --- Evening Reports ---
 
+export const getUserActiveBootcamp = async (userId: string): Promise<BootcampParticipant | null> => {
+  if (!db) return null;
+
+  try {
+    const q = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) return null;
+    
+    // Return the first active one (assuming user can only be in one at a time)
+    return snapshot.docs[0].data() as BootcampParticipant;
+  } catch (error) {
+    console.error("Error fetching user bootcamp:", error);
+    return null;
+  }
+};
+
+export const subscribeToUserEveningReports = (cohortId: string, userId: string, callback: (reports: EveningReport[]) => void) => {
+  if (!db) return () => {};
+
+  const q = query(
+    collection(db, 'bootcampCohorts', cohortId, 'participants', userId, 'eveningReports'),
+    orderBy('date', 'desc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const reports = snapshot.docs.map(doc => doc.data() as EveningReport);
+    callback(reports);
+  });
+};
+
 export const submitEveningReport = async (
   cohortId: string,
   userId: string,
@@ -166,7 +197,39 @@ export const submitEveningReport = async (
   const reportRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId, 'eveningReports', report.date);
   await setDoc(reportRef, reportData);
   
-  // Here we would also trigger the logic to check if it's a "Green Day"
-  // and update the participant's streak/status accordingly.
-  // For now, we just save the report.
+  // Update participant streak
+  const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
+  const participantSnap = await getDoc(participantRef);
+  
+  if (participantSnap.exists()) {
+    const participant = participantSnap.data() as BootcampParticipant;
+    let newStreak = participant.currentStreak;
+    let newLongest = participant.longestStreak;
+    let newStatus = participant.status;
+    let needsAttention = participant.needsCoachAttention;
+    let attentionReason = participant.attentionReason;
+
+    if (report.isGreenDay) {
+      newStreak += 1;
+      if (newStreak > newLongest) {
+        newLongest = newStreak;
+      }
+      // Check if they unlock phase 2 (14 days)
+      if (newStreak >= 14 && participant.status === 'fas1') {
+        newStatus = 'fas2';
+      }
+    } else {
+      newStreak = 0;
+      needsAttention = true;
+      attentionReason = 'Bröt sin streak (Röd dag)';
+    }
+
+    await updateDoc(participantRef, {
+      currentStreak: newStreak,
+      longestStreak: newLongest,
+      status: newStatus,
+      needsCoachAttention: needsAttention,
+      attentionReason: attentionReason
+    });
+  }
 };
