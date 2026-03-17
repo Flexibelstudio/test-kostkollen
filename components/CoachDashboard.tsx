@@ -838,31 +838,33 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 <div className="flex w-full border-b border-neutral-light">
                     <button
                         onClick={() => setActiveTab('members')}
-                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'members' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
-                        <UsersIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Medlemsregister
+                        <UsersIcon className="w-5 h-5" />
+                        <span className="hidden sm:inline">Medlemsregister</span>
+                        <span className="sm:hidden">Medlemmar</span>
                     </button>
                     <button
                         onClick={() => setActiveTab('growth')}
-                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'growth' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'growth' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
-                        <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Tillväxtmotor
+                        <TrendingUp className="w-5 h-5" />
+                        <span className="hidden sm:inline">Tillväxtmotor</span>
+                        <span className="sm:hidden">Tillväxt</span>
                     </button>
                     <button
                         onClick={() => setActiveTab('studio')}
-                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'studio' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'studio' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
-                        <SparklesIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Coach Studio
+                        <SparklesIcon className="w-5 h-5" />
+                        <span>Studio</span>
                     </button>
                     <button
                         onClick={() => setActiveTab('bootcamp')}
-                        className={`flex-1 py-3 px-1 flex justify-center items-center gap-1.5 font-bold text-sm sm:text-lg whitespace-nowrap border-b-2 transition-colors ${activeTab === 'bootcamp' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'bootcamp' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
-                        <TrophyIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Bootcamp
+                        <TrophyIcon className="w-5 h-5" />
+                        <span>Bootcamp</span>
                     </button>
                 </div>
             </div>
