@@ -5,6 +5,7 @@ import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS 
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
 import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
+import ToastNotification from './ToastNotification';
 
 
 export const Avatar: React.FC<{
@@ -61,6 +62,7 @@ interface UserProfileModalProps {
   aiFeedbackError?: string | null;
   onSubscribeToPush: () => Promise<boolean>;
   isBootcampOnboarding?: boolean;
+  isBootcampActive?: boolean;
 }
 
 const resizeImage = (file: File, maxSize: number): Promise<string> => {
@@ -171,10 +173,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   aiFeedbackError = null,
   onSubscribeToPush,
   isBootcampOnboarding = false,
+  isBootcampActive = false,
 }) => {
 
     const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
     const [isSubscribing, setIsSubscribing] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     
     // Get Persona Details based on profile
     const coachStyle = initialProfile.coachStyle || 'balanced';
@@ -550,6 +554,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </button>
       </div>
 
+      {toast && (
+        <ToastNotification
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       {isOnboarding && onboardingStep === 'form' && !isBootcampOnboarding && (
         <p className="text-lg text-neutral-dark mb-6 bg-primary-100/70 p-4 rounded-md border border-primary-200">
           Välkommen, vänligen fyll i formuläret nedan så börjar vi din resa.
@@ -612,19 +624,21 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
       ) : (
         <form onSubmit={handleSaveProfileAndGoals} className="space-y-6">
-            <section aria-labelledby="profile-picture-heading">
-                <h3 id="profile-picture-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Profilbild</h3>
-                <div className="flex items-center gap-5">
-                    <Avatar photoURL={newPhotoDataUrl || profile.photoURL} gender={profile.gender} size={80} />
-                    <div>
-                        <label htmlFor="photoUpload" className="cursor-pointer px-4 py-2 bg-neutral-light hover:bg-gray-300 text-neutral-dark font-medium rounded-md shadow-sm interactive-transition">
-                            Välj ny bild...
-                        </label>
-                        <input type="file" id="photoUpload" className="hidden" accept="image/png, image/jpeg" onChange={handleImageSelect} />
-                        <p className="text-xs text-neutral mt-2">Stora bilder skalas ned automatiskt.</p>
+            {!isBootcampOnboarding && (
+                <section aria-labelledby="profile-picture-heading">
+                    <h3 id="profile-picture-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Profilbild</h3>
+                    <div className="flex items-center gap-5">
+                        <Avatar photoURL={newPhotoDataUrl || profile.photoURL} gender={profile.gender} size={80} />
+                        <div>
+                            <label htmlFor="photoUpload" className="cursor-pointer px-4 py-2 bg-neutral-light hover:bg-gray-300 text-neutral-dark font-medium rounded-md shadow-sm interactive-transition">
+                                Välj ny bild...
+                            </label>
+                            <input type="file" id="photoUpload" className="hidden" accept="image/png, image/jpeg" onChange={handleImageSelect} />
+                            <p className="text-xs text-neutral mt-2">Stora bilder skalas ned automatiskt.</p>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            )}
 
             <section aria-labelledby="profile-details-heading">
                 <h3 id="profile-details-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Personliga detaljer</h3>
@@ -683,12 +697,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 <button
                                     type="button"
                                     key={style}
-                                    onClick={() => setProfile(prev => ({ ...prev, coachStyle: style }))}
+                                    onClick={() => {
+                                        if (isBootcampActive) {
+                                            setToast({ message: "Du kan inte byta coach under en pågående bootcamp.", type: 'error' });
+                                            return;
+                                        }
+                                        setProfile(prev => ({ ...prev, coachStyle: style }));
+                                    }}
                                     className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center ${
                                         isSelected
                                             ? `${colorClasses} shadow-md`
                                             : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300 text-neutral-dark'
-                                    }`}
+                                    } ${isBootcampActive && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
                                         {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover rounded-xl" /> : p.emoji}
