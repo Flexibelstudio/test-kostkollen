@@ -4,7 +4,7 @@ import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
 import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort } from '../services/bootcampService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
-import BootcampOnboardingModal from './BootcampOnboardingModal';
+import UserProfileModal from './UserProfileModal';
 
 interface BootcampLandingViewProps {
   onBack: () => void;
@@ -230,14 +230,22 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
       </div>
 
       {selectedCohort && (
-        <BootcampOnboardingModal
-          show={!!selectedCohort}
-          onClose={() => setSelectedCohort(null)}
-          initialProfile={userProfile}
-          initialGoals={goals}
-          onJoin={handleConfirmJoin}
-          isJoining={isJoining}
-        />
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setSelectedCohort(null)}>
+          <div onClick={e => e.stopPropagation()} className="animate-scale-in w-full max-w-2xl">
+            <UserProfileModal
+              initialProfile={userProfile}
+              onSave={async (updatedProfile, updatedGoals, newPhotoDataUrl) => {
+                updatedProfile.coachStyle = 'tough'; // Force Börje
+                await handleConfirmJoin(updatedProfile, updatedGoals);
+              }}
+              onClose={() => setSelectedCohort(null)}
+              isOnboarding={true}
+              onboardingStep="form"
+              isBootcampOnboarding={true}
+              onSubscribeToPush={async () => false}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

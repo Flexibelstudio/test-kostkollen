@@ -113,7 +113,6 @@ BOOTCAMP-RAPPORT IGÅR:
 - Mående: ${yesterdayBootcampReport.mood}/10
 - Tränat styrka: ${yesterdayBootcampReport.strengthTrained ? 'JA' : 'NEJ'}
 - Kommentar till Generalen: "${yesterdayBootcampReport.comment || 'Ingen'}"
-- Fritext om mående: "${yesterdayBootcampReport.moodComment || 'Ingen'}"
 ` : ''}
 
 INSTRUKTIONER:
