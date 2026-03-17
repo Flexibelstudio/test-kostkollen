@@ -16,6 +16,7 @@ export interface AIDataForMorningBriefing {
   summary: PastDaySummary;
   currentStreak: number;
   yesterdayMeals?: any[];
+  yesterdayBootcampReport?: any;
 }
 
 export const generateGrowthEngineMessage = async (context: string, userNames: string[]): Promise<string> => {
@@ -87,7 +88,7 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text.`;
 };
 
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
-  const { userProfile, summary, currentStreak } = data;
+  const { userProfile, summary, currentStreak, yesterdayBootcampReport } = data;
   const style = userProfile.coachStyle || 'balanced';
   const persona = COACH_PERSONAS[style];
   const name = userProfile.name || 'du';
@@ -106,6 +107,14 @@ SITUATION IGÅR:
 - Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
 - Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
 - Streak-status: ${currentStreak > 0 ? `AKTIV (${currentStreak} dagar i rad). Användaren loggade igår!` : 'BRUTEN (0 dagar). Användaren loggade inte igår.'}
+${yesterdayBootcampReport ? `
+BOOTCAMP-RAPPORT IGÅR:
+- Grön dag: ${yesterdayBootcampReport.isGreenDay ? 'JA' : 'NEJ'}
+- Mående: ${yesterdayBootcampReport.mood}/10
+- Tränat styrka: ${yesterdayBootcampReport.strengthTrained ? 'JA' : 'NEJ'}
+- Kommentar till Generalen: "${yesterdayBootcampReport.comment || 'Ingen'}"
+- Fritext om mående: "${yesterdayBootcampReport.moodComment || 'Ingen'}"
+` : ''}
 
 INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
@@ -600,6 +609,11 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
 2.  Anpassa din ton efter din persona (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
 3.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
+
+**ANVÄNDARENS AKTUELLA KONTEXT:**
+${context.activeBootcamp ? `- Användaren deltar just nu i General Börjes Bootcamp (Fas: ${context.activeBootcamp.status}, Streak: ${context.activeBootcamp.currentStreak} dagar).` : ''}
+${context.recentBootcampReports && context.recentBootcampReports.length > 0 ? `- Senaste kvällsrapport (Bootcamp): Mående ${context.recentBootcampReports[0].mood}/10, Styrketräning: ${context.recentBootcampReports[0].strengthTrained ? 'Ja' : 'Nej'}, Grön dag: ${context.recentBootcampReports[0].isGreenDay ? 'Ja' : 'Nej'}.` : ''}
+${context.userCourseProgress ? `- Användaren har tillgång till kurser. Uppmuntra dem att läsa lektioner om de har frågor om kost eller träning.` : ''}
 
 **REGLER FOR GRAF-SVAR:**
 1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.

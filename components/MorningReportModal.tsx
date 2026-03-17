@@ -12,6 +12,7 @@ interface MorningReportModalProps {
   currentStreak: number;
   userProfile: UserProfileData;
   yesterdayMeals?: LoggedMeal[];
+  yesterdayBootcampReport?: any;
 }
 
 // Helper to decode raw PCM data from Gemini (16-bit, 24kHz, Mono)
@@ -41,7 +42,7 @@ const decodePCM = (base64: string, ctx: AudioContext): AudioBuffer => {
   return buffer;
 };
 
-const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile, yesterdayMeals }) => {
+const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile, yesterdayMeals, yesterdayBootcampReport }) => {
   const [briefingText, setBriefingText] = useState<string | null>(null);
   const [isLoadingBriefing, setIsLoadingBriefing] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -54,7 +55,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
     if (show) {
       const fetchBriefing = async () => {
         setIsLoadingBriefing(true);
-        const text = await getMorningBriefingText({ userProfile, summary, currentStreak, yesterdayMeals });
+        const text = await getMorningBriefingText({ userProfile, summary, currentStreak, yesterdayMeals, yesterdayBootcampReport });
         setBriefingText(text);
         setIsLoadingBriefing(false);
       };

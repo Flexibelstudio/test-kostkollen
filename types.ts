@@ -415,6 +415,8 @@ export interface AIDataForJourneyAnalysis {
   mentalWellbeingLogs?: MentalWellbeingLog[];
   currentStreak: number;
   userCourseProgress?: UserCourseProgress;
+  activeBootcamp?: BootcampParticipant | null;
+  recentBootcampReports?: EveningReport[];
 }
 
 export interface AIDataForCoachSummary {

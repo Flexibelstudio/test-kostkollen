@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftIcon, ShieldCheckIcon, UsersIcon, UserIcon, KeyIcon, CheckCircleIcon } from './icons';
-import { BootcampCohort } from '../types';
+import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
 import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort } from '../services/bootcampService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
+import BootcampOnboardingModal from './BootcampOnboardingModal';
 
 interface BootcampLandingViewProps {
   onBack: () => void;
+  userProfile: UserProfileData;
+  goals: GoalSettings;
+  onJoinSuccess: (profileUpdates: UserProfileData, goalUpdates: GoalSettings) => Promise<void>;
 }
 
-const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack }) => {
+const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userProfile, goals, onJoinSuccess }) => {
   const [publicCohorts, setPublicCohorts] = useState<BootcampCohort[]>([]);
   const [inviteCode, setInviteCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [selectedCohort, setSelectedCohort] = useState<BootcampCohort | 'solo' | string | null>(null); // string is for invite code
 
   useEffect(() => {
     const unsubscribe = subscribeToPublicCohorts((cohorts) => {
@@ -22,65 +27,46 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack }) => 
     return () => unsubscribe();
   }, []);
 
-  const handleJoinSolo = async () => {
-    if (!auth.currentUser) return;
-    setIsJoining(true);
-    try {
-      const result = await joinSoloBootcamp(auth.currentUser.uid);
-      if (result.success) {
-        setToast({ message: result.message, type: 'success' });
-        // TODO: Redirect to bootcamp dashboard or trigger payment
-        setTimeout(() => onBack(), 2000);
-      } else {
-        setToast({ message: result.message, type: 'error' });
-      }
-    } catch (error) {
-      console.error("Error joining solo:", error);
-      setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
-    } finally {
-      setIsJoining(false);
-    }
+  const handleJoinSolo = () => {
+    setSelectedCohort('solo');
   };
 
-  const handleJoinWithCode = async (e: React.FormEvent) => {
+  const handleJoinWithCode = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser || !inviteCode.trim()) return;
-    
-    setIsJoining(true);
-    try {
-      const result = await joinCohort(auth.currentUser.uid, inviteCode);
-      if (result.success) {
-        setToast({ message: result.message, type: 'success' });
-        // TODO: Redirect to bootcamp dashboard or trigger payment
-        setTimeout(() => onBack(), 2000);
-      } else {
-        setToast({ message: result.message, type: 'error' });
-      }
-    } catch (error) {
-      console.error("Error joining with code:", error);
-      setToast({ message: 'Ett fel uppstod. Kontrollera koden.', type: 'error' });
-    } finally {
-      setIsJoining(false);
-    }
+    if (!inviteCode.trim()) return;
+    setSelectedCohort(inviteCode);
   };
 
-  const handleJoinPublicCohort = async (cohort: BootcampCohort) => {
-    if (!auth.currentUser) return;
+  const handleJoinPublicCohort = (cohort: BootcampCohort) => {
+    setSelectedCohort(cohort);
+  };
+
+  const handleConfirmJoin = async (updatedProfile: UserProfileData, updatedGoals: GoalSettings) => {
+    if (!auth.currentUser || !selectedCohort) return;
     setIsJoining(true);
     try {
-      const result = await joinCohort(auth.currentUser.uid, cohort.inviteCode);
+      let result;
+      if (selectedCohort === 'solo') {
+        result = await joinSoloBootcamp(auth.currentUser.uid);
+      } else if (typeof selectedCohort === 'string') {
+        result = await joinCohort(auth.currentUser.uid, selectedCohort);
+      } else {
+        result = await joinCohort(auth.currentUser.uid, selectedCohort.inviteCode);
+      }
+
       if (result.success) {
         setToast({ message: result.message, type: 'success' });
-        // TODO: Redirect to bootcamp dashboard or trigger payment
+        await onJoinSuccess(updatedProfile, updatedGoals);
         setTimeout(() => onBack(), 2000);
       } else {
         setToast({ message: result.message, type: 'error' });
       }
     } catch (error) {
-      console.error("Error joining public cohort:", error);
+      console.error("Error joining bootcamp:", error);
       setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
     } finally {
       setIsJoining(false);
+      setSelectedCohort(null);
     }
   };
 
@@ -242,6 +228,17 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack }) => 
           </button>
         </form>
       </div>
+
+      {selectedCohort && (
+        <BootcampOnboardingModal
+          show={!!selectedCohort}
+          onClose={() => setSelectedCohort(null)}
+          initialProfile={userProfile}
+          initialGoals={goals}
+          onJoin={handleConfirmJoin}
+          isJoining={isJoining}
+        />
+      )}
     </div>
   );
 };

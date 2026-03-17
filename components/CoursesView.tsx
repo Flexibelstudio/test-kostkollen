@@ -96,6 +96,7 @@ interface CoursesViewProps {
   goals: GoalSettings;
   userProgress: UserCourseProgress;
   onNavigateToCourse: (courseId: CourseInfo['id']) => void;
+  onSaveProfileAndGoals: (profile: UserProfileData, goals: GoalSettings) => Promise<void>;
 }
 
 const CourseCard: React.FC<{
@@ -152,28 +153,34 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, onNavigateToCourse }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, onNavigateToCourse, onSaveProfileAndGoals }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(false);
   const [activeBootcamp, setActiveBootcamp] = useState<BootcampParticipant | null>(null);
   const [isLoadingBootcamp, setIsLoadingBootcamp] = useState(true);
 
+  const fetchBootcamp = async () => {
+    if (auth.currentUser) {
+      const participant = await getUserActiveBootcamp(auth.currentUser.uid);
+      setActiveBootcamp(participant);
+    }
+    setIsLoadingBootcamp(false);
+  };
+
   useEffect(() => {
-    const fetchBootcamp = async () => {
-      if (auth.currentUser) {
-        const participant = await getUserActiveBootcamp(auth.currentUser.uid);
-        setActiveBootcamp(participant);
-      }
-      setIsLoadingBootcamp(false);
-    };
     fetchBootcamp();
   }, []);
+
+  const handleJoinSuccess = async (profileUpdates: UserProfileData, goalUpdates: GoalSettings) => {
+    await onSaveProfileAndGoals(profileUpdates, goalUpdates);
+    await fetchBootcamp(); // Refresh bootcamp status
+  };
 
   if (showBootcampLanding) {
     if (activeBootcamp) {
       return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} onBack={() => setShowBootcampLanding(false)} />;
     }
-    return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} />;
+    return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} userProfile={userProfile} goals={goals} onJoinSuccess={handleJoinSuccess} />;
   }
 
   return (

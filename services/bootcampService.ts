@@ -182,6 +182,24 @@ export const subscribeToUserEveningReports = (cohortId: string, userId: string, 
   });
 };
 
+export const getEveningReportForDate = async (cohortId: string, userId: string, date: string): Promise<EveningReport | null> => {
+  if (!db) return null;
+  try {
+    const q = query(
+      collection(db, 'bootcampCohorts', cohortId, 'participants', userId, 'eveningReports'),
+      where('date', '==', date)
+    );
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      return snapshot.docs[0].data() as EveningReport;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching evening report:", error);
+    return null;
+  }
+};
+
 export const submitEveningReport = async (
   cohortId: string,
   userId: string,

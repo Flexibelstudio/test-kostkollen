@@ -26,6 +26,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [comment, setComment] = useState('');
   const [strengthTrained, setStrengthTrained] = useState(false);
   const [mood, setMood] = useState(5);
+  const [moodComment, setMoodComment] = useState('');
   const [sleep, setSleep] = useState('');
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -82,6 +83,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         date: todayStr,
         steps: stepsNum,
         mood,
+        moodComment,
         strengthTrained,
         sleep: sleep ? parseFloat(sleep) : undefined,
         proteinMet,
@@ -104,6 +106,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       setComment('');
       setStrengthTrained(false);
       setMood(5);
+      setMoodComment('');
       setSleep('');
     } catch (error) {
       console.error("Error submitting report:", error);
@@ -278,6 +281,16 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                       <span>1 (Låg)</span>
                       <span>10 (Hög)</span>
                     </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-bold text-neutral-dark mb-2">Kommentar om ditt mående (frivilligt)</label>
+                    <textarea
+                      value={moodComment}
+                      onChange={(e) => setMoodComment(e.target.value)}
+                      className="w-full rounded-xl border-neutral-light shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 p-3 bg-white text-neutral-dark resize-none"
+                      rows={2}
+                      placeholder="Skriv en kort kommentar om hur du mår..."
+                    />
                   </div>
                 </div>
 
