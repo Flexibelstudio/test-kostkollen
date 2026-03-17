@@ -170,7 +170,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, userProgr
 
   if (showBootcampLanding) {
     if (activeBootcamp) {
-      return <BootcampDashboard participant={activeBootcamp} onBack={() => setShowBootcampLanding(false)} />;
+      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} onBack={() => setShowBootcampLanding(false)} />;
     }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} />;
   }

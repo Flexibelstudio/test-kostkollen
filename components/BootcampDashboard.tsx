@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
-import { BootcampParticipant, EveningReport } from '../types';
+import { BootcampParticipant, EveningReport, UserProfileData } from '../types';
 import { subscribeToUserEveningReports, submitEveningReport } from '../services/bootcampService';
+import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
 
 interface BootcampDashboardProps {
   participant: BootcampParticipant;
+  userProfile: UserProfileData;
   onBack: () => void;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, onBack }) => {
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, onBack }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,6 +23,9 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, onBa
   const [waterMet, setWaterMet] = useState(false);
   const [steps, setSteps] = useState('');
   const [comment, setComment] = useState('');
+  const [strengthTrained, setStrengthTrained] = useState(false);
+  const [mood, setMood] = useState(5);
+  const [sleep, setSleep] = useState('');
 
   const todayStr = new Date().toISOString().split('T')[0];
   const hasReportedToday = reports.some(r => r.date === todayStr);
@@ -32,6 +37,30 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, onBa
     });
     return () => unsubscribe();
   }, [participant.cohortId]);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const fetchTodayProgress = async () => {
+      try {
+        const [meals, water] = await Promise.all([
+          fetchMealLogsForDate(auth.currentUser!.uid, todayStr),
+          fetchWaterLog(auth.currentUser!.uid, todayStr)
+        ]);
+        
+        const totalProtein = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.protein, 0);
+        const totalCalories = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.calories, 0);
+        
+        // We consider "logged all meals" as having logged at least something substantial (e.g. > 500 kcal)
+        // or just having logged any meals. Let's use meals.length > 0 for simplicity, or maybe > 400 kcal.
+        setLoggedAllMeals(meals.length > 0 && totalCalories > 400);
+        setProteinMet(totalProtein >= userProfile.goals.proteinGoal);
+        setWaterMet(water >= 2000); // 2 liters
+      } catch (error) {
+        console.error("Error fetching today's progress:", error);
+      }
+    };
+    fetchTodayProgress();
+  }, [todayStr, userProfile.goals.proteinGoal]);
 
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,8 +80,9 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, onBa
       await submitEveningReport(participant.cohortId, auth.currentUser.uid, {
         date: todayStr,
         steps: stepsNum,
-        mood: 5, // Default or add a slider if needed
-        strengthTrained: false, // Optional for now
+        mood,
+        strengthTrained,
+        sleep: sleep ? parseFloat(sleep) : undefined,
         proteinMet,
         waterMet,
         loggedAllMeals,
@@ -71,6 +101,9 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, onBa
       setWaterMet(false);
       setSteps('');
       setComment('');
+      setStrengthTrained(false);
+      setMood(5);
+      setSleep('');
     } catch (error) {
       console.error("Error submitting report:", error);
       setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
@@ -150,44 +183,48 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, onBa
             ) : (
               <form onSubmit={handleSubmitReport} className="space-y-6">
                 <div className="space-y-4">
-                  <label className="flex items-center gap-3 p-4 bg-neutral-50 rounded-2xl border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={loggedAllMeals}
-                      onChange={(e) => setLoggedAllMeals(e.target.checked)}
-                      className="w-6 h-6 rounded text-primary focus:ring-primary"
-                    />
-                    <div className="flex-1">
-                      <span className="font-bold text-neutral-dark block">Total Loggningsplikt</span>
-                      <span className="text-sm text-neutral-500">Jag har loggat all mat och dryck idag.</span>
-                    </div>
-                  </label>
+                  <div className="p-4 bg-blue-50 text-blue-800 rounded-2xl text-sm mb-4">
+                    <p>
+                      <strong>OBS:</strong> Mat, protein och vatten hämtas automatiskt från din loggbok. 
+                      Om du saknar något, gå tillbaka till Hem-fliken och logga det innan du skickar in rapporten.
+                    </p>
+                  </div>
 
-                  <label className="flex items-center gap-3 p-4 bg-neutral-50 rounded-2xl border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={proteinMet}
-                      onChange={(e) => setProteinMet(e.target.checked)}
-                      className="w-6 h-6 rounded text-primary focus:ring-primary"
-                    />
-                    <div className="flex-1">
-                      <span className="font-bold text-neutral-dark block">Proteinkravet</span>
-                      <span className="text-sm text-neutral-500">Jag har nått mitt dagliga proteinmål.</span>
+                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${loggedAllMeals ? 'bg-emerald-50 border-emerald-200' : 'bg-neutral-50 border-neutral-200'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${loggedAllMeals ? 'bg-emerald-500 text-white' : 'bg-neutral-200 text-neutral-400'}`}>
+                      <CheckCircleIcon className="w-4 h-4" />
                     </div>
-                  </label>
+                    <div className="flex-1">
+                      <span className={`font-bold block ${loggedAllMeals ? 'text-emerald-800' : 'text-neutral-dark'}`}>Total Loggningsplikt</span>
+                      <span className={`text-sm ${loggedAllMeals ? 'text-emerald-600' : 'text-neutral-500'}`}>
+                        {loggedAllMeals ? 'Du har loggat mat idag.' : 'Du har inte loggat tillräckligt med mat idag.'}
+                      </span>
+                    </div>
+                  </div>
 
-                  <label className="flex items-center gap-3 p-4 bg-neutral-50 rounded-2xl border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={waterMet}
-                      onChange={(e) => setWaterMet(e.target.checked)}
-                      className="w-6 h-6 rounded text-primary focus:ring-primary"
-                    />
-                    <div className="flex-1">
-                      <span className="font-bold text-neutral-dark block">Vätskekontroll</span>
-                      <span className="text-sm text-neutral-500">Jag har druckit minst 2 liter rent vatten.</span>
+                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${proteinMet ? 'bg-emerald-50 border-emerald-200' : 'bg-neutral-50 border-neutral-200'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${proteinMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 text-neutral-400'}`}>
+                      <CheckCircleIcon className="w-4 h-4" />
                     </div>
-                  </label>
+                    <div className="flex-1">
+                      <span className={`font-bold block ${proteinMet ? 'text-emerald-800' : 'text-neutral-dark'}`}>Proteinkravet</span>
+                      <span className={`text-sm ${proteinMet ? 'text-emerald-600' : 'text-neutral-500'}`}>
+                        {proteinMet ? `Du har nått ditt mål (${userProfile.goals.proteinGoal}g).` : `Du har inte nått ditt proteinmål (${userProfile.goals.proteinGoal}g).`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${waterMet ? 'bg-emerald-50 border-emerald-200' : 'bg-neutral-50 border-neutral-200'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${waterMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 text-neutral-400'}`}>
+                      <CheckCircleIcon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <span className={`font-bold block ${waterMet ? 'text-emerald-800' : 'text-neutral-dark'}`}>Vätskekontroll</span>
+                      <span className={`text-sm ${waterMet ? 'text-emerald-600' : 'text-neutral-500'}`}>
+                        {waterMet ? 'Du har druckit minst 2 liter vatten.' : 'Du har inte druckit 2 liter vatten än.'}
+                      </span>
+                    </div>
+                  </div>
 
                   <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200">
                     <label className="block font-bold text-neutral-dark mb-2">Stegmålet (Minst 10 000)</label>
@@ -199,6 +236,47 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, onBa
                       className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
                       required
                     />
+                  </div>
+
+                  <label className="flex items-center gap-3 p-4 bg-neutral-50 rounded-2xl border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors">
+                    <input 
+                      type="checkbox" 
+                      checked={strengthTrained}
+                      onChange={(e) => setStrengthTrained(e.target.checked)}
+                      className="w-6 h-6 rounded text-primary focus:ring-primary"
+                    />
+                    <div className="flex-1">
+                      <span className="font-bold text-neutral-dark block">Styrketräning</span>
+                      <span className="text-sm text-neutral-500">Jag har genomfört ett träningspass idag.</span>
+                    </div>
+                  </label>
+
+                  <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200">
+                    <label className="block font-bold text-neutral-dark mb-2">Sömn (Timmar)</label>
+                    <input 
+                      type="number" 
+                      step="0.5"
+                      value={sleep}
+                      onChange={(e) => setSleep(e.target.value)}
+                      placeholder="T.ex. 7.5"
+                      className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+
+                  <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200">
+                    <label className="block font-bold text-neutral-dark mb-2">Energinivå / Mående ({mood}/10)</label>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="10" 
+                      value={mood}
+                      onChange={(e) => setMood(parseInt(e.target.value, 10))}
+                      className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="flex justify-between text-xs text-neutral-500 mt-2">
+                      <span>1 (Låg)</span>
+                      <span>10 (Hög)</span>
+                    </div>
                   </div>
                 </div>
 

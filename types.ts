@@ -477,6 +477,7 @@ export interface EveningReport {
   steps: number;
   mood: number; // 1-10
   strengthTrained: boolean;
+  sleep?: number; // Hours of sleep
   proteinMet?: boolean;
   waterMet?: boolean;
   loggedAllMeals?: boolean;
