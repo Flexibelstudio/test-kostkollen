@@ -99,33 +99,40 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
             </div>
 
             {(measurementMethod === 'inbody' || measurementMethod === 'unknown') && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 group-disabled:opacity-60 transition-opacity animate-fade-in">
-                    <div>
-                        <label htmlFor="skeletalMuscleMassKg" className={labelClass}>Muskelmassa (kg)</label>
-                        <input 
-                            type="number" 
-                            id="skeletalMuscleMassKg" 
-                            value={skeletalMuscleMassKg} 
-                            onChange={(e) => setSkeletalMuscleMassKg(e.target.value)} 
-                            className={inputClass} 
-                            min="0" 
-                            step="0.1" 
-                            placeholder="Valfritt" 
-                        />
+                <div className="group-disabled:opacity-60 transition-opacity animate-fade-in space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="skeletalMuscleMassKg" className={labelClass}>Muskelmassa (kg)</label>
+                            <input 
+                                type="number" 
+                                id="skeletalMuscleMassKg" 
+                                value={skeletalMuscleMassKg} 
+                                onChange={(e) => setSkeletalMuscleMassKg(e.target.value)} 
+                                className={inputClass} 
+                                min="0" 
+                                step="0.1" 
+                                placeholder="Valfritt" 
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="bodyFatMassKg" className={labelClass}>Fettmassa (kg)</label>
+                            <input 
+                                type="number" 
+                                id="bodyFatMassKg" 
+                                value={bodyFatMassKg} 
+                                onChange={(e) => setBodyFatMassKg(e.target.value)} 
+                                className={inputClass} 
+                                min="0" 
+                                step="0.1" 
+                                placeholder="Valfritt" 
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <label htmlFor="bodyFatMassKg" className={labelClass}>Fettmassa (kg)</label>
-                        <input 
-                            type="number" 
-                            id="bodyFatMassKg" 
-                            value={bodyFatMassKg} 
-                            onChange={(e) => setBodyFatMassKg(e.target.value)} 
-                            className={inputClass} 
-                            min="0" 
-                            step="0.1" 
-                            placeholder="Valfritt" 
-                        />
-                    </div>
+                    {measurementMethod === 'unknown' && (
+                        <p className="text-xs text-neutral-500 italic">
+                            Om du mäter dig med InBody eller en avancerad våg, fyll i muskel- och fettmassa för att få rätt målsättningar.
+                        </p>
+                    )}
                 </div>
             )}
             
