@@ -311,7 +311,7 @@ export const recalculateStreak = async (cohortId: string, userId: string) => {
       longestStreak: Math.max(longestStreak, participant.longestStreak),
       status: newStatus,
       needsCoachAttention: needsAttention,
-      attentionReason: attentionReason
+      attentionReason: attentionReason || null
     };
 
     await updateDoc(participantRef, updateData);
