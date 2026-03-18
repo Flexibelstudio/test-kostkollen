@@ -273,16 +273,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         courseInterest: false,
         isSearchable: true, // Default to searchable for new users
         notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
-        coachStyle: initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
+        coachStyle: isBootcampOnboarding ? 'hard' : (initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle),
       } as UserProfileData;
     }
     // For editing, use the complete existing profile but ensure defaults for new fields
     return {
         ...DEFAULT_USER_PROFILE,
         ...(initialProfile || {}),
-        coachStyle: initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle
+        coachStyle: (isBootcampActive || isBootcampOnboarding) ? 'hard' : (initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle)
     } as UserProfileData;
-  }, [isOnboarding, initialProfile]);
+  }, [isOnboarding, initialProfile, isBootcampOnboarding, isBootcampActive]);
 
   const [profile, setProfile] = useState<UserProfileData>(getInitialProfileForState());
   const [newPhotoDataUrl, setNewPhotoDataUrl] = useState<string | null>(null);
@@ -678,56 +678,65 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </section>
             )}
             
-            {!isBootcampOnboarding && (
-                <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                    <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
-                            const p = COACH_PERSONAS[style];
-                            
-                            let colorClasses;
-                            let iconBgClass;
-                            if (style === 'soft') {
-                                colorClasses = 'bg-green-50 text-green-700 border-green-200';
-                                iconBgClass = 'bg-green-100 text-green-600';
-                            } else if (style === 'balanced') {
-                                colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
-                                iconBgClass = 'bg-blue-100 text-blue-600';
-                            } else {
-                                colorClasses = 'bg-red-50 text-red-700 border-red-200';
-                                iconBgClass = 'bg-red-100 text-red-600';
-                            }
-
-                            const isSelected = profile.coachStyle === style;
-
-                            return (
-                                <button
-                                    type="button"
-                                    key={style}
-                                    onClick={() => {
-                                        if (isBootcampActive) {
-                                            setToast({ message: "Du kan inte byta coach under en pågående bootcamp.", type: 'error' });
-                                            return;
-                                        }
-                                        setProfile(prev => ({ ...prev, coachStyle: style }));
-                                    }}
-                                    className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center ${
-                                        isSelected
-                                            ? `${colorClasses} shadow-md`
-                                            : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300 text-neutral-dark'
-                                    } ${isBootcampActive && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
-                                        {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover rounded-xl" /> : p.emoji}
-                                    </div>
-                                    <span className="font-bold text-sm">{p.label}, {p.roleTitle}</span>
-                                    <span className="text-xs opacity-80 mt-1">{p.description}</span>
-                                </button>
-                            );
-                        })}
+            <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
+                
+                {(isBootcampOnboarding || isBootcampActive) && (
+                    <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start text-orange-800">
+                        <InformationCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm">
+                            Du deltar just nu i en bootcamp och har därför Börje som din dedikerade coach. Det går inte att byta coach under pågående bootcamp.
+                        </p>
                     </div>
-                </section>
-            )}
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
+                        const p = COACH_PERSONAS[style];
+                        
+                        let colorClasses;
+                        let iconBgClass;
+                        if (style === 'soft') {
+                            colorClasses = 'bg-green-50 text-green-700 border-green-200';
+                            iconBgClass = 'bg-green-100 text-green-600';
+                        } else if (style === 'balanced') {
+                            colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
+                            iconBgClass = 'bg-blue-100 text-blue-600';
+                        } else {
+                            colorClasses = 'bg-red-50 text-red-700 border-red-200';
+                            iconBgClass = 'bg-red-100 text-red-600';
+                        }
+
+                        const isSelected = profile.coachStyle === style;
+                        const isDisabled = isBootcampOnboarding || isBootcampActive;
+
+                        return (
+                            <button
+                                type="button"
+                                key={style}
+                                onClick={() => {
+                                    if (isDisabled) {
+                                        setToast({ message: "Du kan inte byta coach under en pågående bootcamp.", type: 'error' });
+                                        return;
+                                    }
+                                    setProfile(prev => ({ ...prev, coachStyle: style }));
+                                }}
+                                className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center ${
+                                    isSelected
+                                        ? `${colorClasses} shadow-md`
+                                        : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300 text-neutral-dark'
+                                } ${isDisabled && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
+                                    {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover rounded-xl" /> : p.emoji}
+                                </div>
+                                <span className="font-bold text-sm">{p.label}, {p.roleTitle}</span>
+                                <span className="text-xs opacity-80 mt-1">{p.description}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </section>
 
             {isOnboarding && (
                 <>
