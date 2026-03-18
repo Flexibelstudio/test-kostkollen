@@ -5,7 +5,8 @@ import { subscribeToCohorts, createCohort, subscribeToAllBootcampParticipants } 
 import { createChat } from '../services/chatService';
 import { TrophyIcon, UsersIcon, PlusIcon, XMarkIcon, CalendarIcon, KeyIcon, FireIcon, CheckIcon, ArrowLeftIcon } from './icons';
 import BootcampFeed from './BootcampFeed';
-import { subscribeToUserEveningReports } from '../services/bootcampService';
+import CoachStudioView from './CoachStudioView';
+import { subscribeToUserEveningReports, createBootcampPost } from '../services/bootcampService';
 import { EveningReport } from '../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -165,13 +166,33 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
+            <CoachStudioView 
+              currentUser={currentUser} 
+              setToastNotification={setToastNotification}
+              lockedCoach="borje"
+              hideCategory={true}
+              className="h-[600px]"
+              onPublish={async (draft, category, coach) => {
+                await createBootcampPost(
+                  cohort.id,
+                  currentUser.uid,
+                  coach.label,
+                  draft,
+                  undefined,
+                  true, // isOfficial
+                  coach.imageUrl,
+                  'male' // Börje is male
+                );
+              }}
+            />
+
             <div className="bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden h-[600px] flex flex-col">
               <div className="p-4 border-b border-neutral-light bg-neutral-50">
                 <h3 className="font-bold text-neutral-dark">Truppens Flöde</h3>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
-                <BootcampFeed cohortId={cohort.id} userProfile={userProfile} />
+                <BootcampFeed cohortId={cohort.id} userProfile={userProfile} hideCreatePost={true} />
               </div>
             </div>
           </div>

@@ -18,9 +18,10 @@ import ToastNotification from './ToastNotification';
 interface BootcampFeedProps {
   cohortId: string;
   userProfile: UserProfileData;
+  hideCreatePost?: boolean;
 }
 
-const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) => {
+const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile, hideCreatePost }) => {
   const [posts, setPosts] = useState<BootcampPost[]>([]);
   const [newPostText, setNewPostText] = useState('');
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
@@ -148,10 +149,11 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
       {/* Feed Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Create Post Area */}
-        <div className="mb-6">
-          {!isExpanded ? (
-            <div 
-              onClick={() => setIsExpanded(true)}
+        {!hideCreatePost && (
+          <div className="mb-6">
+            {!isExpanded ? (
+              <div 
+                onClick={() => setIsExpanded(true)}
               className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-dark transition-colors active:scale-[0.99] select-none"
             >
               <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
@@ -220,6 +222,7 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
             </div>
           )}
         </div>
+        )}
 
         {posts.length === 0 ? (
           <div className="text-center py-10 text-neutral-500">

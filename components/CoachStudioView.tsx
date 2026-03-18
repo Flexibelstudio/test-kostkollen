@@ -10,6 +10,10 @@ import ReactMarkdown from 'react-markdown';
 interface CoachStudioViewProps {
   currentUser: any;
   setToastNotification: (notif: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
+  onPublish?: (draft: string, category: PostCategory, coach: any) => Promise<void>;
+  lockedCoach?: keyof typeof COACH_PERSONAS;
+  className?: string;
+  hideCategory?: boolean;
 }
 
 interface Message {
@@ -17,8 +21,8 @@ interface Message {
   text: string;
 }
 
-const CoachStudioView: React.FC<CoachStudioViewProps> = ({ currentUser, setToastNotification }) => {
-  const [selectedCoach, setSelectedCoach] = useState<keyof typeof COACH_PERSONAS>('balanced');
+const CoachStudioView: React.FC<CoachStudioViewProps> = ({ currentUser, setToastNotification, onPublish, lockedCoach, className, hideCategory }) => {
+  const [selectedCoach, setSelectedCoach] = useState<keyof typeof COACH_PERSONAS>(lockedCoach || 'balanced');
   const [brief, setBrief] = useState('');
   const [chatHistory, setChatHistory] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -91,15 +95,19 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
 
     try {
       const coach = COACH_PERSONAS[selectedCoach];
-      await createUserPost(
-        currentUser.uid,
-        currentDraft,
-        category,
-        undefined,
-        true, // isGlobal
-        coach.label, // overrideName
-        coach.imageUrl // overridePhotoURL
-      );
+      if (onPublish) {
+        await onPublish(currentDraft, category, coach);
+      } else {
+        await createUserPost(
+          currentUser.uid,
+          currentDraft,
+          category,
+          undefined,
+          true, // isGlobal
+          coach.label, // overrideName
+          coach.imageUrl // overridePhotoURL
+        );
+      }
       
       setToastNotification({ message: `Inlägget har publicerats som ${coach.label}!`, type: 'success' });
       setChatHistory([]);
@@ -114,39 +122,45 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
   };
 
   return (
-    <div className="bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden flex flex-col h-[85vh] max-h-[900px]">
+    <div className={`bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden flex flex-col ${className || 'h-[85vh] max-h-[900px]'}`}>
       {/* Header */}
       <div className="p-6 border-b border-neutral-light bg-neutral-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-neutral-dark flex items-center gap-2">
             <SparklesIcon className="w-6 h-6 text-primary" />
-            Coach Studio
+            {lockedCoach ? `Skapa inlägg som ${COACH_PERSONAS[lockedCoach].label}` : 'Coach Studio'}
           </h2>
-          <p className="text-sm text-neutral mt-1">Skapa och publicera inlägg som en av våra AI-coacher.</p>
+          <p className="text-sm text-neutral mt-1">
+            {lockedCoach ? `Skapa och publicera inlägg direkt i truppen som ${COACH_PERSONAS[lockedCoach].label}.` : 'Skapa och publicera inlägg som en av våra AI-coacher.'}
+          </p>
         </div>
         
         {/* Category Selector */}
-        <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-neutral-dark">Kategori:</span>
-            <select 
-                value={category} 
-                onChange={(e) => setCategory(e.target.value as PostCategory)}
-                className="bg-white border border-neutral-light text-neutral-dark text-sm rounded-xl focus:ring-primary focus:border-primary block p-2 outline-none"
-            >
-                <option value="general">Allmänt</option>
-                <option value="question">Fråga</option>
-                <option value="food">Mat & Recept</option>
-                <option value="workout">Träning</option>
-                <option value="pepp">Pepp & Motivation</option>
-            </select>
-        </div>
+        {!hideCategory && (
+          <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-neutral-dark">Kategori:</span>
+              <select 
+                  value={category} 
+                  onChange={(e) => setCategory(e.target.value as PostCategory)}
+                  className="bg-white border border-neutral-light text-neutral-dark text-sm rounded-xl focus:ring-primary focus:border-primary block p-2 outline-none"
+              >
+                  <option value="general">Allmänt</option>
+                  <option value="question">Fråga</option>
+                  <option value="food">Mat & Recept</option>
+                  <option value="workout">Träning</option>
+                  <option value="pepp">Pepp & Motivation</option>
+              </select>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Top Bar: Coach Selection */}
         <div className="w-full border-b border-neutral-light bg-neutral-50/50 p-2 sm:p-3 shrink-0">
           <div className="flex flex-row gap-2 justify-between">
-            {(Object.entries(COACH_PERSONAS) as [keyof typeof COACH_PERSONAS, any][]).map(([key, coach]) => (
+            {(Object.entries(COACH_PERSONAS) as [keyof typeof COACH_PERSONAS, any][])
+              .filter(([key]) => !lockedCoach || key === lockedCoach)
+              .map(([key, coach]) => (
               <button
                 key={key}
                 onClick={() => setSelectedCoach(key)}
