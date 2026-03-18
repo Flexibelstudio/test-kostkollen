@@ -8,9 +8,9 @@ import {
   addBootcampComment, 
   likeBootcampComment 
 } from '../services/bootcampService';
-import { generateBorjePost } from '../services/geminiService';
 import { auth } from '../firebase';
-import { Heart, MessageCircle, Send, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { Heart, MessageCircle, Send, Image as ImageIcon } from 'lucide-react';
+import { CameraIcon, XMarkIcon } from './icons';
 import { Avatar } from './UserProfileModal';
 import { resizeImage } from './CommunityView';
 import ToastNotification from './ToastNotification';
@@ -28,12 +28,11 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [commentingOn, setCommentingOn] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = (userProfile as any).role === 'admin' || userProfile.name === 'Karin' || userProfile.name === 'Börje';
-  const [showAIGenerator, setShowAIGenerator] = useState(false);
-  const [aiBrief, setAiBrief] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (!cohortId) return;
@@ -61,23 +60,8 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
     }
   };
 
-  const handleGenerateAIPost = async () => {
-    if (!aiBrief.trim()) return;
-    setIsGenerating(true);
-    try {
-      const generatedText = await generateBorjePost(aiBrief);
-      setNewPostText(`/general ${generatedText}`);
-      setShowAIGenerator(false);
-      setAiBrief('');
-    } catch (error: any) {
-      setToast({ message: error.message || 'Kunde inte generera inlägg', type: 'error' });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleCreatePost = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreatePost = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!auth.currentUser || (!newPostText.trim() && !newPostImage)) return;
 
     setIsSubmitting(true);
@@ -99,7 +83,9 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
       );
       setNewPostText('');
       setNewPostImage(null);
+      setIsExpanded(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
     } catch (error) {
       console.error('Error creating post:', error);
       setToast({ message: 'Kunde inte skapa inlägg', type: 'error' });
@@ -159,113 +145,82 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
     <div className="flex flex-col h-full bg-neutral-50 rounded-3xl overflow-hidden border border-neutral-light">
       {toast && <ToastNotification message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       
-      {/* Create Post Area */}
-      <div className="bg-white p-4 border-b border-neutral-light">
-        {isAdmin && (
-          <div className="mb-4">
-            <button
-              onClick={() => setShowAIGenerator(!showAIGenerator)}
-              className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary-darker transition-colors"
-            >
-              <Sparkles className="w-4 h-4" />
-              {showAIGenerator ? 'Stäng AI-assistent' : 'Skapa inlägg som General Börje (AI)'}
-            </button>
-            
-            {showAIGenerator && (
-              <div className="mt-3 p-4 bg-primary/5 border border-primary/20 rounded-xl">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xl">
-                    B
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-neutral-dark">Börja skapa ett inlägg</h4>
-                    <p className="text-sm text-neutral-600">Beskriv vad du vill att General Börje ska skriva om.</p>
-                  </div>
-                </div>
-                
-                <div className="relative">
-                  <textarea
-                    value={aiBrief}
-                    onChange={(e) => setAiBrief(e.target.value)}
-                    placeholder="Skriv en brief till Börje... (t.ex. 'Skriv ett peppigt inlägg om att dricka vatten')"
-                    className="w-full p-3 pr-12 bg-white rounded-xl border border-neutral-200 focus:ring-2 focus:ring-primary resize-none min-h-[80px]"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleGenerateAIPost();
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={handleGenerateAIPost}
-                    disabled={isGenerating || !aiBrief.trim()}
-                    className="absolute bottom-3 right-3 p-2 bg-primary text-white rounded-full disabled:opacity-50 hover:bg-primary-darker transition-colors"
-                  >
-                    {isGenerating ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <form onSubmit={handleCreatePost}>
-          <div className="flex gap-3">
-            <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
-            <div className="flex-1">
-              <textarea
-                value={newPostText}
-                onChange={(e) => setNewPostText(e.target.value)}
-                placeholder={isAdmin ? "Skriv i truppen... (Börja med /general för officiellt inlägg)" : "Dela något med truppen..."}
-                className="w-full p-3 bg-neutral-50 rounded-xl border-none focus:ring-2 focus:ring-primary resize-none min-h-[80px]"
-              />
-              {newPostImage && (
-                <div className="relative mt-2 inline-block">
-                  <img src={newPostImage} alt="Preview" className="h-32 rounded-lg object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => setNewPostImage(null)}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-              <div className="flex justify-between items-center mt-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-2 text-neutral-500 hover:text-primary hover:bg-primary/10 rounded-full transition-colors"
-                >
-                  <ImageIcon className="w-6 h-6" />
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleImageUpload}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <button
-                  type="submit"
-                  disabled={isSubmitting || (!newPostText.trim() && !newPostImage)}
-                  className="px-4 py-2 bg-primary text-white font-bold rounded-full hover:bg-primary-darker disabled:opacity-50 flex items-center gap-2"
-                >
-                  <Send className="w-4 h-4" />
-                  Skicka
-                </button>
-              </div>
-            </div>
-          </div>
-        </form>
-      </div>
-
       {/* Feed Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Create Post Area */}
+        <div className="mb-6">
+          {!isExpanded ? (
+            <div 
+              onClick={() => setIsExpanded(true)}
+              className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-dark transition-colors active:scale-[0.99] select-none"
+            >
+              <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
+              <div className="flex-grow bg-[#ffffff] rounded-full px-4 py-2.5 text-[#6B7280] text-sm font-medium border border-[#E5E7EB]">
+                {isAdmin ? "Skriv i truppen... (Börja med /general för officiellt inlägg)" : "Vad tänker du på? Dela med dig..."}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-4 relative animate-fade-in">
+              <button 
+                  onClick={() => setIsExpanded(false)}
+                  className="absolute top-2 right-2 p-2 text-neutral-400 hover:text-neutral-dark dark:hover:text-white rounded-full hover:bg-neutral-light dark:hover:bg-neutral-dark transition-colors z-10"
+                  title="Stäng"
+              >
+                  <XMarkIcon className="w-5 h-5" />
+              </button>
+
+              <div className="flex gap-3">
+                  <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={48} className="flex-shrink-0" />
+                  <div className="flex-grow">
+                      <p className="font-bold text-sm text-neutral-dark dark:text-white mb-2">{userProfile.name}</p>
+                      <textarea
+                          autoFocus
+                          value={newPostText}
+                          onChange={(e) => setNewPostText(e.target.value)}
+                          placeholder={isAdmin ? "Skriv i truppen... (Börja med /general för officiellt inlägg)" : "Vad tänker du på? Dela med dig till dina kompisar..."}
+                          className="w-full bg-[#ffffff] rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3bab5a] min-h-[100px] resize-none pr-8 text-[#000000] border border-[#E5E7EB] placeholder-[#9CA3AF]"
+                      />
+                      {newPostImage && (
+                          <div className="relative mt-2 inline-block bg-white rounded-lg p-1 border border-neutral-light">
+                              <img src={newPostImage} alt="Preview" className="h-24 w-auto rounded-md object-contain" />
+                              <button 
+                                  onClick={() => setNewPostImage(null)}
+                                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                              >
+                                  <XMarkIcon className="w-3 h-3" />
+                              </button>
+                          </div>
+                      )}
+                  </div>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row justify-between items-center mt-3 gap-3 pt-3 border-t border-neutral-light/50">
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end ml-auto">
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                      <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleImageUpload} />
+                      
+                      <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ta bild">
+                          <CameraIcon className="w-5 h-5" />
+                      </button>
+
+                      <button onClick={() => fileInputRef.current?.click()} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ladda upp bild">
+                          <ImageIcon className="w-5 h-5" />
+                      </button>
+                      
+                      <button 
+                          onClick={handleCreatePost}
+                          disabled={(!newPostText.trim() && !newPostImage) || isSubmitting}
+                          className="px-5 py-2 bg-primary text-white text-sm font-bold rounded-full shadow-md hover:bg-primary-darker active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-2"
+                      >
+                          {isSubmitting ? <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent" /> : <Send className="w-4 h-4" />}
+                          Publicera
+                      </button>
+                  </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {posts.length === 0 ? (
           <div className="text-center py-10 text-neutral-500">
             <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-20" />
