@@ -930,13 +930,22 @@ export async function saveCourseProgress(userId: string, lessonId: string, progr
 
   if (progress.isCompleted) {
     try {
-        const allLessons = [...courseLessons, ...menopauseCourseLessons];
-        const lesson = allLessons.find(l => l.id === lessonId);
+        let courseName = '';
+        let lesson = courseLessons.find(l => l.id === lessonId);
+        if (lesson) {
+            courseName = 'Praktisk Viktkontroll';
+        } else {
+            lesson = menopauseCourseLessons.find(l => l.id === lessonId);
+            if (lesson) {
+                courseName = 'Maxa Klimakteriet';
+            }
+        }
+
         if (lesson) {
             await addTimelineEvent(userId, {
                 type: 'course',
                 timestamp: Date.now(),
-                title: 'har klarat en lektion!',
+                title: `har klarat en lektion i ${courseName}!`,
                 description: `Avklarad: ${lesson.title}`,
                 icon: '🎓',
                 relatedDocId: lessonId
