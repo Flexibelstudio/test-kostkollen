@@ -104,8 +104,8 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         aVal = membersList.find(m => m.id === a.userId)?.name || 'Okänd';
         bVal = membersList.find(m => m.id === b.userId)?.name || 'Okänd';
       } else if (sortConfig.key === 'cohortName') {
-        aVal = cohorts.find(c => c.id === a.cohortId)?.name || 'Okänd trupp';
-        bVal = cohorts.find(c => c.id === b.cohortId)?.name || 'Okänd trupp';
+        aVal = cohorts.find(c => c.id === a.cohortId)?.name || 'Solo';
+        bVal = cohorts.find(c => c.id === b.cohortId)?.name || 'Solo';
       }
 
       if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -312,10 +312,10 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                         <div className="text-xs text-neutral-500">{member?.email || ''}</div>
                       </td>
                       <td className="p-4 text-sm text-neutral-dark">
-                        {cohort?.name || 'Okänd trupp'}
+                        {cohort?.name || 'Solo'}
                       </td>
                       <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${participant.status === 'fas2' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap inline-block ${participant.status === 'fas2' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                           {participant.status === 'fas2' ? 'Fas 2' : 'Fas 1'}
                         </span>
                       </td>

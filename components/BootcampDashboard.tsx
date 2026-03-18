@@ -398,23 +398,23 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
 
         {/* Right Column: History & Chat */}
         <div className="space-y-6">
-          {participant.cohortId !== 'solo' && (
-            <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
-              <h3 className="font-bold text-neutral-dark mb-2 flex items-center gap-2">
-                <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary" />
-                Truppens Flöde
-              </h3>
-              <p className="text-sm text-neutral-500 mb-4">
-                Kommunicera med din trupp, peppa varandra och dela med er av tips.
-              </p>
-              <button 
-                onClick={() => setShowFeed(true)}
-                className="w-full py-3 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors"
-              >
-                Öppna Flödet
-              </button>
-            </div>
-          )}
+          <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+            <h3 className="font-bold text-neutral-dark mb-2 flex items-center gap-2">
+              <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary" />
+              {participant.cohortId === 'solo' ? 'Bootcamp-flödet' : 'Truppens Flöde'}
+            </h3>
+            <p className="text-sm text-neutral-500 mb-4">
+              {participant.cohortId === 'solo' 
+                ? 'Följ General Börjes uppdateringar och tips under din resa.' 
+                : 'Kommunicera med din trupp, peppa varandra och dela med er av tips.'}
+            </p>
+            <button 
+              onClick={() => setShowFeed(true)}
+              className="w-full py-3 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors"
+            >
+              Öppna Flödet
+            </button>
+          </div>
 
           <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
             <h3 className="font-bold text-neutral-dark mb-4 flex items-center gap-2">
