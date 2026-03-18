@@ -1131,7 +1131,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
   const handleBootcampInitialWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
     if (!currentUser) return;
-    setAppStatus(AppStatus.SAVING); 
     try {
         const newId = await saveWeightLog(currentUser.uid, data);
         const newEntry: WeightLogEntry = { ...data, id: newId };
@@ -1147,14 +1146,11 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         console.error("Error saving initial bootcamp weight log:", error);
         setToastNotification({ message: "Ett fel uppstod när mätningen skulle sparas.", type: 'error' });
         throw error;
-    } finally {
-        setAppStatus(AppStatus.IDLE);
     }
   };
 
   const handleSaveWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
     if (!currentUser) return;
-    setAppStatus(AppStatus.SAVING); 
     try {
         const newId = await saveWeightLog(currentUser.uid, data);
         const newEntry: WeightLogEntry = { ...data, id: newId };
@@ -1235,8 +1231,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
     } catch (error) {
         setToastNotification({ message: "Kunde inte spara mätningen.", type: 'error' });
-    } finally {
-        setAppStatus(AppStatus.IDLE);
     }
   };
 
