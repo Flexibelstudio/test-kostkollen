@@ -2,23 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeftIcon, ShieldCheckIcon, UsersIcon, UserIcon, KeyIcon, CheckCircleIcon } from './icons';
 import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
 import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort } from '../services/bootcampService';
+import { saveWeightLog } from '../services/weightLogService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
 import UserProfileModal from './UserProfileModal';
+import LogWeightModal from './LogWeightModal';
+import { WeightLogEntry } from '../types';
 
 interface BootcampLandingViewProps {
   onBack: () => void;
   userProfile: UserProfileData;
   goals: GoalSettings;
   onJoinSuccess: (profileUpdates: UserProfileData, goalUpdates: GoalSettings) => Promise<void>;
+  onSaveWeightLog: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
 }
 
-const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userProfile, goals, onJoinSuccess }) => {
+const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userProfile, goals, onJoinSuccess, onSaveWeightLog }) => {
   const [publicCohorts, setPublicCohorts] = useState<BootcampCohort[]>([]);
   const [inviteCode, setInviteCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [selectedCohort, setSelectedCohort] = useState<BootcampCohort | 'solo' | string | null>(null); // string is for invite code
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [tempProfile, setTempProfile] = useState<UserProfileData | null>(null);
 
   useEffect(() => {
     const unsubscribe = subscribeToPublicCohorts((cohorts) => {
@@ -29,16 +35,49 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
 
   const handleJoinSolo = () => {
     setSelectedCohort('solo');
+    setShowWeightModal(true);
   };
 
   const handleJoinWithCode = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim()) return;
     setSelectedCohort(inviteCode);
+    setShowWeightModal(true);
   };
 
   const handleJoinPublicCohort = (cohort: BootcampCohort) => {
     setSelectedCohort(cohort);
+    setShowWeightModal(true);
+  };
+
+  const handleWeightSaved = async (data: Omit<WeightLogEntry, 'id'>) => {
+    if (!auth.currentUser) return;
+    try {
+      await onSaveWeightLog(data);
+      
+      const isUsingInBody = data.skeletalMuscleMassKg != null || data.bodyFatMassKg != null;
+      
+      const startDate = (typeof selectedCohort === 'object' && selectedCohort !== null && 'startDate' in selectedCohort) 
+        ? new Date(selectedCohort.startDate) 
+        : new Date();
+      const targetDate = new Date(startDate);
+      targetDate.setDate(targetDate.getDate() + 84); // 12 weeks
+
+      const updatedProfile: UserProfileData = { 
+        ...userProfile, 
+        currentWeightKg: data.weightKg,
+        skeletalMuscleMassKg: data.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg,
+        bodyFatMassKg: data.bodyFatMassKg ?? userProfile.bodyFatMassKg,
+        measurementMethod: isUsingInBody ? 'inbody' : 'scale',
+        goalCompletionDate: targetDate.toISOString().split('T')[0]
+      };
+      
+      setTempProfile(updatedProfile);
+      setShowWeightModal(false);
+    } catch (error) {
+      console.error("Error saving weight log during bootcamp onboarding:", error);
+      setToast({ message: 'Kunde inte spara mätningen', type: 'error' });
+    }
   };
 
   const handleConfirmJoin = async (updatedProfile: UserProfileData, updatedGoals: GoalSettings) => {
@@ -67,7 +106,14 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
     } finally {
       setIsJoining(false);
       setSelectedCohort(null);
+      setTempProfile(null);
     }
+  };
+
+  const handleCloseModals = () => {
+    setSelectedCohort(null);
+    setShowWeightModal(false);
+    setTempProfile(null);
   };
 
   return (
@@ -229,16 +275,36 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         </form>
       </div>
 
-      {selectedCohort && (
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setSelectedCohort(null)}>
+      {showWeightModal && (
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseModals}>
+          <LogWeightModal 
+            show={showWeightModal} 
+            onClose={handleCloseModals} 
+            onSave={handleWeightSaved} 
+            measurementMethod="unknown" 
+          />
+        </div>
+      )}
+
+      {selectedCohort && tempProfile && !showWeightModal && (
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseModals}>
           <div onClick={e => e.stopPropagation()} className="animate-scale-in w-full max-w-2xl">
             <UserProfileModal
-              initialProfile={userProfile}
+              initialProfile={tempProfile}
               onSave={async (updatedProfile, updatedGoals, newPhotoDataUrl) => {
                 updatedProfile.coachStyle = 'tough'; // Force Börje
+                
+                // Set goal date to 12 weeks (84 days) from start date or today
+                const startDate = (typeof selectedCohort === 'object' && selectedCohort !== null && 'startDate' in selectedCohort) 
+                  ? new Date(selectedCohort.startDate) 
+                  : new Date();
+                const targetDate = new Date(startDate);
+                targetDate.setDate(targetDate.getDate() + 84);
+                updatedProfile.goalCompletionDate = targetDate.toISOString().split('T')[0];
+
                 await handleConfirmJoin(updatedProfile, updatedGoals);
               }}
-              onClose={() => setSelectedCohort(null)}
+              onClose={handleCloseModals}
               isOnboarding={true}
               onboardingStep="form"
               isBootcampOnboarding={true}

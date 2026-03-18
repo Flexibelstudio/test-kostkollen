@@ -7,7 +7,7 @@ interface LogWeightModalProps {
   show: boolean;
   onClose: () => void;
   onSave: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
-  measurementMethod?: 'scale' | 'inbody';
+  measurementMethod?: 'scale' | 'inbody' | 'unknown';
 }
 
 const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, measurementMethod = 'scale' }) => {
@@ -98,7 +98,7 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
                 />
             </div>
 
-            {measurementMethod === 'inbody' && (
+            {(measurementMethod === 'inbody' || measurementMethod === 'unknown') && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 group-disabled:opacity-60 transition-opacity animate-fade-in">
                     <div>
                         <label htmlFor="skeletalMuscleMassKg" className={labelClass}>Muskelmassa (kg)</label>

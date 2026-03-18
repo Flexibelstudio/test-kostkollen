@@ -1129,6 +1129,29 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       setDayToPotentiallySave(null);
   };
 
+  const handleBootcampInitialWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
+    if (!currentUser) return;
+    setAppStatus(AppStatus.SAVING); 
+    try {
+        const newId = await saveWeightLog(currentUser.uid, data);
+        const newEntry: WeightLogEntry = { ...data, id: newId };
+        setWeightLogs(prev => [...prev, newEntry].sort((a, b) => a.loggedAt - b.loggedAt));
+        
+        setUserProfile(prev => ({
+            ...prev,
+            currentWeightKg: data.weightKg,
+            skeletalMuscleMassKg: data.skeletalMuscleMassKg ?? prev.skeletalMuscleMassKg,
+            bodyFatMassKg: data.bodyFatMassKg ?? prev.bodyFatMassKg
+        }));
+    } catch (error) {
+        console.error("Error saving initial bootcamp weight log:", error);
+        setToastNotification({ message: "Ett fel uppstod när mätningen skulle sparas.", type: 'error' });
+        throw error;
+    } finally {
+        setAppStatus(AppStatus.IDLE);
+    }
+  };
+
   const handleSaveWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
     if (!currentUser) return;
     setAppStatus(AppStatus.SAVING); 
@@ -1840,6 +1863,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 userProgress={userCourseProgress}
                 onNavigateToCourse={handleNavigateToCourse}
                 onSaveProfileAndGoals={handleSaveProfileAndGoals}
+                onSaveWeightLog={handleBootcampInitialWeightLog}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (

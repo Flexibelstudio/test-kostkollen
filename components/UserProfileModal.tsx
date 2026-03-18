@@ -450,6 +450,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           newValue = 0;
       }
 
+      if (isBootcampOnboarding && field === 'desiredFatMassChangeKg' && newValue > 0) {
+          newValue = 0;
+      }
+
       const updatedProfile = { ...prev, [field]: newValue };
 
       // Enforce one goal at a time for 'inbody'
@@ -755,28 +759,30 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         </div>
                     </section>
                     
-                    <section aria-labelledby="measurement-method-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                        <h4 id="measurement-method-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Hur mäter du dig?</h4>
-                        <p className="text-sm text-neutral mb-4">
-                            Välj InBody om du har tillgång till en våg som mäter muskel- och fettmassa. Välj Vanlig våg om du använder en vanlig personvåg.
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
-                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
-                            >
-                                InBody / Avancerad våg
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
-                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
-                            >
-                                Vanlig våg
-                            </button>
-                        </div>
-                    </section>
+                    {!isBootcampOnboarding && (
+                        <section aria-labelledby="measurement-method-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                            <h4 id="measurement-method-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Hur mäter du dig?</h4>
+                            <p className="text-sm text-neutral mb-4">
+                                Välj InBody om du har tillgång till en våg som mäter muskel- och fettmassa. Välj Vanlig våg om du använder en vanlig personvåg.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
+                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
+                                >
+                                    InBody / Avancerad våg
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
+                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
+                                >
+                                    Vanlig våg
+                                </button>
+                            </div>
+                        </section>
+                    )}
 
                     <section aria-labelledby="body-composition-goals-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
                         <h4 id="body-composition-goals-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Önskad förändring i kroppssammansättning</h4>
@@ -800,7 +806,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     <label htmlFor="desiredFatMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad fettmassaförändring (kg)</label>
                                     <div className="flex items-center space-x-2">
                                         <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad fettmassaförändring">-</button>
-                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
+                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0"/>
                                         <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad fettmassaförändring">+</button>
                                     </div>
                                     <p className="text-xs text-neutral mt-1">Sätt ett mål för antingen fett eller muskler.</p>
@@ -819,11 +825,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             </div>
                         )}
 
-                        <div className="mt-5">
-                            <label htmlFor="goalCompletionDate" className="block text-base font-medium text-neutral-dark mb-1.5">Måldatum</label>
-                            <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} />
-                            <p className="text-xs text-neutral mt-1">När vill du ha uppnått detta mål?</p>
-                        </div>
+                        {!isBootcampOnboarding && (
+                            <div className="mt-5">
+                                <label htmlFor="goalCompletionDate" className="block text-base font-medium text-neutral-dark mb-1.5">Måldatum</label>
+                                <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} />
+                                <p className="text-xs text-neutral mt-1">När vill du ha uppnått detta mål?</p>
+                            </div>
+                        )}
                         <div className="mt-3 p-3 bg-primary-100/60 rounded-md border border-primary-200">
                             <p className="text-base font-medium text-neutral-dark">
                                 Baserat på dina val blir ditt primära mål: <strong className="text-primary">{goalTypeDisplayMap[profile.goalType]}</strong>
@@ -831,23 +839,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         </div>
                     </section>
                     
-                    <section aria-labelledby="inbody-values-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                        <h4 id="inbody-values-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Faktisk kroppssammansättning (valfritt)</h4>
-                        <p className="text-sm text-neutral-dark mb-3 flex items-center">
-                            <InformationCircleIcon className="w-5 h-5 mr-1.5 text-secondary flex-shrink-0" />
-                            Om du har gjort en InBody-mätning eller liknande kan du fylla i dina värden här. Detta används inte direkt för rekommendationer men kan vara bra att spara.
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
-                            <div>
-                                <label htmlFor="skeletalMuscleMassKg" className="block text-base font-medium text-neutral-dark">Skelettmuskelmassa (kg)</label>
-                                <input type="number" name="skeletalMuscleMassKg" id="skeletalMuscleMassKg" value={profile.skeletalMuscleMassKg == null ? '' : profile.skeletalMuscleMassKg} onChange={handleProfileChange} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
+                    {!isBootcampOnboarding && (
+                        <section aria-labelledby="inbody-values-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                            <h4 id="inbody-values-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Faktisk kroppssammansättning (valfritt)</h4>
+                            <p className="text-sm text-neutral-dark mb-3 flex items-center">
+                                <InformationCircleIcon className="w-5 h-5 mr-1.5 text-secondary flex-shrink-0" />
+                                Om du har gjort en InBody-mätning eller liknande kan du fylla i dina värden här. Detta används inte direkt för rekommendationer men kan vara bra att spara.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+                                <div>
+                                    <label htmlFor="skeletalMuscleMassKg" className="block text-base font-medium text-neutral-dark">Skelettmuskelmassa (kg)</label>
+                                    <input type="number" name="skeletalMuscleMassKg" id="skeletalMuscleMassKg" value={profile.skeletalMuscleMassKg == null ? '' : profile.skeletalMuscleMassKg} onChange={handleProfileChange} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
+                                </div>
+                                <div>
+                                    <label htmlFor="bodyFatMassKg" className="block text-base font-medium text-neutral-dark">Kroppsfettmassa (kg)</label>
+                                    <input type="number" name="bodyFatMassKg" id="bodyFatMassKg" value={profile.bodyFatMassKg == null ? '' : profile.bodyFatMassKg} onChange={handleProfileChange} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
+                                </div>
                             </div>
-                            <div>
-                                <label htmlFor="bodyFatMassKg" className="block text-base font-medium text-neutral-dark">Kroppsfettmassa (kg)</label>
-                                <input type="number" name="bodyFatMassKg" id="bodyFatMassKg" value={profile.bodyFatMassKg == null ? '' : profile.bodyFatMassKg} onChange={handleProfileChange} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
-                            </div>
-                        </div>
-                    </section>
+                        </section>
+                    )}
                     
                     <section aria-labelledby="recommendations-heading" className="mt-6 pt-6 border-t border-neutral-light/70">
                         <h3 id="recommendations-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Dina dagliga mål</h3>
