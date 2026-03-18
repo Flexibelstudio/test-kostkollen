@@ -3,20 +3,145 @@ import { User } from '@firebase/auth';
 import { UserProfileData, BootcampCohort, CoachViewMember, BootcampParticipant } from '../types';
 import { subscribeToCohorts, createCohort, subscribeToAllBootcampParticipants } from '../services/bootcampService';
 import { createChat } from '../services/chatService';
-import { TrophyIcon, UsersIcon, PlusIcon, XMarkIcon, CalendarIcon, KeyIcon, FireIcon, CheckIcon } from './icons';
+import { TrophyIcon, UsersIcon, PlusIcon, XMarkIcon, CalendarIcon, KeyIcon, FireIcon, CheckIcon, ArrowLeftIcon } from './icons';
+import BootcampFeed from './BootcampFeed';
+import { subscribeToUserEveningReports } from '../services/bootcampService';
+import { EveningReport } from '../types';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface BootcampLedningscentralProps {
   currentUser: User;
   userProfile: UserProfileData;
   setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
   membersList: CoachViewMember[];
+  onMemberClick: (member: CoachViewMember) => void;
 }
+
+const ParticipantDetailModal: React.FC<{
+  participant: BootcampParticipant;
+  member: CoachViewMember;
+  cohortName: string;
+  onClose: () => void;
+}> = ({ participant, member, cohortName, onClose }) => {
+  const [reports, setReports] = useState<EveningReport[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToUserEveningReports(participant.cohortId, participant.userId, (data) => {
+      setReports(data);
+    });
+    return () => unsubscribe();
+  }, [participant.cohortId, participant.userId]);
+
+  const handleClearAttention = async () => {
+    try {
+      const ref = doc(db, 'bootcampCohorts', participant.cohortId, 'participants', participant.userId);
+      await updateDoc(ref, {
+        needsCoachAttention: false,
+        attentionReason: null
+      });
+    } catch (error) {
+      console.error("Error clearing attention flag:", error);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="p-6 border-b border-neutral-light flex justify-between items-start bg-neutral-50">
+          <div>
+            <h2 className="text-2xl font-bold text-neutral-dark">{member.name}</h2>
+            <p className="text-neutral-500">{member.email} • {cohortName}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-neutral-200 rounded-full transition-colors">
+            <XMarkIcon className="w-6 h-6 text-neutral-500" />
+          </button>
+        </div>
+
+        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 flex items-center gap-3">
+              <div className="bg-orange-100 p-3 rounded-xl text-orange-500">
+                <FireIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-sm text-orange-600 font-bold uppercase tracking-wider">Nuvarande Streak</p>
+                <p className="text-2xl font-extrabold text-orange-500">{participant.currentStreak} dagar</p>
+              </div>
+            </div>
+            <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100 flex items-center gap-3">
+              <div className="bg-neutral-200 p-3 rounded-xl text-neutral-500">
+                <TrophyIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-sm text-neutral-500 font-bold uppercase tracking-wider">Längsta Streak</p>
+                <p className="text-2xl font-extrabold text-neutral-dark">{participant.longestStreak} dagar</p>
+              </div>
+            </div>
+          </div>
+
+          {participant.needsCoachAttention && (
+            <div className="bg-red-50 p-4 rounded-2xl border border-red-200 flex justify-between items-center">
+              <div>
+                <h4 className="font-bold text-red-700 flex items-center gap-2">
+                  <XMarkIcon className="w-5 h-5" /> Behöver uppmärksamhet
+                </h4>
+                <p className="text-sm text-red-600 mt-1">{participant.attentionReason}</p>
+              </div>
+              <button 
+                onClick={handleClearAttention}
+                className="px-4 py-2 bg-red-100 text-red-700 font-bold rounded-xl hover:bg-red-200 transition-colors text-sm"
+              >
+                Markera som hanterad
+              </button>
+            </div>
+          )}
+
+          <div>
+            <h3 className="font-bold text-neutral-dark mb-4 flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5 text-primary" />
+              Kvällsrapporter
+            </h3>
+            {reports.length === 0 ? (
+              <p className="text-sm text-neutral-500 italic">Inga rapporter inlämnade ännu.</p>
+            ) : (
+              <div className="space-y-3">
+                {reports.map((report, idx) => (
+                  <div key={idx} className={`p-4 rounded-2xl border ${report.isGreenDay ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-bold text-neutral-dark">{report.date}</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${report.isGreenDay ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                        {report.isGreenDay ? 'Grön Dag' : 'Röd Dag'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm mb-3">
+                      <div><span className="text-neutral-500">Steg:</span> <span className="font-bold">{report.steps}</span></div>
+                      <div><span className="text-neutral-500">Humör:</span> <span className="font-bold">{report.mood}/10</span></div>
+                      <div><span className="text-neutral-500">Styrka:</span> <span className="font-bold">{report.strengthTrained ? 'Ja' : 'Nej'}</span></div>
+                      {report.sleep && <div><span className="text-neutral-500">Sömn:</span> <span className="font-bold">{report.sleep}h</span></div>}
+                    </div>
+                    {report.comment && (
+                      <div className="bg-white/50 p-3 rounded-xl text-sm italic text-neutral-600 border border-white/20">
+                        "{report.comment}"
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = ({
   currentUser,
   userProfile,
   setToastNotification,
-  membersList
+  membersList,
+  onMemberClick
 }) => {
   const [cohorts, setCohorts] = useState<BootcampCohort[]>([]);
   const [participants, setParticipants] = useState<BootcampParticipant[]>([]);
@@ -26,6 +151,8 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
   const [newCohortStartDate, setNewCohortStartDate] = useState('');
   const [newCohortIsPublic, setNewCohortIsPublic] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedCohortId, setSelectedCohortId] = useState<string | null>(null);
+  const [selectedParticipant, setSelectedParticipant] = useState<BootcampParticipant | null>(null);
   
   const [activeTab, setActiveTab] = useState<'cohorts' | 'participants'>('cohorts');
   const [sortConfig, setSortConfig] = useState<{ key: keyof BootcampParticipant | 'name' | 'cohortName'; direction: 'asc' | 'desc' }>({ key: 'currentStreak', direction: 'desc' });
@@ -113,6 +240,94 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
       return 0;
     });
   };
+
+  if (selectedCohortId) {
+    const cohort = cohorts.find(c => c.id === selectedCohortId);
+    if (!cohort) return null;
+
+    const cohortParticipants = participants.filter(p => p.cohortId === selectedCohortId);
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <button 
+          onClick={() => setSelectedCohortId(null)}
+          className="flex items-center gap-2 text-neutral-dark hover:text-primary transition-colors mb-4 font-bold"
+        >
+          <ArrowLeftIcon className="w-5 h-5" />
+          Tillbaka till Ledningscentral
+        </button>
+
+        <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-neutral-dark flex items-center gap-2">
+                <TrophyIcon className="w-6 h-6 text-primary" />
+                {cohort.name}
+              </h2>
+              <div className="flex items-center gap-4 mt-2 text-sm text-neutral-500">
+                <span className="flex items-center gap-1"><KeyIcon className="w-4 h-4" /> Kod: {cohort.inviteCode}</span>
+                <span className="flex items-center gap-1"><CalendarIcon className="w-4 h-4" /> Start: {cohort.startDate}</span>
+                <span className="flex items-center gap-1"><UsersIcon className="w-4 h-4" /> {cohortParticipants.length} deltagare</span>
+              </div>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+              cohort.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+              cohort.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
+              'bg-gray-100 text-gray-700'
+            }`}>
+              {cohort.status === 'active' ? 'Aktiv' : cohort.status === 'upcoming' ? 'Kommande' : 'Avslutad'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden h-[600px] flex flex-col">
+              <div className="p-4 border-b border-neutral-light bg-neutral-50">
+                <h3 className="font-bold text-neutral-dark">Truppens Flöde</h3>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                <BootcampFeed cohortId={cohort.id} userProfile={userProfile} />
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+              <h3 className="font-bold text-neutral-dark mb-4 flex items-center gap-2">
+                <UsersIcon className="w-5 h-5 text-primary" />
+                Deltagare
+              </h3>
+              {cohortParticipants.length === 0 ? (
+                <p className="text-sm text-neutral-500 italic">Inga deltagare ännu.</p>
+              ) : (
+                <div className="space-y-3">
+                  {cohortParticipants.map(participant => {
+                    const member = membersList.find(m => m.id === participant.userId);
+                    return (
+                      <div 
+                        key={participant.userId} 
+                        className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-neutral-100 cursor-pointer hover:border-primary/30 transition-colors"
+                        onClick={() => member && setSelectedParticipant(participant)}
+                      >
+                        <div>
+                          <div className="font-bold text-sm text-neutral-dark">{member?.name || 'Okänd'}</div>
+                          <div className="text-xs text-neutral-500">Streak: {participant.currentStreak} 🔥</div>
+                        </div>
+                        {participant.needsCoachAttention && (
+                          <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -229,7 +444,11 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
       {activeTab === 'cohorts' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {cohorts.map(cohort => (
-            <div key={cohort.id} className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light hover:border-primary/30 transition-colors cursor-pointer group">
+            <div 
+              key={cohort.id} 
+              className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light hover:border-primary/30 transition-colors cursor-pointer group"
+              onClick={() => setSelectedCohortId(cohort.id)}
+            >
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-neutral-dark group-hover:text-primary transition-colors">{cohort.name}</h3>
@@ -257,7 +476,13 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-neutral-light flex justify-between items-center">
+              <div 
+                className="pt-4 border-t border-neutral-light flex justify-between items-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedCohortId(cohort.id);
+                }}
+              >
                 <span className="text-sm font-bold text-primary">Hantera Trupp &rarr;</span>
               </div>
             </div>
@@ -306,7 +531,11 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                   const member = membersList.find(m => m.id === participant.userId);
                   const cohort = cohorts.find(c => c.id === participant.cohortId);
                   return (
-                    <tr key={participant.userId} className="hover:bg-neutral-50 transition-colors">
+                    <tr 
+                      key={participant.userId} 
+                      className="hover:bg-neutral-50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedParticipant(participant)}
+                    >
                       <td className="p-4">
                         <div className="font-bold text-neutral-dark">{member?.name || 'Okänd'}</div>
                         <div className="text-xs text-neutral-500">{member?.email || ''}</div>
@@ -352,6 +581,15 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
             </table>
           </div>
         </div>
+      )}
+
+      {selectedParticipant && membersList.find(m => m.id === selectedParticipant.userId) && (
+        <ParticipantDetailModal
+          participant={selectedParticipant}
+          member={membersList.find(m => m.id === selectedParticipant.userId)!}
+          cohortName={cohorts.find(c => c.id === selectedParticipant.cohortId)?.name || 'Solo'}
+          onClose={() => setSelectedParticipant(null)}
+        />
       )}
     </div>
   );

@@ -920,6 +920,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 userProfile={userProfile}
                 setToastNotification={setToastNotification}
                 membersList={membersList}
+                onMemberClick={(member) => setSelectedMember(member)}
             />
         ) : (
             <>
