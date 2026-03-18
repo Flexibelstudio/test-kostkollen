@@ -732,8 +732,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     };
     const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal); 
 
-    const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
-    const coachPersona = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle] : COACH_PERSONAS['balanced'];
+    const coachPersona = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle] : COACH_PERSONAS['balanced'];
+    const coachName = coachPersona.label;
 
     return (
         <div className="flex flex-col gap-3 pb-0 relative">
