@@ -401,42 +401,6 @@ const TimelineEventCard: FC<{
     // --- COMPACT STATS LOGIC ---
     const isCurrentUser = event.userId === currentUser.uid;
     
-    const stats = useMemo(() => {
-        let s = { streak: 0, progress: 0, goalText: '', bootcampStreak: undefined as number | undefined };
-        
-        if (isCurrentUser) {
-            s.streak = currentStreak;
-            s.progress = calculateProgressPercentage(
-                userProfile.measurementMethod,
-                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                userProfile.mainGoalCompleted
-            );
-            s.goalText = getGoalShortDescription(userProfile.measurementMethod, userProfile.desiredWeightChangeKg, userProfile.desiredFatMassChangeKg, userProfile.desiredMuscleMassChangeKg);
-            if (activeBootcamp) {
-                s.bootcampStreak = activeBootcamp.currentStreak || 0;
-            }
-        } else {
-            const buddy = buddyDetails.find(b => b.uid === event.userId);
-            if (buddy) {
-                s.streak = buddy.currentStreak || 0;
-                s.progress = calculateProgressPercentage(
-                    buddy.measurementMethod,
-                    buddy.goalStartWeight, buddy.currentWeight, buddy.desiredWeightChangeKg,
-                    buddy.goalStartFatMassKg, buddy.currentFatMass, buddy.desiredFatMassChangeKg,
-                    buddy.goalStartMuscleMassKg, buddy.currentMuscleMass, buddy.desiredMuscleMassChangeKg,
-                    buddy.mainGoalCompleted
-                );
-                s.goalText = getGoalShortDescription(buddy.measurementMethod, buddy.desiredWeightChangeKg, buddy.desiredFatMassChangeKg, buddy.desiredMuscleMassChangeKg);
-            } else {
-                return null; // Not a buddy, don't show stats
-            }
-        }
-        return s;
-    }, [isCurrentUser, currentStreak, userProfile, buddyDetails, event.userId, activeBootcamp]);
-
-
     const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
     
     // Check if the post was made by a coach persona
@@ -475,22 +439,30 @@ const TimelineEventCard: FC<{
                         </p>
                         
                         {/* --- COMPACT STATS ROW --- */}
-                        {stats && !isGlobalPost && (
+                        {!isGlobalPost && (event.streakAtPost !== undefined || event.bootcampStreakAtPost !== undefined || event.goalTextAtPost || event.progressAtPost !== undefined) && (
                             <div className="mt-1 mb-2 w-full max-w-[200px]">
                                 <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
-                                    <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost !== undefined ? event.streakAtPost : stats.streak}</span>
-                                    {(event.bootcampStreakAtPost !== undefined || stats.bootcampStreak !== undefined) && (
+                                    {event.streakAtPost !== undefined && (
+                                        <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
+                                    )}
+                                    {event.bootcampStreakAtPost !== undefined && (
                                         <>
-                                            <span className="text-neutral-300">|</span>
-                                            <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost !== undefined ? event.bootcampStreakAtPost : stats.bootcampStreak}</span>
+                                            {event.streakAtPost !== undefined && <span className="text-neutral-300">|</span>}
+                                            <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
                                         </>
                                     )}
-                                    <span className="text-neutral-300">|</span>
-                                    <span className="truncate">{event.goalTextAtPost || stats.goalText}</span>
+                                    {event.goalTextAtPost && (
+                                        <>
+                                            {(event.streakAtPost !== undefined || event.bootcampStreakAtPost !== undefined) && <span className="text-neutral-300">|</span>}
+                                            <span className="truncate">{event.goalTextAtPost}</span>
+                                        </>
+                                    )}
                                 </div>
-                                <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
-                                    <div className="h-full bg-primary" style={{width: `${event.progressAtPost !== undefined ? event.progressAtPost : stats.progress}%`}} />
-                                </div>
+                                {event.progressAtPost !== undefined && (
+                                    <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
+                                        <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
+                                    </div>
+                                )}
                             </div>
                         )}
                         {/* ------------------------- */}
