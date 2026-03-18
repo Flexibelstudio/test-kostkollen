@@ -6,6 +6,8 @@ import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreServic
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
 
+import BootcampFeed from './BootcampFeed';
+
 interface BootcampDashboardProps {
   participant: BootcampParticipant;
   userProfile: UserProfileData;
@@ -17,6 +19,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showFeed, setShowFeed] = useState(false);
 
   // Form state
   const [loggedAllMeals, setLoggedAllMeals] = useState(false);
@@ -27,13 +30,25 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [strengthTrained, setStrengthTrained] = useState(false);
   const [mood, setMood] = useState(5);
   const [sleep, setSleep] = useState('');
+  const [editingYesterday, setEditingYesterday] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
   const todayStr = new Date().toISOString().split('T')[0];
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  
+  const targetDateStr = editingYesterday ? yesterdayStr : todayStr;
   const hasReportedToday = reports.some(r => r.date === todayStr);
+  const yesterdayReport = reports.find(r => r.date === yesterdayStr);
+  
+  // Can edit yesterday if it's before noon today, and yesterday was reported but maybe we want to fix it.
+  // Or maybe we didn't report yesterday at all.
+  const currentHour = new Date().getHours();
+  const canEditYesterday = currentHour < 12 && (!yesterdayReport || !yesterdayReport.isGreenDay);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -45,27 +60,39 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
 
   useEffect(() => {
     if (!auth.currentUser) return;
-    const fetchTodayProgress = async () => {
+    const fetchProgress = async () => {
       try {
         const [meals, water] = await Promise.all([
-          fetchMealLogsForDate(auth.currentUser!.uid, todayStr),
-          fetchWaterLog(auth.currentUser!.uid, todayStr)
+          fetchMealLogsForDate(auth.currentUser!.uid, targetDateStr),
+          fetchWaterLog(auth.currentUser!.uid, targetDateStr)
         ]);
         
         const totalProtein = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.protein, 0);
         const totalCalories = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.calories, 0);
         
-        // We consider "logged all meals" as having logged at least something substantial (e.g. > 500 kcal)
-        // or just having logged any meals. Let's use meals.length > 0 for simplicity, or maybe > 400 kcal.
         setLoggedAllMeals(meals.length > 0 && totalCalories > 400);
         setProteinMet(totalProtein >= goals.proteinGoal);
         setWaterMet(water >= 2000); // 2 liters
+
+        if (editingYesterday && yesterdayReport) {
+          setSteps(yesterdayReport.steps.toString());
+          setMood(yesterdayReport.mood);
+          setStrengthTrained(yesterdayReport.strengthTrained);
+          setSleep(yesterdayReport.sleep ? yesterdayReport.sleep.toString() : '');
+          setComment(yesterdayReport.comment || '');
+        } else if (!editingYesterday) {
+          setSteps('');
+          setMood(5);
+          setStrengthTrained(false);
+          setSleep('');
+          setComment('');
+        }
       } catch (error) {
-        console.error("Error fetching today's progress:", error);
+        console.error("Error fetching progress:", error);
       }
     };
-    fetchTodayProgress();
-  }, [todayStr, goals.proteinGoal]);
+    fetchProgress();
+  }, [targetDateStr, goals.proteinGoal, editingYesterday, yesterdayReport]);
 
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,7 +110,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
     setIsSubmitting(true);
     try {
       await submitEveningReport(participant.cohortId, auth.currentUser.uid, {
-        date: todayStr,
+        date: targetDateStr,
         steps: stepsNum,
         mood,
         strengthTrained,
@@ -95,10 +122,25 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         isGreenDay
       });
       
-      setToast({ 
-        message: isGreenDay ? 'Grön dag registrerad! Bra jobbat, rekryt!' : 'Röd dag registrerad. Streaken är bruten. Nya tag imorgon!', 
-        type: isGreenDay ? 'success' : 'error' 
-      });
+      if (editingYesterday) {
+        if (isGreenDay) {
+          setToast({ 
+            message: 'Ordningen återställd! Generalen har justerat protokollet och din streak är räddad!', 
+            type: 'success' 
+          });
+        } else {
+          setToast({ 
+            message: 'Gårdagens rapport har uppdaterats.', 
+            type: 'info' 
+          });
+        }
+        setEditingYesterday(false);
+      } else {
+        setToast({ 
+          message: isGreenDay ? 'Grön dag registrerad! Bra jobbat, rekryt!' : 'Röd dag registrerad. Streaken är bruten. Nya tag imorgon!', 
+          type: isGreenDay ? 'success' : 'error' 
+        });
+      }
       
       // Reset form
       setLoggedAllMeals(false);
@@ -116,6 +158,23 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       setIsSubmitting(false);
     }
   };
+
+  if (showFeed) {
+    return (
+      <div className="animate-fade-in h-[calc(100vh-100px)] flex flex-col">
+        <button 
+          onClick={() => setShowFeed(false)}
+          className="flex items-center gap-2 text-neutral-dark hover:text-primary transition-colors mb-4 font-bold"
+        >
+          <ArrowLeftIcon className="w-5 h-5" />
+          Tillbaka till Dashboard
+        </button>
+        <div className="flex-1 overflow-hidden">
+          <BootcampFeed cohortId={participant.cohortId} userProfile={userProfile} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in pb-20">
@@ -172,21 +231,45 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         {/* Left Column: Today's Report */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
-            <h2 className="text-xl font-bold text-neutral-dark mb-6 flex items-center gap-2">
-              <CheckCircleIcon className="w-6 h-6 text-primary" />
-              Dagens Kvällsrapport
-            </h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
+                <CheckCircleIcon className="w-6 h-6 text-primary" />
+                {editingYesterday ? 'Gårdagens Kvällsrapport' : 'Dagens Kvällsrapport'}
+              </h2>
+              {!editingYesterday && canEditYesterday && (
+                <button 
+                  onClick={() => setEditingYesterday(true)}
+                  className="text-sm font-bold text-orange-600 hover:text-orange-700 underline"
+                >
+                  Rätta gårdagen
+                </button>
+              )}
+            </div>
 
-            {hasReportedToday ? (
+            {(!editingYesterday && hasReportedToday) ? (
               <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-200 text-center">
                 <CheckCircleIcon className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
                 <h3 className="text-lg font-bold text-emerald-800 mb-2">Rapport inlämnad!</h3>
                 <p className="text-emerald-600">
                   Du har redan lämnat din rapport för idag. Generalen har mottagit den. Vila upp dig inför morgondagen.
                 </p>
+                {canEditYesterday && (
+                  <button 
+                    onClick={() => setEditingYesterday(true)}
+                    className="mt-4 px-4 py-2 bg-orange-100 text-orange-800 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors"
+                  >
+                    Rätta gårdagens rapport
+                  </button>
+                )}
               </div>
             ) : (
               <form onSubmit={handleSubmitReport} className="space-y-6">
+                {editingYesterday && (
+                  <div className="p-4 bg-orange-50 text-orange-800 rounded-2xl mb-4 flex justify-between items-center">
+                    <span>Du redigerar gårdagens rapport ({yesterdayStr}).</span>
+                    <button type="button" onClick={() => setEditingYesterday(false)} className="text-sm font-bold underline">Avbryt</button>
+                  </div>
+                )}
                 <div className="space-y-4">
                   <div className="p-4 bg-blue-50 text-blue-800 rounded-2xl text-sm mb-4">
                     <p>
@@ -306,7 +389,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                   disabled={isSubmitting}
                   className="w-full py-4 bg-neutral-darker text-white font-bold rounded-xl hover:bg-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Skicka Kvällsrapport
+                  {editingYesterday ? 'Uppdatera Gårdagens Rapport' : 'Skicka Kvällsrapport'}
                 </button>
               </form>
             )}
@@ -319,13 +402,16 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
               <h3 className="font-bold text-neutral-dark mb-2 flex items-center gap-2">
                 <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary" />
-                Truppens Chatt
+                Truppens Flöde
               </h3>
               <p className="text-sm text-neutral-500 mb-4">
                 Kommunicera med din trupp, peppa varandra och dela med er av tips.
               </p>
-              <button className="w-full py-3 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors">
-                Öppna Chatt
+              <button 
+                onClick={() => setShowFeed(true)}
+                className="w-full py-3 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors"
+              >
+                Öppna Flödet
               </button>
             </div>
           )}

@@ -8,9 +8,10 @@ interface LogWeightModalProps {
   onClose: () => void;
   onSave: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
   measurementMethod?: 'scale' | 'inbody' | 'unknown';
+  hideComment?: boolean;
 }
 
-const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, measurementMethod = 'scale' }) => {
+const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, measurementMethod = 'scale', hideComment = false }) => {
   const [weightKg, setWeightKg] = useState<string>('');
   const [skeletalMuscleMassKg, setSkeletalMuscleMassKg] = useState<string>('');
   const [bodyFatMassKg, setBodyFatMassKg] = useState<string>('');
@@ -141,10 +142,12 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
                 </div>
             )}
             
-            <div className="group-disabled:opacity-60 transition-opacity">
-                <label htmlFor="comment" className={labelClass}>Kommentar (valfritt)</label>
-                <textarea id="comment" value={comment} onChange={(e) => setComment(e.target.value)} className={inputClass} rows={2} placeholder="T.ex. Morgonvikt, efter träning..."></textarea>
-            </div>
+            {!hideComment && (
+                <div className="group-disabled:opacity-60 transition-opacity">
+                    <label htmlFor="comment" className={labelClass}>Kommentar (valfritt)</label>
+                    <textarea id="comment" value={comment} onChange={(e) => setComment(e.target.value)} className={inputClass} rows={2} placeholder="T.ex. Morgonvikt, efter träning..."></textarea>
+                </div>
+            )}
         </fieldset>
 
         {error && <p className="text-red-500 text-sm animate-fade-in">{error}</p>}

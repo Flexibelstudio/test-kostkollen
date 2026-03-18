@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, UsersIcon, UserIcon, KeyIcon, CheckCircleIcon } from './icons';
 import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
 import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort } from '../services/bootcampService';
-import { saveWeightLog } from '../services/weightLogService';
+import { saveWeightLog } from '../services/firestoreService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
 import UserProfileModal from './UserProfileModal';
@@ -283,6 +283,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
             onClose={handleCloseModals} 
             onSave={handleWeightSaved} 
             measurementMethod="unknown" 
+            hideComment={true}
           />
         </div>,
         document.body

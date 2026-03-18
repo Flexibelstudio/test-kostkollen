@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserProfileData, UserCourseProgress, BootcampParticipant } from '../types';
+import { UserProfileData, UserCourseProgress, BootcampParticipant, GoalSettings, WeightLogEntry } from '../types';
 import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon, ArrowRightIcon, ShieldCheckIcon } from './icons';
 import CourseInfoModal from './course/CourseInfoModal';
 import BootcampLandingView from './BootcampLandingView';

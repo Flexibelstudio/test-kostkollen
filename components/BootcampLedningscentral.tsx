@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '@firebase/auth';
-import { UserProfileData, BootcampCohort, CoachViewMember } from '../types';
-import { subscribeToCohorts, createCohort } from '../services/bootcampService';
+import { UserProfileData, BootcampCohort, CoachViewMember, BootcampParticipant } from '../types';
+import { subscribeToCohorts, createCohort, subscribeToAllBootcampParticipants } from '../services/bootcampService';
 import { createChat } from '../services/chatService';
-import { TrophyIcon, UsersIcon, PlusIcon, XMarkIcon, CalendarIcon, KeyIcon } from './icons';
+import { TrophyIcon, UsersIcon, PlusIcon, XMarkIcon, CalendarIcon, KeyIcon, FireIcon, CheckIcon } from './icons';
 
 interface BootcampLedningscentralProps {
   currentUser: User;
@@ -19,18 +19,28 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
   membersList
 }) => {
   const [cohorts, setCohorts] = useState<BootcampCohort[]>([]);
+  const [participants, setParticipants] = useState<BootcampParticipant[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newCohortName, setNewCohortName] = useState('');
   const [newCohortCode, setNewCohortCode] = useState('');
   const [newCohortStartDate, setNewCohortStartDate] = useState('');
   const [newCohortIsPublic, setNewCohortIsPublic] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [activeTab, setActiveTab] = useState<'cohorts' | 'participants'>('cohorts');
+  const [sortConfig, setSortConfig] = useState<{ key: keyof BootcampParticipant | 'name' | 'cohortName'; direction: 'asc' | 'desc' }>({ key: 'currentStreak', direction: 'desc' });
 
   useEffect(() => {
-    const unsubscribe = subscribeToCohorts((data) => {
+    const unsubscribeCohorts = subscribeToCohorts((data) => {
       setCohorts(data);
     });
-    return () => unsubscribe();
+    const unsubscribeParticipants = subscribeToAllBootcampParticipants((data) => {
+      setParticipants(data);
+    });
+    return () => {
+      unsubscribeCohorts();
+      unsubscribeParticipants();
+    };
   }, []);
 
   const handleCreateCohort = async (e: React.FormEvent) => {
@@ -44,10 +54,10 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
     try {
       // 1. Create the official chat group
       const chatGroupId = await createChat(
-        newCohortName,
         'public_room',
-        currentUser.uid,
+        newCohortName,
         `Officiell grupp för ${newCohortName}`,
+        currentUser.uid,
         [], // members will be added when they join
         'admin_only',
         false,
@@ -78,6 +88,32 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
     }
   };
 
+  const handleSort = (key: keyof BootcampParticipant | 'name' | 'cohortName') => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
+
+  const getSortedParticipants = () => {
+    return [...participants].sort((a, b) => {
+      let aVal: any = a[sortConfig.key as keyof BootcampParticipant];
+      let bVal: any = b[sortConfig.key as keyof BootcampParticipant];
+
+      if (sortConfig.key === 'name') {
+        aVal = membersList.find(m => m.id === a.userId)?.name || 'Okänd';
+        bVal = membersList.find(m => m.id === b.userId)?.name || 'Okänd';
+      } else if (sortConfig.key === 'cohortName') {
+        aVal = cohorts.find(c => c.id === a.cohortId)?.name || 'Okänd trupp';
+        bVal = cohorts.find(c => c.id === b.cohortId)?.name || 'Okänd trupp';
+      }
+
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -88,16 +124,34 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
           </h2>
           <p className="text-neutral-500">Hantera General Börjes trupper och rekryter.</p>
         </div>
-        <button
-          onClick={() => setIsCreating(true)}
-          className="bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-dark transition-colors flex items-center gap-2"
-        >
-          <PlusIcon className="w-5 h-5" />
-          Skapa Ny Trupp
-        </button>
+        <div className="flex gap-2">
+          <div className="flex bg-neutral-100 p-1 rounded-xl">
+            <button
+              onClick={() => setActiveTab('cohorts')}
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'cohorts' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Trupper
+            </button>
+            <button
+              onClick={() => setActiveTab('participants')}
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'participants' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Deltagare
+            </button>
+          </div>
+          {activeTab === 'cohorts' && (
+            <button
+              onClick={() => setIsCreating(true)}
+              className="bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-dark transition-colors flex items-center gap-2"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Skapa Ny Trupp
+            </button>
+          )}
+        </div>
       </div>
 
-      {isCreating && (
+      {activeTab === 'cohorts' && isCreating && (
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xl font-bold text-neutral-dark">Skapa Ny Trupp</h3>
@@ -172,57 +226,133 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {cohorts.map(cohort => (
-          <div key={cohort.id} className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light hover:border-primary/30 transition-colors cursor-pointer group">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-neutral-dark group-hover:text-primary transition-colors">{cohort.name}</h3>
-                <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${cohort.isPublic ? 'bg-purple-100 text-purple-700' : 'bg-neutral-200 text-neutral-700'}`}>
-                  {cohort.isPublic ? 'Publik Trupp' : 'Privat Trupp'}
+      {activeTab === 'cohorts' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {cohorts.map(cohort => (
+            <div key={cohort.id} className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light hover:border-primary/30 transition-colors cursor-pointer group">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-neutral-dark group-hover:text-primary transition-colors">{cohort.name}</h3>
+                  <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${cohort.isPublic ? 'bg-purple-100 text-purple-700' : 'bg-neutral-200 text-neutral-700'}`}>
+                    {cohort.isPublic ? 'Publik Trupp' : 'Privat Trupp'}
+                  </span>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                  cohort.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                  cohort.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
+                  'bg-gray-100 text-gray-700'
+                }`}>
+                  {cohort.status === 'active' ? 'Aktiv' : cohort.status === 'upcoming' ? 'Kommande' : 'Avslutad'}
                 </span>
               </div>
-              <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                cohort.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                cohort.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
-                'bg-gray-100 text-gray-700'
-              }`}>
-                {cohort.status === 'active' ? 'Aktiv' : cohort.status === 'upcoming' ? 'Kommande' : 'Avslutad'}
-              </span>
-            </div>
-            
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-neutral-600">
-                <KeyIcon className="w-4 h-4" />
-                <span className="font-mono font-bold">{cohort.inviteCode}</span>
+              
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center gap-2 text-sm text-neutral-600">
+                  <KeyIcon className="w-4 h-4" />
+                  <span className="font-mono font-bold">{cohort.inviteCode}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-neutral-600">
+                  <CalendarIcon className="w-4 h-4" />
+                  <span>Startar: {cohort.startDate}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-sm text-neutral-600">
-                <CalendarIcon className="w-4 h-4" />
-                <span>Startar: {cohort.startDate}</span>
+
+              <div className="pt-4 border-t border-neutral-light flex justify-between items-center">
+                <span className="text-sm font-bold text-primary">Hantera Trupp &rarr;</span>
               </div>
             </div>
+          ))}
 
-            <div className="pt-4 border-t border-neutral-light flex justify-between items-center">
-              <span className="text-sm font-bold text-primary">Hantera Trupp &rarr;</span>
+          {cohorts.length === 0 && !isCreating && (
+            <div className="col-span-full bg-white p-12 rounded-3xl shadow-soft-xl border border-neutral-light text-center">
+              <TrophyIcon className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-neutral-dark mb-2">Inga trupper ännu</h3>
+              <p className="text-neutral-500 mb-6">Skapa din första Bootcamp-trupp för att komma igång.</p>
+              <button
+                onClick={() => setIsCreating(true)}
+                className="bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-dark transition-colors inline-flex items-center gap-2"
+              >
+                <PlusIcon className="w-5 h-5" />
+                Skapa Ny Trupp
+              </button>
             </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-neutral-50 border-b border-neutral-light text-sm text-neutral-500 uppercase tracking-wider">
+                  <th className="p-4 font-bold cursor-pointer hover:bg-neutral-100" onClick={() => handleSort('name')}>
+                    Deltagare {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="p-4 font-bold cursor-pointer hover:bg-neutral-100" onClick={() => handleSort('cohortName')}>
+                    Trupp {sortConfig.key === 'cohortName' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="p-4 font-bold cursor-pointer hover:bg-neutral-100" onClick={() => handleSort('status')}>
+                    Fas {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="p-4 font-bold cursor-pointer hover:bg-neutral-100" onClick={() => handleSort('currentStreak')}>
+                    Streak {sortConfig.key === 'currentStreak' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="p-4 font-bold cursor-pointer hover:bg-neutral-100" onClick={() => handleSort('needsCoachAttention')}>
+                    Status {sortConfig.key === 'needsCoachAttention' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-light">
+                {getSortedParticipants().map(participant => {
+                  const member = membersList.find(m => m.id === participant.userId);
+                  const cohort = cohorts.find(c => c.id === participant.cohortId);
+                  return (
+                    <tr key={participant.userId} className="hover:bg-neutral-50 transition-colors">
+                      <td className="p-4">
+                        <div className="font-bold text-neutral-dark">{member?.name || 'Okänd'}</div>
+                        <div className="text-xs text-neutral-500">{member?.email || ''}</div>
+                      </td>
+                      <td className="p-4 text-sm text-neutral-dark">
+                        {cohort?.name || 'Okänd trupp'}
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${participant.status === 'fas2' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {participant.status === 'fas2' ? 'Fas 2' : 'Fas 1'}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-1 font-bold text-orange-500">
+                          <FireIcon className="w-4 h-4" />
+                          {participant.currentStreak}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {participant.needsCoachAttention ? (
+                          <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 flex items-center gap-1 w-max">
+                            <XMarkIcon className="w-3 h-3" />
+                            {participant.attentionReason || 'Behöver uppmärksamhet'}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 flex items-center gap-1 w-max">
+                            <CheckIcon className="w-3 h-3" />
+                            På spår
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {participants.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-neutral-500">
+                      Inga deltagare hittades.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        ))}
-
-        {cohorts.length === 0 && !isCreating && (
-          <div className="col-span-full bg-white p-12 rounded-3xl shadow-soft-xl border border-neutral-light text-center">
-            <TrophyIcon className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-neutral-dark mb-2">Inga trupper ännu</h3>
-            <p className="text-neutral-500 mb-6">Skapa din första Bootcamp-trupp för att komma igång.</p>
-            <button
-              onClick={() => setIsCreating(true)}
-              className="bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-dark transition-colors inline-flex items-center gap-2"
-            >
-              <PlusIcon className="w-5 h-5" />
-              Skapa Ny Trupp
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

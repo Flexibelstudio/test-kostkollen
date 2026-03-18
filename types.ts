@@ -680,6 +680,30 @@ export interface TimelineComment {
   };
 }
 
+export interface BootcampComment {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  authorPhotoURL?: string;
+  text: string;
+  timestamp: number;
+  likes: { [uid: string]: string };
+}
+
+export interface BootcampPost {
+  id: string;
+  cohortId: string;
+  authorUid: string;
+  authorName: string;
+  authorPhotoURL?: string;
+  text: string;
+  imageUrl?: string;
+  timestamp: number;
+  isOfficial?: boolean; // If true, posted by General Börje
+  likes: { [uid: string]: string };
+  comments: BootcampComment[];
+}
+
 export interface TimelineEvent {
   id: string; // A unique ID for the event in the UI (e.g., 'weight_docId')
   type: TimelineEventType;

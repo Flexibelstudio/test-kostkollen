@@ -1,6 +1,6 @@
 import { collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, updateDoc, onSnapshot, serverTimestamp, collectionGroup, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { BootcampCohort, BootcampParticipant, EveningReport } from '../types';
+import { BootcampCohort, BootcampParticipant, EveningReport, BootcampPost, BootcampComment } from '../types';
 
 // --- Cohort Management ---
 
@@ -136,6 +136,19 @@ export const joinCohort = async (userId: string, inviteCode: string): Promise<{ 
   };
 };
 
+export const subscribeToAllBootcampParticipants = (callback: (participants: BootcampParticipant[]) => void) => {
+  if (!db) return () => {};
+  
+  const q = query(collectionGroup(db, 'participants'));
+  return onSnapshot(q, (snapshot) => {
+    const participants: BootcampParticipant[] = [];
+    snapshot.forEach(doc => {
+      participants.push(doc.data() as BootcampParticipant);
+    });
+    callback(participants);
+  });
+};
+
 export const subscribeToCohortParticipants = (cohortId: string, callback: (participants: BootcampParticipant[]) => void) => {
   if (!db) return () => {};
   
@@ -219,6 +232,92 @@ export const getEveningReportForDate = async (cohortId: string, userId: string, 
   }
 };
 
+export const recalculateStreak = async (cohortId: string, userId: string) => {
+  if (!db) throw new Error("Firestore not initialized");
+
+  const q = query(
+    collection(db, 'bootcampCohorts', cohortId, 'participants', userId, 'eveningReports'),
+    orderBy('date', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  const reports = snapshot.docs.map(doc => doc.data() as EveningReport);
+  
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let currentTempStreak = 0;
+
+  // Calculate longest streak
+  // We iterate from oldest to newest to calculate longest streak correctly
+  const ascendingReports = [...reports].reverse();
+  for (const report of ascendingReports) {
+    if (report.isGreenDay) {
+      currentTempStreak++;
+      if (currentTempStreak > longestStreak) {
+        longestStreak = currentTempStreak;
+      }
+    } else {
+      currentTempStreak = 0;
+    }
+  }
+
+  // Calculate current streak
+  // We iterate from newest to oldest. We only count consecutive green days starting from today or yesterday.
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  let foundStart = false;
+  for (const report of reports) {
+    if (!foundStart) {
+      // The streak must start from today or yesterday. If the newest report is older than yesterday, streak is 0.
+      if (report.date === todayStr || report.date === yesterdayStr) {
+        foundStart = true;
+      } else {
+        break; // Streak is broken
+      }
+    }
+
+    if (report.isGreenDay) {
+      currentStreak++;
+    } else {
+      break; // Streak broken
+    }
+  }
+
+  const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
+  const participantSnap = await getDoc(participantRef);
+  
+  if (participantSnap.exists()) {
+    const participant = participantSnap.data() as BootcampParticipant;
+    let newStatus = participant.status;
+    let needsAttention = participant.needsCoachAttention;
+    let attentionReason = participant.attentionReason;
+
+    if (currentStreak >= 14 && participant.status === 'fas1') {
+      newStatus = 'fas2';
+    } else if (currentStreak === 0 && reports.length > 0 && !reports[0].isGreenDay) {
+      needsAttention = true;
+      attentionReason = 'Bröt sin streak (Röd dag)';
+    } else if (currentStreak > 0 && attentionReason === 'Bröt sin streak (Röd dag)') {
+       needsAttention = false;
+       attentionReason = null;
+    }
+
+    const updateData: any = {
+      currentStreak,
+      longestStreak: Math.max(longestStreak, participant.longestStreak),
+      status: newStatus,
+      needsCoachAttention: needsAttention,
+      attentionReason: attentionReason
+    };
+
+    await updateDoc(participantRef, updateData);
+  }
+};
+
 export const submitEveningReport = async (
   cohortId: string,
   userId: string,
@@ -241,46 +340,110 @@ export const submitEveningReport = async (
   const reportRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId, 'eveningReports', report.date);
   await setDoc(reportRef, reportData);
   
-  // Update participant streak
-  const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
-  const participantSnap = await getDoc(participantRef);
+  await recalculateStreak(cohortId, userId);
+};
+
+// --- Bootcamp Feed ---
+
+export const subscribeToBootcampPosts = (cohortId: string, callback: (posts: BootcampPost[]) => void) => {
+  const postsRef = collection(db, 'bootcampCohorts', cohortId, 'posts');
+  const q = query(postsRef, orderBy('timestamp', 'desc'));
   
-  if (participantSnap.exists()) {
-    const participant = participantSnap.data() as BootcampParticipant;
-    let newStreak = participant.currentStreak;
-    let newLongest = participant.longestStreak;
-    let newStatus = participant.status;
-    let needsAttention = participant.needsCoachAttention;
-    let attentionReason = participant.attentionReason;
+  return onSnapshot(q, (snapshot) => {
+    const posts: BootcampPost[] = [];
+    snapshot.forEach((doc) => {
+      posts.push({ id: doc.id, ...doc.data() } as BootcampPost);
+    });
+    callback(posts);
+  });
+};
 
-    if (report.isGreenDay) {
-      newStreak += 1;
-      if (newStreak > newLongest) {
-        newLongest = newStreak;
-      }
-      // Check if they unlock phase 2 (14 days)
-      if (newStreak >= 14 && participant.status === 'fas1') {
-        newStatus = 'fas2';
-      }
+export const createBootcampPost = async (
+  cohortId: string,
+  authorUid: string,
+  authorName: string,
+  text: string,
+  imageUrl?: string,
+  isOfficial?: boolean,
+  authorPhotoURL?: string
+): Promise<string> => {
+  const postsRef = collection(db, 'bootcampCohorts', cohortId, 'posts');
+  const newPost: Omit<BootcampPost, 'id'> = {
+    cohortId,
+    authorUid,
+    authorName,
+    text,
+    timestamp: Date.now(),
+    likes: {},
+    comments: [],
+  };
+  if (imageUrl) newPost.imageUrl = imageUrl;
+  if (isOfficial !== undefined) newPost.isOfficial = isOfficial;
+  if (authorPhotoURL) newPost.authorPhotoURL = authorPhotoURL;
+
+  const docRef = await addDoc(postsRef, newPost);
+  return docRef.id;
+};
+
+export const likeBootcampPost = async (cohortId: string, postId: string, userId: string, userName: string) => {
+  const postRef = doc(db, 'bootcampCohorts', cohortId, 'posts', postId);
+  const postSnap = await getDoc(postRef);
+  if (postSnap.exists()) {
+    const postData = postSnap.data() as BootcampPost;
+    const currentLikes = postData.likes || {};
+    if (currentLikes[userId]) {
+      delete currentLikes[userId];
     } else {
-      newStreak = 0;
-      needsAttention = true;
-      attentionReason = 'Bröt sin streak (Röd dag)';
+      currentLikes[userId] = userName;
     }
+    await updateDoc(postRef, { likes: currentLikes });
+  }
+};
 
-    const updateData: any = {
-      currentStreak: newStreak,
-      longestStreak: newLongest,
-      status: newStatus,
-      needsCoachAttention: needsAttention,
+export const addBootcampComment = async (
+  cohortId: string,
+  postId: string,
+  authorUid: string,
+  authorName: string,
+  text: string,
+  authorPhotoURL?: string
+) => {
+  const postRef = doc(db, 'bootcampCohorts', cohortId, 'posts', postId);
+  const postSnap = await getDoc(postRef);
+  if (postSnap.exists()) {
+    const postData = postSnap.data() as BootcampPost;
+    const currentComments = postData.comments || [];
+    const newComment: BootcampComment = {
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+      authorUid,
+      authorName,
+      text,
+      timestamp: Date.now(),
+      likes: {}
     };
+    if (authorPhotoURL) newComment.authorPhotoURL = authorPhotoURL;
+    
+    await updateDoc(postRef, { comments: [...currentComments, newComment] });
+  }
+};
 
-    if (attentionReason !== undefined) {
-      updateData.attentionReason = attentionReason;
-    } else {
-      updateData.attentionReason = null;
+export const likeBootcampComment = async (cohortId: string, postId: string, commentId: string, userId: string, userName: string) => {
+  const postRef = doc(db, 'bootcampCohorts', cohortId, 'posts', postId);
+  const postSnap = await getDoc(postRef);
+  if (postSnap.exists()) {
+    const postData = postSnap.data() as BootcampPost;
+    const currentComments = postData.comments || [];
+    const commentIndex = currentComments.findIndex(c => c.id === commentId);
+    if (commentIndex !== -1) {
+      const comment = currentComments[commentIndex];
+      const currentLikes = comment.likes || {};
+      if (currentLikes[userId]) {
+        delete currentLikes[userId];
+      } else {
+        currentLikes[userId] = userName;
+      }
+      currentComments[commentIndex] = { ...comment, likes: currentLikes };
+      await updateDoc(postRef, { comments: currentComments });
     }
-
-    await updateDoc(participantRef, updateData);
   }
 };
