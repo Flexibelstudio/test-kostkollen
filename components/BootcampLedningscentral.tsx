@@ -116,8 +116,8 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         aVal = membersList.find(m => m.id === a.userId)?.name || 'Okänd';
         bVal = membersList.find(m => m.id === b.userId)?.name || 'Okänd';
       } else if (sortConfig.key === 'cohortName') {
-        aVal = cohorts.find(c => c.id === a.cohortId)?.name || 'Solo';
-        bVal = cohorts.find(c => c.id === b.cohortId)?.name || 'Solo';
+        aVal = cohorts.find(c => c.id === a.cohortId)?.name || (a.cohortId === 'solo' ? 'Solo-trupp' : 'Okänd');
+        bVal = cohorts.find(c => c.id === b.cohortId)?.name || (b.cohortId === 'solo' ? 'Solo-trupp' : 'Okänd');
       }
 
       if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -126,8 +126,23 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
     });
   };
 
+  const allCohorts = [
+    {
+      id: 'solo',
+      name: 'Solo-trupp',
+      inviteCode: 'N/A',
+      startDate: 'Löpande',
+      status: 'active' as const,
+      isPublic: true,
+      chatGroupId: 'solo_chat',
+      createdBy: 'system',
+      createdAt: Date.now()
+    },
+    ...cohorts
+  ];
+
   if (selectedCohortId) {
-    const cohort = cohorts.find(c => c.id === selectedCohortId);
+    const cohort = allCohorts.find(c => c.id === selectedCohortId);
     if (!cohort) return null;
 
     const cohortParticipants = participants.filter(p => p.cohortId === selectedCohortId);
@@ -170,7 +185,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
             <CoachStudioView 
               currentUser={currentUser} 
               setToastNotification={setToastNotification}
-              lockedCoach="borje"
+              lockedCoach="hard"
               hideCategory={true}
               className="h-[600px]"
               onPublish={async (draft, category, coach) => {
@@ -357,7 +372,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
 
       {activeTab === 'cohorts' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {cohorts.map(cohort => (
+          {allCohorts.map(cohort => (
             <div 
               key={cohort.id} 
               className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light hover:border-primary/30 transition-colors cursor-pointer group"
