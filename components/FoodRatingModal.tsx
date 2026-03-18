@@ -17,7 +17,7 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
   if (!show) return null;
 
   const coachStyle = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[coachStyle];
+  const persona = COACH_PERSONAS[coachStyle] || COACH_PERSONAS['balanced'];
 
   const { score, rating, pros, cons, comment } = useMemo(() => {
     let currentScore = 50;

@@ -90,7 +90,7 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text.`;
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
   const { userProfile, summary, currentStreak, yesterdayBootcampReport } = data;
   const style = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[style];
+  const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
   const name = userProfile.name || 'du';
 
   const prompt = `Du är ${persona.label}, ${persona.roleTitle}.
@@ -144,7 +144,7 @@ INSTRUKTIONER:
 };
 
 export const getMorningBriefingAudio = async (text: string, style: CoachStyle): Promise<string | null> => {
-  const persona = COACH_PERSONAS[style];
+  const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
   
   try {
     const response = await ai.models.generateContent({
@@ -311,7 +311,7 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
   const { userProfile, userGoals, userName, mentalWellbeing, isOnboarding } = data;
   
   const style = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[style];
+  const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
     
   const wellbeingDataString = `
 - Stressnivå: ${mentalWellbeing.stressLevel || 'Ej angivet'} (1=hög, 5=låg)
@@ -597,7 +597,7 @@ export const getAICoachResponseStream = async (
   })).slice(0, 30);
 
   const style = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[style];
+  const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
 
   const systemInstruction = `Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.
 Din persona är: ${persona.promptTone}.
@@ -920,7 +920,7 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     const kursFeedbackPrompt = `Användaren har tillgång till kurserna 'Praktisk Viktkontroll' och 'Maxa Klimakteriet'. Koppla dina insikter till relevanta koncept från 'Praktisk Viktkontroll'. Om användaren t.ex. har en platå, kan du referera till Lektion 7 ('Bryt en platå'). Om de är inkonsekventa, nämn Lektion 4 ('Hantera utmaningar').`;
 
     const style = userProfile.coachStyle || 'balanced';
-    const persona = COACH_PERSONAS[style];
+    const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
 
     const prompt = `
 Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.

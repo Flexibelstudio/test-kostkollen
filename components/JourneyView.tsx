@@ -295,7 +295,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       }
   };
 
-  const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
+  const coachName = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
 
   return (
     <>
@@ -458,10 +458,10 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                     <button onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
                         <span className="bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">Chatta med {coachName}</span>
                         <div className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white dark:bg-neutral-darker overflow-hidden border-2 border-primary">
-                            {userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
+                            {userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
                                 <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={coachName} className="w-full h-full object-cover" />
                             ) : (
-                                <span className="text-xl">{userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].emoji : '🤖'}</span>
+                                <span className="text-xl">{userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle].emoji : '🤖'}</span>
                             )}
                         </div>
                     </button>
@@ -483,7 +483,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                 {isSpeedDialOpen ? (
                     <PlusIcon className="w-8 h-8" />
                 ) : (
-                    userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
+                    userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
                         <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={coachName} className="w-full h-full object-cover" />
                     ) : (
                         <PlusIcon className="w-8 h-8" />

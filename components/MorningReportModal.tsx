@@ -132,7 +132,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
   const dateString = dateObj.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const coachStyle = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[coachStyle];
+  const persona = COACH_PERSONAS[coachStyle] || COACH_PERSONAS['balanced'];
   
   let CoachEmoji;
   let avatarColorClass;

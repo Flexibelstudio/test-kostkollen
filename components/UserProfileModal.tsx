@@ -182,7 +182,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     
     // Get Persona Details based on profile
     const coachStyle = initialProfile.coachStyle || 'balanced';
-    const persona = COACH_PERSONAS[coachStyle];
+    const persona = COACH_PERSONAS[coachStyle] || COACH_PERSONAS['balanced'];
     
     // Theme colors based on coach style
     let coachTheme = { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', iconBg: 'bg-blue-100', iconText: 'text-blue-600' };

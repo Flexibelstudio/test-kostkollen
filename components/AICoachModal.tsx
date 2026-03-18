@@ -53,7 +53,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   };
 
   const { emoji: CoachEmoji, colorClass } = getCoachVisuals(coachStyle);
-  const persona = COACH_PERSONAS[coachStyle];
+  const persona = COACH_PERSONAS[coachStyle] || COACH_PERSONAS['balanced'];
   const personaName = persona.label;
 
   const initialMessage: Message = useMemo(() => {
