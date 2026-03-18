@@ -97,7 +97,6 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
       if (result.success) {
         setToast({ message: result.message, type: 'success' });
         await onJoinSuccess(updatedProfile, updatedGoals);
-        setTimeout(() => onBack(), 2000);
       } else {
         setToast({ message: result.message, type: 'error' });
       }
@@ -310,6 +309,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
               isOnboarding={true}
               onboardingStep="form"
               isBootcampOnboarding={true}
+              aiFeedbackLoading={isJoining}
               onSubscribeToPush={async () => false}
             />
           </div>

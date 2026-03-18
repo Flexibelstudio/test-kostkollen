@@ -1150,12 +1150,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     {aiFeedbackLoading ? (
                         <div className="flex items-center justify-center">
                             <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
-                            <span>{isOnboarding ? 'Analyserar...' : 'Sparar...'}</span>
+                            <span>{isBootcampOnboarding ? 'Sparar...' : (isOnboarding ? 'Analyserar...' : 'Sparar...')}</span>
                         </div>
                     ) : (
                         <>
                             <CheckIcon className="w-5 h-5 inline mr-2" />
-                            <span>{isOnboarding ? 'Fortsätt till sista steget' : 'Spara profil'}</span>
+                            <span>{isBootcampOnboarding ? 'Spara och starta Bootcamp' : (isOnboarding ? 'Fortsätt till sista steget' : 'Spara profil')}</span>
                         </>
                     )}
                 </button>
