@@ -169,6 +169,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
   };
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     fetchBootcamp();
   }, []);
 

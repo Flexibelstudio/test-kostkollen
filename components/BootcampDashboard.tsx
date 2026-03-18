@@ -28,6 +28,10 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [mood, setMood] = useState(5);
   const [sleep, setSleep] = useState('');
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const todayStr = new Date().toISOString().split('T')[0];
   const hasReportedToday = reports.some(r => r.date === todayStr);
 

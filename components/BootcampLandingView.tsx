@@ -28,6 +28,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
   const [tempProfile, setTempProfile] = useState<UserProfileData | null>(null);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     const unsubscribe = subscribeToPublicCohorts((cohorts) => {
       setPublicCohorts(cohorts);
     });
