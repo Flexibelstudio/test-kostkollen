@@ -254,6 +254,30 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile, hide
                             </span>
                           )}
                         </p>
+                        
+                        {/* --- COMPACT STATS ROW --- */}
+                        {!post.isOfficial && (post.streakAtPost !== undefined || post.goalTextAtPost) && (
+                            <div className="mt-1 mb-2 w-full max-w-[200px]">
+                                <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
+                                    {post.streakAtPost !== undefined && (
+                                        <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {post.streakAtPost}</span>
+                                    )}
+                                    {post.bootcampStreakAtPost !== undefined && (
+                                        <>
+                                            {post.streakAtPost !== undefined && <span className="text-neutral-300">|</span>}
+                                            <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {post.bootcampStreakAtPost}</span>
+                                        </>
+                                    )}
+                                    {post.goalTextAtPost && (
+                                        <>
+                                            {(post.streakAtPost !== undefined || post.bootcampStreakAtPost !== undefined) && <span className="text-neutral-300">|</span>}
+                                            <span className="truncate">{post.goalTextAtPost}</span>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        {/* ------------------------- */}
                       </div>
                       <div className="flex items-start gap-2 ml-2">
                         <span className="text-xs text-neutral whitespace-nowrap mt-0.5">

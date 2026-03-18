@@ -27,7 +27,8 @@ import {
     runTransaction,
     arrayUnion,
     startAfter,
-    QuerySnapshot
+    QuerySnapshot,
+    collectionGroup
 } from "@firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import type { 
@@ -537,6 +538,28 @@ export async function createUserPost(
     const eventId = `post_${userId}_${Date.now()}`;
     const timelineDocRef = doc(db, "communityTimeline", eventId);
 
+    // Calculate goal text
+    let goalTextAtPost = 'Mål: Bibehålla';
+    if (userData.measurementMethod === 'scale' && userData.desiredWeightChangeKg) {
+        goalTextAtPost = `Mål: ${userData.desiredWeightChangeKg > 0 ? '+' : ''}${userData.desiredWeightChangeKg} kg`;
+    } else {
+        if (userData.desiredFatMassChangeKg) goalTextAtPost = `Mål: ${userData.desiredFatMassChangeKg} kg fett`;
+        else if (userData.desiredMuscleMassChangeKg) goalTextAtPost = `Mål: +${userData.desiredMuscleMassChangeKg} kg muskler`;
+    }
+
+    // Fetch active bootcamp for bootcamp streak
+    let bootcampStreakAtPost: number | undefined = undefined;
+    try {
+        const q = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
+        const snapshot = await getDocsSafe(q);
+        if (!snapshot.empty) {
+            const participantData = snapshot.docs[0].data() as any;
+            bootcampStreakAtPost = participantData.currentStreak;
+        }
+    } catch (e) {
+        console.error("Failed to fetch bootcamp streak for post", e);
+    }
+
     const postEvent: Omit<TimelineEvent, 'id'> = {
         type: 'user_post',
         timestamp: Date.now(),
@@ -553,7 +576,10 @@ export async function createUserPost(
         relatedDocPath: `users/${userId}/posts/${eventId}`,
         category: category,
         imageUrl: imageBase64, // Note: Saving base64 directly to Firestore doc. Keep images small (<500kb).
-        isGlobal: isGlobal
+        isGlobal: isGlobal,
+        streakAtPost: userData.currentStreak || 0,
+        bootcampStreakAtPost: bootcampStreakAtPost,
+        goalTextAtPost: goalTextAtPost
     };
 
     await setDoc(timelineDocRef, cleanFirestoreData(postEvent));

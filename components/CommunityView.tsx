@@ -204,7 +204,10 @@ export const CreatePostWidget: FC<{
                 category: category,
                 imageUrl: image || undefined,
                 visibleTo: newPost.visibleTo,
-                isGlobal: isGlobal
+                isGlobal: isGlobal,
+                streakAtPost: newPost.streakAtPost,
+                bootcampStreakAtPost: newPost.bootcampStreakAtPost,
+                goalTextAtPost: newPost.goalTextAtPost
             };
             
             onPostCreated(optimisticEvent);
@@ -543,9 +546,15 @@ const TimelineEventCard: FC<{
                         {stats && !isGlobalPost && (
                             <div className="mt-1 mb-2 w-full max-w-[200px]">
                                 <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
-                                    <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {stats.streak}</span>
+                                    <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost !== undefined ? event.streakAtPost : stats.streak}</span>
+                                    {event.bootcampStreakAtPost !== undefined && (
+                                        <>
+                                            <span className="text-neutral-300">|</span>
+                                            <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
+                                        </>
+                                    )}
                                     <span className="text-neutral-300">|</span>
-                                    <span className="truncate">{stats.goalText}</span>
+                                    <span className="truncate">{event.goalTextAtPost || stats.goalText}</span>
                                 </div>
                                 <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
                                     <div className="h-full bg-primary" style={{width: `${stats.progress}%`}} />

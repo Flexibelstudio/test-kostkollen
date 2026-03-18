@@ -685,7 +685,7 @@ export interface BootcampComment {
   authorUid: string;
   authorName: string;
   authorPhotoURL?: string;
-  authorGender?: 'male' | 'female' | 'other';
+  authorGender?: Gender;
   text: string;
   timestamp: number;
   likes: { [uid: string]: string };
@@ -697,7 +697,7 @@ export interface BootcampPost {
   authorUid: string;
   authorName: string;
   authorPhotoURL?: string;
-  authorGender?: 'male' | 'female' | 'other';
+  authorGender?: Gender;
   text: string;
   imageUrl?: string;
   timestamp: number;
@@ -705,6 +705,9 @@ export interface BootcampPost {
   likes: { [uid: string]: string };
   reactions?: Reactions;
   comments: BootcampComment[];
+  streakAtPost?: number;
+  bootcampStreakAtPost?: number;
+  goalTextAtPost?: string;
 }
 
 export interface TimelineEvent {
@@ -732,4 +735,9 @@ export interface TimelineEvent {
   gender: Gender;
   visibleTo?: string[];
   isGlobal?: boolean;
+  
+  // Historical context for posts
+  streakAtPost?: number;
+  bootcampStreakAtPost?: number;
+  goalTextAtPost?: string;
 }

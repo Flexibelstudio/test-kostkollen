@@ -1,6 +1,6 @@
 import { collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, updateDoc, onSnapshot, serverTimestamp, collectionGroup, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { BootcampCohort, BootcampParticipant, EveningReport, BootcampPost, BootcampComment } from '../types';
+import { BootcampCohort, BootcampParticipant, EveningReport, BootcampPost, BootcampComment, Gender } from '../types';
 
 // --- Cohort Management ---
 
@@ -367,9 +367,44 @@ export const createBootcampPost = async (
   imageUrl?: string,
   isOfficial?: boolean,
   authorPhotoURL?: string,
-  authorGender?: 'male' | 'female' | 'other'
+  authorGender?: Gender
 ): Promise<string> => {
   const postsRef = collection(db, 'bootcampCohorts', cohortId, 'posts');
+  
+  // Fetch user data for streak and goal text
+  let streakAtPost = 0;
+  let goalTextAtPost = 'Mål: Bibehålla';
+  try {
+    const userDocRef = doc(db, 'users', authorUid);
+    const userDocSnap = await getDoc(userDocRef);
+    if (userDocSnap.exists()) {
+      const userData = userDocSnap.data() as any;
+      streakAtPost = userData.currentStreak || 0;
+      
+      if (userData.measurementMethod === 'scale' && userData.desiredWeightChangeKg) {
+          goalTextAtPost = `Mål: ${userData.desiredWeightChangeKg > 0 ? '+' : ''}${userData.desiredWeightChangeKg} kg`;
+      } else {
+          if (userData.desiredFatMassChangeKg) goalTextAtPost = `Mål: ${userData.desiredFatMassChangeKg} kg fett`;
+          else if (userData.desiredMuscleMassChangeKg) goalTextAtPost = `Mål: +${userData.desiredMuscleMassChangeKg} kg muskler`;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch user data for post", e);
+  }
+
+  // Fetch bootcamp participant data for bootcamp streak
+  let bootcampStreakAtPost: number | undefined = undefined;
+  try {
+    const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', authorUid);
+    const participantSnap = await getDoc(participantRef);
+    if (participantSnap.exists()) {
+      const participantData = participantSnap.data() as any;
+      bootcampStreakAtPost = participantData.currentStreak;
+    }
+  } catch (e) {
+    console.error("Failed to fetch bootcamp streak for post", e);
+  }
+
   const newPost: Omit<BootcampPost, 'id'> = {
     cohortId,
     authorUid,
@@ -378,6 +413,9 @@ export const createBootcampPost = async (
     timestamp: Date.now(),
     likes: {},
     comments: [],
+    streakAtPost,
+    bootcampStreakAtPost,
+    goalTextAtPost
   };
   if (imageUrl) newPost.imageUrl = imageUrl;
   if (isOfficial !== undefined) newPost.isOfficial = isOfficial;
@@ -440,7 +478,7 @@ export const addBootcampComment = async (
   authorName: string,
   text: string,
   authorPhotoURL?: string,
-  authorGender?: 'male' | 'female' | 'other'
+  authorGender?: Gender
 ) => {
   const postRef = doc(db, 'bootcampCohorts', cohortId, 'posts', postId);
   const postSnap = await getDoc(postRef);
