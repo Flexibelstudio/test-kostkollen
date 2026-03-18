@@ -374,6 +374,7 @@ export const createBootcampPost = async (
   // Fetch user data for streak and goal text
   let streakAtPost = 0;
   let goalTextAtPost = 'Mål: Bibehålla';
+  let progressAtPost = 0;
   try {
     const userDocRef = doc(db, 'users', authorUid);
     const userDocSnap = await getDoc(userDocRef);
@@ -387,6 +388,36 @@ export const createBootcampPost = async (
           if (userData.desiredFatMassChangeKg) goalTextAtPost = `Mål: ${userData.desiredFatMassChangeKg} kg fett`;
           else if (userData.desiredMuscleMassChangeKg) goalTextAtPost = `Mål: +${userData.desiredMuscleMassChangeKg} kg muskler`;
       }
+      
+      // Calculate progress
+      const isScaleGoal = userData.measurementMethod === 'scale';
+      const isFatLossGoal = !isScaleGoal && userData.desiredFatMassChangeKg && userData.desiredFatMassChangeKg < 0;
+      const isMuscleGainGoal = !isScaleGoal && userData.desiredMuscleMassChangeKg && userData.desiredMuscleMassChangeKg > 0;
+      
+      let start, current, goalChange;
+      if (isFatLossGoal) {
+          start = userData.goalStartFatMassKg || userData.goalStartWeight;
+          current = userData.bodyFatMassKg || userData.currentWeightKg;
+          goalChange = userData.desiredFatMassChangeKg;
+      } else if (isMuscleGainGoal) {
+          start = userData.goalStartMuscleMassKg || userData.goalStartWeight;
+          current = userData.skeletalMuscleMassKg || userData.currentWeightKg;
+          goalChange = userData.desiredMuscleMassChangeKg;
+      } else {
+          start = userData.goalStartWeight;
+          current = userData.currentWeightKg;
+          goalChange = userData.desiredWeightChangeKg;
+      }
+      
+      if (userData.mainGoalCompleted) {
+          progressAtPost = 100;
+      } else if (start != null && current != null && goalChange) {
+          const totalChangeNeeded = Math.abs(goalChange);
+          let changeAchieved = goalChange > 0 ? current - start : start - current;
+          changeAchieved = Math.max(0, changeAchieved);
+          if (totalChangeNeeded < 0.01) progressAtPost = 100;
+          else progressAtPost = Math.max(0, Math.min((changeAchieved / totalChangeNeeded) * 100, 100));
+      }
     }
   } catch (e) {
     console.error("Failed to fetch user data for post", e);
@@ -399,7 +430,9 @@ export const createBootcampPost = async (
     const participantSnap = await getDoc(participantRef);
     if (participantSnap.exists()) {
       const participantData = participantSnap.data() as any;
-      bootcampStreakAtPost = participantData.currentStreak;
+      if (participantData.status === 'fas1' || participantData.status === 'fas2') {
+          bootcampStreakAtPost = participantData.currentStreak || 0;
+      }
     }
   } catch (e) {
     console.error("Failed to fetch bootcamp streak for post", e);
@@ -415,7 +448,8 @@ export const createBootcampPost = async (
     comments: [],
     streakAtPost,
     bootcampStreakAtPost,
-    goalTextAtPost
+    goalTextAtPost,
+    progressAtPost
   };
   if (imageUrl) newPost.imageUrl = imageUrl;
   if (isOfficial !== undefined) newPost.isOfficial = isOfficial;

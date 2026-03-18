@@ -14,14 +14,16 @@ import { CameraIcon, XMarkIcon } from './icons';
 import { Avatar } from './UserProfileModal';
 import { resizeImage } from './CommunityView';
 import ToastNotification from './ToastNotification';
+import { calculateProgressPercentage, getGoalShortDescription } from '../utils/progressUtils';
 
 interface BootcampFeedProps {
   cohortId: string;
   userProfile: UserProfileData;
   hideCreatePost?: boolean;
+  activeBootcamp?: any;
 }
 
-const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile, hideCreatePost }) => {
+const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile, hideCreatePost, activeBootcamp }) => {
   const [posts, setPosts] = useState<BootcampPost[]>([]);
   const [newPostText, setNewPostText] = useState('');
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
@@ -34,6 +36,21 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile, hide
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = (userProfile as any).role === 'admin' || userProfile.name === 'Karin' || userProfile.name === 'Börje';
+
+  const currentUserProgress = calculateProgressPercentage(
+      userProfile.measurementMethod,
+      userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+      userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+      userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+      userProfile.mainGoalCompleted
+  );
+
+  const currentUserGoalText = getGoalShortDescription(
+      userProfile.measurementMethod,
+      userProfile.desiredWeightChangeKg,
+      userProfile.desiredFatMassChangeKg,
+      userProfile.desiredMuscleMassChangeKg
+  );
 
   useEffect(() => {
     if (!cohortId) return;
@@ -256,25 +273,30 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile, hide
                         </p>
                         
                         {/* --- COMPACT STATS ROW --- */}
-                        {!post.isOfficial && (post.streakAtPost !== undefined || post.goalTextAtPost) && (
+                        {!post.isOfficial && (post.streakAtPost !== undefined || post.goalTextAtPost || post.userId === auth.currentUser?.uid) && (
                             <div className="mt-1 mb-2 w-full max-w-[200px]">
                                 <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
                                     {post.streakAtPost !== undefined && (
                                         <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {post.streakAtPost}</span>
                                     )}
-                                    {post.bootcampStreakAtPost !== undefined && (
+                                    {(post.bootcampStreakAtPost !== undefined || (post.userId === auth.currentUser?.uid && activeBootcamp)) && (
                                         <>
                                             {post.streakAtPost !== undefined && <span className="text-neutral-300">|</span>}
-                                            <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {post.bootcampStreakAtPost}</span>
+                                            <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {post.bootcampStreakAtPost !== undefined ? post.bootcampStreakAtPost : (activeBootcamp?.currentStreak || 0)}</span>
                                         </>
                                     )}
-                                    {post.goalTextAtPost && (
+                                    {(post.goalTextAtPost || post.userId === auth.currentUser?.uid) && (
                                         <>
-                                            {(post.streakAtPost !== undefined || post.bootcampStreakAtPost !== undefined) && <span className="text-neutral-300">|</span>}
-                                            <span className="truncate">{post.goalTextAtPost}</span>
+                                            {(post.streakAtPost !== undefined || post.bootcampStreakAtPost !== undefined || (post.userId === auth.currentUser?.uid && activeBootcamp)) && <span className="text-neutral-300">|</span>}
+                                            <span className="truncate">{post.goalTextAtPost || currentUserGoalText}</span>
                                         </>
                                     )}
                                 </div>
+                                {(post.progressAtPost !== undefined || post.userId === auth.currentUser?.uid) && (
+                                    <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
+                                        <div className="h-full bg-primary" style={{width: `${post.progressAtPost !== undefined ? post.progressAtPost : currentUserProgress}%`}} />
+                                    </div>
+                                )}
                             </div>
                         )}
                         {/* ------------------------- */}

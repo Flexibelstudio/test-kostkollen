@@ -708,6 +708,7 @@ export interface BootcampPost {
   streakAtPost?: number;
   bootcampStreakAtPost?: number;
   goalTextAtPost?: string;
+  progressAtPost?: number;
 }
 
 export interface TimelineEvent {
@@ -740,4 +741,5 @@ export interface TimelineEvent {
   streakAtPost?: number;
   bootcampStreakAtPost?: number;
   goalTextAtPost?: string;
+  progressAtPost?: number;
 }

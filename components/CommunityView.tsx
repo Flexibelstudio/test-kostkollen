@@ -67,80 +67,7 @@ export const resizeImage = (file: File, maxSize: number): Promise<string> => {
     });
 };
 
-const calculateProgressPercentage = (
-    method: 'scale' | 'inbody' | undefined,
-    startWeight?: number, currentWeight?: number, desiredWeightChange?: number,
-    startFat?: number, currentFat?: number, desiredFatChange?: number,
-    startMuscle?: number, currentMuscle?: number, desiredMuscleChange?: number,
-    isGoalCompleted?: boolean
-): number => {
-    if (isGoalCompleted) return 100;
-
-    let start, current, goalChange;
-
-    const isScaleGoal = method === 'scale';
-    const isFatLossGoal = !isScaleGoal && desiredFatChange && desiredFatChange < 0;
-    const isMuscleGainGoal = !isScaleGoal && desiredMuscleChange && desiredMuscleChange > 0;
-
-    if (isFatLossGoal) {
-        if (currentFat != null && startFat != null) {
-            start = startFat;
-            current = currentFat;
-            goalChange = desiredFatChange;
-        } else {
-            start = startWeight;
-            current = currentWeight;
-            goalChange = desiredFatChange;
-        }
-    } else if (isMuscleGainGoal) {
-        if (currentMuscle != null && startMuscle != null) {
-            start = startMuscle;
-            current = currentMuscle;
-            goalChange = desiredMuscleChange;
-        } else {
-            start = startWeight;
-            current = currentWeight;
-            goalChange = desiredMuscleChange;
-        }
-    } else {
-        start = startWeight;
-        current = currentWeight;
-        goalChange = desiredWeightChange;
-    }
-    
-    if (start == null || current == null || !goalChange) return 0;
-    
-    const totalChangeNeeded = Math.abs(goalChange);
-    let changeAchieved;
-    
-    if (goalChange > 0) { 
-        changeAchieved = current - start;
-    } else { 
-        changeAchieved = start - current;
-    }
-    
-    changeAchieved = Math.max(0, changeAchieved);
-
-    if (totalChangeNeeded < 0.01) return 100;
-
-    const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
-    return Math.max(0, Math.min(progressRaw, 100));
-};
-
-const getGoalShortDescription = (
-    method: 'scale' | 'inbody' | undefined,
-    desiredWeightChange?: number,
-    desiredFatChange?: number,
-    desiredMuscleChange?: number
-): string => {
-    if (method === 'scale' && desiredWeightChange) {
-        return `Mål: ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange} kg`;
-    } else {
-        if (desiredFatChange) return `Mål: ${desiredFatChange} kg fett`;
-        if (desiredMuscleChange) return `Mål: +${desiredMuscleChange} kg muskler`;
-    }
-    return 'Mål: Bibehålla';
-};
+import { calculateProgressPercentage, getGoalShortDescription } from '../utils/progressUtils';
 
 
 // --- SUB-COMPONENTS ---
@@ -207,7 +134,8 @@ export const CreatePostWidget: FC<{
                 isGlobal: isGlobal,
                 streakAtPost: newPost.streakAtPost,
                 bootcampStreakAtPost: newPost.bootcampStreakAtPost,
-                goalTextAtPost: newPost.goalTextAtPost
+                goalTextAtPost: newPost.goalTextAtPost,
+                progressAtPost: newPost.progressAtPost
             };
             
             onPostCreated(optimisticEvent);
@@ -447,7 +375,8 @@ const TimelineEventCard: FC<{
     lastViewTimestamp: number | null;
     buddyDetails: BuddyDetails[]; // Passed for stats lookup
     currentStreak: number; // Current user's streak
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak }) => {
+    activeBootcamp?: any;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp }) => {
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -473,7 +402,7 @@ const TimelineEventCard: FC<{
     const isCurrentUser = event.userId === currentUser.uid;
     
     const stats = useMemo(() => {
-        let s = { streak: 0, progress: 0, goalText: '' };
+        let s = { streak: 0, progress: 0, goalText: '', bootcampStreak: undefined as number | undefined };
         
         if (isCurrentUser) {
             s.streak = currentStreak;
@@ -485,6 +414,9 @@ const TimelineEventCard: FC<{
                 userProfile.mainGoalCompleted
             );
             s.goalText = getGoalShortDescription(userProfile.measurementMethod, userProfile.desiredWeightChangeKg, userProfile.desiredFatMassChangeKg, userProfile.desiredMuscleMassChangeKg);
+            if (activeBootcamp) {
+                s.bootcampStreak = activeBootcamp.currentStreak || 0;
+            }
         } else {
             const buddy = buddyDetails.find(b => b.uid === event.userId);
             if (buddy) {
@@ -502,7 +434,7 @@ const TimelineEventCard: FC<{
             }
         }
         return s;
-    }, [isCurrentUser, currentStreak, userProfile, buddyDetails, event.userId]);
+    }, [isCurrentUser, currentStreak, userProfile, buddyDetails, event.userId, activeBootcamp]);
 
 
     const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
@@ -547,17 +479,17 @@ const TimelineEventCard: FC<{
                             <div className="mt-1 mb-2 w-full max-w-[200px]">
                                 <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
                                     <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost !== undefined ? event.streakAtPost : stats.streak}</span>
-                                    {event.bootcampStreakAtPost !== undefined && (
+                                    {(event.bootcampStreakAtPost !== undefined || stats.bootcampStreak !== undefined) && (
                                         <>
                                             <span className="text-neutral-300">|</span>
-                                            <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
+                                            <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost !== undefined ? event.bootcampStreakAtPost : stats.bootcampStreak}</span>
                                         </>
                                     )}
                                     <span className="text-neutral-300">|</span>
                                     <span className="truncate">{event.goalTextAtPost || stats.goalText}</span>
                                 </div>
                                 <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
-                                    <div className="h-full bg-primary" style={{width: `${stats.progress}%`}} />
+                                    <div className="h-full bg-primary" style={{width: `${event.progressAtPost !== undefined ? event.progressAtPost : stats.progress}%`}} />
                                 </div>
                             </div>
                         )}
@@ -1161,6 +1093,7 @@ export const CommunityView: React.FC<{
   setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
   buddyDetails: BuddyDetails[];
   isLoading: boolean;
+  activeBootcamp?: any;
   onDataChanged: () => void;
   lastViewTimestamp: number | null;
   currentStreak: number;

@@ -426,7 +426,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
 
       {activeTab === 'feed' && (
         <div className="h-[calc(100vh-250px)]">
-          <BootcampFeed cohortId={participant.cohortId} userProfile={userProfile} />
+          <BootcampFeed cohortId={participant.cohortId} userProfile={userProfile} activeBootcamp={participant} />
         </div>
       )}
     </div>

@@ -1900,6 +1900,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
               setTimelineEvents={setTimelineEvents}
               buddyDetails={buddyDetails}
               isLoading={isLoadingCommunityData}
+              activeBootcamp={activeBootcamp}
               onDataChanged={loadCommunityData}
               lastViewTimestamp={lastCommunityViewTimestamp}
               currentStreak={streakData.currentStreak}

@@ -538,13 +538,45 @@ export async function createUserPost(
     const eventId = `post_${userId}_${Date.now()}`;
     const timelineDocRef = doc(db, "communityTimeline", eventId);
 
-    // Calculate goal text
+    // Calculate goal text and progress
     let goalTextAtPost = 'Mål: Bibehålla';
+    let progressAtPost = 0;
+    
     if (userData.measurementMethod === 'scale' && userData.desiredWeightChangeKg) {
         goalTextAtPost = `Mål: ${userData.desiredWeightChangeKg > 0 ? '+' : ''}${userData.desiredWeightChangeKg} kg`;
     } else {
         if (userData.desiredFatMassChangeKg) goalTextAtPost = `Mål: ${userData.desiredFatMassChangeKg} kg fett`;
         else if (userData.desiredMuscleMassChangeKg) goalTextAtPost = `Mål: +${userData.desiredMuscleMassChangeKg} kg muskler`;
+    }
+    
+    // Calculate progress
+    const isScaleGoal = userData.measurementMethod === 'scale';
+    const isFatLossGoal = !isScaleGoal && userData.desiredFatMassChangeKg && userData.desiredFatMassChangeKg < 0;
+    const isMuscleGainGoal = !isScaleGoal && userData.desiredMuscleMassChangeKg && userData.desiredMuscleMassChangeKg > 0;
+    
+    let start, current, goalChange;
+    if (isFatLossGoal) {
+        start = userData.goalStartFatMassKg || userData.goalStartWeight;
+        current = userData.bodyFatMassKg || userData.currentWeightKg;
+        goalChange = userData.desiredFatMassChangeKg;
+    } else if (isMuscleGainGoal) {
+        start = userData.goalStartMuscleMassKg || userData.goalStartWeight;
+        current = userData.skeletalMuscleMassKg || userData.currentWeightKg;
+        goalChange = userData.desiredMuscleMassChangeKg;
+    } else {
+        start = userData.goalStartWeight;
+        current = userData.currentWeightKg;
+        goalChange = userData.desiredWeightChangeKg;
+    }
+    
+    if (userData.mainGoalCompleted) {
+        progressAtPost = 100;
+    } else if (start != null && current != null && goalChange) {
+        const totalChangeNeeded = Math.abs(goalChange);
+        let changeAchieved = goalChange > 0 ? current - start : start - current;
+        changeAchieved = Math.max(0, changeAchieved);
+        if (totalChangeNeeded < 0.01) progressAtPost = 100;
+        else progressAtPost = Math.max(0, Math.min((changeAchieved / totalChangeNeeded) * 100, 100));
     }
 
     // Fetch active bootcamp for bootcamp streak
@@ -554,7 +586,9 @@ export async function createUserPost(
         const snapshot = await getDocsSafe(q);
         if (!snapshot.empty) {
             const participantData = snapshot.docs[0].data() as any;
-            bootcampStreakAtPost = participantData.currentStreak;
+            if (participantData.status === 'fas1' || participantData.status === 'fas2') {
+                bootcampStreakAtPost = participantData.currentStreak || 0;
+            }
         }
     } catch (e) {
         console.error("Failed to fetch bootcamp streak for post", e);
@@ -579,7 +613,8 @@ export async function createUserPost(
         isGlobal: isGlobal,
         streakAtPost: userData.currentStreak || 0,
         bootcampStreakAtPost: bootcampStreakAtPost,
-        goalTextAtPost: goalTextAtPost
+        goalTextAtPost: goalTextAtPost,
+        progressAtPost: progressAtPost
     };
 
     await setDoc(timelineDocRef, cleanFirestoreData(postEvent));
