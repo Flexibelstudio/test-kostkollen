@@ -294,7 +294,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
             <UserProfileModal
               initialProfile={tempProfile}
               onSave={async (updatedProfile, updatedGoals, newPhotoDataUrl) => {
-                updatedProfile.coachStyle = 'tough'; // Force Börje
+                updatedProfile.coachStyle = 'hard'; // Force Börje
                 
                 // Set goal date to 12 weeks (84 days) from start date or today
                 const startDate = (typeof selectedCohort === 'object' && selectedCohort !== null && 'startDate' in selectedCohort) 

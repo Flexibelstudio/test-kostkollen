@@ -325,7 +325,7 @@ export async function fetchInitialAppData(userId: string) {
       completedGoals: userDocData.completedGoals ?? [],
       notificationSettings: userDocData.notificationSettings,
       preferredWeighInDay: userDocData.preferredWeighInDay,
-      coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
+      coachStyle: (userDocData.coachStyle === 'tough' ? 'hard' : userDocData.coachStyle) || DEFAULT_USER_PROFILE.coachStyle,
       subscriptionStatus: userDocData.subscriptionStatus,
       currentPeriodEnd: userDocData.currentPeriodEnd,
     };

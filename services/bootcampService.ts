@@ -168,6 +168,25 @@ export const getUserActiveBootcamp = async (userId: string): Promise<BootcampPar
   }
 };
 
+export const subscribeToUserActiveBootcamp = (userId: string, callback: (participant: BootcampParticipant | null) => void) => {
+  if (!db) {
+    callback(null);
+    return () => {};
+  }
+
+  const q = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
+  return onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      callback(null);
+    } else {
+      callback(snapshot.docs[0].data() as BootcampParticipant);
+    }
+  }, (error) => {
+    console.error("Error subscribing to user bootcamp:", error);
+    callback(null);
+  });
+};
+
 export const subscribeToUserEveningReports = (cohortId: string, userId: string, callback: (reports: EveningReport[]) => void) => {
   if (!db) return () => {};
 

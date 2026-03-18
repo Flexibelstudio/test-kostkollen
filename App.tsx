@@ -75,7 +75,7 @@ import SubscriptionModal from './components/SubscriptionModal.tsx';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
-import { getUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports } from './services/bootcampService.ts';
+import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports } from './services/bootcampService.ts';
 import {
   InformationCircleIcon, AICoachIcon,
   PencilIcon,
@@ -738,9 +738,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
   useEffect(() => {
       if (currentUser) {
-          getUserActiveBootcamp(currentUser.uid).then(bootcamp => {
+          const unsubscribe = subscribeToUserActiveBootcamp(currentUser.uid, (bootcamp) => {
               setActiveBootcamp(bootcamp);
           });
+          return () => unsubscribe();
       } else {
           setActiveBootcamp(null);
       }
