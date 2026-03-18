@@ -19,7 +19,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showFeed, setShowFeed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'report' | 'feed'>('report');
 
   // Form state
   const [loggedAllMeals, setLoggedAllMeals] = useState(false);
@@ -120,7 +120,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         loggedAllMeals,
         comment,
         isGreenDay
-      });
+      }, userProfile);
       
       if (editingYesterday) {
         if (isGreenDay) {
@@ -158,23 +158,6 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       setIsSubmitting(false);
     }
   };
-
-  if (showFeed) {
-    return (
-      <div className="animate-fade-in h-[calc(100vh-100px)] flex flex-col">
-        <button 
-          onClick={() => setShowFeed(false)}
-          className="flex items-center gap-2 text-neutral-dark hover:text-primary transition-colors mb-4 font-bold"
-        >
-          <ArrowLeftIcon className="w-5 h-5" />
-          Tillbaka till Dashboard
-        </button>
-        <div className="flex-1 overflow-hidden">
-          <BootcampFeed cohortId={participant.cohortId} userProfile={userProfile} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="animate-fade-in pb-20">
@@ -227,9 +210,26 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Today's Report */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Tabs */}
+      <div className="flex -mb-px border-b border-neutral-light overflow-x-auto hide-scrollbar mb-6">
+        <button 
+          onClick={() => setActiveTab('report')} 
+          className={`py-3 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'report' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-primary'}`}
+        >
+          Min Status
+        </button>
+        <button 
+          onClick={() => setActiveTab('feed')} 
+          className={`py-3 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'feed' ? 'border-primary text-primary' : 'border-transparent text-neutral-500 hover:text-primary'}`}
+        >
+          Truppen
+        </button>
+      </div>
+
+      {activeTab === 'report' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column: Today's Report */}
+          <div className="lg:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
@@ -399,24 +399,6 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         {/* Right Column: History & Chat */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
-            <h3 className="font-bold text-neutral-dark mb-2 flex items-center gap-2">
-              <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary" />
-              {participant.cohortId === 'solo' ? 'Bootcamp-flödet' : 'Truppens Flöde'}
-            </h3>
-            <p className="text-sm text-neutral-500 mb-4">
-              {participant.cohortId === 'solo' 
-                ? 'Följ General Börjes uppdateringar och tips under din resa.' 
-                : 'Kommunicera med din trupp, peppa varandra och dela med er av tips.'}
-            </p>
-            <button 
-              onClick={() => setShowFeed(true)}
-              className="w-full py-3 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors"
-            >
-              Öppna Flödet
-            </button>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
             <h3 className="font-bold text-neutral-dark mb-4 flex items-center gap-2">
               <CalendarIcon className="w-5 h-5 text-primary" />
               Historik (Senaste 7 dagarna)
@@ -440,6 +422,13 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           </div>
         </div>
       </div>
+      )}
+
+      {activeTab === 'feed' && (
+        <div className="h-[calc(100vh-250px)]">
+          <BootcampFeed cohortId={participant.cohortId} userProfile={userProfile} />
+        </div>
+      )}
     </div>
   );
 };

@@ -321,7 +321,8 @@ export const recalculateStreak = async (cohortId: string, userId: string) => {
 export const submitEveningReport = async (
   cohortId: string,
   userId: string,
-  report: Omit<EveningReport, 'createdAt'>
+  report: Omit<EveningReport, 'createdAt'>,
+  userProfile: { name?: string; photoURL?: string }
 ) => {
   if (!db) throw new Error("Firestore not initialized");
 
@@ -365,7 +366,8 @@ export const createBootcampPost = async (
   text: string,
   imageUrl?: string,
   isOfficial?: boolean,
-  authorPhotoURL?: string
+  authorPhotoURL?: string,
+  authorGender?: 'male' | 'female' | 'other'
 ): Promise<string> => {
   const postsRef = collection(db, 'bootcampCohorts', cohortId, 'posts');
   const newPost: Omit<BootcampPost, 'id'> = {
@@ -380,6 +382,7 @@ export const createBootcampPost = async (
   if (imageUrl) newPost.imageUrl = imageUrl;
   if (isOfficial !== undefined) newPost.isOfficial = isOfficial;
   if (authorPhotoURL) newPost.authorPhotoURL = authorPhotoURL;
+  if (authorGender) newPost.authorGender = authorGender;
 
   const docRef = await addDoc(postsRef, newPost);
   return docRef.id;
@@ -400,13 +403,44 @@ export const likeBootcampPost = async (cohortId: string, postId: string, userId:
   }
 };
 
+export const reactToBootcampPost = async (cohortId: string, postId: string, userId: string, userName: string, emoji: string) => {
+  const postRef = doc(db, 'bootcampCohorts', cohortId, 'posts', postId);
+  const postSnap = await getDoc(postRef);
+  if (postSnap.exists()) {
+    const postData = postSnap.data() as BootcampPost;
+    const currentReactions = postData.reactions || {};
+    
+    // Check if user already reacted with this emoji
+    const usersWhoReacted = currentReactions[emoji] || {};
+    const hasReacted = !!usersWhoReacted[userId];
+    
+    if (hasReacted) {
+      // Remove reaction
+      delete currentReactions[emoji][userId];
+      // Clean up empty emoji objects
+      if (Object.keys(currentReactions[emoji]).length === 0) {
+        delete currentReactions[emoji];
+      }
+    } else {
+      // Add reaction
+      if (!currentReactions[emoji]) {
+        currentReactions[emoji] = {};
+      }
+      currentReactions[emoji][userId] = userName;
+    }
+    
+    await updateDoc(postRef, { reactions: currentReactions });
+  }
+};
+
 export const addBootcampComment = async (
   cohortId: string,
   postId: string,
   authorUid: string,
   authorName: string,
   text: string,
-  authorPhotoURL?: string
+  authorPhotoURL?: string,
+  authorGender?: 'male' | 'female' | 'other'
 ) => {
   const postRef = doc(db, 'bootcampCohorts', cohortId, 'posts', postId);
   const postSnap = await getDoc(postRef);
@@ -422,6 +456,7 @@ export const addBootcampComment = async (
       likes: {}
     };
     if (authorPhotoURL) newComment.authorPhotoURL = authorPhotoURL;
+    if (authorGender) newComment.authorGender = authorGender;
     
     await updateDoc(postRef, { comments: [...currentComments, newComment] });
   }

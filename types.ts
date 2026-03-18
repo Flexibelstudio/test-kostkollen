@@ -685,6 +685,7 @@ export interface BootcampComment {
   authorUid: string;
   authorName: string;
   authorPhotoURL?: string;
+  authorGender?: 'male' | 'female' | 'other';
   text: string;
   timestamp: number;
   likes: { [uid: string]: string };
@@ -696,11 +697,13 @@ export interface BootcampPost {
   authorUid: string;
   authorName: string;
   authorPhotoURL?: string;
+  authorGender?: 'male' | 'female' | 'other';
   text: string;
   imageUrl?: string;
   timestamp: number;
   isOfficial?: boolean; // If true, posted by General Börje
   likes: { [uid: string]: string };
+  reactions?: Reactions;
   comments: BootcampComment[];
 }
 

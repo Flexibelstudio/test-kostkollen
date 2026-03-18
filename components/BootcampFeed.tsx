@@ -4,6 +4,7 @@ import {
   subscribeToBootcampPosts, 
   createBootcampPost, 
   likeBootcampPost, 
+  reactToBootcampPost,
   addBootcampComment, 
   likeBootcampComment 
 } from '../services/bootcampService';
@@ -93,7 +94,8 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
         text,
         newPostImage || undefined,
         isOfficial,
-        authorPhotoURL
+        authorPhotoURL,
+        isOfficial ? undefined : userProfile.gender
       );
       setNewPostText('');
       setNewPostImage(null);
@@ -115,6 +117,15 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
     }
   };
 
+  const handleReactToPost = async (postId: string, emoji: string) => {
+    if (!auth.currentUser) return;
+    try {
+      await reactToBootcampPost(cohortId, postId, auth.currentUser.uid, userProfile.name || 'Okänd', emoji);
+    } catch (error) {
+      console.error('Error reacting to post:', error);
+    }
+  };
+
   const handleAddComment = async (postId: string) => {
     if (!auth.currentUser || !commentText.trim()) return;
     try {
@@ -124,7 +135,8 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
         auth.currentUser.uid,
         userProfile.name || 'Okänd',
         commentText.trim(),
-        userProfile.photoURL
+        userProfile.photoURL,
+        userProfile.gender
       );
       setCommentText('');
       setCommentingOn(null);
@@ -141,20 +153,6 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
     } catch (error) {
       console.error('Error liking comment:', error);
     }
-  };
-
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 60) return `${diffMins} min sedan`;
-    if (diffHours < 24) return `${diffHours} h sedan`;
-    if (diffDays === 1) return 'Igår';
-    return date.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
   };
 
   return (
@@ -279,47 +277,81 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
             const likeCount = Object.keys(post.likes || {}).length;
 
             return (
-              <div key={post.id} className={`bg-white p-4 rounded-2xl shadow-sm border ${post.isOfficial ? 'border-primary/50 bg-primary/5' : 'border-neutral-100'}`}>
+              <div key={post.id} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
+                post.isOfficial
+                  ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                  : 'bg-white dark:bg-neutral-darker border-neutral-light'
+              }`}>
                 {/* Post Header */}
-                <div className="flex items-center gap-3 mb-3">
-                  {post.isOfficial ? (
-                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xl">
-                      B
-                    </div>
-                  ) : (
-                    <Avatar photoURL={post.authorPhotoURL} size={40} />
-                  )}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-neutral-dark">{post.authorName}</span>
-                      {post.isOfficial && (
-                        <span className="text-xs bg-primary text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                          Generalen
+                <div className="flex items-start gap-3">
+                  <Avatar photoURL={post.isOfficial ? '/favicon.png' : post.authorPhotoURL} gender={post.authorGender} size={42} className="flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <div className="flex flex-col">
+                        <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
+                          <span className="font-bold">{post.isOfficial ? 'General Börje' : post.authorName}</span>
+                          {post.isOfficial && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              Officiellt
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-2 ml-2">
+                        <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
+                          {new Date(post.timestamp).toLocaleString('sv-SE', {
+                            ...(new Date(post.timestamp).toDateString() === new Date().toDateString() 
+                              ? { hour: '2-digit', minute: '2-digit' } 
+                              : { month: 'short', day: 'numeric' })
+                          })}
                         </span>
+                      </div>
+                    </div>
+
+                    {/* Post Content */}
+                    <div className="mt-1">
+                      <p className="text-base text-neutral-dark whitespace-pre-wrap leading-relaxed break-words">{post.text}</p>
+                      
+                      {post.imageUrl && (
+                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px] bg-white flex items-center justify-center">
+                          <img 
+                            src={post.imageUrl} 
+                            alt="Inläggsbild" 
+                            className="max-w-full max-h-[400px] object-contain cursor-pointer hover:opacity-95 transition-opacity" 
+                            loading="lazy"
+                          />
+                        </div>
                       )}
                     </div>
-                    <span className="text-xs text-neutral-500">{formatTime(post.timestamp)}</span>
                   </div>
                 </div>
 
-                {/* Post Content */}
-                <p className="text-neutral-dark whitespace-pre-wrap mb-3">{post.text}</p>
-                {post.imageUrl && (
-                  <img src={post.imageUrl} alt="Post attachment" className="rounded-xl w-full max-h-96 object-cover mb-3" />
-                )}
-
                 {/* Post Actions */}
-                <div className="flex items-center gap-4 pt-3 border-t border-neutral-100">
-                  <button 
-                    onClick={() => handleLikePost(post.id)}
-                    className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${isLiked ? 'text-red-500' : 'text-neutral-500 hover:text-red-500'}`}
-                  >
-                    {isLiked ? <Heart className="w-5 h-5 fill-current" /> : <Heart className="w-5 h-5" />}
-                    <span>{likeCount > 0 ? likeCount : 'Peppa'}</span>
-                  </button>
+                <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-neutral-light/50 ml-[50px]">
+                  {['👍', '💪', '🔥', '🎉', '❤️'].map(emoji => {
+                    const usersWhoReacted = (post.reactions || {})[emoji] || {};
+                    const count = Object.keys(usersWhoReacted).length;
+                    const hasReacted = auth.currentUser && !!usersWhoReacted[auth.currentUser.uid];
+
+                    return (
+                      <button 
+                        key={emoji} 
+                        onClick={() => handleReactToPost(post.id, emoji)} 
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all active:scale-95 border
+                          ${hasReacted 
+                            ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
+                            : 'bg-transparent border-transparent hover:bg-neutral-light text-neutral-500 hover:text-neutral-dark'
+                          }`}
+                      >
+                        <span className={`text-lg transition-transform ${hasReacted ? 'scale-110' : ''}`}>{emoji}</span>
+                        {count > 0 && <span className="font-semibold text-xs">{count}</span>}
+                      </button>
+                    )
+                  })}
+                  
                   <button 
                     onClick={() => setCommentingOn(commentingOn === post.id ? null : post.id)}
-                    className="flex items-center gap-1.5 text-sm font-medium text-neutral-500 hover:text-primary transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-neutral-500 hover:text-primary transition-colors ml-auto"
                   >
                     <MessageCircle className="w-5 h-5" />
                     <span>{post.comments?.length || 0} Kommentarer</span>
@@ -328,26 +360,32 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
 
                 {/* Comments Section */}
                 {(post.comments?.length > 0 || commentingOn === post.id) && (
-                  <div className="mt-4 space-y-3 bg-neutral-50 p-3 rounded-xl">
+                  <div className="space-y-3 mt-4 ml-[50px]">
                     {post.comments?.map(comment => {
                       const isCommentLiked = auth.currentUser && comment.likes && comment.likes[auth.currentUser.uid];
                       const commentLikeCount = Object.keys(comment.likes || {}).length;
                       
                       return (
-                        <div key={comment.id} className="flex gap-2">
-                          <Avatar photoURL={comment.authorPhotoURL} size={32} />
+                        <div key={comment.id} className="flex items-start gap-2 group">
+                          <Avatar photoURL={comment.authorPhotoURL} gender={comment.authorGender} size={28} />
                           <div className="flex-1">
-                            <div className="bg-white p-2.5 rounded-2xl rounded-tl-none border border-neutral-200 shadow-sm">
-                              <span className="font-bold text-sm text-neutral-dark block">{comment.authorName}</span>
-                              <span className="text-sm text-neutral-700">{comment.text}</span>
+                            <div 
+                              onDoubleClick={() => handleLikeComment(post.id, comment.id)}
+                              className="bg-neutral-light/60 rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out"
+                            >
+                              <p className="font-bold text-neutral-dark text-xs mb-0.5">{comment.authorUid === auth.currentUser?.uid ? 'Du' : comment.authorName}</p>
+                              <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>
                             </div>
-                            <div className="flex items-center gap-3 mt-1 ml-2 text-xs text-neutral-500">
-                              <span>{formatTime(comment.timestamp)}</span>
+                            <div className="flex items-center gap-3 mt-1 ml-1">
+                              <span className="text-[10px] text-neutral-400">
+                                {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
+                              </span>
                               <button 
                                 onClick={() => handleLikeComment(post.id, comment.id)}
-                                className={`font-medium ${isCommentLiked ? 'text-red-500' : 'hover:text-red-500'}`}
+                                className={`text-xs font-semibold flex items-center gap-1 transition-colors ${isCommentLiked ? 'text-red-500' : 'text-neutral-400 hover:text-red-500'}`}
                               >
-                                {isCommentLiked ? 'Peppad' : 'Peppa'} {commentLikeCount > 0 && `(${commentLikeCount})`}
+                                {isCommentLiked ? 'Gillat' : 'Gilla'}
+                                {commentLikeCount > 0 && <span className="bg-white px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">{commentLikeCount} ❤️</span>}
                               </button>
                             </div>
                           </div>
@@ -356,15 +394,15 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
                     })}
 
                     {commentingOn === post.id && (
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex items-center gap-3 mt-4">
                         <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
-                        <div className="flex-1 flex gap-2">
+                        <div className="flex-1 relative">
                           <input
                             type="text"
                             value={commentText}
                             onChange={(e) => setCommentText(e.target.value)}
                             placeholder="Skriv en kommentar..."
-                            className="flex-1 p-2 text-sm rounded-full border border-neutral-300 focus:ring-2 focus:ring-primary focus:border-transparent"
+                            className="w-full bg-neutral-light/30 border border-neutral-light focus:border-primary focus:ring-1 focus:ring-primary rounded-full py-2.5 pl-4 pr-12 text-sm transition-all"
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
@@ -375,9 +413,9 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile }) =>
                           <button 
                             onClick={() => handleAddComment(post.id)}
                             disabled={!commentText.trim()}
-                            className="p-2 bg-primary text-white rounded-full disabled:opacity-50 hover:bg-primary-darker"
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 bg-primary text-white rounded-full disabled:opacity-50 hover:bg-primary-darker transition-transform active:scale-95"
                           >
-                            <Send className="w-4 h-4" />
+                            <Send className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
