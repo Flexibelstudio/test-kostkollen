@@ -87,6 +87,41 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text.`;
   }
 };
 
+export const generateBorjePost = async (brief: string): Promise<string> => {
+  const prompt = `Du är General Börje, en tuff men rättvis militär hälsocoach i appen Kostloggen.
+Din persona: Du är rak på sak, använder militär jargong (truppen, givakt, framåt marsch, pannben), men bryr dig genuint om dina rekryter. Du daltar inte.
+
+Din uppgift är att skriva ett inlägg till truppen (communityt) baserat på följande instruktion/brief från en administratör:
+"${brief}"
+
+Instruktioner:
+1. Skriv ett engagerande inlägg på SVENSKA som General Börje.
+2. Inlägget ska låta som att det kommer direkt från General Börje.
+3. Håll det lagom långt (ca 3-6 meningar).
+4. Avsluta gärna med en uppmaning eller fråga till truppen.
+
+Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text. Börja INTE med /general.`;
+
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL_NAME_TEXT,
+      contents: prompt,
+      config: {
+        temperature: 0.8,
+      },
+    });
+    
+    const text = response.text;
+    if (!text || text.trim().length === 0) {
+        throw new Error("Empty response from AI");
+    }
+    return text.trim();
+  } catch (error) {
+    console.error("Error generating Borje post:", error);
+    throw new Error("Kunde inte generera inlägg just nu.");
+  }
+};
+
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
   const { userProfile, summary, currentStreak, yesterdayBootcampReport } = data;
   const style = userProfile.coachStyle || 'balanced';
