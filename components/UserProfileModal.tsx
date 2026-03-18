@@ -250,24 +250,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   ];
 
   const getInitialProfileForState = useCallback(() => {
-    // For onboarding, clear some fields to ensure a fresh start
+    // For onboarding, we want to use any pre-filled data (like weight from Bootcamp onboarding)
+    // but ensure we have sensible defaults for other fields.
     if (isOnboarding) {
       return {
         name: initialProfile?.name || undefined,
         photoURL: initialProfile?.photoURL || undefined,
-        currentWeightKg: undefined,
-        heightCm: undefined,
-        ageYears: undefined,
+        currentWeightKg: initialProfile?.currentWeightKg || undefined,
+        heightCm: initialProfile?.heightCm || undefined,
+        ageYears: initialProfile?.ageYears || undefined,
         gender: initialProfile?.gender || DEFAULT_USER_PROFILE.gender,
         activityLevel: initialProfile?.activityLevel || DEFAULT_USER_PROFILE.activityLevel,
-        goalType: deriveEffectiveGoalType({}),
-        measurementMethod: 'inbody',
-        desiredWeightChangeKg: undefined,
-        skeletalMuscleMassKg: undefined,
-        bodyFatMassKg: undefined,
-        desiredFatMassChangeKg: undefined,
-        desiredMuscleMassChangeKg: undefined,
-        goalCompletionDate: undefined,
+        goalType: initialProfile?.goalType || deriveEffectiveGoalType({}),
+        measurementMethod: initialProfile?.measurementMethod || 'inbody',
+        desiredWeightChangeKg: initialProfile?.desiredWeightChangeKg || undefined,
+        skeletalMuscleMassKg: initialProfile?.skeletalMuscleMassKg || undefined,
+        bodyFatMassKg: initialProfile?.bodyFatMassKg || undefined,
+        desiredFatMassChangeKg: initialProfile?.desiredFatMassChangeKg || undefined,
+        desiredMuscleMassChangeKg: initialProfile?.desiredMuscleMassChangeKg || undefined,
+        goalCompletionDate: initialProfile?.goalCompletionDate || undefined,
         isCourseActive: false,
         courseInterest: false,
         isSearchable: true, // Default to searchable for new users
@@ -517,7 +518,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     ? (
         !!profile.name?.trim() &&
         !!profile.gender &&
-        !!profile.coachStyle &&
+        (isBootcampOnboarding || !!profile.coachStyle) &&
         (profile.currentWeightKg || 0) > 0 && 
         (profile.heightCm || 0) > 0 && 
         (profile.ageYears || 0) > 0
@@ -644,38 +645,36 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </section>
             )}
 
-            {!isBootcampOnboarding && (
-                <section aria-labelledby="profile-details-heading">
-                    <h3 id="profile-details-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Personliga detaljer</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
-                        <div>
-                            <label htmlFor="name" className="block text-base font-medium text-neutral-dark">Ditt namn *</label>
-                            <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleProfileChange} className={inputClass} placeholder="T.ex. ditt förnamn" required />
-                        </div>
-                        {isOnboarding && (
-                            <div>
-                                <label htmlFor="currentWeightKg" className="block text-base font-medium text-neutral-dark">Nuvarande vikt (kg) *</label>
-                                <input type="number" name="currentWeightKg" id="currentWeightKg" value={profile.currentWeightKg == null ? '' : profile.currentWeightKg} onChange={handleProfileChange} className={inputClass} min="1" step="0.1" placeholder="T.ex. 70" required />
-                            </div>
-                        )}
-                        <div>
-                            <label htmlFor="heightCm" className="block text-base font-medium text-neutral-dark">Längd (cm) *</label>
-                            <input type="number" name="heightCm" id="heightCm" value={profile.heightCm == null ? '' : profile.heightCm} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 170" required />
-                        </div>
-                        <div>
-                            <label htmlFor="ageYears" className="block text-base font-medium text-neutral-dark">Ålder (år) *</label>
-                            <input type="number" name="ageYears" id="ageYears" value={profile.ageYears == null ? '' : profile.ageYears} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 30" required />
-                        </div>
-                        <div>
-                            <label htmlFor="gender" className="block text-base font-medium text-neutral-dark">Kön *</label>
-                            <select name="gender" id="gender" value={profile.gender} onChange={handleProfileChange} className={selectClass} required>
-                                <option value="female">Kvinna</option>
-                                <option value="male">Man</option>
-                            </select>
-                        </div>
+            <section aria-labelledby="profile-details-heading">
+                <h3 id="profile-details-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Personliga detaljer</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+                    <div>
+                        <label htmlFor="name" className="block text-base font-medium text-neutral-dark">Ditt namn *</label>
+                        <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleProfileChange} className={inputClass} placeholder="T.ex. ditt förnamn" required />
                     </div>
-                </section>
-            )}
+                    {isOnboarding && !isBootcampOnboarding && (
+                        <div>
+                            <label htmlFor="currentWeightKg" className="block text-base font-medium text-neutral-dark">Nuvarande vikt (kg) *</label>
+                            <input type="number" name="currentWeightKg" id="currentWeightKg" value={profile.currentWeightKg == null ? '' : profile.currentWeightKg} onChange={handleProfileChange} className={inputClass} min="1" step="0.1" placeholder="T.ex. 70" required />
+                        </div>
+                    )}
+                    <div>
+                        <label htmlFor="heightCm" className="block text-base font-medium text-neutral-dark">Längd (cm) *</label>
+                        <input type="number" name="heightCm" id="heightCm" value={profile.heightCm == null ? '' : profile.heightCm} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 170" required />
+                    </div>
+                    <div>
+                        <label htmlFor="ageYears" className="block text-base font-medium text-neutral-dark">Ålder (år) *</label>
+                        <input type="number" name="ageYears" id="ageYears" value={profile.ageYears == null ? '' : profile.ageYears} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 30" required />
+                    </div>
+                    <div>
+                        <label htmlFor="gender" className="block text-base font-medium text-neutral-dark">Kön *</label>
+                        <select name="gender" id="gender" value={profile.gender} onChange={handleProfileChange} className={selectClass} required>
+                            <option value="female">Kvinna</option>
+                            <option value="male">Man</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
             
             {!isBootcampOnboarding && (
                 <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
@@ -873,7 +872,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             />
                         </div>
 
-                        {recommendations ? (
+                        {(recommendations || isManualGoalMode) ? (
                             <div className={`p-4 rounded-lg space-y-4 border ${isManualGoalMode ? 'bg-white border-neutral-light' : 'bg-primary-100/60 border-primary-200/80'}`}>
                                 <p className="text-neutral-dark">
                                     {isManualGoalMode 
@@ -891,7 +890,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         <input 
                                             type="number" 
                                             name="calorieGoal"
-                                            value={isManualGoalMode ? manualGoals.calorieGoal : Math.round(recommendations.recommendedCalories)}
+                                            value={isManualGoalMode ? manualGoals.calorieGoal : Math.round(recommendations?.recommendedCalories || 0)}
                                             onChange={handleManualGoalChange}
                                             disabled={!isManualGoalMode}
                                             className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
@@ -907,7 +906,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         <input 
                                             type="number" 
                                             name="proteinGoal"
-                                            value={isManualGoalMode ? manualGoals.proteinGoal : Math.round(recommendations.recommendedProteinGrams)}
+                                            value={isManualGoalMode ? manualGoals.proteinGoal : Math.round(recommendations?.recommendedProteinGrams || 0)}
                                             onChange={handleManualGoalChange}
                                             disabled={!isManualGoalMode}
                                             className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
@@ -922,7 +921,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         <input 
                                             type="number" 
                                             name="carbohydrateGoal"
-                                            value={isManualGoalMode ? manualGoals.carbohydrateGoal : Math.round(recommendations.recommendedCarbsGrams)}
+                                            value={isManualGoalMode ? manualGoals.carbohydrateGoal : Math.round(recommendations?.recommendedCarbsGrams || 0)}
                                             onChange={handleManualGoalChange}
                                             disabled={!isManualGoalMode}
                                             className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
@@ -937,7 +936,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         <input 
                                             type="number" 
                                             name="fatGoal"
-                                            value={isManualGoalMode ? manualGoals.fatGoal : Math.round(recommendations.recommendedFatGrams)}
+                                            value={isManualGoalMode ? manualGoals.fatGoal : Math.round(recommendations?.recommendedFatGrams || 0)}
                                             onChange={handleManualGoalChange}
                                             disabled={!isManualGoalMode}
                                             className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}

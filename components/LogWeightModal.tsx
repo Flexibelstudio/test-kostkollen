@@ -100,6 +100,11 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
 
             {(measurementMethod === 'inbody' || measurementMethod === 'unknown') && (
                 <div className="group-disabled:opacity-60 transition-opacity animate-fade-in space-y-2">
+                    <div className="bg-primary-50 p-3 rounded-lg border border-primary-100 mb-4">
+                        <p className="text-sm text-primary-800">
+                            <span className="font-semibold">Viktigt:</span> Om du mäter dig med en InBody-våg måste du fylla i muskelmassa och fettmassa nedan för att vi ska kunna sätta rätt mål för din bootcamp.
+                        </p>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label htmlFor="skeletalMuscleMassKg" className={labelClass}>Muskelmassa (kg)</label>

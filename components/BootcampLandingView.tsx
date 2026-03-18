@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, UsersIcon, UserIcon, KeyIcon, CheckCircleIcon } from './icons';
 import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
 import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort } from '../services/bootcampService';
@@ -275,7 +276,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         </form>
       </div>
 
-      {showWeightModal && (
+      {showWeightModal && createPortal(
         <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseModals}>
           <LogWeightModal 
             show={showWeightModal} 
@@ -283,10 +284,11 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
             onSave={handleWeightSaved} 
             measurementMethod="unknown" 
           />
-        </div>
+        </div>,
+        document.body
       )}
 
-      {selectedCohort && tempProfile && !showWeightModal && (
+      {selectedCohort && tempProfile && !showWeightModal && createPortal(
         <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseModals}>
           <div onClick={e => e.stopPropagation()} className="animate-scale-in w-full max-w-2xl">
             <UserProfileModal
@@ -311,7 +313,8 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
               onSubscribeToPush={async () => false}
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

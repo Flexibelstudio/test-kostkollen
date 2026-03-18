@@ -862,7 +862,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
   const handleSaveProfileAndGoals = async (profileData: UserProfileData, newGoals: GoalSettings, newPhotoDataUrl?: string | null) => {
     if (!currentUser) return;
-    setAppStatus(AppStatus.SAVING);
     
     // Aktivera laddningsläget direkt om vi är i onboarding för att modalens knapp ska reagera
     if (isProfileModalOnboarding) {
@@ -899,16 +898,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 setAiFeedbackError("Kunde inte generera feedback just nu, men din profil är sparad.");
             } finally {
                 setAIFeedbackLoading(false);
-                setAppStatus(AppStatus.IDLE);
             }
         } else {
             setShowUserProfileModal(false);
             setToastNotification({ message: "Profil sparad!", type: 'success' });
-            setAppStatus(AppStatus.IDLE);
         }
     } catch (error: any) {
        handleFirestoreError(error, 'spara profil');
-       setAppStatus(AppStatus.IDLE);
        setAIFeedbackLoading(false);
     }
   };
