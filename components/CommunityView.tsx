@@ -439,26 +439,31 @@ const TimelineEventCard: FC<{
                         </p>
                         
                         {/* --- COMPACT STATS ROW --- */}
-                        {!isGlobalPost && (event.streakAtPost !== undefined || event.bootcampStreakAtPost !== undefined || event.goalTextAtPost || event.progressAtPost !== undefined) && (
+                        {!isGlobalPost && (
+                            (event.streakAtPost !== undefined && event.streakAtPost > 0) || 
+                            (event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0) || 
+                            event.goalTextAtPost || 
+                            (event.progressAtPost !== undefined && event.progressAtPost > 0)
+                        ) && (
                             <div className="mt-1 mb-2 w-full max-w-[200px]">
                                 <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
-                                    {event.streakAtPost !== undefined && (
+                                    {event.streakAtPost !== undefined && event.streakAtPost > 0 && (
                                         <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
                                     )}
-                                    {event.bootcampStreakAtPost !== undefined && (
+                                    {event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0 && (
                                         <>
-                                            {event.streakAtPost !== undefined && <span className="text-neutral-300">|</span>}
+                                            {event.streakAtPost !== undefined && event.streakAtPost > 0 && <span className="text-neutral-300">|</span>}
                                             <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
                                         </>
                                     )}
                                     {event.goalTextAtPost && (
                                         <>
-                                            {(event.streakAtPost !== undefined || event.bootcampStreakAtPost !== undefined) && <span className="text-neutral-300">|</span>}
+                                            {((event.streakAtPost !== undefined && event.streakAtPost > 0) || (event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0)) && <span className="text-neutral-300">|</span>}
                                             <span className="truncate">{event.goalTextAtPost}</span>
                                         </>
                                     )}
                                 </div>
-                                {event.progressAtPost !== undefined && (
+                                {event.progressAtPost !== undefined && event.progressAtPost > 0 && (
                                     <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
                                         <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
                                     </div>

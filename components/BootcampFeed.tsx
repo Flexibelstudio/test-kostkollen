@@ -257,26 +257,31 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile, hide
                         </p>
                         
                         {/* --- COMPACT STATS ROW --- */}
-                        {!post.isOfficial && (post.streakAtPost !== undefined || post.bootcampStreakAtPost !== undefined || post.goalTextAtPost || post.progressAtPost !== undefined) && (
+                        {!post.isOfficial && (
+                            (post.streakAtPost !== undefined && post.streakAtPost > 0) || 
+                            (post.bootcampStreakAtPost !== undefined && post.bootcampStreakAtPost > 0) || 
+                            post.goalTextAtPost || 
+                            (post.progressAtPost !== undefined && post.progressAtPost > 0)
+                        ) && (
                             <div className="mt-1 mb-2 w-full max-w-[200px]">
                                 <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
-                                    {post.streakAtPost !== undefined && (
+                                    {post.streakAtPost !== undefined && post.streakAtPost > 0 && (
                                         <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {post.streakAtPost}</span>
                                     )}
-                                    {post.bootcampStreakAtPost !== undefined && (
+                                    {post.bootcampStreakAtPost !== undefined && post.bootcampStreakAtPost > 0 && (
                                         <>
-                                            {post.streakAtPost !== undefined && <span className="text-neutral-300">|</span>}
+                                            {post.streakAtPost !== undefined && post.streakAtPost > 0 && <span className="text-neutral-300">|</span>}
                                             <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {post.bootcampStreakAtPost}</span>
                                         </>
                                     )}
                                     {post.goalTextAtPost && (
                                         <>
-                                            {(post.streakAtPost !== undefined || post.bootcampStreakAtPost !== undefined) && <span className="text-neutral-300">|</span>}
+                                            {((post.streakAtPost !== undefined && post.streakAtPost > 0) || (post.bootcampStreakAtPost !== undefined && post.bootcampStreakAtPost > 0)) && <span className="text-neutral-300">|</span>}
                                             <span className="truncate">{post.goalTextAtPost}</span>
                                         </>
                                     )}
                                 </div>
-                                {post.progressAtPost !== undefined && (
+                                {post.progressAtPost !== undefined && post.progressAtPost > 0 && (
                                     <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
                                         <div className="h-full bg-primary" style={{width: `${post.progressAtPost}%`}} />
                                     </div>

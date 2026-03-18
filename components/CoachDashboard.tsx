@@ -689,6 +689,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
     
     try {
         const { fetchCourseProgressForUser } = await import('../services/firestoreService');
+        const { fetchAllBootcampParticipants } = await import('../services/bootcampService');
         const { ALL_COURSES } = await import('./CoursesView');
         const { courseLessons, menopauseCourseLessons } = await import('../courseData');
         
@@ -708,7 +709,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 participants: 0,
                 completions: 0,
                 totalProgress: 0,
-                totalLessons: c.id === 'praktisk-viktkontroll' ? courseLessons.length : menopauseCourseLessons.length
+                totalLessons: c.id === 'praktisk-viktkontroll' ? courseLessons.length : (c.id === 'maxa-klimakteriet' ? menopauseCourseLessons.length : 84) // 84 days for bootcamp
             };
         });
         
@@ -745,6 +746,24 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         });
         
         await Promise.all(dataPromises);
+
+        // Fetch bootcamp participants
+        const bootcampParticipants = await fetchAllBootcampParticipants();
+        const bootcampCourseId = 'bootcamp';
+        if (courseStats[bootcampCourseId]) {
+            bootcampParticipants.forEach(p => {
+                // Only count if they are in membersList (active members)
+                if (membersList.some(m => m.id === p.userId)) {
+                    courseStats[bootcampCourseId].participants++;
+                    // Bootcamp progress could be based on currentStreak or just 0 for now
+                    const progress = Math.min(p.currentStreak / courseStats[bootcampCourseId].totalLessons, 1);
+                    courseStats[bootcampCourseId].totalProgress += progress;
+                    if (p.status === 'completed' || p.currentStreak >= courseStats[bootcampCourseId].totalLessons) {
+                        courseStats[bootcampCourseId].completions++;
+                    }
+                }
+            });
+        }
         
         const results = Object.values(courseStats)
             .map(c => ({

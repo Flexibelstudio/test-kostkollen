@@ -136,6 +136,17 @@ export const joinCohort = async (userId: string, inviteCode: string): Promise<{ 
   };
 };
 
+export const fetchAllBootcampParticipants = async (): Promise<BootcampParticipant[]> => {
+  if (!db) return [];
+  const q = query(collectionGroup(db, 'participants'));
+  const snapshot = await getDocs(q);
+  const participants: BootcampParticipant[] = [];
+  snapshot.forEach(doc => {
+    participants.push(doc.data() as BootcampParticipant);
+  });
+  return participants;
+};
+
 export const subscribeToAllBootcampParticipants = (callback: (participants: BootcampParticipant[]) => void) => {
   if (!db) return () => {};
   
