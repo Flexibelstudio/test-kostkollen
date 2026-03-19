@@ -30,6 +30,7 @@ import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 import Lightbox from './Lightbox';
 import { ChatRoomsView } from './ChatRoomsView';
+import CameraModal from './CameraModal';
 import { COACH_PERSONAS } from '../constants';
 
 // --- HELPER FUNCTIONS ---
@@ -88,6 +89,7 @@ export const CreatePostWidget: FC<{
     const [category, setCategory] = useState<PostCategory>('general');
     const [visibility, setVisibility] = useState<'global' | 'friends' | 'bootcamp' | 'bootcamp_and_friends'>('friends');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showCameraModal, setShowCameraModal] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -269,9 +271,8 @@ export const CreatePostWidget: FC<{
 
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
-                    <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
                     
-                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ta bild">
+                    <button onClick={() => setShowCameraModal(true)} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ta bild">
                         <CameraIcon className="w-5 h-5" />
                     </button>
 
@@ -289,6 +290,19 @@ export const CreatePostWidget: FC<{
                     </button>
                 </div>
             </div>
+
+            {showCameraModal && (
+                <CameraModal 
+                    show={showCameraModal} 
+                    onClose={() => setShowCameraModal(false)} 
+                    onImageCapture={(base64Data) => { 
+                        setShowCameraModal(false); 
+                        setImage(`data:image/jpeg;base64,${base64Data}`);
+                        setIsExpanded(true);
+                    }} 
+                    onCameraError={(e) => setToastNotification({ message: e, type: 'error' })} 
+                />
+            )}
         </div>
     );
 };
