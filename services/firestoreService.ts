@@ -1394,14 +1394,17 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
     const currentMuscleMass = latestLog?.skeletalMuscleMassKg ?? userData.skeletalMuscleMassKg;
     const currentFatMass = latestLog?.bodyFatMassKg ?? userData.bodyFatMassKg;
 
-    const bootcampParticipantRef = doc(db, 'bootcamp_participants', buddy.uid);
-    const bootcampParticipantSnap = await getDocSafe(bootcampParticipantRef);
     let bootcampStreak: number | undefined = undefined;
     let bootcampStatus: string | undefined = undefined;
-    if (bootcampParticipantSnap.exists()) {
-      const participantData = bootcampParticipantSnap.data();
-      bootcampStreak = participantData.currentStreak;
-      bootcampStatus = participantData.status;
+    try {
+      const { getUserActiveBootcamp } = await import('./bootcampService');
+      const activeBootcamp = await getUserActiveBootcamp(buddy.uid);
+      if (activeBootcamp) {
+        bootcampStreak = activeBootcamp.currentStreak;
+        bootcampStatus = activeBootcamp.status;
+      }
+    } catch (e) {
+      console.warn("Could not fetch bootcamp info for buddy", e);
     }
 
     let totalWeightChange, muscleMassChange, fatMassChange;

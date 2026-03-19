@@ -18,7 +18,7 @@ interface BootcampDashboardProps {
 const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, onBack }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
@@ -261,16 +261,16 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             </div>
 
             {(!editingYesterday && hasReportedToday) ? (
-              <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-200 text-center">
+              <div className="p-6 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 text-center">
                 <CheckCircleIcon className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-emerald-800 mb-2">Rapport inlämnad!</h3>
-                <p className="text-emerald-600">
+                <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-400 mb-2">Rapport inlämnad!</h3>
+                <p className="text-emerald-600 dark:text-emerald-300">
                   Du har redan lämnat din rapport för idag. Generalen har mottagit den. Vila upp dig inför morgondagen.
                 </p>
                 {canEditYesterday && (
                   <button 
                     onClick={() => setEditingYesterday(true)}
-                    className="mt-4 px-4 py-2 bg-orange-100 text-orange-800 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors"
+                    className="mt-4 px-4 py-2 bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300 rounded-full font-bold text-sm hover:bg-orange-200 dark:hover:bg-orange-800/60 transition-colors"
                   >
                     Rätta gårdagens rapport
                   </button>
@@ -279,68 +279,68 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             ) : (
               <form onSubmit={handleSubmitReport} className="space-y-6">
                 {editingYesterday && (
-                  <div className="p-4 bg-orange-50 text-orange-800 rounded-2xl mb-4 flex justify-between items-center">
+                  <div className="p-4 bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-400 rounded-2xl mb-4 flex justify-between items-center">
                     <span>Du redigerar gårdagens rapport ({yesterdayStr}).</span>
                     <button type="button" onClick={() => setEditingYesterday(false)} className="text-sm font-bold underline">Avbryt</button>
                   </div>
                 )}
                 <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 text-blue-800 rounded-2xl text-sm mb-4">
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400 rounded-2xl text-sm mb-4">
                     <p>
                       <strong>OBS:</strong> Mat, protein och vatten hämtas automatiskt från din loggbok. 
                       Om du saknar något, gå tillbaka till Hem-fliken och logga det innan du skickar in rapporten.
                     </p>
                   </div>
 
-                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${loggedAllMeals ? 'bg-emerald-50 border-emerald-200' : 'bg-neutral-50 border-neutral-200'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${loggedAllMeals ? 'bg-emerald-500 text-white' : 'bg-neutral-200 text-neutral-400'}`}>
+                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${loggedAllMeals ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${loggedAllMeals ? 'bg-emerald-500 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
                       <CheckCircleIcon className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <span className={`font-bold block ${loggedAllMeals ? 'text-emerald-800' : 'text-neutral-dark'}`}>Kalorimålet</span>
-                      <span className={`text-sm ${loggedAllMeals ? 'text-emerald-600' : 'text-neutral-500'}`}>
+                      <span className={`font-bold block ${loggedAllMeals ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Kalorimålet</span>
+                      <span className={`text-sm ${loggedAllMeals ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
                         {loggedAllMeals ? 'Du ligger inom +/- 100 kcal från ditt mål.' : 'Du måste ligga inom +/- 100 kcal från ditt dagsmål.'}
                       </span>
                     </div>
                   </div>
 
-                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${proteinMet ? 'bg-emerald-50 border-emerald-200' : 'bg-neutral-50 border-neutral-200'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${proteinMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 text-neutral-400'}`}>
+                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${proteinMet ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${proteinMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
                       <CheckCircleIcon className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <span className={`font-bold block ${proteinMet ? 'text-emerald-800' : 'text-neutral-dark'}`}>Proteinkravet</span>
-                      <span className={`text-sm ${proteinMet ? 'text-emerald-600' : 'text-neutral-500'}`}>
+                      <span className={`font-bold block ${proteinMet ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Proteinkravet</span>
+                      <span className={`text-sm ${proteinMet ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
                         {proteinMet ? `Du har nått ditt mål (${goals.proteinGoal}g).` : `Du har inte nått ditt proteinmål (${goals.proteinGoal}g).`}
                       </span>
                     </div>
                   </div>
 
-                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${waterMet ? 'bg-emerald-50 border-emerald-200' : 'bg-neutral-50 border-neutral-200'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${waterMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 text-neutral-400'}`}>
+                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${waterMet ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${waterMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
                       <CheckCircleIcon className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <span className={`font-bold block ${waterMet ? 'text-emerald-800' : 'text-neutral-dark'}`}>Vätskekontroll</span>
-                      <span className={`text-sm ${waterMet ? 'text-emerald-600' : 'text-neutral-500'}`}>
+                      <span className={`font-bold block ${waterMet ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Vätskekontroll</span>
+                      <span className={`text-sm ${waterMet ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
                         {waterMet ? 'Du har druckit minst 2 liter vatten.' : 'Du har inte druckit 2 liter vatten än.'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200">
-                    <label className="block font-bold text-neutral-dark mb-2">Stegmålet (Minst 10 000)</label>
+                  <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700">
+                    <label className="block font-bold text-neutral-dark dark:text-white mb-2">Stegmålet (Minst 10 000)</label>
                     <input 
                       type="number" 
                       value={steps}
                       onChange={(e) => setSteps(e.target.value)}
                       placeholder="Ange antal steg..."
-                      className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full p-3 rounded-xl border border-neutral-light dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-dark dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
                       required
                     />
                   </div>
 
-                  <label className="flex items-center gap-3 p-4 bg-neutral-50 rounded-2xl border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors">
+                  <label className="flex items-center gap-3 p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
                     <input 
                       type="checkbox" 
                       checked={strengthTrained}
@@ -348,34 +348,34 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                       className="w-6 h-6 rounded text-primary focus:ring-primary"
                     />
                     <div className="flex-1">
-                      <span className="font-bold text-neutral-dark block">Styrketräning</span>
-                      <span className="text-sm text-neutral-500">Jag har genomfört ett träningspass idag.</span>
+                      <span className="font-bold text-neutral-dark dark:text-white block">Styrketräning</span>
+                      <span className="text-sm text-neutral-500 dark:text-neutral-400">Jag har genomfört ett träningspass idag.</span>
                     </div>
                   </label>
 
-                  <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200">
-                    <label className="block font-bold text-neutral-dark mb-2">Sömn (Timmar)</label>
+                  <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700">
+                    <label className="block font-bold text-neutral-dark dark:text-white mb-2">Sömn (Timmar)</label>
                     <input 
                       type="number" 
                       step="0.5"
                       value={sleep}
                       onChange={(e) => setSleep(e.target.value)}
                       placeholder="T.ex. 7.5"
-                      className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full p-3 rounded-xl border border-neutral-light dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-dark dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
 
-                  <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200">
-                    <label className="block font-bold text-neutral-dark mb-2">Energinivå / Mående ({mood}/10)</label>
+                  <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700">
+                    <label className="block font-bold text-neutral-dark dark:text-white mb-2">Energinivå / Mående ({mood}/10)</label>
                     <input 
                       type="range" 
                       min="1" 
                       max="10" 
                       value={mood}
                       onChange={(e) => setMood(parseInt(e.target.value, 10))}
-                      className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                      className="w-full h-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-primary"
                     />
-                    <div className="flex justify-between text-xs text-neutral-500 mt-2">
+                    <div className="flex justify-between text-xs text-neutral-500 dark:text-neutral-400 mt-2">
                       <span>1 (Låg)</span>
                       <span>10 (Hög)</span>
                     </div>
@@ -383,18 +383,18 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                 </div>
 
                 <div>
-                  <label className="block font-bold text-neutral-dark mb-2">Kommentar till Generalen (Frivilligt)</label>
+                  <label className="block font-bold text-neutral-dark dark:text-white mb-2">Kommentar till Generalen (Frivilligt)</label>
                   <textarea 
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     placeholder="Hur kändes dagen? Några utmaningar?"
-                    className="w-full p-4 rounded-2xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent min-h-[120px] resize-none"
+                    className="w-full p-4 rounded-2xl border border-neutral-light dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-dark dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent min-h-[120px] resize-none"
                   />
                 </div>
 
-                <div className="bg-orange-50 p-4 rounded-2xl border border-orange-200">
-                  <p className="text-sm text-orange-800 font-medium">
-                    <strong>OBS:</strong> Om du inte kan kryssa i alla boxar och har minst 10 000 steg, kommer detta att registreras som en <strong className="text-red-600">Röd Dag</strong> och din streak bryts.
+                <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-2xl border border-orange-200 dark:border-orange-800/50">
+                  <p className="text-sm text-orange-800 dark:text-orange-400 font-medium">
+                    <strong>OBS:</strong> Om du inte kan kryssa i alla boxar och har minst 10 000 steg, kommer detta att registreras som en <strong className="text-red-600 dark:text-red-400">Röd Dag</strong> och din streak bryts.
                   </p>
                 </div>
 
@@ -412,21 +412,21 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
 
         {/* Right Column: History & Chat */}
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
-            <h3 className="font-bold text-neutral-dark mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-soft-xl border border-neutral-light dark:border-neutral-700">
+            <h3 className="font-bold text-neutral-dark dark:text-white mb-4 flex items-center gap-2">
               <CalendarIcon className="w-5 h-5 text-primary" />
               Historik (Senaste 7 dagarna)
             </h3>
             
             {reports.length === 0 ? (
-              <p className="text-sm text-neutral-500 italic text-center py-4">Inga rapporter inlämnade ännu.</p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 italic text-center py-4">Inga rapporter inlämnade ännu.</p>
             ) : (
               <div className="space-y-3">
                 {reports.slice(0, 7).map((report, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-neutral-100">
-                    <span className="text-sm font-medium text-neutral-dark">{report.date}</span>
+                  <div key={index} className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800">
+                    <span className="text-sm font-medium text-neutral-dark dark:text-white">{report.date}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-neutral-500">{report.steps} steg</span>
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">{report.steps} steg</span>
                       <div className={`w-3 h-3 rounded-full ${report.isGreenDay ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
                     </div>
                   </div>
