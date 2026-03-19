@@ -174,6 +174,14 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
                 <span className="text-primary font-bold mt-0.5">•</span>
                 <span><strong>Kvällsrapport:</strong> Du måste lämna din rapport till Generalen varje kväll.</span>
               </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary font-bold mt-0.5">•</span>
+                <span><strong>Noll flytande kalorier:</strong> Totalt förbud mot alkohol, läsk och juice. Endast vatten, svart kaffe och te är tillåtet. Mjölk i kaffet är okej.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary font-bold mt-0.5">•</span>
+                <span><strong>Söndagsinspektion:</strong> Vägning och inmätning sker i appen varje söndag. Du kan inte välja dag själv.</span>
+              </li>
             </ul>
           </div>
         </div>
@@ -296,6 +304,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
               initialProfile={tempProfile}
               onSave={async (updatedProfile, updatedGoals, newPhotoDataUrl) => {
                 updatedProfile.coachStyle = 'hard'; // Force Börje
+                updatedProfile.preferredWeighInDay = 'söndag'; // Force Sunday weigh-ins
                 
                 // Set goal date to 12 weeks (84 days) from start date or today
                 const startDate = (typeof selectedCohort === 'object' && selectedCohort !== null && 'startDate' in selectedCohort) 

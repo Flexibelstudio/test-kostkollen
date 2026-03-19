@@ -1033,14 +1033,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         checked={profile.notificationSettings?.weighInReminder ?? true}
                                         onChange={() => handleNotificationSettingChange('weighInReminder')}
                                     />
-                                    <div className="pl-4 pr-1 py-2">
-                                        <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark mb-1">Föredragen dag för vägning</label>
-                                        <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
-                                            {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
-                                                <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                    {!isBootcampOnboarding && !isBootcampActive && (
+                                        <div className="pl-4 pr-1 py-2">
+                                            <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark mb-1">Föredragen dag för vägning</label>
+                                            <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
+                                                {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
+                                                    <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                     <ToggleSwitch 
                                         id="inactivityReminder"
                                         label="Inaktivitetspåminnelse"

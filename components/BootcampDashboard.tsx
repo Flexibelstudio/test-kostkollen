@@ -67,7 +67,9 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         const totalProtein = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.protein, 0);
         const totalCalories = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.calories, 0);
         
-        setLoggedAllMeals(meals.length > 0 && totalCalories > 400);
+        // Kcal-kravet: Måste ligga inom +/- 100 kcal från dagsmålet (och minst 400 kcal loggat)
+        const isCaloriesWithinRange = totalCalories >= (goals.calorieGoal - 100) && totalCalories <= (goals.calorieGoal + 100);
+        setLoggedAllMeals(meals.length > 0 && totalCalories > 400 && isCaloriesWithinRange);
         setProteinMet(totalProtein >= goals.proteinGoal);
         setWaterMet(water >= 2000); // 2 liters
 
@@ -207,7 +209,62 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         </div>
       </div>
 
-      {/* Header */}
+      {/* Måltidsstruktur Guide */}
+      <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light mb-6">
+        <h2 className="text-xl font-bold text-neutral-dark mb-4 flex items-center gap-2">
+          <ShieldCheckIcon className="w-6 h-6 text-primary" />
+          Generalens Måltidsstruktur
+        </h2>
+        <p className="text-neutral-600 mb-6">
+          För att nå ditt mål på <strong>{goals.calorieGoal} kcal</strong> och <strong>{goals.proteinGoal}g protein</strong> rekommenderar Generalen följande fördelning:
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200">
+            <h3 className="font-bold text-neutral-dark mb-2">Frukost</h3>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-neutral-500">Kalorier:</span>
+              <span className="font-medium">~{Math.round(goals.calorieGoal * 0.25)} kcal</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-neutral-500">Protein:</span>
+              <span className="font-medium">~{Math.round(goals.proteinGoal * 0.25)} g</span>
+            </div>
+          </div>
+          
+          <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200">
+            <h3 className="font-bold text-neutral-dark mb-2">Lunch</h3>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-neutral-500">Kalorier:</span>
+              <span className="font-medium">~{Math.round(goals.calorieGoal * 0.35)} kcal</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-neutral-500">Protein:</span>
+              <span className="font-medium">~{Math.round(goals.proteinGoal * 0.35)} g</span>
+            </div>
+          </div>
+          
+          <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200">
+            <h3 className="font-bold text-neutral-dark mb-2">Middag & Mellanmål</h3>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-neutral-500">Kalorier:</span>
+              <span className="font-medium">~{Math.round(goals.calorieGoal * 0.40)} kcal</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-neutral-500">Protein:</span>
+              <span className="font-medium">~{Math.round(goals.proteinGoal * 0.40)} g</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="mt-6 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+          <p className="text-sm text-blue-800 font-medium">
+            <strong>Tips:</strong> Gå till Hem-fliken och sök efter recept som matchar dessa värden. Till exempel "Recept 500 kcal 30g protein".
+          </p>
+        </div>
+      </div>
+
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Today's Report */}
           <div className="lg:col-span-2 space-y-6">
@@ -264,9 +321,9 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                       <CheckCircleIcon className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <span className={`font-bold block ${loggedAllMeals ? 'text-emerald-800' : 'text-neutral-dark'}`}>Total Loggningsplikt</span>
+                      <span className={`font-bold block ${loggedAllMeals ? 'text-emerald-800' : 'text-neutral-dark'}`}>Kalorimålet</span>
                       <span className={`text-sm ${loggedAllMeals ? 'text-emerald-600' : 'text-neutral-500'}`}>
-                        {loggedAllMeals ? 'Du har loggat mat idag.' : 'Du har inte loggat tillräckligt med mat idag.'}
+                        {loggedAllMeals ? 'Du ligger inom +/- 100 kcal från ditt mål.' : 'Du måste ligga inom +/- 100 kcal från ditt dagsmål.'}
                       </span>
                     </div>
                   </div>

@@ -61,6 +61,7 @@ import FoodRatingModal from '../components/FoodRatingModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import MealTypeSelector from '../components/MealTypeSelector';
 import MealSectionCard from '../components/MealSectionCard';
+import MealStructureGuide from '../components/MealStructureGuide';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import CoinFallEffect from '../components/CoinFallEffect';
 import CommonMealsList from '../components/CommonMealsList';
@@ -943,6 +944,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                         disabled={!isEditableView}
                     />
 
+                    <MealStructureGuide calorieGoal={goals.calorieGoal} />
+
                     {/* Meal Sections (Matlogg) */}
                     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
                         <div className="flex items-center justify-between mb-3">
@@ -960,6 +963,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isOpen={activeMealSection === 'breakfast'}
                                 onOpen={() => setActiveMealSection('breakfast')}
                                 onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.25)}
                             />
                             <MealSectionCard 
                                 title="Lunch" 
@@ -972,6 +976,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isOpen={activeMealSection === 'lunch'}
                                 onOpen={() => setActiveMealSection('lunch')}
                                 onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.35)}
                             />
                             <MealSectionCard 
                                 title="Middag" 
@@ -984,6 +989,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isOpen={activeMealSection === 'dinner'}
                                 onOpen={() => setActiveMealSection('dinner')}
                                 onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.30)}
                             />
                             <MealSectionCard 
                                 title="Mellanmål" 
@@ -996,6 +1002,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isOpen={activeMealSection === 'snack'}
                                 onOpen={() => setActiveMealSection('snack')}
                                 onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.10)}
                             />
                         </div>
                     </div>
