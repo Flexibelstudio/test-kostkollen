@@ -480,7 +480,7 @@ export const TimelineEventCard: FC<{
                         </p>
                         
                         {/* --- COMPACT STATS ROW --- */}
-                        {!isGlobalPost && (
+                        {!isGlobalPost && !isCoachPersona && (
                             (event.streakAtPost !== undefined && event.streakAtPost > 0) || 
                             (event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0) || 
                             event.goalTextAtPost || 
