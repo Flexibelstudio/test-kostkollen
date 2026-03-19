@@ -103,6 +103,11 @@ const MealStructureGuide: React.FC<MealStructureGuideProps> = ({ calorieGoal, pr
               <p className="text-xs text-neutral-dark leading-relaxed">
                 Använd AI-assistenten när du loggar mat för att få fram skräddarsydda recept som exakt matchar ditt kalorimål och dina preferenser. Klicka på "Receptförslag" i menyn. Inga ursäkter för dålig mat!
               </p>
+              <div className="mt-2 p-2 bg-white/60 rounded-lg border border-primary-200">
+                <p className="text-xs text-neutral-dark font-medium italic">
+                  Exempel: "Ge mig ett recept på en vegetarisk frukost på ca 450 kcal och 37 g protein."
+                </p>
+              </div>
             </div>
           </div>
         </div>

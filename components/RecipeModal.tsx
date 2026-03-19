@@ -219,14 +219,14 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         </div>
 
         <form onSubmit={handleSearchSubmit} className="mb-5 flex-shrink-0">
-          <label htmlFor="recipeQuery" className="sr-only">Sök recept (t.ex. "lätt kycklingpasta")</label>
+          <label htmlFor="recipeQuery" className="sr-only">Sök recept (t.ex. "vegetarisk frukost på ca 450 kcal och 37 g protein")</label>
           <div className="flex gap-2">
             <input
               type="text"
               id="recipeQuery"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Vad vill du laga?"
+              placeholder='T.ex. "vegetarisk frukost på ca 450 kcal och 37 g protein"'
               className="flex-grow w-full px-4 py-2.5 bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base"
               disabled={isLoading}
             />

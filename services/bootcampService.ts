@@ -291,10 +291,12 @@ export const recalculateStreak = async (cohortId: string, userId: string) => {
       }
     }
 
-    if (report.isGreenDay) {
-      currentStreak++;
-    } else {
-      break; // Streak broken
+    if (foundStart) {
+      if (report.isGreenDay) {
+        currentStreak++;
+      } else {
+        break; // Streak broken
+      }
     }
   }
 
