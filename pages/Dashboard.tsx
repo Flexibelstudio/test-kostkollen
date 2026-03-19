@@ -201,6 +201,7 @@ interface DashboardProps {
     isAICoachOpen: boolean;
     isProfileOpen: boolean;
     isMorningReportOpen: boolean;
+    activeBootcamp: any | null;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -218,7 +219,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     isSummarizingYesterday,
     isAICoachOpen,
     isProfileOpen,
-    isMorningReportOpen
+    isMorningReportOpen,
+    activeBootcamp
 }) => {
     const {
         currentUser,
@@ -944,7 +946,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                         disabled={!isEditableView}
                     />
 
-                    <MealStructureGuide calorieGoal={goals.calorieGoal} />
+                    {activeBootcamp && (
+                        <MealStructureGuide calorieGoal={goals.calorieGoal} />
+                    )}
 
                     {/* Meal Sections (Matlogg) */}
                     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
