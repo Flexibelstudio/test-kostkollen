@@ -103,7 +103,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
           currentDraft,
           category,
           undefined,
-          true, // isGlobal
+          'global', // visibility
           coach.label, // overrideName
           coach.imageUrl // overridePhotoURL
         );

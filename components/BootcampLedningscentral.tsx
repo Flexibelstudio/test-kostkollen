@@ -6,7 +6,8 @@ import { createChat } from '../services/chatService';
 import { TrophyIcon, UsersIcon, PlusIcon, XMarkIcon, CalendarIcon, KeyIcon, FireIcon, CheckIcon, ArrowLeftIcon } from './icons';
 import BootcampFeed from './BootcampFeed';
 import CoachStudioView from './CoachStudioView';
-import { subscribeToUserEveningReports, createBootcampPost } from '../services/bootcampService';
+import { subscribeToUserEveningReports } from '../services/bootcampService';
+import { createUserPost } from '../services/firestoreService';
 import { EveningReport } from '../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -189,15 +190,15 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
               hideCategory={true}
               className="h-[600px]"
               onPublish={async (draft, category, coach) => {
-                await createBootcampPost(
-                  cohort.id,
+                await createUserPost(
                   currentUser.uid,
-                  coach.label,
                   draft,
-                  undefined,
-                  true, // isOfficial
-                  coach.imageUrl,
-                  'male' // Börje is male
+                  'general', // category
+                  undefined, // image
+                  'bootcamp', // visibility
+                  coach.label, // overrideName
+                  coach.imageUrl, // overridePhotoURL
+                  cohort.id // bootcampId
                 );
               }}
             />

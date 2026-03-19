@@ -742,4 +742,5 @@ export interface TimelineEvent {
   bootcampStreakAtPost?: number;
   goalTextAtPost?: string;
   progressAtPost?: number;
+  bootcampId?: string;
 }

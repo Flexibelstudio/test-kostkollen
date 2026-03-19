@@ -453,19 +453,88 @@ const enrichTimelineEvents = async (snapshot: QuerySnapshot): Promise<{ events: 
 
 /* ===== Timeline ===== */
 
+export async function getActiveBootcampForUser(userId: string): Promise<string | null> {
+    if (!db) return null;
+    try {
+        const q = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
+        const snapshot = await getDocsSafe(q);
+        if (!snapshot.empty) {
+            const participantData = snapshot.docs[0].data() as any;
+            if (participantData.status === 'fas1' || participantData.status === 'fas2') {
+                return participantData.cohortId || snapshot.docs[0].ref.parent.parent?.id || null;
+            }
+        }
+    } catch (e) {
+        console.error("Failed to fetch active bootcamp for user", e);
+    }
+    return null;
+}
+
 // 1. Listen for NEW events (Real-time)
+export function listenToBootcampTimeline(
+  cohortId: string,
+  onUpdate: (events: TimelineEvent[]) => void
+) {
+    if (!db) return () => {};
+
+    const q = query(
+        collection(db, 'communityTimeline'),
+        where('bootcampId', '==', cohortId),
+        orderBy('timestamp', 'desc'),
+        limit(20)
+    );
+
+    return onSnapshot(q, async (snapshot) => {
+        const { events } = await enrichTimelineEvents(snapshot);
+        onUpdate(events);
+    }, (error) => {
+        console.error("Error listening to bootcamp timeline:", error);
+    });
+}
+
+export async function fetchBootcampTimeline(
+  cohortId: string,
+  lastEvent: TimelineEvent | null = null
+): Promise<TimelineEvent[]> {
+    if (!db) return [];
+
+    let q = query(
+        collection(db, 'communityTimeline'),
+        where('bootcampId', '==', cohortId),
+        orderBy('timestamp', 'desc'),
+        limit(20)
+    );
+
+    if (lastEvent) {
+        const lastDocRef = doc(db, 'communityTimeline', lastEvent.id);
+        const lastDocSnap = await getDocSafe(lastDocRef);
+        if (lastDocSnap.exists()) {
+            q = query(q, startAfter(lastDocSnap));
+        }
+    }
+
+    const snapshot = await getDocs(q);
+    const { events } = await enrichTimelineEvents(snapshot);
+    return events;
+}
+
 export function listenToCommunityTimeline(
   userId: string, 
   callback: (data: { events: TimelineEvent[], lastDoc: any }) => void,
-  limitCount: number = 20
+  limitCount: number = 20,
+  bootcampId?: string | null
 ) {
   if (!db) {
     callback({ events: [], lastDoc: null });
     return () => {};
   }
+  
+  const visibleToArray = [userId, 'GLOBAL'];
+  if (bootcampId) visibleToArray.push(bootcampId);
+
   const q = query(
     collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains-any', [userId, 'GLOBAL']),
+    where('visibleTo', 'array-contains-any', visibleToArray),
     orderBy('timestamp', 'desc'),
     limit(limitCount)
   );
@@ -484,13 +553,17 @@ export function listenToCommunityTimeline(
 export async function fetchCommunityTimeline(
   currentUserId: string, 
   lastSnapshot: any = null, 
-  limitCount: number = 10
+  limitCount: number = 10,
+  bootcampId?: string | null
 ): Promise<{ events: TimelineEvent[], lastDoc: any }> {
   if (!db) return { events: [], lastDoc: null };
   
+  const visibleToArray = [currentUserId, 'GLOBAL'];
+  if (bootcampId) visibleToArray.push(bootcampId);
+
   let q = query(
     collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains-any', [currentUserId, 'GLOBAL']),
+    where('visibleTo', 'array-contains-any', visibleToArray),
     orderBy('timestamp', 'desc'),
     limit(limitCount)
   );
@@ -516,9 +589,10 @@ export async function createUserPost(
   text: string,
   category: PostCategory,
   imageBase64?: string,
-  isGlobal?: boolean,
+  visibility: 'global' | 'friends' | 'bootcamp' | 'bootcamp_and_friends' = 'friends',
   overrideName?: string,
-  overridePhotoURL?: string
+  overridePhotoURL?: string,
+  bootcampId?: string | null
 ) {
     if (!db) return { id: `post_${Date.now()}`, type: 'user_post', timestamp: Date.now(), title: 'Mock Post', description: text, icon: '📝', userId, userName: overrideName || 'Mock', userPhotoURL: overridePhotoURL || null, gender: 'female', visibleTo: [], reactions: {}, comments: [], relatedDocPath: '', category, imageUrl: imageBase64 } as any;
     const userDocRef = doc(db, 'users', userId);
@@ -527,9 +601,21 @@ export async function createUserPost(
     const userData = userDocSnap.data() as FirestoreUserDocument;
 
     let visibleTo: string[] = [];
-    if (isGlobal) {
+    let isGlobal = false;
+    
+    if (visibility === 'global') {
         visibleTo = ['GLOBAL'];
+        isGlobal = true;
+    } else if (visibility === 'bootcamp_and_friends') {
+        const buddies = await fetchBuddies(userId);
+        const buddyUids = buddies.map(b => b.uid);
+        visibleTo = [userId, ...buddyUids];
+        if (bootcampId) visibleTo.push(bootcampId);
+    } else if (visibility === 'bootcamp') {
+        if (bootcampId) visibleTo = [bootcampId];
+        else visibleTo = [userId]; // Fallback
     } else {
+        // friends
         const buddies = await fetchBuddies(userId);
         const buddyUids = buddies.map(b => b.uid);
         visibleTo = [userId, ...buddyUids];
@@ -594,6 +680,8 @@ export async function createUserPost(
         console.error("Failed to fetch bootcamp streak for post", e);
     }
 
+    const isBootcampPost = visibility === 'bootcamp' || visibility === 'bootcamp_and_friends';
+    
     const postEvent: Omit<TimelineEvent, 'id'> = {
         type: 'user_post',
         timestamp: Date.now(),
@@ -614,7 +702,8 @@ export async function createUserPost(
         streakAtPost: userData.currentStreak || 0,
         bootcampStreakAtPost: bootcampStreakAtPost,
         goalTextAtPost: goalTextAtPost,
-        progressAtPost: progressAtPost
+        progressAtPost: progressAtPost,
+        bootcampId: isBootcampPost && bootcampId ? bootcampId : undefined
     };
 
     await setDoc(timelineDocRef, cleanFirestoreData(postEvent));

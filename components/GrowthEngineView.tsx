@@ -101,7 +101,7 @@ const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToa
                 message,
                 'general',
                 undefined,
-                true, // isGlobal
+                'global', // visibility
                 senderName,
                 senderPhotoURL
             );

@@ -79,11 +79,13 @@ export const CreatePostWidget: FC<{
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     userRole?: UserRole;
     isCoachDashboard?: boolean;
-}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole, isCoachDashboard }) => {
+    activeBootcamp?: any;
+}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole, isCoachDashboard, activeBootcamp }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [text, setText] = useState('');
     const [image, setImage] = useState<string | null>(null);
     const [category, setCategory] = useState<PostCategory>('general');
+    const [visibility, setVisibility] = useState<'global' | 'friends' | 'bootcamp' | 'bootcamp_and_friends'>('friends');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -111,8 +113,17 @@ export const CreatePostWidget: FC<{
         playAudio('uiClick');
 
         try {
-            const isGlobal = isCoach;
-            const newPost = await createUserPost(currentUser.uid, text, category, image || undefined, isGlobal, isCoach ? displayName : undefined, isCoach ? displayPhotoURL : undefined);
+            const isGlobal = isCoach || visibility === 'global';
+            const newPost = await createUserPost(
+                currentUser.uid, 
+                text, 
+                category, 
+                image || undefined, 
+                isCoach ? 'global' : visibility, 
+                isCoach ? displayName : undefined, 
+                isCoach ? displayPhotoURL : undefined,
+                activeBootcamp?.cohortId
+            );
             
             const optimisticEvent: TimelineEvent = {
                 id: newPost.id,
@@ -135,7 +146,8 @@ export const CreatePostWidget: FC<{
                 streakAtPost: newPost.streakAtPost,
                 bootcampStreakAtPost: newPost.bootcampStreakAtPost,
                 goalTextAtPost: newPost.goalTextAtPost,
-                progressAtPost: newPost.progressAtPost
+                progressAtPost: newPost.progressAtPost,
+                bootcampId: newPost.bootcampId
             };
             
             onPostCreated(optimisticEvent);
@@ -208,6 +220,21 @@ export const CreatePostWidget: FC<{
                             >
                                 <XMarkIcon className="w-3 h-3" />
                             </button>
+                        </div>
+                    )}
+                    
+                    {activeBootcamp && !isCoach && (
+                        <div className="mt-3 flex items-center gap-2 text-sm">
+                            <span className="text-neutral-500 font-medium">Synligt för:</span>
+                            <select
+                                value={visibility}
+                                onChange={(e) => setVisibility(e.target.value as any)}
+                                className="bg-neutral-50 border border-neutral-200 text-neutral-dark rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            >
+                                <option value="friends">Mina kompisar</option>
+                                <option value="bootcamp">Bara bootcamp</option>
+                                <option value="bootcamp_and_friends">Båda (Bootcamp & Kompisar)</option>
+                            </select>
                         </div>
                     )}
                 </div>
@@ -362,7 +389,7 @@ const renderWeightDescription = (description: string) => {
     );
 };
 
-const TimelineEventCard: FC<{
+export const TimelineEventCard: FC<{
     event: TimelineEvent;
     currentUser: User;
     userProfile: UserProfileData;
@@ -430,9 +457,14 @@ const TimelineEventCard: FC<{
                     <div className="flex flex-col">
                         <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
                             <span className="font-bold">{displayName}</span>
-                            {isGlobalPost && (
+                            {isGlobalPost && !event.bootcampId && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                     Officiellt
+                                </span>
+                            )}
+                            {event.bootcampId && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                    🎖️ General Börjes Bootcamp
                                 </span>
                             )}
                             {event.type === 'user_post' ? '' : ` ${event.title}`}
@@ -1055,7 +1087,6 @@ const ShareModal: FC<{
 // --- MAIN COMPONENT ---
 
 export const CommunityView: React.FC<{ 
-  key: number;
   currentUser: User;
   userProfile: UserProfileData;
   achievements: Achievement[];
@@ -1090,6 +1121,7 @@ export const CommunityView: React.FC<{
   setTimelineEvents,
   buddyDetails,
   isLoading,
+  activeBootcamp,
   onDataChanged,
   lastViewTimestamp,
   currentStreak,
@@ -1149,13 +1181,18 @@ export const CommunityView: React.FC<{
       
       const setupListener = async () => {
           if (activeTab === 'flode' && currentUser) {
-              unsubscribe = listenToCommunityTimeline(currentUser.uid, ({ events, lastDoc: newLastDoc }) => {
-                  setRealtimeEvents(events || []); 
-                  if (historicalEvents.length === 0) {
-                      setLastDoc(newLastDoc);
-                      setHasMore(events.length >= 20); 
-                  }
-              });
+              unsubscribe = listenToCommunityTimeline(
+                  currentUser.uid, 
+                  ({ events, lastDoc: newLastDoc }) => {
+                      setRealtimeEvents(events || []); 
+                      if (historicalEvents.length === 0) {
+                          setLastDoc(newLastDoc);
+                          setHasMore(events.length >= 20); 
+                      }
+                  },
+                  20,
+                  activeBootcamp?.cohortId
+              );
           }
       };
       
@@ -1163,13 +1200,13 @@ export const CommunityView: React.FC<{
       return () => {
           if (unsubscribe) unsubscribe();
       };
-  }, [currentUser.uid, activeTab]);
+  }, [currentUser.uid, activeTab, activeBootcamp?.cohortId]);
 
   const loadMoreEvents = async () => {
       if (isLoadingMore || !lastDoc) return;
       setIsLoadingMore(true);
       try {
-          const { events, lastDoc: newLastDoc } = await fetchCommunityTimeline(currentUser.uid, lastDoc, 10);
+          const { events, lastDoc: newLastDoc } = await fetchCommunityTimeline(currentUser.uid, lastDoc, 10, activeBootcamp?.cohortId);
           setHistoricalEvents(prev => [...prev, ...events]);
           setLastDoc(newLastDoc);
           setHasMore(events.length === 10);
