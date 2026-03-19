@@ -350,6 +350,7 @@ export const App = () => {
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
   const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[], yesterdayBootcampReport?: any } | null>(null);
   const [activeBootcamp, setActiveBootcamp] = useState<any | null>(null);
+  const [isBootcampLoading, setIsBootcampLoading] = useState(true);
   const [recentBootcampReports, setRecentBootcampReports] = useState<any[]>([]);
   const [isSummarizingYesterday, setIsSummarizingYesterday] = useState(false);
   const [hasRunCatchUp, setHasRunCatchUp] = useState(false);
@@ -696,7 +697,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         setIsLoadingCommunityData(true);
         try {
             const [timelineResult, details] = await Promise.all([
-                fetchCommunityTimeline(currentUser.uid),
+                fetchCommunityTimeline(currentUser.uid, null, 10, activeBootcamp?.cohortId),
                 fetchBuddyDetailsList(currentUser.uid),
             ]);
             // FIX: Removed redundant filtering. The Firestore query already filters by 'visibleTo'.
@@ -708,13 +709,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         } finally {
             setIsLoadingCommunityData(false);
         }
-    }, [currentUser, setToastNotification]); // Added setToastNotification to deps
+    }, [currentUser, setToastNotification, activeBootcamp?.cohortId]); // Added setToastNotification and activeBootcamp to deps
 
     useEffect(() => {
-        if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
+        if (currentUser && isInitialDataLoaded && userStatus === 'approved' && !isBootcampLoading) {
             loadCommunityData();
         }
-    }, [currentUser, isInitialDataLoaded, userStatus, loadCommunityData]);
+    }, [currentUser, isInitialDataLoaded, userStatus, loadCommunityData, isBootcampLoading]);
 
     useEffect(() => {
         const previousViewMode = previousViewModeRef.current;
@@ -740,10 +741,12 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       if (currentUser) {
           const unsubscribe = subscribeToUserActiveBootcamp(currentUser.uid, (bootcamp) => {
               setActiveBootcamp(bootcamp);
+              setIsBootcampLoading(false);
           });
           return () => unsubscribe();
       } else {
           setActiveBootcamp(null);
+          setIsBootcampLoading(false);
       }
   }, [currentUser]);
 
