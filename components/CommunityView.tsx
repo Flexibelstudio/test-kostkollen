@@ -24,7 +24,8 @@ import {
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
     ShareIcon, PencilIcon, CameraIcon
 } from './icons';
-import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw } from 'lucide-react';
+import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon } from 'lucide-react';
+import EmojiPicker from 'emoji-picker-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 import Lightbox from './Lightbox';
@@ -420,6 +421,20 @@ export const TimelineEventCard: FC<{
 }> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp }) => {
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+                setShowEmojiPicker(false);
+            }
+        };
+        if (showEmojiPicker) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showEmojiPicker]);
 
     const handleCommentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -436,7 +451,6 @@ export const TimelineEventCard: FC<{
         }
     };
     
-    const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
     const isNewEvent = lastViewTimestamp !== null && event.timestamp > lastViewTimestamp && event.userId !== currentUser.uid;
 
     // --- COMPACT STATS LOGIC ---
@@ -457,7 +471,7 @@ export const TimelineEventCard: FC<{
         : (isGlobalPost ? '/favicon.png' : event.userPhotoURL);
 
     return (
-    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
+    <div id={`event-${event.id}`} className={`group relative p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
         isNewEvent 
             ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
             : (isGlobalPost || isCoachPersona)
@@ -576,29 +590,74 @@ export const TimelineEventCard: FC<{
             </div>
         </div>
 
-        {/* Action Bar */}
-        <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-neutral-light/50 ml-[50px]">
-            {reactions.map(emoji => {
-                const usersWhoReacted = (event.reactions || {})[emoji] || {};
-                const count = Object.keys(usersWhoReacted).length;
-                const hasReacted = !!usersWhoReacted[currentUser.uid];
-
-                return (
-                    <button 
-                        key={emoji} 
-                        onClick={() => onTogglePepp(event, emoji)} 
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all active:scale-95 border
-                            ${hasReacted 
-                                ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
-                                : 'bg-transparent border-transparent hover:bg-neutral-light dark:hover:bg-neutral-dark text-neutral-500 dark:text-neutral-400 hover:text-neutral-dark dark:hover:text-white'
-                            }`}
-                    >
-                        <span className={`text-lg transition-transform ${hasReacted ? 'scale-110' : ''}`}>{emoji}</span>
-                        {count > 0 && <span className="font-semibold text-xs">{count}</span>}
-                    </button>
-                )
-            })}
+        {/* Hover Action Menu */}
+        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white dark:bg-neutral-dark shadow-sm border border-neutral-light dark:border-neutral-dark rounded-lg p-1 z-20">
+            {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                <button 
+                    key={emoji}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        onTogglePepp(event, emoji);
+                    }} 
+                    onMouseDown={(e) => e.preventDefault()}
+                    className={`p-1 rounded hover:bg-gray-100 dark:hover:bg-neutral-darker ${!!event.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
+                    title={emoji}
+                >
+                    {emoji}
+                </button>
+            ))}
+            <div className="relative" ref={emojiPickerRef}>
+                <button 
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)} 
+                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral" 
+                    title="Fler emojis"
+                >
+                    <PlusIcon className="w-4 h-4" />
+                </button>
+                {showEmojiPicker && (
+                    <div className="absolute top-full right-0 mt-2 z-50">
+                        <EmojiPicker 
+                            onEmojiClick={(emojiData) => {
+                                onTogglePepp(event, emojiData.emoji);
+                                setShowEmojiPicker(false);
+                            }}
+                            autoFocusSearch={false}
+                            theme="light"
+                        />
+                    </div>
+                )}
+            </div>
         </div>
+
+        {/* Existing Reactions Display */}
+        {Object.keys(event.reactions || {}).length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-3 ml-[50px]">
+                {Object.entries(event.reactions || {}).map(([emoji, users]) => {
+                    const count = Object.keys(users).length;
+                    if (count === 0) return null;
+                    const hasReacted = !!users[currentUser.uid];
+                    
+                    return (
+                        <button 
+                            key={emoji} 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                onTogglePepp(event, emoji);
+                            }} 
+                            onMouseDown={(e) => e.preventDefault()}
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all active:scale-95 border
+                                ${hasReacted 
+                                    ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
+                                    : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
+                                }`}
+                        >
+                            <span>{emoji}</span>
+                            <span className="font-semibold">{count}</span>
+                        </button>
+                    )
+                })}
+            </div>
+        )}
         
         {/* Comments Section */}
         {((event.comments && event.comments.length > 0) || newComment) && (

@@ -208,17 +208,17 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             </p>
             <div className="flex gap-4 justify-center w-full max-w-md mx-auto">
               <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
-                <div className="flex items-center gap-1 text-orange-400 mb-2">
-                  <FireIcon className="w-6 h-6" />
+                <div className="flex items-center gap-1 text-orange-400 mb-2 whitespace-nowrap">
+                  <FireIcon className="w-6 h-6 shrink-0" />
                   <span className="font-bold text-2xl">{participant.currentStreak}</span>
                 </div>
                 <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Nuvarande</span>
               </div>
               
               <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
-                <div className="flex items-center gap-1 text-primary mb-2">
-                  <ShieldCheckIcon className="w-6 h-6" />
-                  <span className="font-bold text-2xl">
+                <div className="flex items-center gap-1 text-primary mb-2 whitespace-nowrap shrink-0">
+                  <ShieldCheckIcon className="w-6 h-6 shrink-0" />
+                  <span className="font-bold text-2xl whitespace-nowrap shrink-0">
                     {participant.currentStreak >= 14 ? 'Fas 2' : 'Fas 1'}
                   </span>
                 </div>
@@ -226,8 +226,8 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
               </div>
 
               <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
-                <div className="flex items-center gap-1 text-neutral-300 mb-2">
-                  <FireIcon className="w-6 h-6" />
+                <div className="flex items-center gap-1 text-neutral-300 mb-2 whitespace-nowrap">
+                  <FireIcon className="w-6 h-6 shrink-0" />
                   <span className="font-bold text-2xl">{participant.longestStreak}</span>
                 </div>
                 <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Längsta</span>
