@@ -114,6 +114,15 @@ export const CreatePostWidget: FC<{
 
         try {
             const isGlobal = isCoach || visibility === 'global';
+            const isBootcampPost = visibility === 'bootcamp' || visibility === 'bootcamp_and_friends';
+            
+            let title = 'skapade ett inlägg';
+            if (isGlobal) {
+                title = 'delade ett meddelande till alla';
+            } else if (isCoach && isBootcampPost) {
+                title = 'delade ett meddelande till truppen';
+            }
+
             const newPost = await createUserPost(
                 currentUser.uid, 
                 text, 
@@ -129,9 +138,9 @@ export const CreatePostWidget: FC<{
                 id: newPost.id,
                 type: 'user_post',
                 timestamp: Date.now(),
-                title: isGlobal ? 'delade ett meddelande till alla' : 'skapade ett inlägg',
+                title: title,
                 description: text,
-                icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
+                icon: (isGlobal || isCoach) ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
                 userId: currentUser.uid,
                 userName: displayName,
                 userPhotoURL: displayPhotoURL,
@@ -428,25 +437,25 @@ export const TimelineEventCard: FC<{
     // --- COMPACT STATS LOGIC ---
     const isCurrentUser = event.userId === currentUser.uid;
     
-    const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
-    
     // Check if the post was made by a coach persona
-    const isCoachPersona = isGlobalPost && event.userName && 
+    const isCoachPersona = event.userName && 
         Object.values(COACH_PERSONAS).some(coach => coach.label === event.userName);
 
-    const displayName = isGlobalPost 
-        ? (isCoachPersona ? event.userName : 'Kostloggen') 
-        : (isCurrentUser ? 'Du' : event.userName);
+    const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
+
+    const displayName = isCoachPersona 
+        ? event.userName 
+        : (isGlobalPost ? 'Kostloggen' : (isCurrentUser ? 'Du' : event.userName));
         
-    const displayPhotoURL = isGlobalPost 
-        ? (isCoachPersona ? event.userPhotoURL : '/favicon.png') 
-        : event.userPhotoURL;
+    const displayPhotoURL = isCoachPersona 
+        ? event.userPhotoURL 
+        : (isGlobalPost ? '/favicon.png' : event.userPhotoURL);
 
     return (
     <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
         isNewEvent 
             ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-            : isGlobalPost
+            : (isGlobalPost || isCoachPersona)
                 ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                 : 'bg-white dark:bg-neutral-darker border-neutral-light'
     }`}>
@@ -1376,6 +1385,7 @@ export const CommunityView: React.FC<{
                             onPostCreated={(post) => setTimelineEvents(prev => [post, ...prev])}
                             setToastNotification={setToastNotification} 
                             userRole={userRole}
+                            activeBootcamp={activeBootcamp}
                         />
                         {visibleEvents.length > 0 ? (
                             <>

@@ -681,13 +681,21 @@ export async function createUserPost(
     }
 
     const isBootcampPost = visibility === 'bootcamp' || visibility === 'bootcamp_and_friends';
+    const isCoachPost = overrideName !== undefined;
     
+    let title = 'skapade ett inlägg';
+    if (isGlobal) {
+        title = 'delade ett meddelande till alla';
+    } else if (isCoachPost && isBootcampPost) {
+        title = 'delade ett meddelande till truppen';
+    }
+
     const postEvent: Omit<TimelineEvent, 'id'> = {
         type: 'user_post',
         timestamp: Date.now(),
-        title: isGlobal ? 'delade ett meddelande till alla' : 'skapade ett inlägg',
+        title: title,
         description: text,
-        icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
+        icon: (isGlobal || isCoachPost) ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
         userId: userId,
         userName: overrideName || userData.displayName,
         userPhotoURL: overridePhotoURL !== undefined ? overridePhotoURL : (userData.photoURL ?? null),
