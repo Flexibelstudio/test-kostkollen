@@ -946,10 +946,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                         disabled={!isEditableView}
                     />
 
-                    {activeBootcamp && (
-                        <MealStructureGuide calorieGoal={goals.calorieGoal} />
-                    )}
-
                     {/* Meal Sections (Matlogg) */}
                     <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
                         <div className="flex items-center justify-between mb-3">
