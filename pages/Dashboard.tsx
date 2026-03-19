@@ -776,7 +776,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 trackColor="text-neutral-light"
                                 centerContent={
                                     <div className="text-center">
-                                        <span className="text-sm font-medium text-neutral-dark mb-1 block">Återstående</span>
+                                        <span className="text-sm font-medium text-neutral-dark mb-1 block">
+                                            {isNetOverBudget ? 'Överskridit' : 'Återstående'}
+                                        </span>
                                         <span className="text-4xl font-bold block text-neutral-dark leading-none tracking-tight">
                                             {isNetOverBudget
                                                 ? netCaloriesOver.toFixed(0)
