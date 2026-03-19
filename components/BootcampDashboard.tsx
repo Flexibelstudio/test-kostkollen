@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings } from '../types';
-import { subscribeToUserEveningReports, submitEveningReport } from '../services/bootcampService';
+import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak } from '../services/bootcampService';
 import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
@@ -17,6 +18,7 @@ interface BootcampDashboardProps {
 const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, onBack }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
@@ -52,6 +54,8 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
     if (!auth.currentUser) return;
     const unsubscribe = subscribeToUserEveningReports(participant.cohortId, auth.currentUser.uid, (fetchedReports) => {
       setReports(fetchedReports);
+      // Recalculate streak whenever reports change or on mount to fix any broken streaks
+      recalculateStreak(participant.cohortId, auth.currentUser!.uid).catch(console.error);
     });
     return () => unsubscribe();
   }, [participant.cohortId]);
@@ -178,36 +182,59 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       </button>
 
       {/* Header */}
-      <div className="bg-neutral-darker text-white p-6 rounded-3xl shadow-soft-xl mb-6 relative overflow-hidden">
+      <div className="bg-neutral-darker text-white rounded-3xl shadow-soft-xl mb-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <ShieldCheckIcon className="w-8 h-8 text-primary" />
-              <h1 className="text-2xl font-extrabold">Bootcamp Status</h1>
+        
+        <button 
+          onClick={() => setIsStatusOpen(!isStatusOpen)}
+          className="w-full p-6 relative z-10 flex items-center justify-between hover:bg-white/5 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <ShieldCheckIcon className="w-8 h-8 text-primary" />
+            <div className="text-left">
+              <h1 className="text-2xl font-extrabold uppercase tracking-wider">Lägesrapport</h1>
+              <p className="text-neutral-300 text-sm font-medium">
+                {participant.cohortId === 'solo' ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDTRÄNING' : 'FAS 2: ELIT'}
+              </p>
             </div>
-            <p className="text-neutral-300">
-              {participant.cohortId === 'solo' ? 'Solo-uppdrag' : 'Trupp-uppdrag'} • {participant.status === 'fas1' ? 'Fas 1 (Dag 1-14)' : 'Fas 2'}
+          </div>
+          {isStatusOpen ? <ChevronUp className="w-6 h-6 text-neutral-400" /> : <ChevronDown className="w-6 h-6 text-neutral-400" />}
+        </button>
+
+        {isStatusOpen && (
+          <div className="p-6 pt-0 relative z-10 animate-fade-in border-t border-white/10 mt-2">
+            <p className="text-sm text-neutral-300 font-medium mb-6 leading-relaxed text-center italic">
+              "Disciplin är bron mellan mål och resultat. Visa mig vad du går för, rekryt!"
             </p>
-          </div>
-          
-          <div className="flex gap-4">
-            <div className="bg-black/40 px-4 py-3 rounded-2xl border border-white/10 flex flex-col items-center min-w-[100px]">
-              <div className="flex items-center gap-1 text-orange-400 mb-1">
-                <FireIcon className="w-5 h-5" />
-                <span className="font-bold text-xl">{participant.currentStreak}</span>
+            <div className="flex gap-4 justify-center w-full max-w-md mx-auto">
+              <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
+                <div className="flex items-center gap-1 text-orange-400 mb-2">
+                  <FireIcon className="w-6 h-6" />
+                  <span className="font-bold text-2xl">{participant.currentStreak}</span>
+                </div>
+                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Nuvarande</span>
               </div>
-              <span className="text-xs text-neutral-400 uppercase tracking-wider font-bold">Nuvarande</span>
-            </div>
-            <div className="bg-black/40 px-4 py-3 rounded-2xl border border-white/10 flex flex-col items-center min-w-[100px]">
-              <div className="flex items-center gap-1 text-neutral-300 mb-1">
-                <FireIcon className="w-5 h-5" />
-                <span className="font-bold text-xl">{participant.longestStreak}</span>
+              
+              <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
+                <div className="flex items-center gap-1 text-primary mb-2">
+                  <ShieldCheckIcon className="w-6 h-6" />
+                  <span className="font-bold text-2xl">
+                    {participant.currentStreak >= 14 ? 'Fas 2' : 'Fas 1'}
+                  </span>
+                </div>
+                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Rang</span>
               </div>
-              <span className="text-xs text-neutral-400 uppercase tracking-wider font-bold">Längsta</span>
+
+              <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
+                <div className="flex items-center gap-1 text-neutral-300 mb-2">
+                  <FireIcon className="w-6 h-6" />
+                  <span className="font-bold text-2xl">{participant.longestStreak}</span>
+                </div>
+                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Längsta</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Måltidsstruktur Guide */}

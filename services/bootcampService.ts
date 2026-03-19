@@ -275,27 +275,43 @@ export const recalculateStreak = async (cohortId: string, userId: string) => {
   // Calculate current streak
   // We iterate from newest to oldest. We only count consecutive green days starting from today or yesterday.
   const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  // Adjust to local Swedish time roughly by adding timezone offset if needed, or just use local date string
+  const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const yesterdayStr = new Date(yesterday.getTime() - (yesterday.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
 
-  let foundStart = false;
+  let expectedDateStr = '';
+  
   for (const report of reports) {
-    if (!foundStart) {
-      // The streak must start from today or yesterday. If the newest report is older than yesterday, streak is 0.
+    if (expectedDateStr === '') {
+      // First iteration, streak must start today or yesterday
       if (report.date === todayStr || report.date === yesterdayStr) {
-        foundStart = true;
+        if (report.isGreenDay) {
+          currentStreak++;
+          // Next expected date is the day before this report
+          const d = new Date(report.date);
+          d.setDate(d.getDate() - 1);
+          expectedDateStr = d.toISOString().split('T')[0];
+        } else {
+          break; // Streak broken immediately
+        }
       } else {
-        break; // Streak is broken
+        break; // Streak is broken (no report for today or yesterday)
       }
-    }
-
-    if (foundStart) {
-      if (report.isGreenDay) {
-        currentStreak++;
+    } else {
+      // Subsequent iterations, must match expected date
+      if (report.date === expectedDateStr) {
+        if (report.isGreenDay) {
+          currentStreak++;
+          const d = new Date(report.date);
+          d.setDate(d.getDate() - 1);
+          expectedDateStr = d.toISOString().split('T')[0];
+        } else {
+          break; // Streak broken by a red day
+        }
       } else {
-        break; // Streak broken
+        break; // Streak broken by a missing day
       }
     }
   }

@@ -741,6 +741,71 @@ export async function addTimelineEvent(
   const buddyUids = buddies.map(b => b.uid);
   const visibleTo = [userId, ...buddyUids];
 
+  // Fetch bootcamp info if applicable
+  let bootcampStreakAtPost: number | undefined;
+  let bootcampId: string | undefined;
+  try {
+    const { getUserActiveBootcamp } = await import('./bootcampService');
+    const activeBootcamp = await getUserActiveBootcamp(userId);
+    if (activeBootcamp) {
+      bootcampStreakAtPost = activeBootcamp.currentStreak;
+      bootcampId = activeBootcamp.cohortId;
+    }
+  } catch (e) {
+    console.warn("Could not fetch bootcamp info for timeline event", e);
+  }
+
+  // Calculate goal text and progress
+  let goalTextAtPost: string | undefined;
+  let progressAtPost: number | undefined;
+  try {
+    const { calculateProgressPercentage, getGoalShortDescription } = await import('../utils/progressUtils');
+    goalTextAtPost = getGoalShortDescription(
+      userData.measurementMethod,
+      userData.desiredWeightChangeKg,
+      userData.desiredFatMassChangeKg,
+      userData.desiredMuscleMassChangeKg
+    );
+    
+    let goalSummary = "Ej satt";
+    if (userData.goalType === 'maintain') goalSummary = "Bibehålla";
+    else if (userData.goalType === 'lose_fat') goalSummary = `${userData.desiredFatMassChangeKg || userData.desiredWeightChangeKg || ''} kg fett`;
+    else if (userData.goalType === 'gain_muscle') goalSummary = `${userData.desiredMuscleMassChangeKg || userData.desiredWeightChangeKg || ''} kg muskler`;
+
+    if (goalTextAtPost === 'Mål: Bibehålla' && goalSummary) {
+      goalTextAtPost = goalSummary;
+    }
+    
+    // Calculate progress using the correct property names from FirestoreUserDocument
+    let currentWeight = userData.currentWeightKg;
+    let currentFatMass = userData.bodyFatMassKg;
+    let currentMuscleMass = userData.skeletalMuscleMassKg;
+    
+    try {
+      const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
+      const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
+      const latestLogSnap = await getDocsSafe(latestLogQuery);
+      if (!latestLogSnap.empty) {
+        const latestLog = latestLogSnap.docs[0].data() as WeightLogEntry;
+        currentWeight = latestLog.weightKg ?? currentWeight;
+        currentFatMass = latestLog.bodyFatMassKg ?? currentFatMass;
+        currentMuscleMass = latestLog.skeletalMuscleMassKg ?? currentMuscleMass;
+      }
+    } catch (e) {
+      console.warn("Could not fetch weight logs for progress calculation", e);
+    }
+    
+    progressAtPost = calculateProgressPercentage(
+      userData.measurementMethod,
+      userData.goalStartWeight, currentWeight, userData.desiredWeightChangeKg,
+      userData.goalStartFatMassKg, currentFatMass, userData.desiredFatMassChangeKg,
+      userData.goalStartMuscleMassKg, currentMuscleMass, userData.desiredMuscleMassChangeKg,
+      false // mainGoalCompleted is not easily available here
+    );
+  } catch (e) {
+    console.warn("Could not calculate goal info for timeline event", e);
+  }
+
   const uniqueEventId = `users--${userId}--${eventData.type}--${eventData.relatedDocId}`;
   const timelineDocRef = doc(db, "communityTimeline", uniqueEventId);
   
@@ -754,6 +819,11 @@ export async function addTimelineEvent(
     reactions: {},
     comments: [],
     relatedDocPath: `users/${userId}/${eventData.type}/${eventData.relatedDocId}`,
+    streakAtPost: userData.currentStreak || 0,
+    bootcampStreakAtPost: bootcampStreakAtPost,
+    bootcampId: bootcampId,
+    goalTextAtPost: goalTextAtPost,
+    progressAtPost: progressAtPost
   };
   delete (fullEvent as any).relatedDocId;
 
@@ -1324,6 +1394,16 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
     const currentMuscleMass = latestLog?.skeletalMuscleMassKg ?? userData.skeletalMuscleMassKg;
     const currentFatMass = latestLog?.bodyFatMassKg ?? userData.bodyFatMassKg;
 
+    const bootcampParticipantRef = doc(db, 'bootcamp_participants', buddy.uid);
+    const bootcampParticipantSnap = await getDocSafe(bootcampParticipantRef);
+    let bootcampStreak: number | undefined = undefined;
+    let bootcampStatus: string | undefined = undefined;
+    if (bootcampParticipantSnap.exists()) {
+      const participantData = bootcampParticipantSnap.data();
+      bootcampStreak = participantData.currentStreak;
+      bootcampStatus = participantData.status;
+    }
+
     let totalWeightChange, muscleMassChange, fatMassChange;
     if (userData.goalStartWeight != null && currentWeight != null) {
       totalWeightChange = currentWeight - userData.goalStartWeight;
@@ -1356,6 +1436,8 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
       desiredFatMassChangeKg: userData.desiredFatMassChangeKg,
       desiredMuscleMassChangeKg: userData.desiredMuscleMassChangeKg,
       achievementInteractions: userData.achievementInteractions || {},
+      bootcampStreak,
+      bootcampStatus,
     } as BuddyDetails;
   });
 

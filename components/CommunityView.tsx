@@ -324,7 +324,12 @@ const BuddyCard: FC<{
                     <div>
                         <h3 className="text-xl font-bold text-neutral-dark">{buddy.name}</h3>
                         <p className="text-xs text-neutral flex items-center gap-2 mt-0.5">
-                            <span className="font-medium text-orange-500">🔥 {buddy.currentStreak} dagar</span>
+                            {buddy.currentStreak !== undefined && buddy.currentStreak > 0 && (
+                                <span className="font-medium text-orange-500">🔥 {buddy.currentStreak}</span>
+                            )}
+                            {buddy.bootcampStreak !== undefined && buddy.bootcampStreak > 0 && (
+                                <span className="font-medium text-yellow-600">🎖️ {buddy.bootcampStreak}</span>
+                            )}
                             <span className="text-neutral-300">|</span>
                             <span className="truncate max-w-[150px]">{goalDescription}</span>
                         </p>

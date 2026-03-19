@@ -646,6 +646,10 @@ export interface BuddyDetails extends Peppkompis {
 
   // For interactions
   achievementInteractions?: { [achievementId: string]: { reactions: Reactions } };
+
+  // For bootcamp
+  bootcampStreak?: number;
+  bootcampStatus?: string;
 }
 
 export type TimelineEventType =
