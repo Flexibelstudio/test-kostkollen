@@ -25,7 +25,7 @@ import {
     ShareIcon, PencilIcon, CameraIcon
 } from './icons';
 import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon } from 'lucide-react';
-import EmojiPicker from 'emoji-picker-react';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 import Lightbox from './Lightbox';
@@ -636,7 +636,7 @@ export const TimelineEventCard: FC<{
                                 setShowEmojiPicker(false);
                             }}
                             autoFocusSearch={false}
-                            theme="light"
+                            theme={Theme.LIGHT}
                         />
                     </div>
                 )}

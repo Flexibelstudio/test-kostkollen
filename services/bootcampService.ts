@@ -73,13 +73,15 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
   }
 
   // Add participant
+  const startDateStr = new Date().toISOString().split('T')[0];
   const participantData: BootcampParticipant = {
     userId,
     cohortId: 'solo', // Special ID for solo participants
     status: 'fas1',
     currentStreak: 0,
     longestStreak: 0,
-    fas1StartDate: new Date().toISOString().split('T')[0], // Starts today
+    fas1StartDate: startDateStr, // Starts today
+    originalStartDate: startDateStr, // Absolute start date
     needsCoachAttention: false,
     joinedAt: Date.now(),
   };
@@ -122,6 +124,7 @@ export const joinCohort = async (userId: string, inviteCode: string): Promise<{ 
     currentStreak: 0,
     longestStreak: 0,
     fas1StartDate: cohort.startDate, // Initial start date
+    originalStartDate: cohort.startDate, // Absolute start date
     needsCoachAttention: false,
     joinedAt: Date.now(),
   };
@@ -175,6 +178,34 @@ export const subscribeToCohortParticipants = (cohortId: string, callback: (parti
 
 // --- Evening Reports ---
 
+export const abortBootcamp = async (userId: string, cohortId: string): Promise<void> => {
+  if (!db) throw new Error("Firestore not initialized");
+  const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
+  await updateDoc(participantRef, { status: 'dropped' });
+};
+
+const checkBootcampExpiration = async (participant: BootcampParticipant): Promise<BootcampParticipant> => {
+  if (!db || (participant.status !== 'fas1' && participant.status !== 'fas2')) {
+    return participant;
+  }
+  
+  const startDateStr = participant.originalStartDate || participant.fas1StartDate;
+  if (!startDateStr) return participant;
+
+  const startDate = new Date(startDateStr);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - startDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 84) { // 12 weeks
+    const participantRef = doc(db, 'bootcampCohorts', participant.cohortId, 'participants', participant.userId);
+    await updateDoc(participantRef, { status: 'expired' });
+    return { ...participant, status: 'expired' };
+  }
+
+  return participant;
+};
+
 export const getUserActiveBootcamp = async (userId: string): Promise<BootcampParticipant | null> => {
   if (!db) return null;
 
@@ -185,7 +216,16 @@ export const getUserActiveBootcamp = async (userId: string): Promise<BootcampPar
     if (snapshot.empty) return null;
     
     // Return the first active one (assuming user can only be in one at a time)
-    return snapshot.docs[0].data() as BootcampParticipant;
+    const activeParticipant = snapshot.docs.map(doc => doc.data() as BootcampParticipant).find(p => p.status === 'fas1' || p.status === 'fas2');
+    
+    if (activeParticipant) {
+      const checkedParticipant = await checkBootcampExpiration(activeParticipant);
+      if (checkedParticipant.status === 'fas1' || checkedParticipant.status === 'fas2') {
+        return checkedParticipant;
+      }
+    }
+    
+    return null;
   } catch (error) {
     console.error("Error fetching user bootcamp:", error);
     return null;
@@ -199,11 +239,21 @@ export const subscribeToUserActiveBootcamp = (userId: string, callback: (partici
   }
 
   const q = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
-  return onSnapshot(q, (snapshot) => {
+  return onSnapshot(q, async (snapshot) => {
     if (snapshot.empty) {
       callback(null);
     } else {
-      callback(snapshot.docs[0].data() as BootcampParticipant);
+      const activeParticipant = snapshot.docs.map(doc => doc.data() as BootcampParticipant).find(p => p.status === 'fas1' || p.status === 'fas2');
+      if (activeParticipant) {
+        const checkedParticipant = await checkBootcampExpiration(activeParticipant);
+        if (checkedParticipant.status === 'fas1' || checkedParticipant.status === 'fas2') {
+          callback(checkedParticipant);
+        } else {
+          callback(null);
+        }
+      } else {
+        callback(null);
+      }
     }
   }, (error) => {
     console.error("Error subscribing to user bootcamp:", error);

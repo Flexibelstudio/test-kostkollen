@@ -491,11 +491,12 @@ export interface EveningReport {
 export interface BootcampParticipant {
   userId: string;
   cohortId: string;
-  status: 'fas1' | 'fas2' | 'completed' | 'dropped';
+  status: 'fas1' | 'fas2' | 'completed' | 'dropped' | 'expired';
   currentStreak: number;
   longestStreak: number;
   fas1StartDate: string; // Resets if they fail in Fas 1
   fas2StartDate?: string;
+  originalStartDate?: string; // The absolute start date for the 12-week limit
   needsCoachAttention: boolean;
   attentionReason?: string;
   joinedAt: number;

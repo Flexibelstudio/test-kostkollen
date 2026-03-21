@@ -5,7 +5,8 @@ import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon,
 import CourseInfoModal from './course/CourseInfoModal';
 import BootcampLandingView from './BootcampLandingView';
 import BootcampDashboard from './BootcampDashboard';
-import { getUserActiveBootcamp } from '../services/bootcampService';
+import { getUserActiveBootcamp, abortBootcamp } from '../services/bootcampService';
+import { cancelCourse } from '../services/firestoreService';
 import { auth } from '../firebase';
 
 export interface Review {
@@ -98,14 +99,16 @@ interface CoursesViewProps {
   onNavigateToCourse: (courseId: CourseInfo['id']) => void;
   onSaveProfileAndGoals: (profile: UserProfileData, goals: GoalSettings) => Promise<void>;
   onSaveWeightLog: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
+  onCourseAborted: () => Promise<void>;
 }
 
 const CourseCard: React.FC<{
   course: CourseInfo;
   onActivate: () => void;
   onShowInfo: () => void;
+  onAbort?: () => void;
   hasStarted: boolean;
-}> = ({ course, onActivate, onShowInfo, hasStarted }) => {
+}> = ({ course, onActivate, onShowInfo, onAbort, hasStarted }) => {
 
   return (
     <div className="bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group hover:scale-[1.01] transition-all duration-300">
@@ -136,7 +139,7 @@ const CourseCard: React.FC<{
             </button>
         </div>
 
-        <div className="mt-auto pt-4 border-t border-neutral-light/50">
+        <div className="mt-auto pt-4 border-t border-neutral-light/50 flex flex-col gap-2">
             <button
                 onClick={onActivate}
                 className={`w-full py-4 flex items-center justify-center gap-2 font-bold rounded-2xl shadow-md active:scale-95 transform transition-all ${
@@ -148,17 +151,27 @@ const CourseCard: React.FC<{
                 {hasStarted ? "Fortsätt kursen" : "Starta kursen"}
                 <ArrowRightIcon className="w-5 h-5" />
             </button>
+            {hasStarted && onAbort && (
+                <button
+                    onClick={onAbort}
+                    className="w-full py-2 text-sm font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors"
+                >
+                    Avbryt kursen
+                </button>
+            )}
         </div>
     </div>
   );
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(false);
   const [activeBootcamp, setActiveBootcamp] = useState<BootcampParticipant | null>(null);
   const [isLoadingBootcamp, setIsLoadingBootcamp] = useState(true);
+  const [courseToAbort, setCourseToAbort] = useState<CourseInfo | null>(null);
+  const [isAborting, setIsAborting] = useState(false);
 
   const fetchBootcamp = async () => {
     if (auth.currentUser) {
@@ -178,12 +191,53 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
     await fetchBootcamp(); // Refresh bootcamp status
   };
 
+  const handleAbortConfirm = async () => {
+    if (!courseToAbort || !auth.currentUser) return;
+    
+    setIsAborting(true);
+    try {
+      if (courseToAbort.id === 'bootcamp' && activeBootcamp) {
+        await abortBootcamp(auth.currentUser.uid, activeBootcamp.cohortId);
+        await fetchBootcamp();
+      } else {
+        await cancelCourse(auth.currentUser.uid, courseToAbort.id as 'praktisk-viktkontroll' | 'maxa-klimakteriet');
+        await onCourseAborted();
+      }
+    } catch (error) {
+      console.error("Error aborting course:", error);
+      alert("Ett fel uppstod när kursen skulle avbrytas.");
+    } finally {
+      setIsAborting(false);
+      setCourseToAbort(null);
+    }
+  };
+
   if (showBootcampLanding) {
     if (activeBootcamp) {
       return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} onBack={() => setShowBootcampLanding(false)} />;
     }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} userProfile={userProfile} goals={goals} onJoinSuccess={handleJoinSuccess} onSaveWeightLog={onSaveWeightLog} />;
   }
+
+  const handleActivateCourse = (courseId: CourseInfo['id'], hasStarted: boolean) => {
+    if (!hasStarted) {
+      // Check if any other course is already started
+      const isPvStarted = !!userProgress['lektion1']?.unlockedAt;
+      const isMkStarted = !!userProgress['m-lektion1']?.unlockedAt;
+      const isBootcampStarted = !!activeBootcamp;
+      
+      if (isPvStarted || isMkStarted || isBootcampStarted) {
+        alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
+        return;
+      }
+    }
+
+    if (courseId === 'bootcamp') {
+      setShowBootcampLanding(true);
+    } else {
+      onNavigateToCourse(courseId);
+    }
+  };
 
   return (
     <>
@@ -203,14 +257,9 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
                     <CourseCard
                         key={course.id}
                         course={course}
-                        onActivate={() => {
-                          if (course.id === 'bootcamp') {
-                            setShowBootcampLanding(true);
-                          } else {
-                            onNavigateToCourse(course.id);
-                          }
-                        }}
+                        onActivate={() => handleActivateCourse(course.id, hasStarted)}
                         onShowInfo={() => setSelectedCourseForInfo(course)}
+                        onAbort={hasStarted ? () => setCourseToAbort(course) : undefined}
                         hasStarted={hasStarted} 
                     />
                 );
@@ -223,6 +272,40 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
                 onClose={() => setSelectedCourseForInfo(null)}
                 course={selectedCourseForInfo}
             />
+        )}
+        
+        {courseToAbort && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-neutral-darker rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+                    <h3 className="text-xl font-bold text-neutral-dark mb-4">Avbryt {courseToAbort.title}?</h3>
+                    <p className="text-neutral mb-6">
+                        Är du säker på att du vill avbryta? 
+                        {courseToAbort.id === 'bootcamp' 
+                            ? " Om du avbryter bootcampen måste du köpa den igen för att starta om." 
+                            : " All din framsteg i kursen kommer att raderas och du kan börja om från början."}
+                    </p>
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setCourseToAbort(null)}
+                            className="flex-1 py-3 rounded-xl font-semibold text-neutral-dark bg-neutral-light/50 hover:bg-neutral-light transition-colors"
+                            disabled={isAborting}
+                        >
+                            Ångra
+                        </button>
+                        <button 
+                            onClick={handleAbortConfirm}
+                            className="flex-1 py-3 rounded-xl font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center justify-center"
+                            disabled={isAborting}
+                        >
+                            {isAborting ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                "Ja, avbryt"
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
         )}
     </>
   );

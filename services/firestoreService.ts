@@ -1071,6 +1071,24 @@ export async function fetchCourseProgressForUser(userId: string): Promise<Record
   return progress;
 }
 
+export async function cancelCourse(userId: string, courseId: 'praktisk-viktkontroll' | 'maxa-klimakteriet') {
+  if (!db) return;
+  const prefix = courseId === 'praktisk-viktkontroll' ? 'lektion' : 'm-lektion';
+  const progressCollectionRef = collection(db, 'users', userId, 'courseProgress');
+  const snapshot = await getDocsSafe(progressCollectionRef);
+  
+  const batch = writeBatch(db);
+  snapshot.forEach(docSnap => {
+    if (docSnap.id.startsWith(prefix)) {
+      batch.delete(docSnap.ref);
+    }
+  });
+  await batch.commit();
+
+  // Also update user profile to reflect course is no longer active
+  await updateUserDocument(userId, { isCourseActive: false });
+}
+
 export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved' | 'archived') {
   if (!db) return;
   const courseProgressRef = doc(db, 'users', userId, 'courseProgress', lessonId);

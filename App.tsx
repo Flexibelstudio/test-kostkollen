@@ -305,6 +305,7 @@ export const App = () => {
     isDataLoading,
     isInitialDataLoaded,
     resetUserData,
+    refreshUserData,
   } = useUserContext();
 
   // Local UI State
@@ -1859,6 +1860,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 onNavigateToCourse={handleNavigateToCourse}
                 onSaveProfileAndGoals={handleSaveProfileAndGoals}
                 onSaveWeightLog={handleBootcampInitialWeightLog}
+                onCourseAborted={refreshUserData}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (
