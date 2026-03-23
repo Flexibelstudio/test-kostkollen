@@ -247,6 +247,92 @@ exports.onUserStreakUpdated = functions.firestore
         const existingDoc = await timelineDocRef.get();
         if (existingDoc.exists) return null;
 
+        // Calculate goal text and progress
+        let goalTextAtPost = 'Mål: Bibehålla';
+        let progressAtPost = 0;
+        
+        if (after.measurementMethod === 'scale' && after.desiredWeightChangeKg) {
+            goalTextAtPost = `Mål: ${after.desiredWeightChangeKg > 0 ? '+' : ''}${after.desiredWeightChangeKg} kg`;
+        } else if (after.measurementMethod === 'inbody') {
+            if (after.desiredFatMassChangeKg) goalTextAtPost = `Mål: ${after.desiredFatMassChangeKg} kg fett`;
+            else if (after.desiredMuscleMassChangeKg) goalTextAtPost = `Mål: +${after.desiredMuscleMassChangeKg} kg muskler`;
+        }
+
+        let goalSummary = "Ej satt";
+        if (after.goalType === 'maintain') goalSummary = "Bibehålla";
+        else if (after.goalType === 'lose_fat') goalSummary = `${after.desiredFatMassChangeKg || after.desiredWeightChangeKg || ''} kg fett`;
+        else if (after.goalType === 'gain_muscle') goalSummary = `${after.desiredMuscleMassChangeKg || after.desiredWeightChangeKg || ''} kg muskler`;
+
+        if (goalTextAtPost === 'Mål: Bibehålla' && goalSummary) {
+          goalTextAtPost = goalSummary;
+        }
+
+        let currentWeight = after.currentWeightKg;
+        let currentFatMass = after.bodyFatMassKg;
+        let currentMuscleMass = after.skeletalMuscleMassKg;
+        
+        try {
+          const latestLogSnap = await db.collection('users').doc(userId).collection('weightLogs')
+            .orderBy('loggedAt', 'desc').limit(1).get();
+          if (!latestLogSnap.empty) {
+            const latestLog = latestLogSnap.docs[0].data();
+            currentWeight = latestLog.weightKg ?? currentWeight;
+            currentFatMass = latestLog.bodyFatMassKg ?? currentFatMass;
+            currentMuscleMass = latestLog.skeletalMuscleMassKg ?? currentMuscleMass;
+          }
+        } catch (e) {
+          logger.warn("Could not fetch weight logs for progress calculation", e);
+        }
+
+        // Calculate progress
+        const isScaleGoal = after.measurementMethod === 'scale';
+        const isFatLossGoal = !isScaleGoal && after.desiredFatMassChangeKg && after.desiredFatMassChangeKg < 0;
+        const isMuscleGainGoal = !isScaleGoal && after.desiredMuscleMassChangeKg && after.desiredMuscleMassChangeKg > 0;
+        
+        let start, current, goalChange;
+        if (isFatLossGoal) {
+            start = after.goalStartFatMassKg || after.goalStartWeight;
+            current = currentFatMass || after.currentWeightKg;
+            goalChange = after.desiredFatMassChangeKg;
+        } else if (isMuscleGainGoal) {
+            start = after.goalStartMuscleMassKg || after.goalStartWeight;
+            current = currentMuscleMass || after.currentWeightKg;
+            goalChange = after.desiredMuscleMassChangeKg;
+        } else {
+            start = after.goalStartWeight;
+            current = currentWeight;
+            goalChange = after.desiredWeightChangeKg;
+        }
+        
+        if (start != null && current != null && goalChange) {
+            const totalChangeNeeded = Math.abs(goalChange);
+            let changeAchieved = goalChange > 0 ? current - start : start - current;
+            changeAchieved = Math.max(0, changeAchieved);
+            if (totalChangeNeeded < 0.01) {
+                progressAtPost = 100;
+            } else {
+                const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
+                progressAtPost = Math.max(0, Math.min(progressRaw, 100));
+            }
+        }
+
+        // Fetch bootcamp info
+        let bootcampStreakAtPost = undefined;
+        let bootcampId = undefined;
+        try {
+          const bootcampSnap = await db.collectionGroup('participants').where('userId', '==', userId).get();
+          if (!bootcampSnap.empty) {
+            // Find the active one
+            const activeParticipant = bootcampSnap.docs.map(d => d.data()).find(p => p.status === 'fas1' || p.status === 'fas2');
+            if (activeParticipant) {
+              bootcampStreakAtPost = activeParticipant.currentStreak || 0;
+              bootcampId = activeParticipant.cohortId;
+            }
+          }
+        } catch (e) {
+          logger.warn("Could not fetch bootcamp info for timeline event", e);
+        }
+
         const eventData = {
           type: 'streak',
           timestamp: Date.now(),
@@ -261,6 +347,11 @@ exports.onUserStreakUpdated = functions.firestore
           reactions: {},
           comments: [],
           relatedDocPath: `users/${userId}`,
+          streakAtPost: newStreak,
+          bootcampStreakAtPost: bootcampStreakAtPost,
+          bootcampId: bootcampId,
+          goalTextAtPost: goalTextAtPost,
+          progressAtPost: progressAtPost
         };
 
         await timelineDocRef.set(eventData);
@@ -678,21 +769,10 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     }
 
     try {
-        // --- FIX FÖR ACCOUNTS V2: Skapa kunden först för att stödja Sandbox-miljön ---
-        const userEmail = context.auth.token.email || data.email;
-        
-        logger.log("Skapar Stripe-kund för att förbereda Checkout:", userEmail);
-        
-        const customer = await stripe.customers.create({
-            email: userEmail,
-            metadata: { firebaseUid: context.auth.uid }
-        });
-
-        // Skapa sessionen kopplad till den nyskapade kunden
         const session = await stripe.checkout.sessions.create({
-            customer: customer.id, // KRITISKT för Accounts V2
             payment_method_types: ['card'],
             mode: 'subscription',
+            customer_email: context.auth.token.email,
             line_items: [{ price: priceId, quantity: 1 }],
             metadata: { firebaseUid: context.auth.uid },
             allow_promotion_codes: true,
@@ -702,7 +782,7 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
         
         return { sessionId: session.id, url: session.url };
     } catch (error) {
-        console.error("Stripe fel i createCheckoutSession:", error);
+        console.error("Stripe fel:", error);
         throw new functions.https.HttpsError('internal', error.message);
     }
 });

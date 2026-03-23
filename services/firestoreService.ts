@@ -668,13 +668,10 @@ export async function createUserPost(
     // Fetch active bootcamp for bootcamp streak
     let bootcampStreakAtPost: number | undefined = undefined;
     try {
-        const q = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
-        const snapshot = await getDocsSafe(q);
-        if (!snapshot.empty) {
-            const participantData = snapshot.docs[0].data() as any;
-            if (participantData.status === 'fas1' || participantData.status === 'fas2') {
-                bootcampStreakAtPost = participantData.currentStreak || 0;
-            }
+        const { getUserActiveBootcamp } = await import('./bootcampService');
+        const activeBootcamp = await getUserActiveBootcamp(userId);
+        if (activeBootcamp) {
+            bootcampStreakAtPost = activeBootcamp.currentStreak || 0;
         }
     } catch (e) {
         console.error("Failed to fetch bootcamp streak for post", e);
