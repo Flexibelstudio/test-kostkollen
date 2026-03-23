@@ -131,14 +131,11 @@ export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Pr
 
   let bootcampContext = '';
   if (activeBootcamp && activeBootcamp.status === 'fas1') {
-    const startDate = new Date(activeBootcamp.fas1StartDate);
-    const today = new Date();
-    const diffTime = Math.abs(today.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const currentBootcampStreak = activeBootcamp.currentStreak || 0;
     
     bootcampContext = `
 PÅGÅENDE BOOTCAMP (FAS 1):
-- Användaren är på dag ${diffDays} av 14 i Fas 1 av en intensiv Bootcamp.
+- Användaren har klarat ${currentBootcampStreak} av 14 dagar i rad i Fas 1 av en intensiv Bootcamp.
 - Uppmärksamma detta och peppa dem att hålla i under denna tuffa startperiod!
 `;
   }

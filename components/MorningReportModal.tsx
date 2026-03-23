@@ -151,14 +151,9 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
 
   let bootcampProgressCard = null;
   if (activeBootcamp && activeBootcamp.status === 'fas1') {
-    const startDate = new Date(activeBootcamp.fas1StartDate);
-    const today = new Date();
-    // Reset time to midnight for accurate day calculation
-    startDate.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
-    const diffTime = Math.abs(today.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 because day 1 is the start day
-    const progressPercent = Math.min(100, Math.round((diffDays / 14) * 100));
+    // In Phase 1, the progress is determined by the current streak (number of consecutive green days)
+    const currentBootcampStreak = activeBootcamp.currentStreak || 0;
+    const progressPercent = Math.min(100, Math.round((currentBootcampStreak / 14) * 100));
     
     bootcampProgressCard = (
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-neutral-light flex items-center gap-4 animate-scale-in">
@@ -171,7 +166,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
                   <span className="text-xs font-bold text-blue-600">{progressPercent}%</span>
               </div>
               <p className="text-xl font-extrabold text-neutral-dark leading-none mb-2">
-                  Dag {diffDays} <span className="text-sm font-medium text-neutral">av 14</span>
+                  Dag {currentBootcampStreak} <span className="text-sm font-medium text-neutral">av 14</span>
               </p>
               <div className="w-full bg-neutral-light rounded-full h-2">
                   <div className="bg-blue-500 h-2 rounded-full transition-all duration-1000" style={{ width: `${progressPercent}%` }}></div>
