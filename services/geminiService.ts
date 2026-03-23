@@ -17,6 +17,7 @@ export interface AIDataForMorningBriefing {
   currentStreak: number;
   yesterdayMeals?: any[];
   yesterdayBootcampReport?: any;
+  activeBootcamp?: any;
 }
 
 export const generateGrowthEngineMessage = async (context: string, userNames: string[]): Promise<string> => {
@@ -123,10 +124,24 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text. Bör
 };
 
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
-  const { userProfile, summary, currentStreak, yesterdayBootcampReport } = data;
+  const { userProfile, summary, currentStreak, yesterdayBootcampReport, activeBootcamp } = data;
   const style = userProfile.coachStyle || 'balanced';
   const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
   const name = userProfile.name || 'du';
+
+  let bootcampContext = '';
+  if (activeBootcamp && activeBootcamp.status === 'fas1') {
+    const startDate = new Date(activeBootcamp.fas1StartDate);
+    const today = new Date();
+    const diffTime = Math.abs(today.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    bootcampContext = `
+PÅGÅENDE BOOTCAMP (FAS 1):
+- Användaren är på dag ${diffDays} av 14 i Fas 1 av en intensiv Bootcamp.
+- Uppmärksamma detta och peppa dem att hålla i under denna tuffa startperiod!
+`;
+  }
 
   const prompt = `Du är ${persona.label}, ${persona.roleTitle}.
 Tonläge och instruktioner: ${persona.promptTone}
@@ -149,6 +164,7 @@ BOOTCAMP-RAPPORT IGÅR:
 - Tränat styrka: ${yesterdayBootcampReport.strengthTrained ? 'JA' : 'NEJ'}
 - Kommentar till Generalen: "${yesterdayBootcampReport.comment || 'Ingen'}"
 ` : ''}
+${bootcampContext}
 
 INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
