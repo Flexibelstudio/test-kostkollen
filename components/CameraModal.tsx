@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { CameraIcon, XMarkIcon } from './icons.tsx'; 
 import { playAudio } from '../services/audioService.ts'; // Import the new audio service
 
@@ -179,9 +180,9 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
     return null;
   }
 
-  return (
+  return createPortal(
     <div 
-        className="fixed inset-0 bg-neutral-dark bg-opacity-75 flex items-center justify-center z-[75] p-4 animate-fade-in"
+        className="fixed inset-0 bg-neutral-dark bg-opacity-75 flex items-center justify-center z-[110] p-4 animate-fade-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby="camera-modal-title"
@@ -256,7 +257,8 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
             </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

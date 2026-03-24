@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { SavedRecipe } from '../types';
 import { getSavedRecipes, deleteSavedRecipe } from '../services/firestoreService';
 import { useUserContext } from '../context/UserContext';
@@ -85,7 +86,7 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
 
   if (!show) return null;
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={onClose}>
         <div className="bg-white rounded-3xl shadow-soft-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in" onClick={e => e.stopPropagation()}>
@@ -164,7 +165,7 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
           show={!!selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
           recipe={selectedRecipe.recipe}
-          onLog={() => {
+          onLogRecipe={(nutritionalInfo, options) => {
             // Handle logging from saved recipe if needed
             // For now, just close the modal
             setSelectedRecipe(null);
@@ -174,7 +175,8 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
           onShareRecipe={onShareRecipe}
         />
       )}
-    </>
+    </>,
+    document.body
   );
 };
 

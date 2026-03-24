@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect, FC, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
 import { SearchIcon, XMarkIcon, CheckIcon as LogIcon, RecipeIcon as TitleIcon, InformationCircleIcon, ShareIcon, ChevronDownIcon, BookmarkIcon, CheckIcon } from './icons';
 import { playAudio } from '../services/audioService';
@@ -215,9 +215,9 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     </div>
   );
   
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in"
+      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[110] p-4 animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -458,7 +458,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
