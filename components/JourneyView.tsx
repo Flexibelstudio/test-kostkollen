@@ -35,6 +35,7 @@ interface JourneyViewProps {
   isAICoachOpen: boolean;
   isProfileOpen: boolean;
   isMorningReportOpen: boolean;
+  activeBootcamp?: BootcampParticipant | null;
 }
 type Tab = 'goals' | 'achievements';
 
@@ -44,7 +45,8 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       onOpenLogWeightModal, playAudio, 
       initialTab, minSafeCalories,
       setToastNotification, achievements, unlockedAchievements, achievementInteractions,
-      setShowAICoachModal, isAICoachOpen, isProfileOpen, isMorningReportOpen
+      setShowAICoachModal, isAICoachOpen, isProfileOpen, isMorningReportOpen,
+      activeBootcamp
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -504,14 +506,30 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             onClick={() => setShowResetConfirmModal(false)}
         >
             <div className="bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Sätta ett nytt mål?</h3>
-                <p className="text-neutral mb-6">
-                    Detta kommer att markera ditt nuvarande mål som slutfört och låter dig ställa in ett nytt. Vill du fortsätta?
-                </p>
-                <div className="flex justify-end space-x-3">
-                    <button onClick={() => setShowResetConfirmModal(false)} className="px-5 py-2.5 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-xl active:scale-95 interactive-transition font-medium">Avbryt</button>
-                    <button onClick={handleStartNewGoal} className="px-5 py-2.5 text-white bg-primary hover:bg-primary-darker rounded-xl active:scale-95 interactive-transition font-medium">Ja, sätt nytt mål</button>
-                </div>
+                {activeBootcamp ? (
+                    <>
+                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center">
+                            <span className="text-2xl mr-2">🎖️</span> General Börje
+                        </h3>
+                        <p className="text-neutral mb-6">
+                            Ditt mål är låst under pågående bootcamp, soldat! Fokusera på att slutföra uppdraget innan du sätter nya mål.
+                        </p>
+                        <div className="flex justify-end">
+                            <button onClick={() => setShowResetConfirmModal(false)} className="w-full px-5 py-2.5 text-white bg-primary hover:bg-primary-darker rounded-xl active:scale-95 interactive-transition font-medium">Uppfattat!</button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Sätta ett nytt mål?</h3>
+                        <p className="text-neutral mb-6">
+                            Detta kommer att markera ditt nuvarande mål som slutfört och låter dig ställa in ett nytt. Vill du fortsätta?
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button onClick={() => setShowResetConfirmModal(false)} className="px-5 py-2.5 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-xl active:scale-95 interactive-transition font-medium">Avbryt</button>
+                            <button onClick={handleStartNewGoal} className="px-5 py-2.5 text-white bg-primary hover:bg-primary-darker rounded-xl active:scale-95 interactive-transition font-medium">Ja, sätt nytt mål</button>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
       )}
