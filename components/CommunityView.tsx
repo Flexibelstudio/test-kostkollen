@@ -311,6 +311,7 @@ export const CreatePostWidget: FC<{
                 }} 
                 onCameraError={(err) => setToastNotification({message: err, type: 'error'})} 
                 instructionText="Ta en bild att dela"
+                hideTip={true}
             />
         </div>
     );

@@ -166,7 +166,15 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     const ingredientsText = recipe.ingredients.map(ing => `- ${ing.item}`).join('\n');
     const instructionsText = recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
     
-    const shareText = `Recept: ${recipe.title}\n\n${recipe.description}\n\nFörberedelsetid: ${recipe.prepTime}\nTillagningstid: ${recipe.cookTime}\nPortioner: ${recipe.servings}\n\nIngredienser:\n${ingredientsText}\n\nInstruktioner:\n${instructionsText}\n${recipe.chefTip ? `\nKockens tips: ${recipe.chefTip}\n` : '\n'}Delat från Kostloggen.se`;
+    const recipeServings = parseServings(recipe.servings);
+    const kcal = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.calories / recipeServings) : '?';
+    const protein = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.protein / recipeServings) : '?';
+    const carbs = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.carbohydrates / recipeServings) : '?';
+    const fat = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.fat / recipeServings) : '?';
+
+    const macrosText = `Näringsvärde per portion:\nKalorier: ${kcal} kcal\nProtein: ${protein} g\nKolhydrater: ${carbs} g\nFett: ${fat} g`;
+
+    const shareText = `Recept: ${recipe.title}\n\n${recipe.description}\n\nFörberedelsetid: ${recipe.prepTime}\nTillagningstid: ${recipe.cookTime}\nPortioner: ${recipe.servings}\n\n${macrosText}\n\nIngredienser:\n${ingredientsText}\n\nInstruktioner:\n${instructionsText}\n${recipe.chefTip ? `\nKockens tips: ${recipe.chefTip}\n` : '\n'}Delat från Kostloggen.se`;
 
     if (onShareRecipe) {
       onShareRecipe(shareText);
@@ -209,7 +217,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   
   return (
     <div
-      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in"
+      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

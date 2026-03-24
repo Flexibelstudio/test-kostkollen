@@ -8,9 +8,10 @@ interface CameraModalProps {
   onImageCapture: (imageDataUrl: string) => void;
   onCameraError: (errorMessage: string) => void;
   instructionText?: string;
+  hideTip?: boolean;
 }
 
-const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture, onCameraError, instructionText }) => {
+const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture, onCameraError, instructionText, hideTip }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCameraLoading, setIsCameraLoading] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -215,9 +216,11 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
                   <p className="text-white text-base font-semibold bg-black/50 px-3 py-1 rounded-md text-center">
                       {instructionText || 'Placera maten i rutan och ta en bild'}
                   </p>
-                  <p className="text-white text-xs font-medium bg-black/50 px-3 py-1 rounded-md text-center">
-                      💡 Tips: Ha gärna med bestick i bilden så AI:n lättare kan bedöma portionsstorleken.
-                  </p>
+                  {!hideTip && (
+                    <p className="text-white text-xs font-medium bg-black/50 px-3 py-1 rounded-md text-center">
+                        💡 Tips: Ha gärna med bestick i bilden så AI:n lättare kan bedöma portionsstorleken.
+                    </p>
+                  )}
               </div>
             )}
             {isCameraLoading && (
