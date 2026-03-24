@@ -509,7 +509,8 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                 {activeBootcamp ? (
                     <>
                         <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center">
-                            <span className="text-2xl mr-2">🎖️</span> General Börje
+                            <img src={COACH_PERSONAS['hard'].imageUrl} alt="General Börje" className="w-8 h-8 rounded-full object-cover mr-2 border border-primary" />
+                            General Börje
                         </h3>
                         <p className="text-neutral mb-6">
                             Ditt mål är låst under pågående bootcamp, soldat! Fokusera på att slutföra uppdraget innan du sätter nya mål.

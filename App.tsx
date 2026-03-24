@@ -1879,6 +1879,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 isAICoachOpen={showAICoachModal}
                 isProfileOpen={showUserProfileModal}
                 isMorningReportOpen={!!morningReportData}
+                activeBootcamp={activeBootcamp}
             />
          )}
          {viewMode === 'coursesView' && (
