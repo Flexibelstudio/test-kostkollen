@@ -789,6 +789,10 @@ exports.manualSummarizeYesterday = functions
 // NYTT: STRIPE INTEGRATION
 // ==========================================
 
+// ==========================================
+// NYTT: STRIPE INTEGRATION
+// ==========================================
+
 exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Användaren är inte inloggad.');
@@ -804,10 +808,17 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     }
 
     try {
+        // LÖSNINGEN FÖR V2: 1. Skapa kunden i Stripe först
+        const customer = await stripe.customers.create({
+            email: context.auth.token.email,
+            metadata: { firebaseUid: context.auth.uid }
+        });
+
+        // 2. Skapa checkout-sessionen och länka till det nya kund-ID:t
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             mode: 'subscription',
-            customer_email: context.auth.token.email,
+            customer: customer.id, // <-- Här använder vi kundens ID istället för customer_email!
             line_items: [{ price: priceId, quantity: 1 }],
             metadata: { firebaseUid: context.auth.uid },
             allow_promotion_codes: true,
