@@ -73,8 +73,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         const totalProtein = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.protein, 0);
         const totalCalories = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.calories, 0);
         
-        // Kcal-kravet: Måste ligga inom +/- 100 kcal från dagsmålet (och minst 400 kcal loggat)
-        const isCaloriesWithinRange = totalCalories >= (goals.calorieGoal - 100) && totalCalories <= (goals.calorieGoal + 100);
+        // Kcal-kravet: Får inte gå över målet (med en liten buffert på +50 kcal).
+        // Får ligga under målet, men max 20% under (för att bygga sparpott utan att svälta).
+        // Måste ha loggat minst 400 kcal för att räknas som en aktiv dag.
+        const upperLimit = goals.calorieGoal + 50;
+        const lowerLimit = goals.calorieGoal * 0.8; // 20% under
+        const isCaloriesWithinRange = totalCalories >= lowerLimit && totalCalories <= upperLimit;
         setLoggedAllMeals(meals.length > 0 && totalCalories > 400 && isCaloriesWithinRange);
         setProteinMet(totalProtein >= goals.proteinGoal);
         setWaterMet(water >= 2000); // 2 liters
@@ -393,7 +397,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                     <div className="flex-1">
                       <span className={`font-bold block ${loggedAllMeals ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Kalorimålet</span>
                       <span className={`text-sm ${loggedAllMeals ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
-                        {loggedAllMeals ? 'Du ligger inom +/- 100 kcal från ditt mål.' : 'Du måste ligga inom +/- 100 kcal från ditt dagsmål.'}
+                        {loggedAllMeals ? 'Du ligger inom din kaloribudget.' : 'Du måste ligga inom din kaloribudget (max 20% under, ej över).'}
                       </span>
                     </div>
                   </div>
