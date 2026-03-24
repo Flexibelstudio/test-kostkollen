@@ -21,7 +21,7 @@ import {
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
-import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon } from '../components/icons';
+import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon, BookmarkIcon } from '../components/icons';
 import { PiggyBank, Coffee, Sandwich, CookingPot, Apple, Flame } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
@@ -247,7 +247,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     } = useUserContext();
 
     const [isSaving, setIsSaving] = useState(false);
-    const [appStatus, setAppStatus] = useState<'idle' | 'analyzing' | 'searching' | 'saving' | 'error'>('idle');
+    const [appStatus, setAppStatus] = useState<'idle' | 'analyzing' | 'searching' | 'searching_recipe' | 'saving' | 'error'>('idle');
     
     // Modal states
     const [showCameraModal, setShowCameraModal] = useState(false);
@@ -1088,7 +1088,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </button>
                             <button onClick={handleMyRecipes} className="flex items-center gap-3">
                                 <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Mina recept</span>
-                                <div className="w-12 h-12 bg-pink-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-pink-600 transition-colors"><span className="text-2xl">📖</span></div>
+                                <div className="w-12 h-12 bg-pink-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-pink-600 transition-colors"><BookmarkIcon className="w-6 h-6" /></div>
                             </button>
                         </div>
                     )}
@@ -1236,7 +1236,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
             {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => setShowTextEntryModal(false)} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
             {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => setShowRecipeChoiceModal(false)} onChooseSearch={() => { setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
-            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => { setShowRecipeModal(false); setIsRecipeSaved(false); }} onSearch={async (q) => { setAppStatus('searching'); setIsRecipeSaved(false); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} onSaveRecipe={handleSaveRecipe} isSaved={isRecipeSaved} />}
+            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => { setShowRecipeModal(false); setIsRecipeSaved(false); }} onSearch={async (q) => { setAppStatus('searching_recipe'); setIsRecipeSaved(false); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching_recipe'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} onSaveRecipe={handleSaveRecipe} isSaved={isRecipeSaved} />}
             {showMyRecipesModal && <MyRecipesModal show={showMyRecipesModal} onClose={() => setShowMyRecipesModal(false)} />}
             {showIngredientCaptureModal && (
                 <IngredientCaptureModal 
@@ -1277,7 +1277,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             )}
 
-            {appStatus !== 'idle' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
+            {appStatus !== 'idle' && appStatus !== 'searching_recipe' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
         </div>
     );
 };

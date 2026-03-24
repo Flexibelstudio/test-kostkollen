@@ -88,7 +88,6 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose }) => {
           
           <div className="flex justify-between items-center p-6 border-b border-neutral-light bg-neutral-light/30">
             <div className="flex items-center gap-3">
-              <span className="text-3xl">📖</span>
               <h2 className="text-2xl font-bold text-neutral-dark">Mina recept</h2>
             </div>
             <button onClick={onClose} className="p-2 text-neutral hover:bg-neutral-light rounded-full transition-colors">
