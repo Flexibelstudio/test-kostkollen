@@ -240,7 +240,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         )}
       </div>
 
-      {/* TV Screen - Generalens Briefing */}
+      {/* TV Screen - Generalens Briefing (Dynamic based on Phase) */}
       <div className="bg-neutral-darker text-white rounded-3xl shadow-soft-xl mb-6 p-6 border border-white/5">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
           <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
@@ -251,12 +251,16 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             controls 
             className="w-full h-full object-cover"
             poster="https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=2069&auto=format&fit=crop"
+            key={participant.status} // Force re-render when status changes
           >
-            <source src="/general-briefing.mp4" type="video/mp4" />
+            <source 
+              src={participant.status === 'fas1' ? "/general-fas1.mp4" : "/general-fas2.mp4"} 
+              type="video/mp4" 
+            />
             Din webbläsare stöder inte videouppspelning.
           </video>
           <div className="absolute top-4 left-4 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded tracking-wider">
-            REC
+            REC • {participant.status === 'fas1' ? 'FAS 1' : 'FAS 2'}
           </div>
         </div>
       </div>
