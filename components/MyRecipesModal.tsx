@@ -9,9 +9,10 @@ import RecipeModal from './RecipeModal';
 interface MyRecipesModalProps {
   show: boolean;
   onClose: () => void;
+  onShareRecipe?: (recipeText: string) => void;
 }
 
-const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose }) => {
+const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareRecipe }) => {
   const { currentUser } = useUserContext();
   const [recipes, setRecipes] = useState<SavedRecipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,7 +60,10 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose }) => {
     
     const shareText = `Recept: ${recipe.recipe.title}\n\n${recipe.recipe.description}\n\nFörberedelsetid: ${recipe.recipe.prepTime}\nTillagningstid: ${recipe.recipe.cookTime}\nPortioner: ${recipe.recipe.servings}\n\nIngredienser:\n${ingredientsText}\n\nInstruktioner:\n${instructionsText}\n${recipe.recipe.chefTip ? `\nKockens tips: ${recipe.recipe.chefTip}\n` : '\n'}Delat från Kostloggen.se`;
 
-    if (navigator.share) {
+    if (onShareRecipe) {
+      onShareRecipe(shareText);
+      onClose();
+    } else if (navigator.share) {
       try {
         await navigator.share({
           title: `Recept: ${recipe.recipe.title}`,
@@ -166,6 +170,8 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose }) => {
             setSelectedRecipe(null);
           }}
           defaultMealType="lunch" // Or whatever makes sense
+          hideSearch={true}
+          onShareRecipe={onShareRecipe}
         />
       )}
     </>

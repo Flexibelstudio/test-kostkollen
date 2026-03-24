@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, FC, useMemo } from 'react';
 import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
-import { SearchIcon, XMarkIcon, CheckIcon as LogIcon, RecipeIcon as TitleIcon, InformationCircleIcon, ShareIcon, ChevronDownIcon } from './icons';
+import { SearchIcon, XMarkIcon, CheckIcon as LogIcon, RecipeIcon as TitleIcon, InformationCircleIcon, ShareIcon, ChevronDownIcon, BookmarkIcon, CheckIcon } from './icons';
 import { playAudio } from '../services/audioService';
 import MealTypeSelector from './MealTypeSelector';
 
@@ -20,6 +20,7 @@ interface RecipeModalProps {
   hideSearch?: boolean;
   onSaveRecipe?: (recipe: RecipeSuggestion) => void;
   isSaved?: boolean;
+  onShareRecipe?: (recipeText: string) => void;
 }
 
 const parseServings = (servingsStr: string | undefined): number => {
@@ -71,7 +72,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   defaultMealType = null,
   hideSearch = false,
   onSaveRecipe,
-  isSaved = false
+  isSaved = false,
+  onShareRecipe
 }) => {
   const [query, setQuery] = useState('');
   const [portionsToLog, setPortionsToLog] = useState<string>("1");
@@ -166,7 +168,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     
     const shareText = `Recept: ${recipe.title}\n\n${recipe.description}\n\nFörberedelsetid: ${recipe.prepTime}\nTillagningstid: ${recipe.cookTime}\nPortioner: ${recipe.servings}\n\nIngredienser:\n${ingredientsText}\n\nInstruktioner:\n${instructionsText}\n${recipe.chefTip ? `\nKockens tips: ${recipe.chefTip}\n` : '\n'}Delat från Kostloggen.se`;
 
-    if (navigator.share) {
+    if (onShareRecipe) {
+      onShareRecipe(shareText);
+      onClose();
+    } else if (navigator.share) {
       try {
         await navigator.share({
           title: `Recept: ${recipe.title}`,
@@ -216,7 +221,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       >
         <div className="flex items-center justify-between mb-5 flex-shrink-0">
           <div className="flex items-center">
-            <TitleIcon className="w-7 h-7 text-primary mr-2.5" />
+            {!hideSearch && <TitleIcon className="w-7 h-7 text-primary mr-2.5" />}
             <h2 id="recipe-modal-title" className="text-2xl font-semibold text-neutral-dark">
               {hideSearch ? recipe?.title || 'Recept' : 'Receptidéer'}
             </h2>
@@ -248,11 +253,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                 disabled={!query.trim() || isLoading}
                 className="flex-shrink-0 px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-lg shadow-sm active:scale-95 disabled:opacity-50 flex items-center justify-center interactive-transition"
               >
-                <SearchIcon className={`w-5 h-5 ${isLoading ? 'hidden' : 'inline sm:mr-2'}`} />
-                <span className={`hidden sm:inline ${isLoading ? 'hidden' : 'inline'}`}>Sök</span>
-                {isLoading && (
-                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
-                )}
+                <SearchIcon className="w-5 h-5 inline sm:mr-2" />
+                <span className="hidden sm:inline">Sök</span>
               </button>
             </div>
           </form>
@@ -389,7 +391,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         className={`h-11 w-11 flex items-center justify-center rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition ${isSaved ? 'bg-green-500 text-white' : 'bg-primary text-white'}`}
                         title={isSaved ? "Sparat" : "Spara i din receptbank"}
                         >
-                          <span className="text-xl">{isSaved ? '✅' : '📌'}</span>
+                          {isSaved ? <CheckIcon className="w-6 h-6" /> : <BookmarkIcon className="w-6 h-6" />}
                         </button>
                       )}
                     </div>

@@ -406,6 +406,7 @@ export const App = () => {
   const [communityInitialSubTab, setCommunityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
   const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
   const [initialChatId, setInitialChatId] = useState<string | null>(null);
+  const [initialPostText, setInitialPostText] = useState<string | null>(null);
   const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
   const previousViewModeRef = useRef<ViewMode>(viewMode);
   const lastSeenMessageTimestamps = useRef<Record<string, number>>({});
@@ -1850,6 +1851,11 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 isProfileOpen={showUserProfileModal}
                 isMorningReportOpen={!!morningReportData}
                 activeBootcamp={activeBootcamp}
+                onShareRecipe={(recipeText) => {
+                    setCommunityInitialTab('flode');
+                    setInitialPostText(recipeText);
+                    setViewMode('community');
+                }}
             />
          )}
          {viewMode === 'journey' && (
@@ -1934,6 +1940,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
               initialSubTab={communityInitialSubTab}
               highlightEventId={highlightEventId}
               initialChatId={initialChatId}
+              initialPostText={initialPostText}
               timelineEvents={timelineEvents}
               setTimelineEvents={setTimelineEvents}
               buddyDetails={buddyDetails}

@@ -83,9 +83,10 @@ export const CreatePostWidget: FC<{
     userRole?: UserRole;
     isCoachDashboard?: boolean;
     activeBootcamp?: any;
-}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole, isCoachDashboard, activeBootcamp }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [text, setText] = useState('');
+    initialText?: string | null;
+}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole, isCoachDashboard, activeBootcamp, initialText }) => {
+    const [isExpanded, setIsExpanded] = useState(!!initialText);
+    const [text, setText] = useState(initialText || '');
     const [image, setImage] = useState<string | null>(null);
     const [category, setCategory] = useState<PostCategory>('general');
     const [visibility, setVisibility] = useState<'global' | 'friends' | 'bootcamp' | 'bootcamp_and_friends'>('friends');
@@ -93,6 +94,13 @@ export const CreatePostWidget: FC<{
     const [showCameraModal, setShowCameraModal] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (initialText) {
+            setText(initialText);
+            setIsExpanded(true);
+        }
+    }, [initialText]);
 
     const isCoach = userRole === 'coach' && isCoachDashboard;
     const displayPhotoURL = isCoach ? '/favicon.png' : userProfile.photoURL;
@@ -272,6 +280,7 @@ export const CreatePostWidget: FC<{
 
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
+                    <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
                     
                     <button onClick={() => setShowCameraModal(true)} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ta bild">
                         <CameraIcon className="w-5 h-5" />
@@ -292,18 +301,17 @@ export const CreatePostWidget: FC<{
                 </div>
             </div>
 
-            {showCameraModal && (
-                <CameraModal 
-                    show={showCameraModal} 
-                    onClose={() => setShowCameraModal(false)} 
-                    onImageCapture={(base64Data) => { 
-                        setShowCameraModal(false); 
-                        setImage(`data:image/jpeg;base64,${base64Data}`);
-                        setIsExpanded(true);
-                    }} 
-                    onCameraError={(e) => setToastNotification({ message: e, type: 'error' })} 
-                />
-            )}
+            <CameraModal 
+                show={showCameraModal} 
+                onClose={() => setShowCameraModal(false)} 
+                onImageCapture={(imageDataUrl) => { 
+                    setImage('data:image/jpeg;base64,' + imageDataUrl); 
+                    setIsExpanded(true); 
+                    setShowCameraModal(false); 
+                }} 
+                onCameraError={(err) => setToastNotification({message: err, type: 'error'})} 
+                instructionText="Ta en bild att dela"
+            />
         </div>
     );
 };
@@ -1212,6 +1220,7 @@ export const CommunityView: React.FC<{
   initialSubTab?: 'buddies' | 'search' | 'requests';
   highlightEventId?: string | null;
   initialChatId?: string | null;
+  initialPostText?: string | null;
   timelineEvents: TimelineEvent[];
   setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
   buddyDetails: BuddyDetails[];
@@ -1232,6 +1241,7 @@ export const CommunityView: React.FC<{
   initialSubTab = 'buddies',
   highlightEventId = null,
   initialChatId = null,
+  initialPostText = null,
   timelineEvents,
   setTimelineEvents,
   buddyDetails,
@@ -1492,6 +1502,7 @@ export const CommunityView: React.FC<{
                             setToastNotification={setToastNotification} 
                             userRole={userRole}
                             activeBootcamp={activeBootcamp}
+                            initialText={initialPostText}
                         />
                         {visibleEvents.length > 0 ? (
                             <>
