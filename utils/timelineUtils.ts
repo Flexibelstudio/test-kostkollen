@@ -43,12 +43,28 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
     }
     
     // FIX: Use persisted goalStartDate. If none, use today (don't infer from logs, forcing a reset visual)
-    const startDate = goalStartDate ? new Date(goalStartDate) : new Date();
+    let startDate = goalStartDate ? new Date(goalStartDate) : undefined;
+    
+    // If no goalStartDate, try to infer from the first weight log
+    if (!startDate && weightLogs && weightLogs.length > 0) {
+        startDate = new Date(weightLogs[0].loggedAt);
+    }
+    
+    // Fallback to today if still no start date
+    if (!startDate) {
+        startDate = new Date();
+    }
     startDate.setHours(0, 0, 0, 0);
     
     // Determine the starting weight for the goal based on the *start date*.
-    // If we have a goalStartWeight saved, use it. Otherwise fall back to currentWeight.
-    const startWeightForCalculation = profile.goalStartWeight || currentWeightKg;
+    // If we have a goalStartWeight saved, use it. Otherwise fall back to the first log's weight, or currentWeight.
+    let startWeightForCalculation = profile.goalStartWeight;
+    if (startWeightForCalculation === undefined && weightLogs && weightLogs.length > 0) {
+        startWeightForCalculation = weightLogs[0].weightKg;
+    }
+    if (startWeightForCalculation === undefined) {
+        startWeightForCalculation = currentWeightKg;
+    }
 
     let endDate: Date;
     let paceFeedback: { type: 'warning' | 'info' | 'error', text: string } | null = null;

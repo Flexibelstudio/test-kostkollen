@@ -54,7 +54,8 @@ import type {
     TimelineEvent,
     TimelineComment,
     Reactions,
-    PostCategory
+    PostCategory,
+    Achievement
 } from '../types';
 import { DEFAULT_GOALS, DEFAULT_USER_PROFILE } from '../constants';
 import { courseLessons, menopauseCourseLessons } from '../courseData.ts';
@@ -550,7 +551,7 @@ export function listenToCommunityTimeline(
 }
 
 // 2. Fetch OLDER events (Pagination)
-export async function fetchCommunityTimeline(
+export async function _fetchCommunityTimelinePaginated(
   currentUserId: string, 
   lastSnapshot: any = null, 
   limitCount: number = 10,
@@ -582,6 +583,16 @@ export async function fetchCommunityTimeline(
       }
       throw error;
   }
+}
+
+export async function fetchCommunityTimeline(
+  currentUserId: string, 
+  lastSnapshot: any = null, 
+  limitCount: number = 10,
+  bootcampId?: string | null
+): Promise<TimelineEvent[]> {
+    const { events } = await _fetchCommunityTimelinePaginated(currentUserId, lastSnapshot, limitCount, bootcampId);
+    return events;
 }
 
 export async function createUserPost(
@@ -882,11 +893,12 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   const userDocRef = doc(db, 'users', userId);
 
   let maybeSummaryStart: string | undefined;
+  let currentDocData: FirestoreUserDocument | undefined;
   try {
     const snap = await getDocSafe(userDocRef);
     if (snap.exists()) {
-      const data = snap.data() as FirestoreUserDocument;
-      if (!data.summaryStartDate) {
+      currentDocData = snap.data() as FirestoreUserDocument;
+      if (!currentDocData.summaryStartDate) {
         maybeSummaryStart = getDateUID_SE();
       }
     }
@@ -894,12 +906,47 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
     console.warn("Could not read userDoc before updating profile/goals.", e);
   }
 
-  const dataToUpdate = {
+  const dataToUpdate: any = {
     ...profile,
     goals: goals,
     displayName: profile.name,
     ...(maybeSummaryStart ? { summaryStartDate: maybeSummaryStart } : {}),
   };
+
+  // Check if goal has changed
+  const goalChanged = currentDocData && (
+    currentDocData.goalType !== profile.goalType ||
+    currentDocData.measurementMethod !== profile.measurementMethod ||
+    currentDocData.desiredWeightChangeKg !== profile.desiredWeightChangeKg ||
+    currentDocData.desiredFatMassChangeKg !== profile.desiredFatMassChangeKg ||
+    currentDocData.desiredMuscleMassChangeKg !== profile.desiredMuscleMassChangeKg
+  );
+
+  if (!currentDocData || goalChanged) {
+    // Set goal start date to today
+    dataToUpdate.goalStartDate = new Date().toISOString().split('T')[0];
+  }
+
+  if (goalChanged) {
+    // Reset goal completion status
+    dataToUpdate.mainGoalCompleted = false;
+
+    // Fetch the latest weight log to set as the new start value
+    try {
+      const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
+      const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
+      const latestLogSnap = await getDocsSafe(latestLogQuery);
+      
+      if (!latestLogSnap.empty) {
+        const latestLog = latestLogSnap.docs[0].data() as WeightLogEntry;
+        if (latestLog.weightKg != null) dataToUpdate.goalStartWeight = latestLog.weightKg;
+        if (latestLog.bodyFatMassKg != null) dataToUpdate.goalStartFatMassKg = latestLog.bodyFatMassKg;
+        if (latestLog.skeletalMuscleMassKg != null) dataToUpdate.goalStartMuscleMassKg = latestLog.skeletalMuscleMassKg;
+      }
+    } catch (e) {
+      console.warn("Could not fetch latest weight log to set goal start values.", e);
+    }
+  }
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
 }
@@ -937,6 +984,46 @@ export async function unlockAchievement(userId: string, achievementId: string, a
     });
 
     return true;
+}
+
+export async function checkAndUnlockAchievements(
+    userId: string, 
+    currentStreak: number, 
+    isMainGoalCompleted: boolean, 
+    completedLessonsCount: number, 
+    totalLessonsCount: number,
+    achievementsDef: Achievement[]
+): Promise<Achievement[]> {
+    if (!db) return [];
+    
+    const unlockedNow: Achievement[] = [];
+    
+    // Check Streak Achievements
+    const streakAchs = achievementsDef.filter(a => a.type === 'streak' && a.requiredValue <= currentStreak);
+    for (const ach of streakAchs) {
+        const unlocked = await unlockAchievement(userId, ach.id, ach.name, ach.icon, ach.description);
+        if (unlocked) unlockedNow.push(ach);
+    }
+    
+    // Check Goal Achievement
+    if (isMainGoalCompleted) {
+        const goalAch = achievementsDef.find(a => a.id === 'main_goal_reached');
+        if (goalAch) {
+            const unlocked = await unlockAchievement(userId, goalAch.id, goalAch.name, goalAch.icon, goalAch.description);
+            if (unlocked) unlockedNow.push(goalAch);
+        }
+    }
+    
+    // Check Course Achievement
+    if (totalLessonsCount > 0 && completedLessonsCount >= totalLessonsCount) {
+        const courseAch = achievementsDef.find(a => a.id === 'course_completed');
+        if (courseAch) {
+            const unlocked = await unlockAchievement(userId, courseAch.id, courseAch.name, courseAch.icon, courseAch.description);
+            if (unlocked) unlockedNow.push(courseAch);
+        }
+    }
+    
+    return unlockedNow;
 }
 
 /* ===== Weight ===== */

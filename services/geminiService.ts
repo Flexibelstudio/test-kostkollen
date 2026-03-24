@@ -626,7 +626,7 @@ export const getAICoachResponseStream = async (
   chatHistory: Content[],
   context: AIDataForJourneyAnalysis
 ) => {
-  const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = context;
+  const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak, goalTimeline } = context;
 
   const formattedWeightLogsForAI = allWeightLogs.map(log => ({
     date: new Date(log.loggedAt).toISOString().split('T')[0],
@@ -709,6 +709,7 @@ Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VI
 **TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
 - **Profil:** ${JSON.stringify(userProfile)}
 - **Aktuella Mål (VIKTIGT: Använd dessa mål för kalorier och protein):** ${JSON.stringify(goals)}
+- **Måltidslinje & Milstolpar:** ${JSON.stringify(goalTimeline)}
 - **Streak:** ${currentStreak} dagar
 - **Viktloggar (ENDAST för vikt, muskler, fett):** ${JSON.stringify(formattedWeightLogsForAI)}
 - **Dagliga Summeringar (ENDAST för protein, kalorier, etc.):** ${JSON.stringify(formattedDailySummariesForAI)}
@@ -811,7 +812,7 @@ const getUserLevelInfo = (streak: number): { currentLevel: Level } => {
 };
 
 export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis): Promise<AIStructuredFeedbackResponse> => {
-    const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = data;
+    const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak, goalTimeline } = data;
 
     // --- PLATEAU DETECTION ---
     let plateauPromptPart = "";
@@ -1033,6 +1034,7 @@ Användarens data:
 ${bodyCompositionDataPrompt}
 - Senaste välbefinnande: ${mentalWellbeingDataString}
 - Summering av näring i analysperioden: ${nutritionalSummaryForPrompt}
+- Måltidslinje & Milstolpar: ${JSON.stringify(goalTimeline)}
 - Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna (senaste 30d)
 - Streak: ${currentStreak} dagar
 - Nivå: ${nivå}

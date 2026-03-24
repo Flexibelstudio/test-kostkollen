@@ -13,6 +13,7 @@ import {
     addCommentToTimelineEvent,
     toggleLikeOnComment,
     fetchCommunityTimeline,
+    _fetchCommunityTimelinePaginated,
     listenToCommunityTimeline,
     createUserPost,
     cancelFriendRequest,
@@ -517,7 +518,7 @@ export const TimelineEventCard: FC<{
                             (event.streakAtPost !== undefined && event.streakAtPost > 0) || 
                             (event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0) || 
                             event.goalTextAtPost || 
-                            (event.progressAtPost !== undefined && event.progressAtPost >= 0)
+                            (event.progressAtPost !== undefined && event.progressAtPost > 0)
                         ) && (
                             <div className="mt-1 mb-2 w-full max-w-[200px]">
                                 <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
@@ -537,7 +538,7 @@ export const TimelineEventCard: FC<{
                                         </>
                                     )}
                                 </div>
-                                {event.progressAtPost !== undefined && event.progressAtPost >= 0 && (
+                                {event.progressAtPost !== undefined && event.progressAtPost > 0 && (
                                     <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
                                         <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
                                     </div>
@@ -1293,7 +1294,7 @@ export const CommunityView: React.FC<{
       if (isLoadingMore || !lastDoc) return;
       setIsLoadingMore(true);
       try {
-          const { events, lastDoc: newLastDoc } = await fetchCommunityTimeline(currentUser.uid, lastDoc, 10, activeBootcamp?.cohortId);
+          const { events, lastDoc: newLastDoc } = await _fetchCommunityTimelinePaginated(currentUser.uid, lastDoc, 10, activeBootcamp?.cohortId);
           setHistoricalEvents(prev => [...prev, ...events]);
           setLastDoc(newLastDoc);
           setHasMore(events.length === 10);

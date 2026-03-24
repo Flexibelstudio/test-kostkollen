@@ -702,7 +702,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 fetchBuddyDetailsList(currentUser.uid),
             ]);
             // FIX: Removed redundant filtering. The Firestore query already filters by 'visibleTo'.
-            setTimelineEvents(timelineResult.events);
+            setTimelineEvents(timelineResult);
             setBuddyDetails(details);
         } catch (error) {
             console.error("Failed to load community data:", error);
@@ -1098,10 +1098,31 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       const currentProgress = userCourseProgress[lessonId] || {};
       const updatedProgress = { ...currentProgress, isCompleted: true };
       
-      setUserCourseProgress(prev => ({
-          ...prev,
-          [lessonId]: updatedProgress as any
-      }));
+      setUserCourseProgress(prev => {
+          const newState = {
+              ...prev,
+              [lessonId]: updatedProgress as any
+          };
+          
+          // Check for course completion achievement
+          const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
+          const totalLessons = lessonsForOverview.length;
+          const completedLessons = lessonsForOverview.filter(l => newState[l.id]?.isCompleted).length;
+          
+          if (totalLessons > 0 && completedLessons === totalLessons) {
+              const ach = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'course_completed');
+              if (ach && !unlockedAchievements[ach.id]) {
+                  unlockAchievement(currentUser.uid, ach.id, ach.name, ach.icon, ach.description).then(unlocked => {
+                      if (unlocked) {
+                          setToastNotification({ message: `Bragd upplåst: ${ach.name}!`, type: 'success' });
+                          setUnlockedAchievements(prevAch => ({ ...prevAch, [ach.id]: new Date().toISOString() }));
+                      }
+                  });
+              }
+          }
+          
+          return newState;
+      });
       
       try {
           await saveCourseProgress(currentUser.uid, lessonId, updatedProgress as any, userRole || 'member', userStatus || 'approved');
@@ -1943,7 +1964,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 allWeightLogs: weightLogs, 
                 last30DaysSummaries: Object.values(pastDaysSummary), 
                 mentalWellbeingLogs, 
-                goalTimeline: calculateGoalTimeline(userProfile), 
+                goalTimeline: calculateGoalTimeline(userProfile, weightLogs), 
                 currentStreak: streakData.currentStreak,
                 userCourseProgress,
                 activeBootcamp,

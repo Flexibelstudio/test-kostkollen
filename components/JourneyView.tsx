@@ -67,9 +67,14 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   }, [weightLogs, userProfile.goalStartDate]);
   
   const timeline = useMemo(() => {
+      // Create an effective profile that backfills goalStartDate from the first log if missing
+      const effectiveProfile = {
+          ...userProfile,
+          goalStartDate: userProfile.goalStartDate || (weightLogs.length > 0 ? new Date(weightLogs[0].loggedAt).toISOString().split('T')[0] : undefined)
+      };
       // Calculate timeline using the filtered logs (relevant to current goal)
-      return calculateGoalTimeline(userProfile, filteredWeightLogs);
-  }, [userProfile, filteredWeightLogs]);
+      return calculateGoalTimeline(effectiveProfile, filteredWeightLogs);
+  }, [userProfile, filteredWeightLogs, weightLogs]);
   
   // Find latest measurements
   const latestWeightValue = useMemo(() => [...filteredWeightLogs].reverse().find(l => l.weightKg != null)?.weightKg ?? userProfile.currentWeightKg, [filteredWeightLogs, userProfile.currentWeightKg]);
