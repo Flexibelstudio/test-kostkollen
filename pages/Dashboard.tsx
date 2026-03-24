@@ -48,6 +48,7 @@ import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
 // Modaler
 import CameraModal from '../components/CameraModal';
 import TextEntryModal from '../components/TextEntryModal';
+import ProteinInfoModal from '../components/ProteinInfoModal';
 import RecipeChoiceModal from '../components/RecipeChoiceModal';
 import RecipeModal from '../components/RecipeModal';
 import IngredientCaptureModal from '../components/IngredientCaptureModal';
@@ -285,6 +286,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
     const [showBonusCoin, setShowBonusCoin] = useState(false);
     const [activeMealSection, setActiveMealSection] = useState<MealType | null>(null); // Lifted state for open section
+    const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
 
     const bankRef = useRef<HTMLDivElement>(null);
     const waterLoggerRef = useRef<HTMLDivElement>(null);
@@ -814,7 +816,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         {/* Protein */}
                         <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
-                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Protein</p>
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider flex items-center justify-center">
+                                Protein
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowProteinInfoModal(true)}
+                                    className="ml-1 text-neutral-400 hover:text-primary transition-colors"
+                                    aria-label="Information om proteinmål"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                      <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </p>
                             <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.protein)}/{goals.proteinGoal}g
                             </p>
@@ -1228,6 +1242,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                 />
             )}
             
+            {showProteinInfoModal && (
+                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+                    <div onClick={e => e.stopPropagation()}>
+                        <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+                    </div>
+                </div>
+            )}
+
             {appStatus !== 'idle' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
         </div>
     );

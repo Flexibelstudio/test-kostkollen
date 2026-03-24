@@ -94,6 +94,18 @@ const MealStructureGuide: React.FC<MealStructureGuideProps> = ({ calorieGoal, pr
             </div>
           </div>
 
+          <div className="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-2xl border border-primary-100 dark:border-primary-800/50 flex gap-3 mb-3">
+            <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-primary-darker dark:text-primary-lighter shrink-0">
+              <InformationCircleIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-neutral-dark mb-1 uppercase tracking-wide">Proteinkravet</h4>
+              <p className="text-xs text-neutral-dark leading-relaxed">
+                Ditt proteinmål är en rekommenderad miniminivå. Att äta mer är bara positivt! För optimal mättnad och muskeluppbyggnad kan du med fördel sikta på 2 till 2,2 gram per kilo kroppsvikt. Det gör alltså inget om du går över målet – tvärtom.
+              </p>
+            </div>
+          </div>
+
           <div className="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-2xl border border-primary-100 dark:border-primary-800/50 flex gap-3">
             <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-primary-darker dark:text-primary-lighter shrink-0">
               <InformationCircleIcon className="w-5 h-5" />
