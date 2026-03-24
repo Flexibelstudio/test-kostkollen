@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, UsersIcon, UserIcon, KeyIcon, CheckCircleIcon } from './icons';
 import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
-import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort } from '../services/bootcampService';
+import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort, getBootcampStepGoal } from '../services/bootcampService';
 import { saveWeightLog } from '../services/firestoreService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
@@ -168,7 +168,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary font-bold mt-0.5">•</span>
-                <span><strong>Stegmålet:</strong> Minst 10 000 steg per dag. Inga undantag!</span>
+                <span><strong>Stegmålet:</strong> Minst {getBootcampStepGoal(userProfile.activityLevel).toLocaleString()} steg per dag (baserat på din aktivitetsnivå). Inga undantag!</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary font-bold mt-0.5">•</span>

@@ -633,3 +633,21 @@ export const likeBootcampComment = async (cohortId: string, postId: string, comm
     }
   }
 };
+
+export const getBootcampStepGoal = (activityLevel: string, phase: 'fas1' | 'fas2' | 'fas3' = 'fas1'): number => {
+  let baseSteps = 10000;
+  switch (activityLevel) {
+    case 'sedentary': baseSteps = 4000; break;
+    case 'light': baseSteps = 7000; break;
+    case 'moderate': baseSteps = 10000; break;
+    case 'active': baseSteps = 12000; break;
+    case 'very_active': baseSteps = 14000; break;
+    default: baseSteps = 10000;
+  }
+  
+  if (phase === 'fas2' || phase === 'fas3') {
+    baseSteps += 2000;
+  }
+  
+  return baseSteps;
+};

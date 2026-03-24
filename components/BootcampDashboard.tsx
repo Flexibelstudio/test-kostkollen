@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry } from '../types';
-import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak } from '../services/bootcampService';
+import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal } from '../services/bootcampService';
 import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
@@ -109,7 +109,8 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       return;
     }
 
-    const stepsMet = stepsNum >= 10000;
+    const targetSteps = getBootcampStepGoal(userProfile.activityLevel, participant.status);
+    const stepsMet = stepsNum >= targetSteps;
     const isGreenDay = loggedAllMeals && proteinMet && waterMet && stepsMet;
 
     setIsSubmitting(true);
@@ -422,7 +423,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                   </div>
 
                   <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700">
-                    <label className="block font-bold text-neutral-dark dark:text-white mb-2">Stegmålet (Minst 10 000)</label>
+                    <label className="block font-bold text-neutral-dark dark:text-white mb-2">Stegmålet (Minst {getBootcampStepGoal(userProfile.activityLevel, participant.status).toLocaleString()})</label>
                     <input 
                       type="number" 
                       value={steps}
@@ -487,7 +488,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
 
                 <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-2xl border border-orange-200 dark:border-orange-800/50">
                   <p className="text-sm text-orange-800 dark:text-orange-400 font-medium">
-                    <strong>OBS:</strong> Om du inte kan kryssa i alla boxar och har minst 10 000 steg, kommer detta att registreras som en <strong className="text-red-600 dark:text-red-400">Röd Dag</strong> och din streak bryts.
+                    <strong>OBS:</strong> Om du inte kan kryssa i alla boxar och har minst {getBootcampStepGoal(userProfile.activityLevel, participant.status).toLocaleString()} steg, kommer detta att registreras som en <strong className="text-red-600 dark:text-red-400">Röd Dag</strong> och din streak bryts.
                   </p>
                 </div>
 
