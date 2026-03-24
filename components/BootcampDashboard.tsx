@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings } from '../types';
+import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry } from '../types';
 import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak } from '../services/bootcampService';
 import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreService';
 import { auth } from '../firebase';
@@ -12,10 +12,11 @@ interface BootcampDashboardProps {
   participant: BootcampParticipant;
   userProfile: UserProfileData;
   goals: GoalSettings;
+  weightLogs: WeightLogEntry[];
   onBack: () => void;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, onBack }) => {
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, onBack }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
@@ -236,6 +237,71 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           </div>
         )}
       </div>
+
+      {/* Veckans Uppdrag (Weekly Assignment) */}
+      {(() => {
+        const now = new Date();
+        const day = now.getDay();
+        const hour = now.getHours();
+        const isSunday = day === 0;
+        const isMondayMorning = day === 1 && hour < 12;
+        
+        // Check if logged this week
+        let hasLoggedThisWeek = false;
+        if (weightLogs && weightLogs.length > 0) {
+          const startOfWeighInWindow = new Date(now);
+          const daysSinceMonday = day === 0 ? 6 : day - 1;
+          startOfWeighInWindow.setDate(now.getDate() - daysSinceMonday);
+          startOfWeighInWindow.setHours(0, 0, 0, 0);
+          
+          // If it's Sunday, we consider the week starting from last Monday to this Sunday.
+          // Actually, the "weigh-in week" starts on Sunday and ends on Saturday.
+          // Let's define the start of the weigh-in week as the most recent Sunday.
+          const startOfWeighInWeek = new Date(now);
+          startOfWeighInWeek.setDate(now.getDate() - day); // Go back to Sunday
+          startOfWeighInWeek.setHours(0, 0, 0, 0);
+          
+          hasLoggedThisWeek = weightLogs.some(log => log.loggedAt >= startOfWeighInWeek.getTime());
+        }
+
+        const isDelayed = !isSunday && !isMondayMorning && !hasLoggedThisWeek;
+
+        // Show if it's Sunday/Monday morning, OR if they haven't logged this week (delayed)
+        if (isSunday || isMondayMorning || isDelayed) {
+          return (
+            <div className={`mb-6 p-5 rounded-2xl border-2 shadow-sm flex items-center justify-between ${hasLoggedThisWeek ? 'bg-green-50 border-green-200' : (isDelayed ? 'bg-red-50 border-red-200' : 'bg-primary-50 border-primary-200')}`}>
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${hasLoggedThisWeek ? 'bg-green-100 text-green-600' : (isDelayed ? 'bg-red-100 text-red-600' : 'bg-primary-100 text-primary-darker')}`}>
+                  {hasLoggedThisWeek ? <CheckCircleIcon className="w-8 h-8" /> : '⚖️'}
+                </div>
+                <div>
+                  <h3 className={`text-lg font-bold ${hasLoggedThisWeek ? 'text-green-800' : (isDelayed ? 'text-red-800' : 'text-primary-darker')}`}>
+                    Veckans Uppdrag: Invägning
+                  </h3>
+                  <p className={`text-sm ${hasLoggedThisWeek ? 'text-green-700' : (isDelayed ? 'text-red-700 font-medium' : 'text-primary-dark')}`}>
+                    {hasLoggedThisWeek 
+                      ? 'Bra jobbat! Du har loggat din vikt för denna vecka.' 
+                      : (isDelayed 
+                          ? 'FÖRSENAD! Du missade söndagens invägning. Logga din vikt omedelbart, soldat!' 
+                          : 'Det är söndag! Dags att ställa sig på vågen och logga din vikt.')}
+                  </p>
+                </div>
+              </div>
+              {!hasLoggedThisWeek && (
+                <button 
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('open-log-weight-modal'));
+                  }}
+                  className={`px-4 py-2 rounded-lg font-bold text-white shadow-sm transition-transform active:scale-95 ${isDelayed ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary-darker'}`}
+                >
+                  Logga nu
+                </button>
+              )}
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* Måltidsstruktur Guide */}
       <MealStructureGuide calorieGoal={goals.calorieGoal} proteinGoal={goals.proteinGoal} />

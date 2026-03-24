@@ -595,12 +595,27 @@ exports.scheduledNotificationChecker = functions.pubsub
         }
 
         // 5. Vägning (kl 8)
-        const preferredDay = (user.preferredWeighInDay || "måndag").toLowerCase();
+        // Check if user is in an active bootcamp
+        let isBootcampActive = false;
+        try {
+          const bootcampSnap = await db.collectionGroup('participants').where('userId', '==', userId).get();
+          if (!bootcampSnap.empty) {
+            const activeParticipant = bootcampSnap.docs.map(d => d.data()).find(p => p.status === 'fas1' || p.status === 'fas2');
+            if (activeParticipant) {
+              isBootcampActive = true;
+            }
+          }
+        } catch (e) {
+          logger.warn("Could not fetch bootcamp info for notification", e);
+        }
+
+        const preferredDay = isBootcampActive ? "söndag" : (user.preferredWeighInDay || "måndag").toLowerCase();
+        
         if (localHour === 8 && dayOfWeek === preferredDay && user.lastWeighInReminderSent !== todayDateString) {
           const payload = {
             notification: {
-              title: "⚖️ Dags för vägning!",
-              body: `Idag är din planerade vägdag (${user.preferredWeighInDay}). Kom ihåg att logga din vikt!`,
+              title: isBootcampActive ? "🎖️ General Börje: Upp på vågen!" : "⚖️ Dags för vägning!",
+              body: isBootcampActive ? "Det är söndag, soldat! Dags för veckans invägning. Inga ursäkter!" : `Idag är din planerade vägdag (${user.preferredWeighInDay || "måndag"}). Kom ihåg att logga din vikt!`,
               icon: "/icons/icon-192x192.png", badge: "/icons/badge-96x96.png", data: {url: "/?view=journey"},
             }
           };

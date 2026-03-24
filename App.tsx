@@ -332,6 +332,14 @@ export const App = () => {
       }
   }, [isDarkMode]);
 
+  useEffect(() => {
+    const handleOpenLogWeightModal = () => {
+      setShowLogWeightModal(true);
+    };
+    window.addEventListener('open-log-weight-modal', handleOpenLogWeightModal);
+    return () => window.removeEventListener('open-log-weight-modal', handleOpenLogWeightModal);
+  }, []);
+
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
@@ -1878,6 +1886,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 userProfile={userProfile}
                 goals={goals}
                 userProgress={userCourseProgress}
+                weightLogs={weightLogs}
                 onNavigateToCourse={handleNavigateToCourse}
                 onSaveProfileAndGoals={handleSaveProfileAndGoals}
                 onSaveWeightLog={handleBootcampInitialWeightLog}
@@ -1952,7 +1961,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
         {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
         {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
-        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} /></div>}
+        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} activeBootcamp={userProfile.activeBootcamp} weightLogs={weightLogs} /></div>}
         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
         {/* Pass userCourseProgress to AI Coach Modal */}
         <AICoachModal 

@@ -96,6 +96,7 @@ interface CoursesViewProps {
   userProfile: UserProfileData;
   goals: GoalSettings;
   userProgress: UserCourseProgress;
+  weightLogs: WeightLogEntry[];
   onNavigateToCourse: (courseId: CourseInfo['id']) => void;
   onSaveProfileAndGoals: (profile: UserProfileData, goals: GoalSettings) => Promise<void>;
   onSaveWeightLog: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
@@ -165,7 +166,7 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(false);
   const [activeBootcamp, setActiveBootcamp] = useState<BootcampParticipant | null>(null);
@@ -214,7 +215,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
 
   if (showBootcampLanding) {
     if (activeBootcamp) {
-      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} onBack={() => setShowBootcampLanding(false)} />;
+      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} onBack={() => setShowBootcampLanding(false)} />;
     }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} userProfile={userProfile} goals={goals} onJoinSuccess={handleJoinSuccess} onSaveWeightLog={onSaveWeightLog} />;
   }

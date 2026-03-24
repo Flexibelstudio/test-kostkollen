@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { WeightLogEntry } from '../types';
+import { WeightLogEntry, BootcampParticipant } from '../types';
 import { XMarkIcon, CheckIcon } from './icons';
 
 interface LogWeightModalProps {
@@ -9,15 +9,50 @@ interface LogWeightModalProps {
   onSave: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
   measurementMethod?: 'scale' | 'inbody' | 'unknown';
   hideComment?: boolean;
+  activeBootcamp?: BootcampParticipant | null;
+  weightLogs?: WeightLogEntry[];
 }
 
-const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, measurementMethod = 'scale', hideComment = false }) => {
+const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, measurementMethod = 'scale', hideComment = false, activeBootcamp, weightLogs = [] }) => {
   const [weightKg, setWeightKg] = useState<string>('');
   const [skeletalMuscleMassKg, setSkeletalMuscleMassKg] = useState<string>('');
   const [bodyFatMassKg, setBodyFatMassKg] = useState<string>('');
   const [comment, setComment] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Bootcamp restriction logic
+  const isBootcampActive = activeBootcamp?.status === 'fas1' || activeBootcamp?.status === 'fas2';
+  
+  const checkIsWeighInWindow = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0 is Sunday, 1 is Monday
+    const hour = now.getHours();
+    
+    // Sunday all day (0), or Monday (1) before 12:00
+    return day === 0 || (day === 1 && hour < 12);
+  };
+
+  const checkHasLoggedThisWeek = () => {
+    if (!weightLogs || weightLogs.length === 0) return false;
+    
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    
+    const startOfWeighInWeek = new Date(now);
+    startOfWeighInWeek.setDate(now.getDate() - dayOfWeek); // Go back to Sunday
+    startOfWeighInWeek.setHours(0, 0, 0, 0);
+
+    return weightLogs.some(log => log.loggedAt >= startOfWeighInWeek.getTime());
+  };
+
+  const isWeighInWindow = checkIsWeighInWindow();
+  const hasLoggedThisWeek = checkHasLoggedThisWeek();
+  const showBootcampRestriction = isBootcampActive && !isWeighInWindow;
+  const isDelayedLogging = showBootcampRestriction && !hasLoggedThisWeek;
+  const isBlockedLogging = showBootcampRestriction && hasLoggedThisWeek;
+
+  const [acceptedPunishment, setAcceptedPunishment] = useState(false);
 
   useEffect(() => {
     if (show) {
@@ -27,10 +62,77 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
       setComment('');
       setError(null);
       setIsSaving(false);
+      setAcceptedPunishment(false);
     }
   }, [show]);
 
   if (!show) return null;
+
+  if (isBlockedLogging) {
+    return (
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-primary p-4 flex justify-between items-center text-white">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <span className="text-2xl">🎖️</span> General Börje
+          </h2>
+          <button onClick={onClose} className="text-white hover:bg-primary-darker p-1 rounded-full transition-colors">
+            <XMarkIcon className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="p-6 text-center">
+          <div className="w-24 h-24 bg-neutral-light rounded-full flex items-center justify-center mx-auto mb-4 text-5xl">
+            😠
+          </div>
+          <h3 className="text-xl font-bold text-neutral-dark mb-2">Ställ undan vågen, soldat!</h3>
+          <p className="text-neutral-dark mb-6">
+            Du har redan vägt dig denna vecka. Vi fokuserar på processen under veckan, inte på vågen. Ut och marschera med dig!
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full px-5 py-3 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95 interactive-transition"
+          >
+            Uppfattat, General!
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isDelayedLogging && !acceptedPunishment) {
+    return (
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-red-600 p-4 flex justify-between items-center text-white">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <span className="text-2xl">🎖️</span> General Börje
+          </h2>
+          <button onClick={onClose} className="text-white hover:bg-red-700 p-1 rounded-full transition-colors">
+            <XMarkIcon className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="p-6 text-center">
+          <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-5xl">
+            🤬
+          </div>
+          <h3 className="text-xl font-bold text-red-800 mb-2">FÖRSENAD INVÄGNING!</h3>
+          <p className="text-neutral-dark mb-6">
+            Du missade invägningen i söndags, soldat! Det är oacceptabelt. 50 armhävningar omedelbart, sen upp på vågen! Se till att logga i tid nästa vecka!
+          </p>
+          <button
+            onClick={() => setAcceptedPunishment(true)}
+            className="w-full px-5 py-3 text-base font-medium text-white bg-red-600 hover:bg-red-700 rounded-md shadow-sm active:scale-95 interactive-transition"
+          >
+            Jag har gjort mina 50 armhävningar!
+          </button>
+          <button
+            onClick={onClose}
+            className="w-full mt-3 px-5 py-3 text-base font-medium text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-md shadow-sm active:scale-95 interactive-transition"
+          >
+            Avbryt
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
