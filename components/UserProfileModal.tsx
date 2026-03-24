@@ -373,8 +373,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             updatedProfile.desiredMuscleMassChangeKg = 0;
         }
 
-        if (isBootcampOnboarding && name === 'desiredWeightChangeKg' && typeof updatedValue === 'number' && updatedValue > 0) {
-            updatedProfile.desiredWeightChangeKg = 0;
+        if (isBootcampOnboarding && name === 'desiredWeightChangeKg' && typeof updatedValue === 'number') {
+            if (updatedValue > 0) updatedProfile.desiredWeightChangeKg = 0;
+            if (updatedValue < -12) {
+                updatedProfile.desiredWeightChangeKg = -12;
+                alert("Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.");
+            }
+        }
+
+        if (isBootcampOnboarding && name === 'desiredFatMassChangeKg' && typeof updatedValue === 'number') {
+            if (updatedValue > 0) updatedProfile.desiredFatMassChangeKg = 0;
+            if (updatedValue < -12) {
+                updatedProfile.desiredFatMassChangeKg = -12;
+                alert("Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.");
+            }
         }
 
         // Enforce one goal at a time for 'inbody'
@@ -447,12 +459,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           newValue = 0;
       }
 
-      if (isBootcampOnboarding && field === 'desiredWeightChangeKg' && newValue > 0) {
-          newValue = 0;
+      if (isBootcampOnboarding && field === 'desiredWeightChangeKg') {
+          if (newValue > 0) newValue = 0;
+          if (newValue < -12) {
+              newValue = -12;
+              alert("Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.");
+          }
       }
 
-      if (isBootcampOnboarding && field === 'desiredFatMassChangeKg' && newValue > 0) {
-          newValue = 0;
+      if (isBootcampOnboarding && field === 'desiredFatMassChangeKg') {
+          if (newValue > 0) newValue = 0;
+          if (newValue < -12) {
+              newValue = -12;
+              alert("Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.");
+          }
       }
 
       const updatedProfile = { ...prev, [field]: newValue };

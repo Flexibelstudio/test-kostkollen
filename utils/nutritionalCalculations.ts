@@ -91,7 +91,7 @@ export const deriveEffectiveGoalType = (
  * @returns CalculatedNutritionalRecommendations object.
  */
 export const calculateRecommendations = (profile: UserProfileData): CalculatedNutritionalRecommendations => {
-  const { currentWeightKg, heightCm, ageYears, gender, activityLevel, goalType } = profile;
+  const { currentWeightKg, heightCm, ageYears, gender, activityLevel, goalType, desiredWeightChangeKg, desiredFatMassChangeKg, goalCompletionDate, measurementMethod, goalStartDate } = profile;
 
   if (!currentWeightKg || !heightCm || !ageYears ) {
     // Return zeroed or default recommendations if essential data is missing
@@ -104,8 +104,28 @@ export const calculateRecommendations = (profile: UserProfileData): CalculatedNu
   const bmr = calculateMifflinStJeorBMR(currentWeightKg, heightCm, ageYears, gender);
   const tdee = calculateTDEE(bmr, activityLevel);
 
-  // Use the goalType from the profile, which should now be the derived one.
-  const calorieAdjustment = CALORIE_ADJUSTMENT[goalType];
+  let calorieAdjustment = CALORIE_ADJUSTMENT[goalType];
+
+  if (goalType === 'lose_fat') {
+      const goalChange = measurementMethod === 'scale' ? desiredWeightChangeKg : (desiredFatMassChangeKg || desiredWeightChangeKg);
+      if (goalChange && goalChange < 0 && goalCompletionDate) {
+          const startDate = goalStartDate ? new Date(goalStartDate) : new Date();
+          const endDate = new Date(goalCompletionDate);
+          const totalDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+          
+          if (totalDays > 0) {
+              const totalCalorieDeficit = Math.abs(goalChange) * 7000;
+              let dailyDeficit = totalCalorieDeficit / totalDays;
+              
+              // Cap at 1000 kcal/day deficit
+              if (dailyDeficit > 1000) {
+                  dailyDeficit = 1000;
+              }
+              calorieAdjustment = -Math.round(dailyDeficit);
+          }
+      }
+  }
+
   const recommendedCalories = tdee + calorieAdjustment;
 
   const proteinTarget = goalType === 'gain_muscle' ? PROTEIN_PER_KG_TARGET_GAIN : PROTEIN_PER_KG_TARGET;

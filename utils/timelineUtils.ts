@@ -101,7 +101,7 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
         }
     } else {
         // NEW LOGIC: Calculate date if not provided
-        const caloriesPerKg = 7700;
+        const caloriesPerKg = 7000;
         const totalCalorieChange = goalChange * caloriesPerKg;
         
         let dailyAdjustment: number;
