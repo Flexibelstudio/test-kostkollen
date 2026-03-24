@@ -170,6 +170,12 @@ const CommonMealCard: React.FC<{
             className={inputClass}
           />
         </div>
+        {meal.nutritionalInfo.foodItem && (
+          <div className="bg-neutral-light/30 p-2 rounded-lg border border-neutral-light">
+            <label className="block text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-0.5">Ursprungligt innehåll</label>
+            <p className="text-xs text-neutral-dark italic break-words">{meal.nutritionalInfo.foodItem}</p>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-xs font-medium text-neutral">Kcal</label>

@@ -358,6 +358,13 @@ export interface UserCourseProgress {
 
 // --- AI & External Service Types ---
 
+export interface SavedRecipe {
+  id: string;
+  timestamp: number;
+  recipe: RecipeSuggestion;
+  category?: string;
+}
+
 export interface RecipeSuggestion {
   title: string;
   description: string;

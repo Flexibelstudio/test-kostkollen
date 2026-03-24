@@ -23,7 +23,7 @@ import { subscribeToUserChats, sendMessage } from '../services/chatService';
 import { 
     HeartIcon, 
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
-    ShareIcon, PencilIcon, CameraIcon
+    ShareIcon, PencilIcon, CameraIcon, SmileIcon
 } from './icons';
 import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
@@ -437,19 +437,24 @@ export const TimelineEventCard: FC<{
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [showReactionMenu, setShowReactionMenu] = useState(false);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
+    const reactionMenuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
                 setShowEmojiPicker(false);
             }
+            if (reactionMenuRef.current && !reactionMenuRef.current.contains(e.target as Node)) {
+                setShowReactionMenu(false);
+            }
         };
-        if (showEmojiPicker) {
+        if (showEmojiPicker || showReactionMenu) {
             document.addEventListener('mousedown', handleClickOutside);
         }
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showEmojiPicker]);
+    }, [showEmojiPicker, showReactionMenu]);
 
     const handleCommentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -505,7 +510,7 @@ export const TimelineEventCard: FC<{
                                     Officiellt
                                 </span>
                             )}
-                            {event.bootcampId && (
+                            {event.bootcampId && event.type === 'user_post' && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                                     🎖️ General Börjes Bootcamp
                                 </span>
@@ -605,74 +610,96 @@ export const TimelineEventCard: FC<{
             </div>
         </div>
 
-        {/* Hover Action Menu */}
-        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white dark:bg-neutral-dark shadow-sm border border-neutral-light dark:border-neutral-dark rounded-lg p-1 z-20">
-            {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+        {/* Reactions and Action Bar */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-3 ml-[50px]">
+            {/* Existing Reactions */}
+            {Object.entries(event.reactions || {}).map(([emoji, users]) => {
+                const count = Object.keys(users).length;
+                if (count === 0) return null;
+                const hasReacted = !!users[currentUser.uid];
+                
+                return (
+                    <button 
+                        key={emoji} 
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onTogglePepp(event, emoji);
+                        }} 
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all active:scale-95 border
+                            ${hasReacted 
+                                ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
+                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
+                            }`}
+                    >
+                        <span>{emoji}</span>
+                        <span className="font-semibold">{count}</span>
+                    </button>
+                )
+            })}
+
+            {/* Add Reaction Button */}
+            <div className="relative" ref={reactionMenuRef}>
                 <button 
-                    key={emoji}
                     onClick={(e) => {
                         e.preventDefault();
-                        onTogglePepp(event, emoji);
-                    }} 
-                    onMouseDown={(e) => e.preventDefault()}
-                    className={`p-1 rounded hover:bg-gray-100 dark:hover:bg-neutral-darker ${!!event.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
-                    title={emoji}
+                        setShowReactionMenu(!showReactionMenu);
+                    }}
+                    className="flex items-center justify-center w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 transition-colors border border-transparent hover:border-neutral-300 dark:hover:border-neutral-600"
+                    title="Reagera"
                 >
-                    {emoji}
+                    <SmileIcon className="w-4 h-4" />
+                    <span className="absolute -top-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
+                        <PlusIcon className="w-2.5 h-2.5 text-neutral-500" />
+                    </span>
                 </button>
-            ))}
-            <div className="relative" ref={emojiPickerRef}>
-                <button 
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)} 
-                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral" 
-                    title="Fler emojis"
-                >
-                    <PlusIcon className="w-4 h-4" />
-                </button>
-                {showEmojiPicker && (
-                    <div className="absolute top-full right-0 mt-2 z-50">
-                        <EmojiPicker 
-                            onEmojiClick={(emojiData) => {
-                                onTogglePepp(event, emojiData.emoji);
-                                setShowEmojiPicker(false);
-                            }}
-                            autoFocusSearch={false}
-                            theme={Theme.LIGHT}
-                        />
+                
+                {/* Reaction Menu Dropdown */}
+                {showReactionMenu && (
+                    <div className="absolute bottom-full left-0 mb-2 flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5 z-20 animate-fade-in">
+                        {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                            <button 
+                                key={emoji}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    onTogglePepp(event, emoji);
+                                    setShowReactionMenu(false);
+                                }} 
+                                className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!event.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
+                                title={emoji}
+                            >
+                                {emoji}
+                            </button>
+                        ))}
+                        <div className="relative" ref={emojiPickerRef}>
+                            <button 
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    setShowEmojiPicker(!showEmojiPicker);
+                                }} 
+                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
+                                title="Fler emojis"
+                            >
+                                <PlusIcon className="w-4 h-4" />
+                            </button>
+                            {showEmojiPicker && (
+                                <div className="absolute bottom-full right-0 mb-2 z-50">
+                                    <EmojiPicker 
+                                        onEmojiClick={(emojiData) => {
+                                            onTogglePepp(event, emojiData.emoji);
+                                            setShowEmojiPicker(false);
+                                            setShowReactionMenu(false);
+                                        }}
+                                        autoFocusSearch={false}
+                                        theme={Theme.LIGHT}
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
         </div>
-
-        {/* Existing Reactions Display */}
-        {Object.keys(event.reactions || {}).length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-3 ml-[50px]">
-                {Object.entries(event.reactions || {}).map(([emoji, users]) => {
-                    const count = Object.keys(users).length;
-                    if (count === 0) return null;
-                    const hasReacted = !!users[currentUser.uid];
-                    
-                    return (
-                        <button 
-                            key={emoji} 
-                            onClick={(e) => {
-                                e.preventDefault();
-                                onTogglePepp(event, emoji);
-                            }} 
-                            onMouseDown={(e) => e.preventDefault()}
-                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all active:scale-95 border
-                                ${hasReacted 
-                                    ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
-                                    : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
-                                }`}
-                        >
-                            <span>{emoji}</span>
-                            <span className="font-semibold">{count}</span>
-                        </button>
-                    )
-                })}
-            </div>
-        )}
         
         {/* Comments Section */}
         {((event.comments && event.comments.length > 0) || newComment) && (

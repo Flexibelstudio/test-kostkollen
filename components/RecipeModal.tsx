@@ -8,15 +8,18 @@ import MealTypeSelector from './MealTypeSelector';
 interface RecipeModalProps {
   show: boolean;
   onClose: () => void;
-  onSearch: (query: string) => Promise<void>;
+  onSearch?: (query: string) => Promise<void>;
   onLogRecipe: (nutritionalInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void;
   recipe: RecipeSuggestion | null;
-  isLoading: boolean;
-  error: string | null;
+  isLoading?: boolean;
+  error?: string | null;
   isLoggingDisabled?: boolean;
-  recentSearches: string[];
-  setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+  recentSearches?: string[];
+  setToastNotification?: (toast: { message: string; type: 'success' | 'error' } | null) => void;
   defaultMealType?: MealType | null;
+  hideSearch?: boolean;
+  onSaveRecipe?: (recipe: RecipeSuggestion) => void;
+  isSaved?: boolean;
 }
 
 const parseServings = (servingsStr: string | undefined): number => {
@@ -60,25 +63,20 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   onSearch,
   onLogRecipe,
   recipe,
-  isLoading,
-  error,
+  isLoading = false,
+  error = null,
   isLoggingDisabled = false,
-  recentSearches,
+  recentSearches = [],
   setToastNotification,
-  defaultMealType = null
+  defaultMealType = null,
+  hideSearch = false,
+  onSaveRecipe,
+  isSaved = false
 }) => {
   const [query, setQuery] = useState('');
   const [portionsToLog, setPortionsToLog] = useState<string>("1");
-  const [canShare, setCanShare] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['recipe-and-instructions']));
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
-
-
-  useEffect(() => {
-    if (typeof navigator.share === 'function') {
-      setCanShare(true);
-    }
-  }, []);
 
   useEffect(() => {
       setSelectedMealType(defaultMealType);
@@ -93,7 +91,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
+    if (query.trim() && onSearch) {
       onSearch(query.trim());
     }
   };
@@ -101,7 +99,9 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   const handleRecentSearchClick = (searchTerm: string) => {
     playAudio('uiClick');
     setQuery(searchTerm);
-    onSearch(searchTerm);
+    if (onSearch) {
+      onSearch(searchTerm);
+    }
   };
   
   const toggleSection = (section: string) => {
@@ -154,8 +154,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   };
 
   const handleShareRecipe = async () => {
-    if (!recipe || recipe.error || !navigator.share) {
-      setToastNotification({ message: "Kan inte dela recept just nu eller så stöds inte delning.", type: 'error' });
+    if (!recipe || recipe.error) {
+      setToastNotification({ message: "Kan inte dela recept just nu.", type: 'error' });
       setTimeout(() => setToastNotification(null), 3000);
       return;
     }
@@ -164,17 +164,29 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     const ingredientsText = recipe.ingredients.map(ing => `- ${ing.item}`).join('\n');
     const instructionsText = recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
     
-    const shareData = {
-      title: `Recept: ${recipe.title}`,
-      text: `${recipe.description}\n\nFörberedelsetid: ${recipe.prepTime}\nTillagningstid: ${recipe.cookTime}\nPortioner: ${recipe.servings}\n\nIngredienser:\n${ingredientsText}\n\nInstruktioner:\n${instructionsText}\n${recipe.chefTip ? `\nKockens tips: ${recipe.chefTip}\n` : '\n'}Delat från Kostloggen.se`,
-    };
+    const shareText = `Recept: ${recipe.title}\n\n${recipe.description}\n\nFörberedelsetid: ${recipe.prepTime}\nTillagningstid: ${recipe.cookTime}\nPortioner: ${recipe.servings}\n\nIngredienser:\n${ingredientsText}\n\nInstruktioner:\n${instructionsText}\n${recipe.chefTip ? `\nKockens tips: ${recipe.chefTip}\n` : '\n'}Delat från Kostloggen.se`;
 
-    try {
-      await navigator.share(shareData);
-    } catch (err) {
-      console.error('Error sharing recipe:', err);
-      setToastNotification({ message: "Kunde inte dela receptet. Försök igen.", type: 'error' });
-      setTimeout(() => setToastNotification(null), 3000);
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Recept: ${recipe.title}`,
+          text: shareText,
+        });
+      } catch (err) {
+        console.error('Error sharing recipe:', err);
+        setToastNotification({ message: "Kunde inte dela receptet. Försök igen.", type: 'error' });
+        setTimeout(() => setToastNotification(null), 3000);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        setToastNotification({ message: "Receptet har kopierats till urklipp!", type: 'success' });
+        setTimeout(() => setToastNotification(null), 3000);
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+        setToastNotification({ message: "Kunde inte kopiera receptet.", type: 'error' });
+        setTimeout(() => setToastNotification(null), 3000);
+      }
     }
   };
 
@@ -206,7 +218,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
           <div className="flex items-center">
             <TitleIcon className="w-7 h-7 text-primary mr-2.5" />
             <h2 id="recipe-modal-title" className="text-2xl font-semibold text-neutral-dark">
-              Receptidéer
+              {hideSearch ? recipe?.title || 'Recept' : 'Receptidéer'}
             </h2>
           </div>
           <button
@@ -218,31 +230,33 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSearchSubmit} className="mb-5 flex-shrink-0">
-          <label htmlFor="recipeQuery" className="sr-only">Sök recept (t.ex. "vegetarisk frukost på ca 450 kcal och 37 g protein")</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              id="recipeQuery"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder='T.ex. "vegetarisk frukost på ca 450 kcal och 37 g protein"'
-              className="flex-grow w-full px-4 py-2.5 bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base"
-              disabled={isLoading}
-            />
-            <button
-              type="submit"
-              disabled={!query.trim() || isLoading}
-              className="flex-shrink-0 px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-lg shadow-sm active:scale-95 disabled:opacity-50 flex items-center justify-center interactive-transition"
-            >
-              <SearchIcon className={`w-5 h-5 ${isLoading ? 'hidden' : 'inline sm:mr-2'}`} />
-              <span className={`hidden sm:inline ${isLoading ? 'hidden' : 'inline'}`}>Sök</span>
-              {isLoading && (
-                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
-              )}
-            </button>
-          </div>
-        </form>
+        {!hideSearch && (
+          <form onSubmit={handleSearchSubmit} className="mb-5 flex-shrink-0">
+            <label htmlFor="recipeQuery" className="sr-only">Sök recept (t.ex. "vegetarisk frukost på ca 450 kcal och 37 g protein")</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                id="recipeQuery"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder='T.ex. "vegetarisk frukost på ca 450 kcal och 37 g protein"'
+                className="flex-grow w-full px-4 py-2.5 bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base"
+                disabled={isLoading}
+              />
+              <button
+                type="submit"
+                disabled={!query.trim() || isLoading}
+                className="flex-shrink-0 px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-lg shadow-sm active:scale-95 disabled:opacity-50 flex items-center justify-center interactive-transition"
+              >
+                <SearchIcon className={`w-5 h-5 ${isLoading ? 'hidden' : 'inline sm:mr-2'}`} />
+                <span className={`hidden sm:inline ${isLoading ? 'hidden' : 'inline'}`}>Sök</span>
+                {isLoading && (
+                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
 
         <div className="overflow-y-auto custom-scrollbar flex-grow min-h-[200px] -mr-4 pr-4">
           {isLoading && !recipe && !error && (
@@ -257,7 +271,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
               <p>{error}</p>
             </div>
           )}
-           {!recipe && !error && !isLoading && recentSearches.length > 0 && (
+           {!hideSearch && !recipe && !error && !isLoading && recentSearches.length > 0 && (
             <div className="mb-4">
               <h4 className="text-md font-semibold text-neutral-dark mb-2">Tidigare sökningar:</h4>
               <div className="flex flex-wrap gap-2">
@@ -273,7 +287,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
               </div>
             </div>
           )}
-          {!recipe && !error && !isLoading && recentSearches.length === 0 && (
+          {!hideSearch && !recipe && !error && !isLoading && recentSearches.length === 0 && (
             <p className="text-neutral text-center py-4">Inga tidigare sökningar.</p>
           )}
 
@@ -354,16 +368,31 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
             <div className="flex flex-col gap-2">
                 <div className="flex flex-row gap-2 justify-between items-center">
-                    {/* Share button */}
-                    <button
-                    type="button"
-                    onClick={handleShareRecipe}
-                    disabled={isLoading || !canShare}
-                    className="h-11 w-11 flex items-center justify-center bg-primary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
-                    title={!canShare ? "Dela stöds inte i din webbläsare" : "Dela receptet"}
-                    >
-                    <ShareIcon className="w-6 h-6" />
-                    </button>
+                    <div className="flex gap-2">
+                      {/* Share button */}
+                      <button
+                      type="button"
+                      onClick={handleShareRecipe}
+                      disabled={isLoading}
+                      className="h-11 w-11 flex items-center justify-center bg-primary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
+                      title="Dela receptet"
+                      >
+                      <ShareIcon className="w-6 h-6" />
+                      </button>
+
+                      {/* Save button */}
+                      {onSaveRecipe && (
+                        <button
+                        type="button"
+                        onClick={() => onSaveRecipe(recipe)}
+                        disabled={isLoading || isSaved}
+                        className={`h-11 w-11 flex items-center justify-center rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition ${isSaved ? 'bg-green-500 text-white' : 'bg-primary text-white'}`}
+                        title={isSaved ? "Sparat" : "Spara i din receptbank"}
+                        >
+                          <span className="text-xl">{isSaved ? '✅' : '📌'}</span>
+                        </button>
+                      )}
+                    </div>
                     
                     {/* Stepper and Log button group */}
                     <div className="flex items-center gap-2">

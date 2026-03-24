@@ -55,7 +55,8 @@ import type {
     TimelineComment,
     Reactions,
     PostCategory,
-    Achievement
+    Achievement,
+    SavedRecipe
 } from '../types';
 import { DEFAULT_GOALS, DEFAULT_USER_PROFILE } from '../constants';
 import { courseLessons, menopauseCourseLessons } from '../courseData.ts';
@@ -884,6 +885,29 @@ export async function updateCommonMeal(userId: string, commonMealId: string, upd
   if (!db) return;
   const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);
   await updateDoc(commonMealRef, cleanFirestoreData(updatedData));
+}
+
+/* ===== Saved Recipes ===== */
+
+export async function addSavedRecipe(userId: string, recipeData: Omit<SavedRecipe, 'id'>) {
+  if (!db) return `recipe_${Date.now()}`;
+  const recipesRef = collection(db, 'users', userId, 'savedRecipes');
+  const docRef = await addDoc(recipesRef, cleanFirestoreData(recipeData));
+  return docRef.id;
+}
+
+export async function deleteSavedRecipe(userId: string, recipeId: string) {
+  if (!db) return;
+  const recipeRef = doc(db, 'users', userId, 'savedRecipes', recipeId);
+  await deleteDoc(recipeRef);
+}
+
+export async function getSavedRecipes(userId: string): Promise<SavedRecipe[]> {
+  if (!db) return [];
+  const recipesRef = collection(db, 'users', userId, 'savedRecipes');
+  const q = query(recipesRef, orderBy('timestamp', 'desc'));
+  const querySnapshot = await getDocsSafe(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SavedRecipe[];
 }
 
 /* ===== Profile & goals ===== */
