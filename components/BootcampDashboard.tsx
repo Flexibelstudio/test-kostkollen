@@ -240,6 +240,27 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         )}
       </div>
 
+      {/* TV Screen - Generalens Briefing */}
+      <div className="bg-neutral-darker text-white rounded-3xl shadow-soft-xl mb-6 p-6 border border-white/5">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+          Sändning från Högkvarteret
+        </h2>
+        <div className="w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-neutral-dark bg-black relative aspect-video">
+          <video 
+            controls 
+            className="w-full h-full object-cover"
+            poster="https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=2069&auto=format&fit=crop"
+          >
+            <source src="/general-briefing.mp4" type="video/mp4" />
+            Din webbläsare stöder inte videouppspelning.
+          </video>
+          <div className="absolute top-4 left-4 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded tracking-wider">
+            REC
+          </div>
+        </div>
+      </div>
+
       {/* Veckans Uppdrag (Weekly Assignment) */}
       {(() => {
         const now = new Date();

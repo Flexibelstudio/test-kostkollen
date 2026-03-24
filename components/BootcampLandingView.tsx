@@ -147,6 +147,20 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
             Detta är inget för veklingar. Vi ska krossa fettet med disciplin och tydliga regler. 
             Antingen mönstrar du in i en trupp och krigar tillsammans med andra, eller så kör du solo.
           </p>
+
+          <div className="w-full max-w-2xl mb-8 rounded-2xl overflow-hidden shadow-2xl border-4 border-neutral-dark bg-black relative aspect-video">
+            <video 
+              controls 
+              className="w-full h-full object-cover"
+              poster="https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=2069&auto=format&fit=crop"
+            >
+              <source src="/general-briefing.mp4" type="video/mp4" />
+              Din webbläsare stöder inte videouppspelning.
+            </video>
+            <div className="absolute top-4 left-4 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded animate-pulse">
+              LIVE FEED • HÖGKVARTERET
+            </div>
+          </div>
           
           <div className="bg-black/30 p-6 rounded-2xl border border-white/10">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
