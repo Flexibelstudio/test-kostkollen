@@ -230,7 +230,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                 <div className="flex items-center gap-1 text-neutral-300 mb-2 whitespace-nowrap">
                   <CalendarIcon className="w-6 h-6 shrink-0" />
                   <span className="font-bold text-2xl">
-                    {Math.max(0, 84 - Math.floor((new Date().getTime() - new Date(participant.originalStartDate).getTime()) / (1000 * 60 * 60 * 24)))}
+                    {Math.max(0, 84 - Math.floor((new Date().getTime() - new Date(participant.originalStartDate || participant.startDate || new Date()).getTime()) / (1000 * 60 * 60 * 24)))}
                   </span>
                 </div>
                 <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Dagar Kvar</span>
