@@ -9,6 +9,8 @@ import ToastNotification from './ToastNotification';
 import UserProfileModal from './UserProfileModal';
 import LogWeightModal from './LogWeightModal';
 import { WeightLogEntry } from '../types';
+import ProteinInfoModal from './ProteinInfoModal';
+import { InformationCircleIcon } from './icons';
 
 interface BootcampLandingViewProps {
   onBack: () => void;
@@ -26,6 +28,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
   const [selectedCohort, setSelectedCohort] = useState<BootcampCohort | 'solo' | string | null>(null); // string is for invite code
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [tempProfile, setTempProfile] = useState<UserProfileData | null>(null);
+  const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -160,7 +163,20 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary font-bold mt-0.5">•</span>
-                <span><strong>Proteinkravet:</strong> Nå ditt proteinmål varje dag (minst 1,5g / kg kroppsvikt).</span>
+                <span className="flex items-center flex-wrap">
+                    <strong className="flex items-center">
+                        Proteinkravet:
+                        <button 
+                            type="button" 
+                            onClick={() => setShowProteinInfoModal(true)}
+                            className="ml-1.5 mr-1 text-neutral-400 hover:text-primary transition-colors"
+                            aria-label="Information om proteinmål"
+                        >
+                            <InformationCircleIcon className="w-4 h-4" />
+                        </button>
+                    </strong> 
+                    Nå ditt proteinmål varje dag (minst 1,5g / kg kroppsvikt).
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary font-bold mt-0.5">•</span>
@@ -326,6 +342,14 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
           </div>
         </div>,
         document.body
+      )}
+
+      {showProteinInfoModal && (
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+            <div onClick={e => e.stopPropagation()}>
+                <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+            </div>
+        </div>
       )}
     </div>
   );

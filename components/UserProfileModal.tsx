@@ -6,6 +6,7 @@ import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutr
 import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
 import ToastNotification from './ToastNotification';
+import ProteinInfoModal from './ProteinInfoModal';
 
 
 export const Avatar: React.FC<{
@@ -179,6 +180,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
     const [isSubscribing, setIsSubscribing] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
     
     // Get Persona Details based on profile
     const coachStyle = initialProfile.coachStyle || 'balanced';
@@ -947,6 +949,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     <div>
                                         <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
                                             <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Protein">💪</span> Protein (g)
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setShowProteinInfoModal(true)}
+                                                className="ml-1.5 text-neutral-400 hover:text-primary transition-colors"
+                                                aria-label="Information om proteinmål"
+                                            >
+                                                <InformationCircleIcon className="w-4 h-4" />
+                                            </button>
                                         </label>
                                         <input 
                                             type="number" 
@@ -1197,6 +1207,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </button>
             </div>
         </form>
+      )}
+
+      {showProteinInfoModal && (
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+            <div onClick={e => e.stopPropagation()}>
+                <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+            </div>
+        </div>
       )}
     </div>
   );

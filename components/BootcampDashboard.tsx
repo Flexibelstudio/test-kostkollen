@@ -7,6 +7,8 @@ import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreServic
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
 import MealStructureGuide from './MealStructureGuide';
+import ProteinInfoModal from './ProteinInfoModal';
+import { InformationCircleIcon } from './icons';
 
 interface BootcampDashboardProps {
   participant: BootcampParticipant;
@@ -22,6 +24,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
 
   // Form state
   const [loggedAllMeals, setLoggedAllMeals] = useState(false);
@@ -419,7 +422,17 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                       <CheckCircleIcon className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <span className={`font-bold block ${proteinMet ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Proteinkravet</span>
+                      <span className={`font-bold flex items-center ${proteinMet ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>
+                        Proteinkravet
+                        <button 
+                            type="button" 
+                            onClick={() => setShowProteinInfoModal(true)}
+                            className={`ml-1.5 transition-colors ${proteinMet ? 'text-emerald-600 hover:text-emerald-800' : 'text-neutral-400 hover:text-primary'}`}
+                            aria-label="Information om proteinmål"
+                        >
+                            <InformationCircleIcon className="w-4 h-4" />
+                        </button>
+                      </span>
                       <span className={`text-sm ${proteinMet ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
                         {proteinMet ? `Du har nått ditt mål (${goals.proteinGoal}g).` : `Du har inte nått ditt proteinmål (${goals.proteinGoal}g).`}
                       </span>
@@ -546,6 +559,14 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           </div>
         </div>
       </div>
+
+      {showProteinInfoModal && (
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+            <div onClick={e => e.stopPropagation()}>
+                <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+            </div>
+        </div>
+      )}
     </div>
   );
 };
