@@ -249,8 +249,8 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         <div className="w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-neutral-dark bg-black relative aspect-video">
           <video 
             controls 
+            preload="metadata"
             className="w-full h-full object-cover"
-            poster="https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=2069&auto=format&fit=crop"
             key={participant.status} // Force re-render when status changes
           >
             <source 
