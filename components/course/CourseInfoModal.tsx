@@ -61,6 +61,22 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course
         </div>
 
         <div className="space-y-6 text-base text-neutral-dark leading-relaxed">
+          {course.id === 'bootcamp' && (
+            <div className="w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-neutral-dark bg-black relative aspect-video mb-6">
+              <video 
+                controls 
+                className="w-full h-full object-cover"
+                poster="https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=2069&auto=format&fit=crop"
+              >
+                <source src="/general-briefing.mp4" type="video/mp4" />
+                Din webbläsare stöder inte videouppspelning.
+              </video>
+              <div className="absolute top-4 left-4 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded animate-pulse">
+                LIVE FEED • HÖGKVARTERET
+              </div>
+            </div>
+          )}
+
           <p className="italic text-lg text-neutral-dark/80">{course.longDescription}</p>
 
           <div className="p-6 bg-primary-100/50 rounded-2xl border border-primary-200/70">
