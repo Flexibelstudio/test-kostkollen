@@ -453,13 +453,13 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       
       {isSpeedDialOpen && (
           <div 
-              className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[100] animate-fade-in"
+              className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-40 animate-fade-in"
               onClick={() => setIsSpeedDialOpen(false)}
           />
       )}
 
       {!isProfileEditing && !isAICoachOpen && !isProfileOpen && !isMorningReportOpen && (
-        <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
             {isSpeedDialOpen && (
                 <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                     <button onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
@@ -502,7 +502,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
 
       {showResetConfirmModal && (
         <div
-            className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[110] animate-fade-in"
+            className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[120] animate-fade-in"
             onClick={() => setShowResetConfirmModal(false)}
         >
             <div className="bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>

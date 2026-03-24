@@ -228,10 +228,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
 
               <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
                 <div className="flex items-center gap-1 text-neutral-300 mb-2 whitespace-nowrap">
-                  <FireIcon className="w-6 h-6 shrink-0" />
-                  <span className="font-bold text-2xl">{participant.longestStreak}</span>
+                  <CalendarIcon className="w-6 h-6 shrink-0" />
+                  <span className="font-bold text-2xl">
+                    {Math.max(0, 84 - Math.floor((new Date().getTime() - new Date(participant.originalStartDate).getTime()) / (1000 * 60 * 60 * 24)))}
+                  </span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Längsta</span>
+                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Dagar Kvar</span>
               </div>
             </div>
           </div>
@@ -331,7 +333,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                 <CheckCircleIcon className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
                 <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-400 mb-2">Rapport inlämnad!</h3>
                 <p className="text-emerald-600 dark:text-emerald-300">
-                  Du har redan lämnat din rapport för idag. Generalen har mottagit den. Vila upp dig inför morgondagen.
+                  Du har lämnat din rapport för idag. Generalen har mottagit den. Vila upp dig inför morgondagen.
                 </p>
                 {canEditYesterday && (
                   <button 
