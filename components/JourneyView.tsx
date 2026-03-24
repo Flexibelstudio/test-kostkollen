@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
+import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, Reactions, AIDataForJourneyAnalysis, StreakSaver, BootcampParticipant } from '../types';
 import { PencilIcon, TrophyIcon, SparklesIcon, PlusIcon, ScaleIcon, ExclamationTriangleIcon } from './icons';
 import { Dumbbell, PieChart, Target } from 'lucide-react';
 import { calculateGoalTimeline } from '../utils/timelineUtils.ts';

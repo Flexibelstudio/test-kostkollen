@@ -634,7 +634,7 @@ export const likeBootcampComment = async (cohortId: string, postId: string, comm
   }
 };
 
-export const getBootcampStepGoal = (activityLevel: string, phase: 'fas1' | 'fas2' | 'fas3' = 'fas1'): number => {
+export const getBootcampStepGoal = (activityLevel: string, phase: string = 'fas1'): number => {
   let baseSteps = 10000;
   switch (activityLevel) {
     case 'sedentary': baseSteps = 4000; break;

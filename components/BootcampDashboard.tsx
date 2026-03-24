@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry } from '../types';
+import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry, WeeklyCalorieBank } from '../types';
 import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal } from '../services/bootcampService';
 import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreService';
 import { auth } from '../firebase';
@@ -13,10 +13,11 @@ interface BootcampDashboardProps {
   userProfile: UserProfileData;
   goals: GoalSettings;
   weightLogs: WeightLogEntry[];
+  weeklyBank: WeeklyCalorieBank;
   onBack: () => void;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, onBack }) => {
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
@@ -73,12 +74,20 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         const totalProtein = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.protein, 0);
         const totalCalories = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.calories, 0);
         
-        // Kcal-kravet: Får inte gå över målet (med en liten buffert på +50 kcal).
+        // Kcal-kravet: Får inte gå över målet (0 kcal marginal, men sparpott får användas).
         // Får ligga under målet, men max 20% under (för att bygga sparpott utan att svälta).
         // Måste ha loggat minst 400 kcal för att räknas som en aktiv dag.
-        const upperLimit = goals.calorieGoal + 50;
-        const lowerLimit = goals.calorieGoal * 0.8; // 20% under
-        const isCaloriesWithinRange = totalCalories >= lowerLimit && totalCalories <= upperLimit;
+        let isCaloriesWithinRange = false;
+        if (userProfile.goalType === 'gain_muscle') {
+          // För muskelbyggnad: Måste nå minst TDEE (mål - 300). Ingen strikt övre gräns.
+          isCaloriesWithinRange = totalCalories >= (goals.calorieGoal - 300);
+        } else {
+          const bankedCalories = weeklyBank?.bankedCalories || 0;
+          const upperLimit = goals.calorieGoal + bankedCalories;
+          const lowerLimit = goals.calorieGoal * 0.8; // 20% under
+          isCaloriesWithinRange = totalCalories >= lowerLimit && totalCalories <= upperLimit;
+        }
+        
         setLoggedAllMeals(meals.length > 0 && totalCalories > 400 && isCaloriesWithinRange);
         setProteinMet(totalProtein >= goals.proteinGoal);
         setWaterMet(water >= 2000); // 2 liters
@@ -101,7 +110,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       }
     };
     fetchProgress();
-  }, [targetDateStr, goals.proteinGoal, editingYesterday, yesterdayReport]);
+  }, [targetDateStr, goals.calorieGoal, goals.proteinGoal, editingYesterday, yesterdayReport, weeklyBank, userProfile.goalType]);
 
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,7 +244,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                 <div className="flex items-center gap-1 text-neutral-300 mb-2 whitespace-nowrap">
                   <CalendarIcon className="w-6 h-6 shrink-0" />
                   <span className="font-bold text-2xl">
-                    {Math.max(0, 84 - Math.floor((new Date().getTime() - new Date(participant.originalStartDate || participant.startDate || new Date()).getTime()) / (1000 * 60 * 60 * 24)))}
+                    {Math.max(0, 84 - Math.floor((new Date().getTime() - new Date(participant.originalStartDate || participant.fas1StartDate || new Date()).getTime()) / (1000 * 60 * 60 * 24)))}
                   </span>
                 </div>
                 <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Dagar Kvar</span>
@@ -397,7 +406,10 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                     <div className="flex-1">
                       <span className={`font-bold block ${loggedAllMeals ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Kalorimålet</span>
                       <span className={`text-sm ${loggedAllMeals ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
-                        {loggedAllMeals ? 'Du ligger inom din kaloribudget.' : 'Du måste ligga inom din kaloribudget (max 20% under, ej över).'}
+                        {userProfile.goalType === 'gain_muscle' 
+                          ? (loggedAllMeals ? 'Du har nått ditt minimiintag för muskelbyggnad.' : 'Du måste nå ditt minimiintag (TDEE) för att bygga muskler.')
+                          : (loggedAllMeals ? 'Du ligger inom din kaloribudget (eller täcks av sparpotten).' : 'Du måste ligga inom din kaloribudget (max 20% under, ej över utan sparpott).')
+                        }
                       </span>
                     </div>
                   </div>

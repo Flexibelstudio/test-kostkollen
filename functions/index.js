@@ -660,13 +660,18 @@ const getDateUID = (date, timezone) => {
     return `${get("year")}-${get("month")}-${get("day")}`;
 };
 
-const wasCalorieGoalMetForSummary = (consumed, goal, goalType) => {
+const wasCalorieGoalMetForSummary = (consumed, goal, goalType, bankedCalories = 0) => {
     if (goal <= 0 || consumed <= 0) return false;
     switch (goalType) {
-        case "lose_fat": return consumed <= goal;
-        case "maintain": return Math.abs(consumed - goal) <= goal * 0.10;
-        case "gain_muscle": return consumed >= goal;
-        default: return Math.abs(consumed - goal) <= goal * 0.10;
+        case "lose_fat": 
+        case "maintain":
+            // Får ligga max 20% under målet, och får använda sparpott för att gå över
+            return consumed >= (goal * 0.8) && consumed <= (goal + bankedCalories);
+        case "gain_muscle": 
+            // Måste nå minst TDEE (mål - 300). Ingen strikt övre gräns.
+            return consumed >= (goal - 300);
+        default: 
+            return consumed >= (goal * 0.8) && consumed <= (goal + bankedCalories);
     }
 };
 
@@ -718,14 +723,29 @@ exports.manualSummarizeYesterday = functions
             }, {calories: 0});
 
             const minSafeCalories = Math.max(user.goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+            const bankedCalories = user.weeklyBank?.bankedCalories || 0;
             const wasDaySuccessful = dailyLogForDate.length > 0 &&
                 totalNutrients.calories >= minSafeCalories &&
-                wasCalorieGoalMetForSummary(totalNutrients.calories, user.goals.calorieGoal, user.goalType);
+                wasCalorieGoalMetForSummary(totalNutrients.calories, user.goals.calorieGoal, user.goalType, bankedCalories);
 
-            const newStreak = wasDaySuccessful ? (user.currentStreak || 0) + 1 : 0;
+            // Streak logic aligned with frontend: just needs activity (logs)
+            const hasActivity = dailyLogForDate.length > 0;
+            const newStreak = hasActivity ? (user.currentStreak || 0) + 1 : 0;
             const newHighestStreak = Math.max(user.highestStreak || 0, newStreak);
-            const bankedAmountThisDay = wasDaySuccessful && totalNutrients.calories < user.goals.calorieGoal ?
-                user.goals.calorieGoal - totalNutrients.calories : 0;
+            
+            // Banked amount logic
+            let bankedAmountThisDay = 0;
+            let usedFromBank = 0;
+            if (user.goalType === 'lose_fat' || user.goalType === 'maintain') {
+                if (totalNutrients.calories >= minSafeCalories && totalNutrients.calories < user.goals.calorieGoal) {
+                    bankedAmountThisDay = user.goals.calorieGoal - totalNutrients.calories;
+                } else if (totalNutrients.calories > user.goals.calorieGoal) {
+                    const excess = totalNutrients.calories - user.goals.calorieGoal;
+                    if (bankedCalories >= excess) {
+                        usedFromBank = excess;
+                    }
+                }
+            }
 
             const summaryData = {
                 date: yesterdayDateUID,
@@ -743,7 +763,7 @@ exports.manualSummarizeYesterday = functions
                     currentStreak: newStreak, 
                     highestStreak: newHighestStreak, 
                     lastDateStreakChecked: yesterdayDateUID, 
-                    "weeklyBank.bankedCalories": admin.firestore.FieldValue.increment(bankedAmountThisDay)
+                    "weeklyBank.bankedCalories": admin.firestore.FieldValue.increment(bankedAmountThisDay - usedFromBank)
                 }, 
                 type: "update"
             });

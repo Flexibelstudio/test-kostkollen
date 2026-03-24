@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserProfileData, UserCourseProgress, BootcampParticipant, GoalSettings, WeightLogEntry } from '../types';
+import { UserProfileData, UserCourseProgress, BootcampParticipant, GoalSettings, WeightLogEntry, WeeklyCalorieBank } from '../types';
 import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon, ArrowRightIcon, ShieldCheckIcon } from './icons';
 import CourseInfoModal from './course/CourseInfoModal';
 import BootcampLandingView from './BootcampLandingView';
@@ -97,6 +97,7 @@ interface CoursesViewProps {
   goals: GoalSettings;
   userProgress: UserCourseProgress;
   weightLogs: WeightLogEntry[];
+  weeklyBank: WeeklyCalorieBank;
   onNavigateToCourse: (courseId: CourseInfo['id']) => void;
   onSaveProfileAndGoals: (profile: UserProfileData, goals: GoalSettings) => Promise<void>;
   onSaveWeightLog: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
@@ -166,7 +167,7 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(false);
   const [activeBootcamp, setActiveBootcamp] = useState<BootcampParticipant | null>(null);
@@ -215,7 +216,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
 
   if (showBootcampLanding) {
     if (activeBootcamp) {
-      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} onBack={() => setShowBootcampLanding(false)} />;
+      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} weeklyBank={weeklyBank} onBack={() => setShowBootcampLanding(false)} />;
     }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} userProfile={userProfile} goals={goals} onJoinSuccess={handleJoinSuccess} onSaveWeightLog={onSaveWeightLog} />;
   }

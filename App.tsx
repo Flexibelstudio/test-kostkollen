@@ -1888,6 +1888,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 goals={goals}
                 userProgress={userCourseProgress}
                 weightLogs={weightLogs}
+                weeklyBank={weeklyBank}
                 onNavigateToCourse={handleNavigateToCourse}
                 onSaveProfileAndGoals={handleSaveProfileAndGoals}
                 onSaveWeightLog={handleBootcampInitialWeightLog}
