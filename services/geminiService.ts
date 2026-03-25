@@ -130,14 +130,21 @@ export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Pr
   const name = userProfile.name || 'du';
 
   let bootcampContext = '';
+  let missingReportInstruction = '';
+
   if (activeBootcamp && activeBootcamp.status === 'fas1') {
     const currentBootcampStreak = activeBootcamp.currentStreak || 0;
     
     bootcampContext = `
 PÅGÅENDE BOOTCAMP (FAS 1):
-- Användaren har klarat ${currentBootcampStreak} av 14 dagar i rad i Fas 1 av en intensiv Bootcamp.
-- Uppmärksamma detta och peppa dem att hålla i under denna tuffa startperiod!
-`;
+- Användaren har klarat ${currentBootcampStreak} av 14 dagar i rad i Fas 1 av en intensiv Bootcamp.`;
+
+    if (!yesterdayBootcampReport) {
+      bootcampContext += `\n- STATUS IGÅR: KATASTROF! Användaren har INTE fyllt i sin obligatoriska kvällsrapport för bootcampen.`;
+      missingReportInstruction = `\n7. BOOTCAMP-VARNING: Eftersom användaren missade kvällsrapporten igår är dagen just nu UNDERKÄND i bootcampen. Du MÅSTE påpeka detta tydligt (enligt din persona). Beröm INTE gårdagen som en bootcamp-succé. Påminn om att kvällsrapporten är obligatorisk, men nämn att det går att fylla i den i efterhand för att rädda dagen!`;
+    } else {
+      bootcampContext += `\n- Uppmärksamma detta och peppa dem att hålla i under denna tuffa startperiod!`;
+    }
   }
 
   const prompt = `Du är ${persona.label}, ${persona.roleTitle}.
@@ -169,7 +176,7 @@ INSTRUKTIONER:
 3. Om både mål och streak är positiva, ge stort beröm enligt din persona.
 4. Om streak är bruten, var uppmuntrande kring nystart idag.
 5. Avsluta med en kort uppmaning för idag.
-6. Svara på SVENSKA.`;
+6. Svara på SVENSKA.${missingReportInstruction}`;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
