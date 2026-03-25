@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { SavedRecipe } from '../types';
+import { SavedRecipe, NutritionalInfo, MealType } from '../types';
 import { getSavedRecipes, deleteSavedRecipe } from '../services/firestoreService';
 import { useUserContext } from '../context/UserContext';
 import { XMarkIcon, TrashIcon, ShareIcon } from './icons';
@@ -11,9 +11,10 @@ interface MyRecipesModalProps {
   show: boolean;
   onClose: () => void;
   onShareRecipe?: (recipeText: string) => void;
+  onLogRecipe?: (nutritionalInfo: NutritionalInfo, options: { saveAsCommon: boolean, mealType: MealType }) => void;
 }
 
-const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareRecipe }) => {
+const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareRecipe, onLogRecipe }) => {
   const { currentUser } = useUserContext();
   const [recipes, setRecipes] = useState<SavedRecipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,7 +60,14 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
     const ingredientsText = recipe.recipe.ingredients.map(ing => `- ${ing.item}`).join('\n');
     const instructionsText = recipe.recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
     
-    const shareText = `Recept: ${recipe.recipe.title}\n\n${recipe.recipe.description}\n\nFörberedelsetid: ${recipe.recipe.prepTime}\nTillagningstid: ${recipe.recipe.cookTime}\nPortioner: ${recipe.recipe.servings}\n\nIngredienser:\n${ingredientsText}\n\nInstruktioner:\n${instructionsText}\n${recipe.recipe.chefTip ? `\nKockens tips: ${recipe.recipe.chefTip}\n` : '\n'}Delat från Kostloggen.se`;
+    const kcal = recipe.recipe.totalNutritionalInfo ? Math.round(extractNumber(recipe.recipe.totalNutritionalInfo.calories)) : '?';
+    const protein = recipe.recipe.totalNutritionalInfo ? Math.round(extractNumber(recipe.recipe.totalNutritionalInfo.protein)) : '?';
+    const carbs = recipe.recipe.totalNutritionalInfo ? Math.round(extractNumber(recipe.recipe.totalNutritionalInfo.carbohydrates)) : '?';
+    const fat = recipe.recipe.totalNutritionalInfo ? Math.round(extractNumber(recipe.recipe.totalNutritionalInfo.fat)) : '?';
+
+    const macrosText = `Näringsvärde per portion:\nKalorier: ${kcal} kcal\nProtein: ${protein} g\nKolhydrater: ${carbs} g\nFett: ${fat} g`;
+
+    const shareText = `Recept: ${recipe.recipe.title}\n\n${recipe.recipe.description}\n\nFörberedelsetid: ${recipe.recipe.prepTime}\nTillagningstid: ${recipe.recipe.cookTime}\nPortioner: ${recipe.recipe.servings}\n\n${macrosText}\n\nIngredienser:\n${ingredientsText}\n\nInstruktioner:\n${instructionsText}\n${recipe.recipe.chefTip ? `\nKockens tips: ${recipe.recipe.chefTip}\n` : '\n'}Delat från Kostloggen.se`;
 
     if (onShareRecipe) {
       onShareRecipe(shareText);
@@ -82,6 +90,17 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
         alert('Kunde inte kopiera receptet.');
       }
     }
+  };
+
+  const extractNumber = (val: any): number => {
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') {
+      const match = val.match(/[\d.,]+/);
+      if (match) {
+        return parseFloat(match[0].replace(',', '.'));
+      }
+    }
+    return 0;
   };
 
   if (!show) return null;
@@ -149,7 +168,7 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
                         <span>⏱️</span> {savedRecipe.recipe.prepTime}
                       </div>
                       <div className="flex items-center gap-1">
-                        <span>🔥</span> {Math.round(savedRecipe.recipe.totalNutritionalInfo.calories / (savedRecipe.recipe.servings || 1))} kcal
+                        <span>🔥</span> {Math.round(extractNumber(savedRecipe.recipe.totalNutritionalInfo?.calories))} kcal
                       </div>
                     </div>
                   </div>
@@ -166,11 +185,13 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
           onClose={() => setSelectedRecipe(null)}
           recipe={selectedRecipe.recipe}
           onLogRecipe={(nutritionalInfo, options) => {
-            // Handle logging from saved recipe if needed
-            // For now, just close the modal
+            if (onLogRecipe) {
+              onLogRecipe(nutritionalInfo, options);
+              onClose(); // Close the MyRecipesModal as well
+            }
             setSelectedRecipe(null);
           }}
-          defaultMealType="lunch" // Or whatever makes sense
+          defaultMealType="lunch"
           hideSearch={true}
           onShareRecipe={onShareRecipe}
         />

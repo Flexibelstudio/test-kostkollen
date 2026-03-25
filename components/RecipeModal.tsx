@@ -128,6 +128,17 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   };
 
 
+  const extractNumber = (val: any): number => {
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') {
+      const match = val.match(/[\d.,]+/);
+      if (match) {
+        return parseFloat(match[0].replace(',', '.'));
+      }
+    }
+    return 0;
+  };
+
   const handleLog = () => {
     if (recipe && !recipe.error) {
       if (!selectedMealType) return; // Should be disabled, but safety check
@@ -145,10 +156,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
       const loggedNutritionalInfo: NutritionalInfo = {
         foodItem: `${title} (${numPortionsToLog.toLocaleString('sv-SE')} port.)`,
-        calories: Math.round(totalNutritionalInfo.calories * numPortionsToLog),
-        protein: Math.round(totalNutritionalInfo.protein * numPortionsToLog),
-        carbohydrates: Math.round(totalNutritionalInfo.carbohydrates * numPortionsToLog),
-        fat: Math.round(totalNutritionalInfo.fat * numPortionsToLog),
+        calories: Math.round(extractNumber(totalNutritionalInfo.calories) * numPortionsToLog),
+        protein: Math.round(extractNumber(totalNutritionalInfo.protein) * numPortionsToLog),
+        carbohydrates: Math.round(extractNumber(totalNutritionalInfo.carbohydrates) * numPortionsToLog),
+        fat: Math.round(extractNumber(totalNutritionalInfo.fat) * numPortionsToLog),
       };
       onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealType });
       onClose(); // Close modal immediately after logging
@@ -167,10 +178,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     const instructionsText = recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
     
     const recipeServings = parseServings(recipe.servings);
-    const kcal = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.calories) : '?';
-    const protein = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.protein) : '?';
-    const carbs = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.carbohydrates) : '?';
-    const fat = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.fat) : '?';
+    const kcal = recipe.totalNutritionalInfo ? Math.round(extractNumber(recipe.totalNutritionalInfo.calories)) : '?';
+    const protein = recipe.totalNutritionalInfo ? Math.round(extractNumber(recipe.totalNutritionalInfo.protein)) : '?';
+    const carbs = recipe.totalNutritionalInfo ? Math.round(extractNumber(recipe.totalNutritionalInfo.carbohydrates)) : '?';
+    const fat = recipe.totalNutritionalInfo ? Math.round(extractNumber(recipe.totalNutritionalInfo.fat)) : '?';
 
     const macrosText = `Näringsvärde per portion:\nKalorier: ${kcal} kcal\nProtein: ${protein} g\nKolhydrater: ${carbs} g\nFett: ${fat} g`;
 
@@ -208,12 +219,15 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   if (!show) return null;
 
   // FIX: Changed 'icon' type from JSX.Element to React.ReactNode to resolve namespace error.
-  const renderNutrient = (label: string, value: number | undefined, unit: string, icon: React.ReactNode) => (
-    <div className="flex items-center text-sm text-neutral-dark">
-      {icon}
-      <span className="ml-1.5">{label}: {value !== undefined ? Math.round(value) : '?'} {unit}</span>
-    </div>
-  );
+  const renderNutrient = (label: string, value: any, unit: string, icon: React.ReactNode) => {
+    const numValue = extractNumber(value);
+    return (
+      <div className="flex items-center text-sm text-neutral-dark">
+        {icon}
+        <span className="ml-1.5">{label}: {value !== undefined && !isNaN(numValue) ? Math.round(numValue) : '?'} {unit}</span>
+      </div>
+    );
+  };
   
   return (
     <div
