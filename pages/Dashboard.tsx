@@ -741,7 +741,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         setCameraMode('mealAnalysis'); 
         openModalWithType(setShowCameraModal);
     };
-    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal); 
+    const handleFindRecipe = () => {
+        setSearchedRecipe(null);
+        openModalWithType(setShowRecipeChoiceModal); 
+    };
     const handleMyRecipes = () => openModalWithType(setShowMyRecipesModal);
 
     const handleSaveRecipe = async (recipe: RecipeSuggestion) => {

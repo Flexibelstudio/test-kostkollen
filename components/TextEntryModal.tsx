@@ -164,11 +164,11 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
 
     if (!show) return null;
 
-    const inputClass = "mt-1 block w-full px-3 py-2 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base";
+    const inputClass = "mt-1 block w-full px-3 py-2 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base text-neutral-dark";
     const labelClass = "block text-sm font-medium text-neutral-dark";
 
     return (
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-start justify-center z-[70] p-4 pt-20 animate-fade-in" onClick={handleClose}>
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-start justify-center z-[120] p-4 pt-20 animate-fade-in" onClick={handleClose}>
             <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-5 flex-shrink-0">
                     <div className="flex items-center">
@@ -191,7 +191,7 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder={PLACEHOLDER_EXAMPLES[placeholderIndex]}
-                            className="flex-grow px-4 py-2.5 bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base transition-all placeholder:transition-opacity placeholder:duration-300"
+                            className="flex-grow px-4 py-2.5 bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base text-neutral-dark transition-all placeholder:transition-opacity placeholder:duration-300"
                             autoFocus
                         />
                         <button type="submit" disabled={!query.trim() || isLoading} className="px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-lg shadow-sm disabled:opacity-50 flex items-center justify-center">

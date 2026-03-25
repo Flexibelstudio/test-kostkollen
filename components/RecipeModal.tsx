@@ -145,10 +145,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
       const loggedNutritionalInfo: NutritionalInfo = {
         foodItem: `${title} (${numPortionsToLog.toLocaleString('sv-SE')} port.)`,
-        calories: Math.round((totalNutritionalInfo.calories / recipeBaseServings) * numPortionsToLog),
-        protein: Math.round((totalNutritionalInfo.protein / recipeBaseServings) * numPortionsToLog),
-        carbohydrates: Math.round((totalNutritionalInfo.carbohydrates / recipeBaseServings) * numPortionsToLog),
-        fat: Math.round((totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog),
+        calories: Math.round(totalNutritionalInfo.calories * numPortionsToLog),
+        protein: Math.round(totalNutritionalInfo.protein * numPortionsToLog),
+        carbohydrates: Math.round(totalNutritionalInfo.carbohydrates * numPortionsToLog),
+        fat: Math.round(totalNutritionalInfo.fat * numPortionsToLog),
       };
       onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealType });
       onClose(); // Close modal immediately after logging
@@ -167,10 +167,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     const instructionsText = recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
     
     const recipeServings = parseServings(recipe.servings);
-    const kcal = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.calories / recipeServings) : '?';
-    const protein = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.protein / recipeServings) : '?';
-    const carbs = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.carbohydrates / recipeServings) : '?';
-    const fat = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.fat / recipeServings) : '?';
+    const kcal = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.calories) : '?';
+    const protein = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.protein) : '?';
+    const carbs = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.carbohydrates) : '?';
+    const fat = recipe.totalNutritionalInfo ? Math.round(recipe.totalNutritionalInfo.fat) : '?';
 
     const macrosText = `Näringsvärde per portion:\nKalorier: ${kcal} kcal\nProtein: ${protein} g\nKolhydrater: ${carbs} g\nFett: ${fat} g`;
 
@@ -215,9 +215,9 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     </div>
   );
   
-  return createPortal(
+  return (
     <div
-      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[110] p-4 animate-fade-in"
+      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -253,7 +253,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder='T.ex. "vegetarisk frukost på ca 450 kcal och 37 g protein"'
-                className="flex-grow w-full px-4 py-2.5 bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base"
+                className="flex-grow w-full px-4 py-2.5 bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-base text-neutral-dark"
                 disabled={isLoading}
               />
               <button
@@ -325,10 +325,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                             <div>
                                 <h4 className="text-md font-semibold text-neutral-dark mb-2">Näringsvärde (per portion):</h4>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 bg-neutral-light p-3 rounded-md">
-                                  {renderNutrient("Kalorier", recipe.totalNutritionalInfo.calories / recipeServings, "kcal", <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span>)}
-                                  {renderNutrient("Protein", recipe.totalNutritionalInfo.protein / recipeServings, "g", <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Protein">💪</span>)}
-                                  {renderNutrient("Kolhydrater", recipe.totalNutritionalInfo.carbohydrates / recipeServings, "g", <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span>)}
-                                  {renderNutrient("Fett", recipe.totalNutritionalInfo.fat / recipeServings, "g", <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Fett">🥑</span>)}
+                                  {renderNutrient("Kalorier", recipe.totalNutritionalInfo.calories, "kcal", <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span>)}
+                                  {renderNutrient("Protein", recipe.totalNutritionalInfo.protein, "g", <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Protein">💪</span>)}
+                                  {renderNutrient("Kolhydrater", recipe.totalNutritionalInfo.carbohydrates, "g", <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span>)}
+                                  {renderNutrient("Fett", recipe.totalNutritionalInfo.fat, "g", <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Fett">🥑</span>)}
                                 </div>
                             </div>
                         )}
@@ -425,7 +425,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                             }
                         }}
                         inputMode="decimal"
-                        className="h-11 w-11 text-center text-lg font-bold bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="h-11 w-11 text-center text-lg font-bold bg-white border border-neutral-light rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-primary text-neutral-dark"
                         placeholder="1"
                         disabled={isLoggingDisabled || isLoading}
                         aria-label="Antal portioner"
@@ -458,8 +458,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
           </div>
         )}
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };
 

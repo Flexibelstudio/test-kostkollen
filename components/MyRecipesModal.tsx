@@ -149,7 +149,7 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
                         <span>⏱️</span> {savedRecipe.recipe.prepTime}
                       </div>
                       <div className="flex items-center gap-1">
-                        <span>🔥</span> {Math.round(savedRecipe.recipe.totalNutritionalInfo.calories)} kcal
+                        <span>🔥</span> {Math.round(savedRecipe.recipe.totalNutritionalInfo.calories / (savedRecipe.recipe.servings || 1))} kcal
                       </div>
                     </div>
                   </div>

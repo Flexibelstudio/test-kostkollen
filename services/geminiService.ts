@@ -473,7 +473,7 @@ Om användarens fråga är för vag eller inte receptliknande (t.ex. 'hej'), sva
 Prioritera vanliga, rimligt hälsosamma recept om inte användaren anger annat.
 Se till att alla mängder och enheter i ingredienser är tydliga och på svenska där det är lämpligt.
 Se till att instruktionerna är tydliga och lätta att följa.
-Näringsinformationen är en UPPSKATTNING för HELA receptet. foodItem i totalNutritionalInfo ska vara samma som receptets titel.
+Näringsinformationen är en UPPSKATTNING per PORTION. foodItem i totalNutritionalInfo ska vara samma som receptets titel.
 Om någon del av näringsinformationen inte rimligen kan uppskattas, ange värdet 0 för den specifika näringsämnet, men försök uppskatta alla.
 Användarens fråga: "${recipeQuery}"`;
 
@@ -550,7 +550,7 @@ export const getRecipesFromIngredientsImage = async (base64ImageDatas: string[])
 5.  Om inga ingredienser kan identifieras, returnera tomma arrayer.
 6.  Svara i JSON-format. JSON-objektet på toppnivå ska ha två nycklar: 'identifiedIngredients' (en array av strängar) och 'recipeSuggestions' (en array av receptobjekt, var och en som matchar RecipeSuggestion-strukturen).
 7.  För receptingredienser, lista endast varor som antingen är direkt identifierade eller mycket vanliga skafferivaror om det är absolut nödvändigt för receptet.
-8.  Se till att 'foodItem' i totalNutritionalInfo for varje recept alltid är receptets titel.
+8.  Se till att 'foodItem' i totalNutritionalInfo for varje recept alltid är receptets titel. Näringsinformationen ska vara en UPPSKATTNING per PORTION.
 
 JSON-struktur för varje recept i 'recipeSuggestions':
 {
