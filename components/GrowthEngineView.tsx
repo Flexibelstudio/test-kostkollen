@@ -15,7 +15,11 @@ interface GrowthEngineViewProps {
 }
 
 const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToastNotification, currentUser, userProfile }) => {
-    const activeMembers = useMemo(() => membersList.filter(m => m.status === 'approved' && m.role === 'member'), [membersList]);
+    const activeMembers = useMemo(() => membersList.filter(m => 
+        m.status === 'approved' && 
+        m.role === 'member' && 
+        (m.subscriptionStatus === 'active' || m.subscriptionStatus === 'trialing' || m.subscriptionStatus === 'canceling')
+    ), [membersList]);
     const currentCount = activeMembers.length;
     
     const milestones = [100, 500, 1000];

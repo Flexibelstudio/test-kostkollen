@@ -1282,6 +1282,35 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
     const buddiesSnapshot = await getDocsSafe(buddiesRef);
     const numberOfBuddies = buddiesSnapshot.size;
 
+    let hasLoggedFood7d = false;
+    let metProteinGoal7d = false;
+    let proteinGoalMetPercentage7d = 0;
+
+    if (data.status === 'approved' && data.role === 'member') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoUID = getDateUID_SE(sevenDaysAgo);
+
+      const summariesRef = collection(db, 'users', data.uid, 'pastDaySummaries');
+      const summariesQuery = query(summariesRef, where("date", ">=", sevenDaysAgoUID));
+      const summariesSnap = await getDocsSafe(summariesQuery);
+      
+      if (!summariesSnap.empty) {
+        hasLoggedFood7d = true;
+        let totalConsumed = 0;
+        let totalGoal = 0;
+        let daysMet = 0;
+        summariesSnap.docs.forEach(d => {
+          const s = d.data();
+          totalConsumed += (s.consumedProtein || 0);
+          totalGoal += (s.proteinGoal || 0);
+          if (s.proteinGoalMet) daysMet++;
+        });
+        metProteinGoal7d = totalConsumed >= totalGoal && totalGoal > 0;
+        proteinGoalMetPercentage7d = (daysMet / summariesSnap.size) * 100;
+      }
+    }
+
     return {
       id: data.uid,
       name: data.displayName,
@@ -1298,6 +1327,9 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
       ageYears: data.ageYears ?? undefined,
       gender: data.gender,
       numberOfBuddies: numberOfBuddies,
+      hasLoggedFood7d,
+      metProteinGoal7d,
+      proteinGoalMetPercentage7d,
     };
   });
 

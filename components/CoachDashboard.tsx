@@ -57,14 +57,38 @@ const StatCard: React.FC<{
   colorClass: string;
   textClass: string;
   onClick?: () => void;
-}> = ({ icon, title, value, subtitle, colorClass, textClass, onClick }) => {
+  tooltip?: string;
+}> = ({ icon, title, value, subtitle, colorClass, textClass, onClick, tooltip }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+
   const content = (
     <>
       <div className={`p-2.5 sm:p-3.5 rounded-xl ${colorClass} flex items-center justify-center shadow-sm`}>
         {React.cloneElement(icon as React.ReactElement<any>, { className: `w-5 h-5 sm:w-6 sm:h-6 ${textClass}` })}
       </div>
-      <div className="text-left">
-        <p className="text-[10px] sm:text-xs font-bold text-neutral-500 uppercase tracking-wide mb-0.5">{title}</p>
+      <div className="text-left relative">
+        <div className="flex items-center gap-1 mb-0.5">
+          <p className="text-[10px] sm:text-xs font-bold text-neutral-500 uppercase tracking-wide">{title}</p>
+          {tooltip && (
+            <div 
+              className="relative flex items-center"
+              onMouseEnter={() => setShowTooltip(true)}
+              onMouseLeave={() => setShowTooltip(false)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowTooltip(!showTooltip);
+              }}
+            >
+              <InformationCircleIcon className="w-3 h-3 text-neutral-400 cursor-help hover:text-primary transition-colors" />
+              {showTooltip && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-neutral-dark text-white text-[10px] sm:text-xs rounded-lg shadow-xl z-50 normal-case tracking-normal font-normal text-center pointer-events-none">
+                  {tooltip}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-dark"></div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-tight">{value}</p>
         {subtitle && <p className="text-[10px] sm:text-xs text-neutral font-medium mt-1">{subtitle}</p>}
       </div>
@@ -161,7 +185,11 @@ const getTodayKey = () => {
 
 const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: boolean; onToggle: () => void; systemGroupsCount: number; publicRoomsCount: number; allChatsCount: number; }> = ({ membersList, isExpanded, onToggle, systemGroupsCount, publicRoomsCount, allChatsCount }) => {
     const groupInsights = useMemo(() => {
-        const activeMembers = membersList.filter(m => m.status === 'approved' && m.role === 'member');
+        const activeMembers = membersList.filter(m => 
+            m.status === 'approved' && 
+            m.role === 'member' && 
+            (m.subscriptionStatus === 'active' || m.subscriptionStatus === 'trialing' || m.subscriptionStatus === 'canceling')
+        );
         const totalActiveCount = activeMembers.length;
         const todayKey = getTodayKey();
         const activeTodayCount = activeMembers.filter(m => m.lastLogDate === todayKey).length;
@@ -174,7 +202,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
             return memberDate >= sevenDaysAgo;
         }).length;
 
-        if (totalActiveCount === 0) return { totalActiveCount: 0, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0, activeTodayCount: 0, newMembers7d: 0 };
+        if (totalActiveCount === 0) return { totalActiveCount: 0, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak: 0, averageStreak: 0, percentOnCourse: 0, averageCourseProgress: 0, averageWeeklyLoss: 0, recordWeeklyLoss: 0, averageAge: 0, maleCount: 0, femaleCount: 0, loseFatCount: 0, gainMuscleCount: 0, maintainCount: 0, proteinGoalMetPercentage7d: 0, activeTodayCount: 0, newMembers7d: 0, loggedFoodCount7d: 0 };
 
         const membersWithStreak = activeMembers.filter(m => (m.currentStreak || 0) > 0);
         const percentWithStreak = (membersWithStreak.length / totalActiveCount) * 100;
@@ -203,9 +231,13 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
         const loseFatCount = activeMembers.filter(m => m.goalSummary?.includes('fett')).length;
         const gainMuscleCount = activeMembers.filter(m => m.goalSummary?.includes('muskler')).length;
         const maintainCount = activeMembers.filter(m => m.goalSummary === 'Bibehålla').length;
-        const proteinGoalMetPercentage7d = activeMembers.reduce((sum, m) => sum + (m.proteinGoalMetPercentage7d || 0), 0) / totalActiveCount;
+        const membersWhoLoggedFood = activeMembers.filter(m => m.hasLoggedFood7d);
+        const membersWhoMetProteinGoal = membersWhoLoggedFood.filter(m => m.metProteinGoal7d);
+        const proteinGoalMetPercentage7d = membersWhoLoggedFood.length > 0 
+            ? (membersWhoMetProteinGoal.length / membersWhoLoggedFood.length) * 100 
+            : 0;
 
-        return { totalActiveCount, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d, activeTodayCount, newMembers7d };
+        return { totalActiveCount, archivedCount: membersList.filter(m => m.status === 'archived').length, percentWithStreak, averageStreak, percentOnCourse, averageCourseProgress, averageWeeklyLoss, recordWeeklyLoss, averageAge, maleCount, femaleCount, loseFatCount, gainMuscleCount, maintainCount, proteinGoalMetPercentage7d, activeTodayCount, newMembers7d, loggedFoodCount7d: membersWhoLoggedFood.length };
     }, [membersList]);
 
     return (
@@ -237,7 +269,15 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
                 <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
                 <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
-                <StatCard icon={<ProteinIcon />} title="Proteinmål (7d)" value={`${groupInsights.proteinGoalMetPercentage7d.toFixed(0)}%`} subtitle="Genomsnittlig uppfyllnad" colorClass="bg-indigo-100" textClass="text-indigo-600" />
+                <StatCard 
+                    icon={<ProteinIcon />} 
+                    title="Proteinmål (7d)" 
+                    value={`${groupInsights.proteinGoalMetPercentage7d.toFixed(0)}%`} 
+                    subtitle={`Baserat på ${groupInsights.loggedFoodCount7d} medlemmar`} 
+                    colorClass="bg-indigo-100" 
+                    textClass="text-indigo-600" 
+                    tooltip="Av de medlemmar som har loggat mat de senaste 7 dagarna, hur stor andel har nått sitt proteinmål i snitt."
+                />
                 <StatCard icon={<TrophyIcon />} title="Streak-engagemang" value={`${groupInsights.percentWithStreak.toFixed(0)}%`} subtitle={`Snitt: ${groupInsights.averageStreak.toFixed(1)} dagar`} colorClass="bg-orange-100" textClass="text-orange-600" />
                 <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" />
             </div>
@@ -247,7 +287,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
 
 const MemberFilters: React.FC<{
     searchQuery: string; onSearchChange: (q: string) => void;
-    filterStatus: 'all' | 'approved' | 'archived'; onFilterStatusChange: (s: 'all' | 'approved' | 'archived') => void;
+    filterStatus: 'all' | 'approved' | 'inactive' | 'archived'; onFilterStatusChange: (s: 'all' | 'approved' | 'inactive' | 'archived') => void;
     onRefresh: () => void; isRefreshDisabled: boolean;
 }> = ({ searchQuery, onSearchChange, filterStatus, onFilterStatusChange, onRefresh, isRefreshDisabled }) => (
     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-3 gap-3">
@@ -271,7 +311,7 @@ const MemberFilters: React.FC<{
 
             {/* Filter Pills */}
             <div className="flex bg-neutral-light/30 p-0.5 rounded-lg">
-                {(['all', 'approved', 'archived'] as const).map((status) => (
+                {(['all', 'approved', 'inactive', 'archived'] as const).map((status) => (
                     <button
                         key={status}
                         onClick={() => onFilterStatusChange(status)}
@@ -283,6 +323,7 @@ const MemberFilters: React.FC<{
                     >
                         {status === 'all' && 'Alla'}
                         {status === 'approved' && 'Aktiva'}
+                        {status === 'inactive' && 'Inaktiva'}
                         {status === 'archived' && 'Arkiv'}
                     </button>
                 ))}
@@ -472,7 +513,7 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
     
     // New filter status state
-    const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'archived'>('all');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'inactive' | 'archived'>('approved');
     
     const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
     const [sortBy, setSortBy] = useState<SortableKeys | null>(initialSortBy);
@@ -566,6 +607,14 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         if (!searchMatches) return false;
         
         if (filterStatus === 'all') return true;
+        if (filterStatus === 'approved') {
+            return member.status === 'approved' && 
+                   (member.subscriptionStatus === 'active' || member.subscriptionStatus === 'trialing' || member.subscriptionStatus === 'canceling');
+        }
+        if (filterStatus === 'inactive') {
+            return member.status === 'approved' && 
+                   (member.subscriptionStatus === 'canceled' || member.subscriptionStatus === 'inactive' || !member.subscriptionStatus);
+        }
         return member.status === filterStatus;
     }), [membersList, filterStatus, searchQuery]);
 
@@ -713,7 +762,13 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             };
         });
         
-        const dataPromises = membersList.map(async (member) => {
+        const activeMembers = membersList.filter(m => 
+            m.status === 'approved' && 
+            m.role === 'member' && 
+            (m.subscriptionStatus === 'active' || m.subscriptionStatus === 'trialing' || m.subscriptionStatus === 'canceling')
+        );
+
+        const dataPromises = activeMembers.map(async (member) => {
             const progress = await fetchCourseProgressForUser(member.id);
             
             // Check Praktisk Viktkontroll
@@ -752,8 +807,8 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
         const bootcampCourseId = 'bootcamp';
         if (courseStats[bootcampCourseId]) {
             bootcampParticipants.forEach(p => {
-                // Only count if they are in membersList (active members)
-                if (membersList.some(m => m.id === p.userId)) {
+                // Only count if they are in activeMembers
+                if (activeMembers.some(m => m.id === p.userId)) {
                     courseStats[bootcampCourseId].participants++;
                     // Bootcamp progress could be based on currentStreak or just 0 for now
                     const progress = Math.min(p.currentStreak / courseStats[bootcampCourseId].totalLessons, 1);

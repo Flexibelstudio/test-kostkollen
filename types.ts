@@ -522,6 +522,8 @@ export interface CoachViewMember {
   lastLogDate?: string;
   currentStreak: number;
   goalSummary: string;
+  hasLoggedFood7d?: boolean;
+  metProteinGoal7d?: boolean;
   proteinGoalMetPercentage7d?: number;
   goalAdherence?: "good" | "average" | "poor" | "inactive";
   courseProgressSummary?: {
