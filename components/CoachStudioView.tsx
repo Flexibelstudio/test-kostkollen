@@ -122,7 +122,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
   };
 
   return (
-    <div className={`bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden flex flex-col ${className || 'h-[85vh] max-h-[900px]'}`}>
+    <div className={`bg-white flex flex-col ${className || 'rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden h-[85vh] max-h-[900px]'}`}>
       {/* Header */}
       <div className="p-6 border-b border-neutral-light bg-neutral-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

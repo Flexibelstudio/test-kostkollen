@@ -599,24 +599,20 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
 
       {isAIModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b border-neutral-light">
-              <h3 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
-                <SparklesIcon className="w-6 h-6 text-primary" />
-                Skapa inlägg med Börje
-                {selectedWeek && selectedDay && <span className="text-sm font-normal text-neutral-500 ml-2">för Vecka {selectedWeek}, {['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][selectedDay - 1]}</span>}
-              </h3>
-              <button onClick={() => setIsAIModalOpen(false)} className="text-neutral-400 hover:text-neutral-600">
-                <XMarkIcon className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <CoachStudioView 
-                currentUser={currentUser}
-                setToastNotification={setToastNotification}
-                lockedCoach="hard"
-                hideCategory={false}
-                onPublish={async (draft, category, coach) => {
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col relative">
+            <button 
+              onClick={() => setIsAIModalOpen(false)} 
+              className="absolute top-6 right-6 z-10 text-neutral-400 hover:text-neutral-600 bg-white rounded-full p-1 shadow-sm"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+            <CoachStudioView 
+              currentUser={currentUser}
+              setToastNotification={setToastNotification}
+              lockedCoach="hard"
+              hideCategory={false}
+              className="flex-1 h-full"
+              onPublish={async (draft, category, coach) => {
                   try {
                     // 1. Save as template
                     const templateRef = await addDoc(collection(db, 'postTemplates'), {
@@ -653,7 +649,6 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                   }
                 }}
               />
-            </div>
           </div>
         </div>
       )}
