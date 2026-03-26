@@ -246,49 +246,9 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-1 bg-neutral-light/30 p-4 rounded-xl border border-neutral-200 flex flex-col h-[calc(100vh-200px)] min-h-[600px]">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-neutral-dark">Dina Mallar</h3>
-            <button
-              onClick={() => setIsCreatingTemplate(true)}
-              className="p-1.5 bg-white text-primary rounded-md hover:bg-primary/10 transition-colors border border-neutral-200 shadow-sm"
-              title="Skapa ny mall"
-            >
-              <PlusIcon className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
-            {templates.map(template => (
-              <div 
-                key={template.id} 
-                className="bg-white p-3 rounded-lg border border-neutral-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors group relative"
-                draggable
-                onDragStart={() => handleDragStart(template)}
-                onDragEnd={() => setDraggedTemplate(null)}
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getCategoryColor(template.category)} uppercase tracking-wider`}>
-                    {template.category}
-                  </span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 bg-white/90 rounded-md shadow-sm p-0.5">
-                    <button onClick={(e) => { e.stopPropagation(); handleEditTemplate(template); }} className="p-1 text-neutral-400 hover:text-primary transition-colors">
-                      <PencilIcon className="w-3 h-3" />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(template.id); }} className="p-1 text-neutral-400 hover:text-red-500 transition-colors">
-                      <TrashIcon className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-                <h5 className="font-bold text-sm text-neutral-dark line-clamp-1 pr-12">{template.title}</h5>
-                <p className="text-xs text-neutral line-clamp-2 mt-1">{template.content}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="lg:col-span-3 bg-white p-4 rounded-xl border border-neutral-200 flex flex-col h-[calc(100vh-200px)] min-h-[600px] shadow-sm">
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+      <div className="flex flex-col gap-8">
+        <div className="bg-white p-4 rounded-xl border border-neutral-200 flex flex-col shadow-sm">
+          <div className="overflow-x-auto custom-scrollbar pr-2">
             <div className="min-w-[700px]">
               <div className="grid grid-cols-8 gap-2 mb-2 sticky top-0 bg-white/95 backdrop-blur z-10 py-2 border-b border-neutral-100">
                 <div className="font-bold text-neutral-500 text-sm text-center">Vecka</div>
@@ -367,6 +327,52 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="bg-neutral-light/30 p-6 rounded-xl border border-neutral-200">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-neutral-dark">Dina Mallar</h3>
+            <button
+              onClick={() => setIsCreatingTemplate(true)}
+              className="px-4 py-2 bg-white text-primary rounded-lg hover:bg-primary/10 transition-colors border border-neutral-200 shadow-sm font-medium flex items-center gap-2"
+              title="Skapa ny mall"
+            >
+              <PlusIcon className="w-4 h-4" />
+              Skapa ny mall
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {templates.map(template => (
+              <div 
+                key={template.id} 
+                className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors group relative flex flex-col h-full"
+                draggable
+                onDragStart={() => handleDragStart(template)}
+                onDragEnd={() => setDraggedTemplate(null)}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <span className={`px-2 py-1 rounded-full text-[10px] font-semibold border ${getCategoryColor(template.category)} uppercase tracking-wider`}>
+                    {template.category}
+                  </span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 bg-white/90 rounded-md shadow-sm p-0.5">
+                    <button onClick={(e) => { e.stopPropagation(); handleEditTemplate(template); }} className="p-1.5 text-neutral-400 hover:text-primary transition-colors">
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(template.id); }} className="p-1.5 text-neutral-400 hover:text-red-500 transition-colors">
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <h5 className="font-bold text-base text-neutral-dark mb-2 pr-12">{template.title}</h5>
+                <p className="text-sm text-neutral line-clamp-3 flex-1">{template.content}</p>
+              </div>
+            ))}
+            {templates.length === 0 && (
+              <div className="col-span-full py-12 text-center text-neutral-500 bg-white rounded-xl border border-neutral-200 border-dashed">
+                Inga mallar skapade ännu. Klicka på "Skapa ny mall" för att komma igång.
+              </div>
+            )}
           </div>
         </div>
       </div>
