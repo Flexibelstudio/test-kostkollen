@@ -688,7 +688,8 @@ export interface PostTemplate {
 export interface ScheduledPost {
   id: string;
   templateId?: string;
-  groupId: string; // The specific bootcamp ID or 'solo'
+  groupId: string; // 'all' for all bootcamps, or specific bootcamp ID
+  excludedGroups?: string[]; // Array of bootcamp IDs where this post should NOT be shown
   content: string;
   category: PostCategory;
   scheduledFor: number; // Timestamp for when it should be published

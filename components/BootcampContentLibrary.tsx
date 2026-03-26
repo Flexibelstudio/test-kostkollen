@@ -51,6 +51,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   const [draggedTemplate, setDraggedTemplate] = useState<PostTemplate | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [editingScheduledPost, setEditingScheduledPost] = useState<ScheduledPost | null>(null);
 
   useEffect(() => {
     const unsubscribeCohorts = subscribeToCohorts((data) => {
@@ -84,15 +85,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   }, []);
 
   useEffect(() => {
-    if (selectedCohort === 'all') {
-      setScheduledPosts([]);
-      return;
-    }
-
-    const q = query(
-      collection(db, 'scheduledPosts'),
-      where('groupId', '==', selectedCohort)
-    );
+    const q = query(collection(db, 'scheduledPosts'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const posts: ScheduledPost[] = [];
@@ -102,6 +95,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
           id: doc.id,
           templateId: data.templateId,
           groupId: data.groupId,
+          excludedGroups: data.excludedGroups || [],
           content: data.content,
           category: data.category,
           scheduledFor: data.scheduledFor?.toMillis() || Date.now(),
@@ -116,7 +110,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
     });
 
     return () => unsubscribe();
-  }, [selectedCohort]);
+  }, []);
 
   const handleSaveTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,7 +203,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   }, [draggedTemplate]);
 
   const handleDrop = async (date: Date) => {
-    if (!draggedTemplate || selectedCohort === 'all') return;
+    if (!draggedTemplate) return;
 
     try {
       // Create a new date object to avoid mutating the original
@@ -223,6 +217,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
       await addDoc(collection(db, 'scheduledPosts'), {
         templateId: draggedTemplate.id,
         groupId: selectedCohort,
+        excludedGroups: [],
         content: draggedTemplate.content,
         category: draggedTemplate.category,
         scheduledFor: Timestamp.fromDate(scheduledDate),
@@ -251,23 +246,42 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
     }
   };
 
-  const calendarEvents = scheduledPosts.map(post => {
-    const template = templates.find(t => t.id === post.templateId);
-    return {
-      id: post.id,
-      title: template ? template.title : 'Okänd mall',
-      start: new Date(post.scheduledFor),
-      end: new Date(post.scheduledFor),
-      allDay: true,
-      resource: post,
-    };
-  });
+  const calendarEvents = scheduledPosts
+    .filter(post => {
+      if (selectedCohort === 'all') {
+        return post.groupId === 'all';
+      } else {
+        if (post.groupId === selectedCohort) return true;
+        if (post.groupId === 'all' && !post.excludedGroups?.includes(selectedCohort)) return true;
+        return false;
+      }
+    })
+    .map(post => {
+      const template = templates.find(t => t.id === post.templateId);
+      return {
+        id: post.id,
+        title: template ? template.title : 'Okänd mall',
+        start: new Date(post.scheduledFor),
+        end: new Date(post.scheduledFor),
+        allDay: true,
+        resource: post,
+      };
+    });
 
   const EventComponent = ({ event }: any) => {
     const post = event.resource as ScheduledPost;
+    const hasExclusions = post.groupId === 'all' && post.excludedGroups && post.excludedGroups.length > 0;
+    
     return (
-      <div className="flex justify-between items-start w-full h-full overflow-hidden p-1">
-        <span className="break-words w-full pr-4 text-xs font-medium">{event.title}</span>
+      <div className="flex justify-between items-start w-full h-full overflow-hidden p-1 relative">
+        <div className="flex flex-col w-full pr-4">
+          <span className="break-words text-xs font-medium">{event.title}</span>
+          {hasExclusions && (
+            <span className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1 rounded mt-0.5 inline-block w-max">
+              Avvikelser ({post.excludedGroups?.length})
+            </span>
+          )}
+        </div>
         <button 
           onMouseDown={(e) => {
             e.stopPropagation();
@@ -492,31 +506,24 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               onChange={(e) => setSelectedCohort(e.target.value)}
               className="px-4 py-2 border border-neutral-light rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
             >
-              <option value="all">Välj en grupp/bootcamp...</option>
+              <option value="all">Alla trupper (Master-schema)</option>
               {cohorts.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
 
-          {selectedCohort === 'all' ? (
-            <div className="py-12 text-center bg-neutral-light/30 rounded-xl border border-dashed border-neutral-300">
-              <CalendarIcon className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
-              <h3 className="text-lg font-medium text-neutral-dark mb-1">Välj en grupp</h3>
-              <p className="text-neutral text-sm">Välj en bootcamp eller grupp ovan för att börja schemalägga inlägg.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Drag and Drop implementation will go here. For now, a placeholder */}
-              <div className="lg:col-span-1 bg-neutral-light/30 p-4 rounded-xl border border-neutral-200">
-                <h4 className="font-semibold text-neutral-dark mb-4">Dina Mallar</h4>
-                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                  {templates.map(template => (
-                    <div 
-                      key={template.id} 
-                      className="bg-white p-3 rounded-lg border border-neutral-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors"
-                      draggable
-                      onDragStart={() => handleDragStart(template)}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Drag and Drop implementation will go here. For now, a placeholder */}
+            <div className="lg:col-span-1 bg-neutral-light/30 p-4 rounded-xl border border-neutral-200 flex flex-col h-[600px]">
+              <h4 className="font-semibold text-neutral-dark mb-4 shrink-0">Dina Mallar</h4>
+              <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                {templates.map(template => (
+                  <div 
+                    key={template.id} 
+                    className="bg-white p-3 rounded-lg border border-neutral-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors"
+                    draggable
+                    onDragStart={() => handleDragStart(template)}
                       onDragEnd={() => setDraggedTemplate(null)}
                     >
                       <div className="flex justify-between items-start mb-1">
@@ -587,10 +594,8 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                     timeslots={1}
                     selectable
                     onSelectEvent={(event) => {
-                      if (window.confirm('Vill du ta bort detta schemalagda inlägg?')) {
-                        const post = event.resource as ScheduledPost;
-                        handleDeleteScheduledPost(post.id);
-                      }
+                      const post = event.resource as ScheduledPost;
+                      setEditingScheduledPost(post);
                     }}
                     eventPropGetter={(event) => {
                       const post = event.resource as ScheduledPost;
@@ -610,7 +615,103 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                 </div>
               </div>
             </div>
-          )}
+        </div>
+      )}
+
+      {editingScheduledPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-neutral-light">
+              <h3 className="text-xl font-bold text-neutral-dark">Hantera schemalagt inlägg</h3>
+              <button onClick={() => setEditingScheduledPost(null)} className="text-neutral-400 hover:text-neutral-600">
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Innehåll</label>
+                <div className="text-sm text-neutral bg-neutral-50 p-3 rounded-lg border border-neutral-light max-h-40 overflow-y-auto whitespace-pre-wrap custom-scrollbar">
+                  {editingScheduledPost.content}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Schemalagt till</label>
+                <div className="text-sm text-neutral bg-neutral-50 p-3 rounded-lg border border-neutral-light">
+                  {format(new Date(editingScheduledPost.scheduledFor), 'yyyy-MM-dd HH:mm')}
+                </div>
+              </div>
+
+              {editingScheduledPost.groupId !== 'all' && (
+                <div>
+                  <label className="block text-sm font-bold text-neutral-dark mb-1">Målgrupp</label>
+                  <div className="text-sm text-neutral bg-neutral-50 p-3 rounded-lg border border-neutral-light">
+                    Endast för: {cohorts.find(c => c.id === editingScheduledPost.groupId)?.name || 'Okänd trupp'}
+                  </div>
+                </div>
+              )}
+
+              {editingScheduledPost.groupId === 'all' && (
+                <div>
+                  <label className="block text-sm font-bold text-neutral-dark mb-2">Dölj för specifika trupper</label>
+                  <p className="text-xs text-neutral mb-3">Kryssa i de trupper som <strong>inte</strong> ska se detta inlägg.</p>
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                    {cohorts.map(cohort => (
+                      <label key={cohort.id} className="flex items-center gap-2 p-2 hover:bg-neutral-50 rounded-lg cursor-pointer border border-transparent hover:border-neutral-light transition-colors">
+                        <input 
+                          type="checkbox" 
+                          className="rounded text-primary focus:ring-primary"
+                          checked={editingScheduledPost.excludedGroups?.includes(cohort.id) || false}
+                          onChange={async (e) => {
+                            const isChecked = e.target.checked;
+                            let newExcluded = [...(editingScheduledPost.excludedGroups || [])];
+                            if (isChecked) {
+                              newExcluded.push(cohort.id);
+                            } else {
+                              newExcluded = newExcluded.filter(id => id !== cohort.id);
+                            }
+                            
+                            // Optimistic update
+                            setEditingScheduledPost({ ...editingScheduledPost, excludedGroups: newExcluded });
+                            
+                            try {
+                              await updateDoc(doc(db, 'scheduledPosts', editingScheduledPost.id), {
+                                excludedGroups: newExcluded
+                              });
+                            } catch (error) {
+                              console.error("Error updating exclusions:", error);
+                              setToastNotification({ message: 'Kunde inte uppdatera undantag', type: 'error' });
+                            }
+                          }}
+                        />
+                        <span className="text-sm font-medium text-neutral-dark">{cohort.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-neutral-light bg-neutral-50 flex justify-between items-center">
+              <button
+                onClick={() => {
+                  if (window.confirm('Är du säker på att du vill ta bort detta schemalagda inlägg?')) {
+                    handleDeleteScheduledPost(editingScheduledPost.id);
+                    setEditingScheduledPost(null);
+                  }
+                }}
+                className="text-red-500 hover:text-red-700 font-bold text-sm flex items-center gap-1 transition-colors"
+              >
+                <TrashIcon className="w-4 h-4" />
+                Ta bort inlägg
+              </button>
+              <button
+                onClick={() => setEditingScheduledPost(null)}
+                className="bg-primary text-white px-6 py-2 rounded-xl font-bold hover:bg-primary-dark transition-colors"
+              >
+                Klar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -645,11 +746,12 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                       createdBy: currentUser.uid,
                     });
 
-                    // 2. Schedule if a cohort is selected
-                    if (selectedCohort !== 'all' && selectedDate) {
+                    // 2. Schedule
+                    if (selectedDate) {
                       await addDoc(collection(db, 'scheduledPosts'), {
                         templateId: templateRef.id,
                         groupId: selectedCohort,
+                        excludedGroups: [],
                         content: draft,
                         category: category,
                         scheduledFor: Timestamp.fromDate(selectedDate),
