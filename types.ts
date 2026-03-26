@@ -673,7 +673,29 @@ export type TimelineEventType =
   | "goal_set"
   | "user_post"; // Added user_post
 
-export type PostCategory = 'general' | 'food' | 'workout' | 'question' | 'pepp';
+export type PostCategory = 'general' | 'food' | 'workout' | 'question' | 'pepp' | 'fakta' | 'cta';
+
+export interface PostTemplate {
+  id: string;
+  title: string;
+  content: string;
+  category: PostCategory;
+  targetGroups: string[]; // e.g., ['all'], ['bootcamp'], ['solo'], or specific group IDs
+  createdAt: number;
+  createdBy: string;
+}
+
+export interface ScheduledPost {
+  id: string;
+  templateId?: string;
+  groupId: string; // The specific bootcamp ID or 'solo'
+  content: string;
+  category: PostCategory;
+  scheduledFor: number; // Timestamp for when it should be published
+  status: 'pending' | 'published';
+  createdAt: number;
+  createdBy: string;
+}
 
 export interface Reactions {
   [emoji: string]: {
