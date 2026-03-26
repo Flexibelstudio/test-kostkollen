@@ -240,7 +240,11 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
             <div className="p-4 bg-emerald-50 border-t border-emerald-100 flex items-center justify-between gap-4 animate-fade-in">
                 <div className="flex-1">
                     <p className="text-sm font-medium text-emerald-800">Nöjd med utkastet?</p>
-                    <p className="text-xs text-emerald-600">Det kommer att publiceras i communityt som {COACH_PERSONAS[selectedCoach].label}.</p>
+                    <p className="text-xs text-emerald-600">
+                      {onPublish 
+                        ? `Det kommer att sparas som en mall och schemaläggas.` 
+                        : `Det kommer att publiceras i communityt som ${COACH_PERSONAS[selectedCoach].label}.`}
+                    </p>
                 </div>
                 <button
                     onClick={handlePublish}
@@ -252,7 +256,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
                     ) : (
                         <Send className="w-5 h-5" />
                     )}
-                    Publicera
+                    {onPublish ? 'Spara inlägg' : 'Publicera'}
                 </button>
             </div>
           )}
