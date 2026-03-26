@@ -21,7 +21,7 @@ interface BootcampLedningscentralProps {
 }
 
 import ParticipantDetailModal from './ParticipantDetailModal';
-import ContentLibraryView from './ContentLibraryView';
+import BootcampContentLibrary from './BootcampContentLibrary';
 
 export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = ({
   currentUser,
@@ -521,7 +521,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
       )}
       
       {activeTab === 'library' && (
-        <ContentLibraryView 
+        <BootcampContentLibrary 
             setToastNotification={setToastNotification}
             currentUser={currentUser}
         />

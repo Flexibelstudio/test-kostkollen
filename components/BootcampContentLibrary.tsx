@@ -26,12 +26,12 @@ const localizer = dateFnsLocalizer({
   locales,
 })
 
-interface ContentLibraryViewProps {
+interface BootcampContentLibraryProps {
   setToastNotification: (notif: { message: string; type: 'success' | 'error' } | null) => void;
   currentUser: any;
 }
 
-const ContentLibraryView: React.FC<ContentLibraryViewProps> = ({ setToastNotification, currentUser }) => {
+const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToastNotification, currentUser }) => {
   const [activeTab, setActiveTab] = useState<'library' | 'calendar'>('library');
   const [templates, setTemplates] = useState<PostTemplate[]>([]);
   const [cohorts, setCohorts] = useState<BootcampCohort[]>([]);
@@ -610,4 +610,4 @@ const ContentLibraryView: React.FC<ContentLibraryViewProps> = ({ setToastNotific
   );
 };
 
-export default ContentLibraryView;
+export default BootcampContentLibrary;
