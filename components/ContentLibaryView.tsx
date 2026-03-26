@@ -11,7 +11,6 @@ import startOfWeek from 'date-fns/startOfWeek';
 import getDay from 'date-fns/getDay';
 import sv from 'date-fns/locale/sv';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
-import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
 const DnDCalendar = withDragAndDrop(Calendar);
 
