@@ -692,7 +692,9 @@ export interface ScheduledPost {
   excludedGroups?: string[]; // Array of bootcamp IDs where this post should NOT be shown
   content: string;
   category: PostCategory;
-  scheduledFor: number; // Timestamp for when it should be published
+  scheduledFor?: number; // Timestamp for when it should be published (legacy)
+  programWeek?: number; // 1-12
+  programDay?: number; // 1-7 (1 = Måndag, 7 = Söndag)
   status: 'pending' | 'published';
   createdAt: number;
   createdBy: string;

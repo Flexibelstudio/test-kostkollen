@@ -4,28 +4,9 @@ import { subscribeToCohorts } from '../services/bootcampService';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp, where } from 'firebase/firestore';
 import { PlusIcon, CalendarIcon, ArchiveBoxIcon, CheckIcon, XMarkIcon, TrashIcon, PencilIcon, SparklesIcon } from './icons';
-import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
-import format from 'date-fns/format';
-import parse from 'date-fns/parse';
-import startOfWeek from 'date-fns/startOfWeek';
-import getDay from 'date-fns/getDay';
-import sv from 'date-fns/locale/sv';
-import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import { format } from 'date-fns';
+import { sv } from 'date-fns/locale';
 import CoachStudioView from './CoachStudioView';
-
-const DnDCalendar = withDragAndDrop(Calendar);
-
-const locales = {
-  'sv': sv,
-}
-
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-})
 
 interface BootcampContentLibraryProps {
   setToastNotification: (notif: { message: string; type: 'success' | 'error' } | null) => void;
@@ -50,7 +31,8 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
   const [draggedTemplate, setDraggedTemplate] = useState<PostTemplate | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [editingScheduledPost, setEditingScheduledPost] = useState<ScheduledPost | null>(null);
 
   useEffect(() => {
@@ -98,7 +80,9 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
           excludedGroups: data.excludedGroups || [],
           content: data.content,
           category: data.category,
-          scheduledFor: data.scheduledFor?.toMillis() || Date.now(),
+          scheduledFor: data.scheduledFor?.toMillis(),
+          programWeek: data.programWeek,
+          programDay: data.programDay,
           status: data.status,
           createdAt: data.createdAt?.toMillis() || Date.now(),
           createdBy: data.createdBy,
@@ -198,29 +182,18 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
     setDraggedTemplate(template);
   };
 
-  const dragFromOutsideItem = useCallback(() => {
-    return draggedTemplate;
-  }, [draggedTemplate]);
-
-  const handleDrop = async (date: Date) => {
+  const handleDropToGrid = async (week: number, day: number) => {
     if (!draggedTemplate) return;
 
     try {
-      // Create a new date object to avoid mutating the original
-      const scheduledDate = new Date(date);
-      
-      // If dropping on month view, the time might be 00:00:00, let's set a default time like 09:00
-      if (scheduledDate.getHours() === 0 && scheduledDate.getMinutes() === 0) {
-        scheduledDate.setHours(9, 0, 0, 0);
-      }
-
       await addDoc(collection(db, 'scheduledPosts'), {
         templateId: draggedTemplate.id,
         groupId: selectedCohort,
         excludedGroups: [],
         content: draggedTemplate.content,
         category: draggedTemplate.category,
-        scheduledFor: Timestamp.fromDate(scheduledDate),
+        programWeek: week,
+        programDay: day,
         status: 'pending',
         createdAt: serverTimestamp(),
         createdBy: currentUser.uid,
@@ -246,58 +219,16 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
     }
   };
 
-  const calendarEvents = scheduledPosts
-    .filter(post => {
-      if (selectedCohort === 'all') {
-        return post.groupId === 'all';
-      } else {
-        if (post.groupId === selectedCohort) return true;
-        if (post.groupId === 'all' && !post.excludedGroups?.includes(selectedCohort)) return true;
-        return false;
-      }
-    })
-    .map(post => {
-      const template = templates.find(t => t.id === post.templateId);
-      return {
-        id: post.id,
-        title: template ? template.title : 'Okänd mall',
-        start: new Date(post.scheduledFor),
-        end: new Date(post.scheduledFor),
-        allDay: true,
-        resource: post,
-      };
-    });
-
-  const EventComponent = ({ event }: any) => {
-    const post = event.resource as ScheduledPost;
-    const hasExclusions = post.groupId === 'all' && post.excludedGroups && post.excludedGroups.length > 0;
-    
-    return (
-      <div className="flex justify-between items-start w-full h-full overflow-hidden p-1 relative">
-        <div className="flex flex-col w-full pr-4">
-          <span className="break-words text-xs font-medium">{event.title}</span>
-          {hasExclusions && (
-            <span className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1 rounded mt-0.5 inline-block w-max">
-              Avvikelser ({post.excludedGroups?.length})
-            </span>
-          )}
-        </div>
-        <button 
-          onMouseDown={(e) => {
-            e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            handleDeleteScheduledPost(post.id);
-          }}
-          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-black/10 rounded transition-opacity absolute right-1 top-1 z-10 text-neutral-dark"
-        >
-          <XMarkIcon className="w-3 h-3" />
-        </button>
-      </div>
-    );
-  };
+  const weeks = Array.from({ length: 12 }, (_, i) => i + 1);
+  const days = [
+    { id: 1, name: 'Mån' },
+    { id: 2, name: 'Tis' },
+    { id: 3, name: 'Ons' },
+    { id: 4, name: 'Tor' },
+    { id: 5, name: 'Fre' },
+    { id: 6, name: 'Lör' },
+    { id: 7, name: 'Sön' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -538,80 +469,87 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                 </div>
               </div>
               
-              <div className="lg:col-span-2 bg-neutral-light/30 p-4 rounded-xl border border-neutral-200">
-                <h4 className="font-semibold text-neutral-dark mb-4">Kalender (Vecka 1-12)</h4>
-                <div 
-                  className="h-[600px] bg-white rounded-lg p-2"
-                  onDragOver={(e) => e.preventDefault()}
-                >
-                  <DnDCalendar
-                    localizer={localizer}
-                    events={calendarEvents}
-                    startAccessor="start"
-                    endAccessor="end"
-                    style={{ height: '100%' }}
-                    views={[Views.MONTH, Views.WEEK]}
-                    defaultView={Views.MONTH}
-                    components={{
-                      event: EventComponent
-                    }}
-                    onSelectSlot={(slotInfo) => {
-                      if (draggedTemplate) {
-                        handleDrop(slotInfo.start);
-                      } else {
-                        setSelectedDate(slotInfo.start);
-                        setIsAIModalOpen(true);
-                      }
-                    }}
-                    selectable={true}
-                    onEventDrop={async ({ event, start }) => {
-                      try {
-                        const post = event.resource as ScheduledPost;
-                        await updateDoc(doc(db, 'scheduledPosts', post.id), {
-                          scheduledFor: Timestamp.fromDate(new Date(start as Date))
-                        });
-                        setToastNotification({ message: 'Inlägg flyttat', type: 'success' });
-                      } catch (error) {
-                        console.error("Error moving post:", error);
-                        setToastNotification({ message: 'Kunde inte flytta inlägg', type: 'error' });
-                      }
-                    }}
-                    onDropFromOutside={({ start }) => {
-                      if (draggedTemplate) {
-                        handleDrop(start as Date);
-                      }
-                    }}
-                    dragFromOutsideItem={
-                      draggedTemplate ? dragFromOutsideItem : undefined
-                    }
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                    }}
-                    draggableAccessor={() => true}
-                    resizable={false}
-                    popup
-                    step={60}
-                    timeslots={1}
-                    selectable
-                    onSelectEvent={(event) => {
-                      const post = event.resource as ScheduledPost;
-                      setEditingScheduledPost(post);
-                    }}
-                    eventPropGetter={(event) => {
-                      const post = event.resource as ScheduledPost;
-                      return {
-                        className: `border ${getCategoryColor(post.category)}`
-                      };
-                    }}
-                    messages={{
-                      next: "Nästa",
-                      previous: "Föregående",
-                      today: "Idag",
-                      month: "Månad",
-                      week: "Vecka",
-                      day: "Dag"
-                    }}
-                  />
+              <div className="lg:col-span-2 bg-neutral-light/30 p-4 rounded-xl border border-neutral-200 flex flex-col h-[600px]">
+                <h4 className="font-semibold text-neutral-dark mb-4 shrink-0">12-Veckorsschema</h4>
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                  <div className="min-w-[700px]">
+                    <div className="grid grid-cols-8 gap-2 mb-2 sticky top-0 bg-neutral-light/90 backdrop-blur z-10 py-2">
+                      <div className="font-bold text-neutral-500 text-sm text-center">Vecka</div>
+                      {days.map(day => (
+                        <div key={day.id} className="font-bold text-neutral-dark text-center text-sm">{day.name}</div>
+                      ))}
+                    </div>
+                    <div className="space-y-2 pb-4">
+                      {weeks.map(week => (
+                        <div key={week} className="grid grid-cols-8 gap-2">
+                          <div className="flex items-center justify-center font-bold text-neutral-500 bg-white/50 rounded-lg text-sm">
+                            V. {week}
+                          </div>
+                          {days.map(day => {
+                            const postsForCell = scheduledPosts.filter(p => {
+                              if (p.programWeek !== week || p.programDay !== day.id) return false;
+                              if (selectedCohort === 'all') return p.groupId === 'all';
+                              if (p.groupId === selectedCohort) return true;
+                              if (p.groupId === 'all' && !p.excludedGroups?.includes(selectedCohort)) return true;
+                              return false;
+                            });
+
+                            return (
+                              <div 
+                                key={`${week}-${day.id}`}
+                                className="min-h-[100px] bg-white border border-neutral-200 rounded-lg p-1.5 hover:border-primary/50 transition-colors cursor-pointer flex flex-col gap-1.5 group/cell"
+                                onClick={() => {
+                                  setSelectedWeek(week);
+                                  setSelectedDay(day.id);
+                                  setIsAIModalOpen(true);
+                                }}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  handleDropToGrid(week, day.id);
+                                }}
+                              >
+                                {postsForCell.map(post => {
+                                  const template = templates.find(t => t.id === post.templateId);
+                                  const title = template ? template.title : 'Inlägg';
+                                  return (
+                                    <div 
+                                      key={post.id} 
+                                      className={`text-[10px] p-1.5 rounded border ${getCategoryColor(post.category)} relative group/post shadow-sm`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingScheduledPost(post);
+                                      }}
+                                    >
+                                      <div className="font-bold line-clamp-1 mb-0.5">{title}</div>
+                                      <div className="line-clamp-2 opacity-80 leading-tight">{post.content}</div>
+                                      {post.groupId === 'all' && post.excludedGroups && post.excludedGroups.length > 0 && (
+                                        <div className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1 rounded mt-1 w-max">
+                                          Avvikelser ({post.excludedGroups.length})
+                                        </div>
+                                      )}
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteScheduledPost(post.id);
+                                        }}
+                                        className="absolute top-0.5 right-0.5 opacity-0 group-hover/post:opacity-100 bg-white/90 rounded-full p-0.5 text-red-500 hover:text-red-700 shadow-sm"
+                                      >
+                                        <XMarkIcon className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                                <div className="mt-auto pt-1 flex justify-center opacity-0 group-hover/cell:opacity-100 transition-opacity">
+                                  <PlusIcon className="w-4 h-4 text-neutral-400" />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -638,7 +576,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               <div>
                 <label className="block text-sm font-bold text-neutral-dark mb-1">Schemalagt till</label>
                 <div className="text-sm text-neutral bg-neutral-50 p-3 rounded-lg border border-neutral-light">
-                  {format(new Date(editingScheduledPost.scheduledFor), 'yyyy-MM-dd HH:mm')}
+                  Vecka {editingScheduledPost.programWeek}, {editingScheduledPost.programDay ? ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][editingScheduledPost.programDay - 1] : ''}
                 </div>
               </div>
 
@@ -722,7 +660,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               <h3 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
                 <SparklesIcon className="w-6 h-6 text-primary" />
                 Skapa inlägg med Börje
-                {selectedDate && <span className="text-sm font-normal text-neutral-500 ml-2">för {format(selectedDate, 'd MMMM', { locale: sv })}</span>}
+                {selectedWeek && selectedDay && <span className="text-sm font-normal text-neutral-500 ml-2">för Vecka {selectedWeek}, {['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][selectedDay - 1]}</span>}
               </h3>
               <button onClick={() => setIsAIModalOpen(false)} className="text-neutral-400 hover:text-neutral-600">
                 <XMarkIcon className="w-6 h-6" />
@@ -732,7 +670,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               <CoachStudioView 
                 currentUser={currentUser}
                 setToastNotification={setToastNotification}
-                lockedCoach="drillSergeant"
+                lockedCoach="hard"
                 hideCategory={false}
                 onPublish={async (draft, category, coach) => {
                   try {
@@ -747,14 +685,15 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                     });
 
                     // 2. Schedule
-                    if (selectedDate) {
+                    if (selectedWeek && selectedDay) {
                       await addDoc(collection(db, 'scheduledPosts'), {
                         templateId: templateRef.id,
                         groupId: selectedCohort,
                         excludedGroups: [],
                         content: draft,
                         category: category,
-                        scheduledFor: Timestamp.fromDate(selectedDate),
+                        programWeek: selectedWeek,
+                        programDay: selectedDay,
                         status: 'scheduled',
                         createdAt: serverTimestamp(),
                         createdBy: currentUser.uid,
