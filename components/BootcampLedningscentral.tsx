@@ -21,6 +21,7 @@ interface BootcampLedningscentralProps {
 }
 
 import ParticipantDetailModal from './ParticipantDetailModal';
+import ContentLibraryView from './ContentLibraryView';
 
 export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = ({
   currentUser,
@@ -40,7 +41,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
   const [selectedCohortId, setSelectedCohortId] = useState<string | null>(null);
   const [selectedParticipant, setSelectedParticipant] = useState<BootcampParticipant | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'cohorts' | 'participants'>('cohorts');
+  const [activeTab, setActiveTab] = useState<'cohorts' | 'participants' | 'library'>('cohorts');
   const [sortConfig, setSortConfig] = useState<{ key: keyof BootcampParticipant | 'name' | 'cohortName'; direction: 'asc' | 'desc' }>({ key: 'currentStreak', direction: 'desc' });
 
   useEffect(() => {
@@ -283,6 +284,12 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
             >
               Deltagare
             </button>
+            <button
+              onClick={() => setActiveTab('library')}
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'library' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Bibliotek & Schema
+            </button>
           </div>
           {activeTab === 'cohorts' && (
             <button
@@ -511,6 +518,13 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
             </table>
           </div>
         </div>
+      )}
+      
+      {activeTab === 'library' && (
+        <ContentLibraryView 
+            setToastNotification={setToastNotification}
+            currentUser={currentUser}
+        />
       )}
 
       {selectedParticipant && membersList.find(m => m.id === selectedParticipant.userId) && (

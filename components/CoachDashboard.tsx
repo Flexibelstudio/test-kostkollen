@@ -24,7 +24,6 @@ import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
 import GrowthEngineView from './GrowthEngineView';
 import CoachStudioView from './CoachStudioView';
-import ContentLibraryView from './ContentLibraryView';
 import { BootcampLedningscentral } from './BootcampLedningscentral';
 import { Avatar } from './UserProfileModal';
 import { TrendingUp } from 'lucide-react';
@@ -666,7 +665,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CoachViewMember | null>(null);
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio' | 'bootcamp' | 'library'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio' | 'bootcamp'>('members');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [myChats, setMyChats] = useState<Chat[]>([]);
   const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
@@ -941,13 +940,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         <TrophyIcon className="w-5 h-5" />
                         <span>Bootcamp</span>
                     </button>
-                    <button
-                        onClick={() => setActiveTab('library')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'library' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
-                    >
-                        <BookOpenIcon className="w-5 h-5" />
-                        <span>Bibliotek</span>
-                    </button>
                 </div>
             </div>
         )}
@@ -1003,11 +995,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 setToastNotification={setToastNotification}
                 membersList={membersList}
                 onMemberClick={(member) => setSelectedMember(member)}
-            />
-        ) : activeTab === 'library' ? (
-            <ContentLibraryView 
-                setToastNotification={setToastNotification}
-                currentUser={currentUser}
             />
         ) : (
             <>
