@@ -3,7 +3,7 @@ import { PostTemplate, ScheduledPost, PostCategory, BootcampCohort } from '../ty
 import { subscribeToCohorts } from '../services/bootcampService';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp, where } from 'firebase/firestore';
-import { PlusIcon, CalendarIcon, ArchiveBoxIcon, CheckIcon, XMarkIcon, TrashIcon, PencilIcon } from './icons';
+import { PlusIcon, CalendarIcon, ArchiveBoxIcon, CheckIcon, XMarkIcon, TrashIcon, PencilIcon, SparklesIcon } from './icons';
 import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
 import format from 'date-fns/format';
 import parse from 'date-fns/parse';
@@ -11,6 +11,7 @@ import startOfWeek from 'date-fns/startOfWeek';
 import getDay from 'date-fns/getDay';
 import sv from 'date-fns/locale/sv';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import CoachStudioView from './CoachStudioView';
 
 const DnDCalendar = withDragAndDrop(Calendar);
 
@@ -48,6 +49,8 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   // Calendar State
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
   const [draggedTemplate, setDraggedTemplate] = useState<PostTemplate | null>(null);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   useEffect(() => {
     const unsubscribeCohorts = subscribeToCohorts((data) => {
@@ -548,8 +551,12 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                     onSelectSlot={(slotInfo) => {
                       if (draggedTemplate) {
                         handleDrop(slotInfo.start);
+                      } else {
+                        setSelectedDate(slotInfo.start);
+                        setIsAIModalOpen(true);
                       }
                     }}
+                    selectable={true}
                     onEventDrop={async ({ event, start }) => {
                       try {
                         const post = event.resource as ScheduledPost;
@@ -604,6 +611,65 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {isAIModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-neutral-light">
+              <h3 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
+                <SparklesIcon className="w-6 h-6 text-primary" />
+                Skapa inlägg med Börje
+                {selectedDate && <span className="text-sm font-normal text-neutral-500 ml-2">för {format(selectedDate, 'd MMMM', { locale: sv })}</span>}
+              </h3>
+              <button onClick={() => setIsAIModalOpen(false)} className="text-neutral-400 hover:text-neutral-600">
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <CoachStudioView 
+                currentUser={currentUser}
+                setToastNotification={setToastNotification}
+                lockedCoach="drillSergeant"
+                hideCategory={false}
+                onPublish={async (draft, category, coach) => {
+                  try {
+                    // 1. Save as template
+                    const templateRef = await addDoc(collection(db, 'postTemplates'), {
+                      title: `Börje-inlägg ${format(new Date(), 'yyyy-MM-dd')}`,
+                      content: draft,
+                      category: category,
+                      targetGroups: ['all'],
+                      createdAt: serverTimestamp(),
+                      createdBy: currentUser.uid,
+                    });
+
+                    // 2. Schedule if a cohort is selected
+                    if (selectedCohort !== 'all' && selectedDate) {
+                      await addDoc(collection(db, 'scheduledPosts'), {
+                        templateId: templateRef.id,
+                        groupId: selectedCohort,
+                        content: draft,
+                        category: category,
+                        scheduledFor: Timestamp.fromDate(selectedDate),
+                        status: 'scheduled',
+                        createdAt: serverTimestamp(),
+                        createdBy: currentUser.uid,
+                      });
+                      setToastNotification({ message: 'Inlägg sparat och schemalagt!', type: 'success' });
+                    } else {
+                      setToastNotification({ message: 'Inlägg sparat i biblioteket!', type: 'success' });
+                    }
+                    setIsAIModalOpen(false);
+                  } catch (error) {
+                    console.error("Error saving AI post:", error);
+                    setToastNotification({ message: 'Ett fel uppstod när inlägget skulle sparas.', type: 'error' });
+                  }
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -378,7 +378,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         </div>
       )}
 
-      {activeTab === 'cohorts' ? (
+      {activeTab === 'cohorts' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {allCohorts.map(cohort => (
             <div 
@@ -440,7 +440,9 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
             </div>
           )}
         </div>
-      ) : (
+      )}
+
+      {activeTab === 'participants' && (
         <div className="bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
