@@ -153,13 +153,13 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
 
   const weeks = Array.from({ length: 12 }, (_, i) => i + 1);
   const days = [
-    { id: 1, name: 'Mån' },
-    { id: 2, name: 'Tis' },
-    { id: 3, name: 'Ons' },
-    { id: 4, name: 'Tor' },
-    { id: 5, name: 'Fre' },
-    { id: 6, name: 'Lör' },
-    { id: 7, name: 'Sön' },
+    { id: 1, name: 'Dag 1' },
+    { id: 2, name: 'Dag 2' },
+    { id: 3, name: 'Dag 3' },
+    { id: 4, name: 'Dag 4' },
+    { id: 5, name: 'Dag 5' },
+    { id: 6, name: 'Dag 6' },
+    { id: 7, name: 'Dag 7' },
   ];
 
   return (
@@ -350,7 +350,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               <div>
                 <label className="block text-sm font-bold text-neutral-dark mb-1">Schemalagt till</label>
                 <div className="text-sm text-neutral bg-neutral-50 p-3 rounded-lg border border-neutral-light">
-                  Vecka {editingScheduledPost.programWeek}, {editingScheduledPost.programDay ? ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][editingScheduledPost.programDay - 1] : ''}
+                  Vecka {editingScheduledPost.programWeek}, {editingScheduledPost.programDay ? `Dag ${editingScheduledPost.programDay}` : ''}
                 </div>
               </div>
 
@@ -486,7 +486,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                     onChange={(e) => setScheduleDay(Number(e.target.value))}
                     className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
                   >
-                    {['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'].map((d, i) => (
+                    {['Dag 1', 'Dag 2', 'Dag 3', 'Dag 4', 'Dag 5', 'Dag 6', 'Dag 7'].map((d, i) => (
                       <option key={i + 1} value={i + 1}>{d}</option>
                     ))}
                   </select>
@@ -513,7 +513,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               <button
                 onClick={async () => {
                   const cohortName = selectedCohort === 'all' ? 'alla trupper' : cohorts.find(c => c.id === selectedCohort)?.name || 'vald trupp';
-                  const dayName = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][scheduleDay - 1];
+                  const dayName = `Dag ${scheduleDay}`;
                   const confirmMsg = `Bekräfta schemaläggning:\n\nInlägget kommer att publiceras automatiskt i flödet för ${cohortName}.\nNär: Vecka ${scheduleWeek}, ${dayName} kl ${scheduleTime || '08:00'}.\n\nVill du fortsätta?`;
                   
                   if (!window.confirm(confirmMsg)) return;
@@ -573,7 +573,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               <div className="p-4 bg-primary/5 border-b border-primary/10 flex flex-wrap gap-6 items-center rounded-t-3xl">
                 <div>
                   <span className="text-sm font-bold text-neutral-dark">Schemaläggs till: </span>
-                  <span className="text-sm text-neutral">Vecka {selectedWeek}, {['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][selectedDay - 1]}</span>
+                  <span className="text-sm text-neutral">Vecka {selectedWeek}, Dag {selectedDay}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-bold text-neutral-dark">Tid för publicering:</label>
@@ -623,7 +623,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                       // 2. Schedule
                       if (selectedWeek && selectedDay) {
                         const cohortName = selectedCohort === 'all' ? 'alla trupper' : cohorts.find(c => c.id === selectedCohort)?.name || 'vald trupp';
-                        const dayName = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][selectedDay - 1];
+                        const dayName = `Dag ${selectedDay}`;
                         const confirmMsg = `Bekräfta schemaläggning:\n\nInlägget kommer att sparas som en mall OCH publiceras automatiskt i flödet för ${cohortName}.\nNär: Vecka ${selectedWeek}, ${dayName} kl ${selectedTime || '08:00'}.\n\nVill du fortsätta?`;
                         
                         if (!window.confirm(confirmMsg)) return;
