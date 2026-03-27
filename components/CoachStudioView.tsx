@@ -128,10 +128,6 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
 
   const handlePublish = async () => {
     if (!currentDraft.trim() || !currentUser) return;
-    if (showTemplateFields && !title.trim()) {
-      setToastNotification({ message: 'Vänligen ange en titel för mallen.', type: 'error' });
-      return;
-    }
     
     setIsPublishing(true);
 
@@ -139,6 +135,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
       const coach = COACH_PERSONAS[selectedCoach];
       if (onPublish) {
         await onPublish(currentDraft, category, coach, title, targetGroups);
+        // Do not show toast here, let onPublish handle it to avoid overwriting
       } else {
         await createUserPost(
           currentUser.uid,
@@ -149,15 +146,17 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
           coach.label, // overrideName
           coach.imageUrl // overridePhotoURL
         );
+        setToastNotification({ message: `Inlägget har publicerats som ${coach.label}!`, type: 'success' });
       }
       
-      setToastNotification({ message: `Inlägget har publicerats som ${coach.label}!`, type: 'success' });
       setChatHistory([]);
       setCurrentDraft('');
       setBrief('');
     } catch (error) {
       console.error("Error publishing post:", error);
-      setToastNotification({ message: 'Kunde inte publicera inlägget.', type: 'error' });
+      if (!onPublish) {
+        setToastNotification({ message: 'Kunde inte publicera inlägget.', type: 'error' });
+      }
     } finally {
       setIsPublishing(false);
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { PostTemplate, ScheduledPost, PostCategory, BootcampCohort } from '../types';
 import { subscribeToCohorts } from '../services/bootcampService';
 import { db } from '../firebase';
@@ -323,8 +324,8 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
         </div>
       </div>
 
-      {editingScheduledPost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      {editingScheduledPost && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-6 border-b border-neutral-light">
               <h3 className="text-xl font-bold text-neutral-dark">Hantera schemalagt inlägg</h3>
@@ -417,12 +418,30 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {isAIModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-4xl min-h-[90vh] my-8 flex flex-col relative">
+      {isAIModalOpen && createPortal(
+        <div 
+          className="fixed inset-0 z-[100] bg-black/50 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsAIModalOpen(false);
+              setEditingTemplateId(null);
+            }
+          }}
+        >
+          <div 
+            className="flex min-h-full justify-center items-start p-4 md:p-8"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsAIModalOpen(false);
+                setEditingTemplateId(null);
+              }
+            }}
+          >
+            <div className="bg-white rounded-3xl shadow-xl w-full max-w-4xl min-h-[90vh] flex flex-col relative">
             <button 
               onClick={() => {
                 setIsAIModalOpen(false);
@@ -489,11 +508,14 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                   } catch (error) {
                     console.error("Error saving AI post:", error);
                     setToastNotification({ message: 'Ett fel uppstod när inlägget skulle sparas.', type: 'error' });
+                    throw error;
                   }
                 }}
               />
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
