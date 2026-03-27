@@ -28,6 +28,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string>('08:00');
   const [editingScheduledPost, setEditingScheduledPost] = useState<ScheduledPost | null>(null);
   const [schedulingTemplate, setSchedulingTemplate] = useState<PostTemplate | null>(null);
   const [scheduleWeek, setScheduleWeek] = useState<number>(1);
@@ -131,26 +132,11 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   const handleDropToGrid = async (week: number, day: number) => {
     if (!draggedTemplate) return;
 
-    try {
-      await addDoc(collection(db, 'scheduledPosts'), {
-        templateId: draggedTemplate.id,
-        groupId: selectedCohort,
-        excludedGroups: [],
-        content: draggedTemplate.content,
-        category: draggedTemplate.category,
-        programWeek: week,
-        programDay: day,
-        status: 'pending',
-        createdAt: serverTimestamp(),
-        createdBy: currentUser.uid,
-      });
-      setToastNotification({ message: 'Inlägg schemalagt', type: 'success' });
-    } catch (error) {
-      console.error("Error scheduling post:", error);
-      setToastNotification({ message: 'Kunde inte schemalägga inlägg', type: 'error' });
-    } finally {
-      setDraggedTemplate(null);
-    }
+    setSchedulingTemplate(draggedTemplate);
+    setScheduleWeek(week);
+    setScheduleDay(day);
+    setScheduleTime('08:00');
+    setDraggedTemplate(null);
   };
 
   const handleDeleteScheduledPost = async (id: string) => {
@@ -368,6 +354,27 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Tid för publicering</label>
+                <input
+                  type="time"
+                  value={editingScheduledPost.publishTime || '08:00'}
+                  onChange={async (e) => {
+                    const newTime = e.target.value;
+                    setEditingScheduledPost({ ...editingScheduledPost, publishTime: newTime });
+                    try {
+                      await updateDoc(doc(db, 'scheduledPosts', editingScheduledPost.id), {
+                        publishTime: newTime
+                      });
+                    } catch (error) {
+                      console.error("Error updating time:", error);
+                      setToastNotification({ message: 'Kunde inte uppdatera tid', type: 'error' });
+                    }
+                  }}
+                  className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                />
+              </div>
+
               {editingScheduledPost.groupId !== 'all' && (
                 <div>
                   <label className="block text-sm font-bold text-neutral-dark mb-1">Målgrupp</label>
@@ -505,6 +512,12 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               </button>
               <button
                 onClick={async () => {
+                  const cohortName = selectedCohort === 'all' ? 'alla trupper' : cohorts.find(c => c.id === selectedCohort)?.name || 'vald trupp';
+                  const dayName = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][scheduleDay - 1];
+                  const confirmMsg = `Bekräfta schemaläggning:\n\nInlägget kommer att publiceras automatiskt i flödet för ${cohortName}.\nNär: Vecka ${scheduleWeek}, ${dayName} kl ${scheduleTime || '08:00'}.\n\nVill du fortsätta?`;
+                  
+                  if (!window.confirm(confirmMsg)) return;
+
                   try {
                     await addDoc(collection(db, 'scheduledPosts'), {
                       templateId: schedulingTemplate.id,
@@ -556,12 +569,29 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
             }}
           >
             <div className="bg-white rounded-3xl shadow-xl w-full max-w-4xl min-h-[90vh] flex flex-col relative">
+            {selectedWeek && selectedDay && (
+              <div className="p-4 bg-primary/5 border-b border-primary/10 flex flex-wrap gap-6 items-center rounded-t-3xl">
+                <div>
+                  <span className="text-sm font-bold text-neutral-dark">Schemaläggs till: </span>
+                  <span className="text-sm text-neutral">Vecka {selectedWeek}, {['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][selectedDay - 1]}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-bold text-neutral-dark">Tid för publicering:</label>
+                  <input 
+                    type="time" 
+                    value={selectedTime} 
+                    onChange={e => setSelectedTime(e.target.value)} 
+                    className="px-2 py-1 rounded-md border border-neutral-300 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+            )}
             <button 
               onClick={() => {
                 setIsAIModalOpen(false);
                 setEditingTemplateId(null);
               }} 
-              className="absolute top-6 right-6 z-10 text-neutral-400 hover:text-neutral-600 bg-white rounded-full p-1 shadow-sm"
+              className={`absolute ${selectedWeek ? 'top-20' : 'top-6'} right-6 z-10 text-neutral-400 hover:text-neutral-600 bg-white rounded-full p-1 shadow-sm`}
             >
               <XMarkIcon className="w-6 h-6" />
             </button>
@@ -589,6 +619,16 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                       setToastNotification({ message: 'Mall uppdaterad!', type: 'success' });
                     } else {
                       // 1. Save as template
+                      
+                      // 2. Schedule
+                      if (selectedWeek && selectedDay) {
+                        const cohortName = selectedCohort === 'all' ? 'alla trupper' : cohorts.find(c => c.id === selectedCohort)?.name || 'vald trupp';
+                        const dayName = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][selectedDay - 1];
+                        const confirmMsg = `Bekräfta schemaläggning:\n\nInlägget kommer att sparas som en mall OCH publiceras automatiskt i flödet för ${cohortName}.\nNär: Vecka ${selectedWeek}, ${dayName} kl ${selectedTime || '08:00'}.\n\nVill du fortsätta?`;
+                        
+                        if (!window.confirm(confirmMsg)) return;
+                      }
+
                       const templateRef = await addDoc(collection(db, 'postTemplates'), {
                         title: title || `Börje-inlägg ${format(new Date(), 'yyyy-MM-dd')}`,
                         content: draft,
@@ -598,7 +638,6 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                         createdBy: currentUser.uid,
                       });
 
-                      // 2. Schedule
                       if (selectedWeek && selectedDay) {
                         await addDoc(collection(db, 'scheduledPosts'), {
                           templateId: templateRef.id,
@@ -608,7 +647,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                           category: category,
                           programWeek: selectedWeek,
                           programDay: selectedDay,
-                          publishTime: '08:00',
+                          publishTime: selectedTime || '08:00',
                           status: 'scheduled',
                           createdAt: serverTimestamp(),
                           createdBy: currentUser.uid,
