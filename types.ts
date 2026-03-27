@@ -695,6 +695,7 @@ export interface ScheduledPost {
   scheduledFor?: number; // Timestamp for when it should be published (legacy)
   programWeek?: number; // 1-12
   programDay?: number; // 1-7 (1 = Måndag, 7 = Söndag)
+  publishTime?: string; // e.g. "08:00"
   status: 'pending' | 'published';
   createdAt: number;
   createdBy: string;

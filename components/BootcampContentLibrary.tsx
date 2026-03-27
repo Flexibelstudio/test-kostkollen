@@ -29,6 +29,10 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [editingScheduledPost, setEditingScheduledPost] = useState<ScheduledPost | null>(null);
+  const [schedulingTemplate, setSchedulingTemplate] = useState<PostTemplate | null>(null);
+  const [scheduleWeek, setScheduleWeek] = useState<number>(1);
+  const [scheduleDay, setScheduleDay] = useState<number>(1);
+  const [scheduleTime, setScheduleTime] = useState<string>('08:00');
 
   useEffect(() => {
     const unsubscribeCohorts = subscribeToCohorts((data) => {
@@ -78,6 +82,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
           scheduledFor: data.scheduledFor?.toMillis(),
           programWeek: data.programWeek,
           programDay: data.programDay,
+          publishTime: data.publishTime,
           status: data.status,
           createdAt: data.createdAt?.toMillis() || Date.now(),
           createdBy: data.createdBy,
@@ -313,6 +318,21 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                 </div>
                 <h5 className="font-bold text-base text-neutral-dark mb-2 pr-12">{template.title}</h5>
                 <p className="text-sm text-neutral line-clamp-3 flex-1">{template.content}</p>
+                <div className="mt-4 pt-3 border-t border-neutral-100 flex justify-between items-center">
+                  <span className="text-xs text-neutral-400 font-medium">Dra till kalender</span>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSchedulingTemplate(template);
+                      setScheduleWeek(1);
+                      setScheduleDay(1);
+                    }}
+                    className="text-xs font-bold text-primary hover:text-primary-dark flex items-center gap-1 bg-primary/5 hover:bg-primary/10 px-2 py-1.5 rounded-md transition-colors"
+                  >
+                    <PlusIcon className="w-3 h-3" />
+                    Schemalägg
+                  </button>
+                </div>
               </div>
             ))}
             {templates.length === 0 && (
@@ -422,6 +442,100 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
         document.body
       )}
 
+      {schedulingTemplate && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-neutral-light">
+              <h3 className="text-xl font-bold text-neutral-dark">Schemalägg mall</h3>
+              <button onClick={() => setSchedulingTemplate(null)} className="text-neutral-400 hover:text-neutral-600">
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Mall</label>
+                <div className="text-sm text-neutral bg-neutral-50 p-3 rounded-lg border border-neutral-light">
+                  {schedulingTemplate.title}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-neutral-dark mb-1">Vecka</label>
+                  <select
+                    value={scheduleWeek}
+                    onChange={(e) => setScheduleWeek(Number(e.target.value))}
+                    className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(w => (
+                      <option key={w} value={w}>Vecka {w}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-neutral-dark mb-1">Dag</label>
+                  <select
+                    value={scheduleDay}
+                    onChange={(e) => setScheduleDay(Number(e.target.value))}
+                    className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                  >
+                    {['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'].map((d, i) => (
+                      <option key={i + 1} value={i + 1}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Tid (valfritt)</label>
+                <input
+                  type="time"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                />
+                <p className="text-xs text-neutral-500 mt-1">Om ingen tid anges publiceras inlägget kl 08:00.</p>
+              </div>
+            </div>
+            <div className="p-6 border-t border-neutral-light bg-neutral-50 flex justify-end gap-3">
+              <button
+                onClick={() => setSchedulingTemplate(null)}
+                className="px-4 py-2 text-neutral hover:text-neutral-dark font-medium transition-colors"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await addDoc(collection(db, 'scheduledPosts'), {
+                      templateId: schedulingTemplate.id,
+                      groupId: selectedCohort,
+                      content: schedulingTemplate.content,
+                      category: schedulingTemplate.category,
+                      programWeek: scheduleWeek,
+                      programDay: scheduleDay,
+                      publishTime: scheduleTime || '08:00',
+                      status: 'pending',
+                      createdAt: serverTimestamp(),
+                      createdBy: currentUser.uid,
+                    });
+                    setToastNotification({ message: 'Mallen har schemalagts!', type: 'success' });
+                    setSchedulingTemplate(null);
+                  } catch (error) {
+                    console.error("Error scheduling template:", error);
+                    setToastNotification({ message: 'Kunde inte schemalägga mallen.', type: 'error' });
+                  }
+                }}
+                className="px-6 py-2 bg-primary text-white rounded-lg font-bold hover:bg-primary-dark transition-colors flex items-center gap-2"
+              >
+                <PlusIcon className="w-4 h-4" />
+                Schemalägg
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {isAIModalOpen && createPortal(
         <div 
           className="fixed inset-0 z-[100] bg-black/50 overflow-y-auto"
@@ -494,6 +608,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                           category: category,
                           programWeek: selectedWeek,
                           programDay: selectedDay,
+                          publishTime: '08:00',
                           status: 'scheduled',
                           createdAt: serverTimestamp(),
                           createdBy: currentUser.uid,

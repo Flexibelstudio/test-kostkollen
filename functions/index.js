@@ -1036,3 +1036,123 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
 
     res.json({received: true});
 });
+
+// ---- Schemalagd funktion för att publicera inlägg ----
+exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').onRun(async (context) => {
+    logger.log("Running publishScheduledPosts cron job");
+    
+    try {
+        // 1. Hämta alla aktiva bootcamps
+        const bootcampsSnapshot = await db.collection("bootcamps").where("status", "==", "active").get();
+        const activeBootcamps = [];
+        bootcampsSnapshot.forEach(doc => {
+            activeBootcamps.push({ id: doc.id, ...doc.data() });
+        });
+
+        if (activeBootcamps.length === 0) {
+            logger.log("No active bootcamps found. Exiting.");
+            return null;
+        }
+
+        // 2. Hämta alla schemalagda inlägg som väntar på att publiceras
+        const scheduledPostsSnapshot = await db.collection("scheduledPosts")
+            .where("status", "in", ["pending", "scheduled"])
+            .get();
+
+        if (scheduledPostsSnapshot.empty) {
+            logger.log("No pending scheduled posts found. Exiting.");
+            return null;
+        }
+
+        // Hämta nuvarande tid i Stockholm (Sverige)
+        const now = new Date();
+        const stockholmTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+        const currentHour = stockholmTime.getHours();
+        const currentMinute = stockholmTime.getMinutes();
+        const currentTimeString = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+
+        const batch = db.batch();
+        let publishedCount = 0;
+
+        for (const postDoc of scheduledPostsSnapshot.docs) {
+            const postData = postDoc.data();
+            const { groupId, programWeek, programDay, publishTime = "08:00" } = postData;
+
+            // Kolla om tiden är inne (eller passerad för dagen)
+            if (currentTimeString < publishTime) {
+                continue; // Inte dags än
+            }
+
+            // Hitta bootcamps som matchar groupId ('all' eller specifikt ID)
+            const targetBootcamps = groupId === 'all' 
+                ? activeBootcamps 
+                : activeBootcamps.filter(b => b.id === groupId);
+
+            for (const bootcamp of targetBootcamps) {
+                // Beräkna vilken vecka och dag bootcampen är på just nu
+                if (!bootcamp.startDate) continue;
+                
+                const startDate = bootcamp.startDate.toDate();
+                // Nollställ tiden för att bara jämföra datum
+                startDate.setHours(0, 0, 0, 0);
+                const today = new Date(stockholmTime);
+                today.setHours(0, 0, 0, 0);
+
+                const diffTime = Math.abs(today - startDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                
+                // Om startdatumet är i framtiden, hoppa över
+                if (today < startDate) continue;
+
+                const currentWeek = Math.floor(diffDays / 7) + 1;
+                let currentDay = (diffDays % 7) + 1; // 1 = Måndag, 7 = Söndag (förutsatt att bootcamp startar på en måndag)
+
+                // Kolla om inlägget ska publiceras idag för denna bootcamp
+                if (currentWeek === programWeek && currentDay === programDay) {
+                    
+                    // Kolla om det är exkluderat
+                    if (postData.excludedGroups && postData.excludedGroups.includes(bootcamp.id)) {
+                        continue;
+                    }
+
+                    // Skapa inlägget i bootcampens flöde
+                    const newPostRef = db.collection("bootcampPosts").doc();
+                    batch.set(newPostRef, {
+                        cohortId: bootcamp.id,
+                        authorUid: "system", // Eller postData.createdBy om man vill att coachen ska stå som avsändare
+                        authorName: "Coach", // Borde hämtas från användaren egentligen
+                        text: postData.content,
+                        category: postData.category || "general",
+                        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                        isOfficial: true,
+                        likes: {},
+                        comments: []
+                    });
+
+                    // Markera det schemalagda inlägget som publicerat (om det var specifikt för en grupp, annars kanske vi vill behålla det för andra grupper som startar senare?)
+                    // För enkelhetens skull markerar vi det som publicerat nu. Om 'all' används och grupper startar vid olika tillfällen behövs en mer komplex logik (t.ex. en array av publicerade bootcamp-IDs).
+                    batch.update(postDoc.ref, {
+                        status: "published",
+                        publishedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    publishedCount++;
+                    break; // Gå till nästa schemalagda inlägg när det är publicerat
+                }
+            }
+        }
+
+        if (publishedCount > 0) {
+            await batch.commit();
+            logger.log(`Successfully published ${publishedCount} scheduled posts.`);
+        } else {
+            logger.log("No scheduled posts matched the current date/time for active bootcamps.");
+        }
+
+        return null;
+
+    } catch (error) {
+        logger.error("Error in publishScheduledPosts:", error);
+        return null;
+    }
+});
