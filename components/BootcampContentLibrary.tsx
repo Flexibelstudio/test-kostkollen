@@ -19,12 +19,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   const [selectedCohort, setSelectedCohort] = useState<string>('all');
   
   // Template Form State
-  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
-  const [templateTitle, setTemplateTitle] = useState('');
-  const [templateContent, setTemplateContent] = useState('');
-  const [templateCategory, setTemplateCategory] = useState<PostCategory>('fakta');
-  const [templateTargetGroups, setTemplateTargetGroups] = useState<string[]>(['all']);
 
   // Calendar State
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
@@ -95,46 +90,6 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
     return () => unsubscribe();
   }, []);
 
-  const handleSaveTemplate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!templateTitle.trim() || !templateContent.trim()) {
-      setToastNotification({ message: 'Fyll i titel och innehåll', type: 'error' });
-      return;
-    }
-
-    try {
-      if (editingTemplateId) {
-        await updateDoc(doc(db, 'postTemplates', editingTemplateId), {
-          title: templateTitle,
-          content: templateContent,
-          category: templateCategory,
-          targetGroups: templateTargetGroups,
-        });
-        setToastNotification({ message: 'Mall uppdaterad', type: 'success' });
-      } else {
-        await addDoc(collection(db, 'postTemplates'), {
-          title: templateTitle,
-          content: templateContent,
-          category: templateCategory,
-          targetGroups: templateTargetGroups,
-          createdAt: serverTimestamp(),
-          createdBy: currentUser.uid,
-        });
-        setToastNotification({ message: 'Mall skapad', type: 'success' });
-      }
-      
-      setIsCreatingTemplate(false);
-      setEditingTemplateId(null);
-      setTemplateTitle('');
-      setTemplateContent('');
-      setTemplateCategory('fakta');
-      setTemplateTargetGroups(['all']);
-    } catch (error) {
-      console.error("Error saving template:", error);
-      setToastNotification({ message: 'Ett fel uppstod', type: 'error' });
-    }
-  };
-
   const handleDeleteTemplate = async (id: string) => {
     if (window.confirm('Är du säker på att du vill ta bort denna mall?')) {
       try {
@@ -149,23 +104,9 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
 
   const handleEditTemplate = (template: PostTemplate) => {
     setEditingTemplateId(template.id);
-    setTemplateTitle(template.title);
-    setTemplateContent(template.content);
-    setTemplateCategory(template.category);
-    setTemplateTargetGroups(template.targetGroups);
-    setIsCreatingTemplate(true);
-  };
-
-  const toggleTargetGroup = (group: string) => {
-    setTemplateTargetGroups(prev => {
-      if (group === 'all') return ['all'];
-      const newGroups = prev.filter(g => g !== 'all');
-      if (newGroups.includes(group)) {
-        return newGroups.filter(g => g !== group).length === 0 ? ['all'] : newGroups.filter(g => g !== group);
-      } else {
-        return [...newGroups, group];
-      }
-    });
+    setSelectedWeek(null);
+    setSelectedDay(null);
+    setIsAIModalOpen(true);
   };
 
   const getCategoryColor = (category: string) => {
@@ -334,7 +275,12 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-bold text-neutral-dark">Dina Mallar</h3>
             <button
-              onClick={() => setIsCreatingTemplate(true)}
+              onClick={() => {
+                setSelectedWeek(null);
+                setSelectedDay(null);
+                setEditingTemplateId(null);
+                setIsAIModalOpen(true);
+              }}
               className="px-4 py-2 bg-white text-primary rounded-lg hover:bg-primary/10 transition-colors border border-neutral-200 shadow-sm font-medium flex items-center gap-2"
               title="Skapa ny mall"
             >
@@ -376,129 +322,6 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
           </div>
         </div>
       </div>
-
-      {isCreatingTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center p-6 border-b border-neutral-light">
-              <h3 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
-                <PencilIcon className="w-6 h-6 text-primary" />
-                {editingTemplateId ? 'Redigera mall' : 'Skapa ny mall'}
-              </h3>
-              <button onClick={() => { setIsCreatingTemplate(false); setEditingTemplateId(null); }} className="text-neutral-400 hover:text-neutral-600">
-                <XMarkIcon className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto custom-scrollbar">
-              <form onSubmit={handleSaveTemplate} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-dark mb-2">Titel</label>
-                  <input
-                    type="text"
-                    value={templateTitle}
-                    onChange={(e) => setTemplateTitle(e.target.value)}
-                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-light rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                    placeholder="T.ex. Välkommen till vecka 1"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-neutral-dark mb-2">Innehåll</label>
-                  <textarea
-                    value={templateContent}
-                    onChange={(e) => setTemplateContent(e.target.value)}
-                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-light rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all min-h-[150px] resize-y"
-                    placeholder="Skriv ditt inlägg här..."
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-dark mb-2">Kategori</label>
-                    <div className="flex flex-wrap gap-2">
-                      {(['fakta', 'cta', 'pepp', 'general'] as PostCategory[]).map(cat => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setTemplateCategory(cat)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border uppercase tracking-wider transition-colors ${
-                            templateCategory === cat 
-                              ? getCategoryColor(cat) 
-                              : 'bg-white text-neutral border-neutral-light hover:border-neutral-400'
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-dark mb-2">Målgrupper</label>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleTargetGroup('all')}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                          templateTargetGroups.includes('all')
-                            ? 'bg-neutral-dark text-white border-neutral-dark'
-                            : 'bg-white text-neutral border-neutral-light hover:border-neutral-400'
-                        }`}
-                      >
-                        Alla
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleTargetGroup('bootcamp')}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                          templateTargetGroups.includes('bootcamp')
-                            ? 'bg-neutral-dark text-white border-neutral-dark'
-                            : 'bg-white text-neutral border-neutral-light hover:border-neutral-400'
-                        }`}
-                      >
-                        Bootcamps
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleTargetGroup('solo')}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                          templateTargetGroups.includes('solo')
-                            ? 'bg-neutral-dark text-white border-neutral-dark'
-                            : 'bg-white text-neutral border-neutral-light hover:border-neutral-400'
-                        }`}
-                      >
-                        Solo
-                      </button>
-                    </div>
-                    <p className="text-xs text-neutral mt-2">
-                      Välj vilka grupper detta inlägg är relevant för. Solo-användare kanske inte ska se tidsbundna bootcamp-inlägg.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-4 flex justify-end gap-3 border-t border-neutral-light">
-                  <button
-                    type="button"
-                    onClick={() => { setIsCreatingTemplate(false); setEditingTemplateId(null); }}
-                    className="px-5 py-2 text-neutral hover:bg-neutral-light rounded-lg transition-colors font-medium"
-                  >
-                    Avbryt
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-primary text-white rounded-lg hover:bg-primary-darker transition-colors font-medium flex items-center gap-2"
-                  >
-                    <CheckIcon className="w-4 h-4" />
-                    Spara mall
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {editingScheduledPost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -598,10 +421,13 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
       )}
 
       {isAIModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-4xl min-h-[90vh] my-8 flex flex-col relative">
             <button 
-              onClick={() => setIsAIModalOpen(false)} 
+              onClick={() => {
+                setIsAIModalOpen(false);
+                setEditingTemplateId(null);
+              }} 
               className="absolute top-6 right-6 z-10 text-neutral-400 hover:text-neutral-600 bg-white rounded-full p-1 shadow-sm"
             >
               <XMarkIcon className="w-6 h-6" />
@@ -611,38 +437,55 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
               setToastNotification={setToastNotification}
               lockedCoach="hard"
               hideCategory={false}
-              className="flex-1 h-full"
-              onPublish={async (draft, category, coach) => {
+              showTemplateFields={true}
+              initialTitle={editingTemplateId ? templates.find(t => t.id === editingTemplateId)?.title : ''}
+              initialTargetGroups={editingTemplateId ? templates.find(t => t.id === editingTemplateId)?.targetGroups : ['all']}
+              initialContent={editingTemplateId ? templates.find(t => t.id === editingTemplateId)?.content : ''}
+              initialCategory={editingTemplateId ? templates.find(t => t.id === editingTemplateId)?.category : 'general'}
+              className="flex-1 h-full shadow-none border-none"
+              onPublish={async (draft, category, coach, title, targetGroups) => {
                   try {
-                    // 1. Save as template
-                    const templateRef = await addDoc(collection(db, 'postTemplates'), {
-                      title: `Börje-inlägg ${format(new Date(), 'yyyy-MM-dd')}`,
-                      content: draft,
-                      category: category,
-                      targetGroups: ['all'],
-                      createdAt: serverTimestamp(),
-                      createdBy: currentUser.uid,
-                    });
-
-                    // 2. Schedule
-                    if (selectedWeek && selectedDay) {
-                      await addDoc(collection(db, 'scheduledPosts'), {
-                        templateId: templateRef.id,
-                        groupId: selectedCohort,
-                        excludedGroups: [],
+                    if (editingTemplateId) {
+                      // Update existing template
+                      await updateDoc(doc(db, 'postTemplates', editingTemplateId), {
+                        title: title || `Börje-inlägg ${format(new Date(), 'yyyy-MM-dd')}`,
                         content: draft,
                         category: category,
-                        programWeek: selectedWeek,
-                        programDay: selectedDay,
-                        status: 'scheduled',
+                        targetGroups: targetGroups || ['all'],
+                      });
+                      setToastNotification({ message: 'Mall uppdaterad!', type: 'success' });
+                    } else {
+                      // 1. Save as template
+                      const templateRef = await addDoc(collection(db, 'postTemplates'), {
+                        title: title || `Börje-inlägg ${format(new Date(), 'yyyy-MM-dd')}`,
+                        content: draft,
+                        category: category,
+                        targetGroups: targetGroups || ['all'],
                         createdAt: serverTimestamp(),
                         createdBy: currentUser.uid,
                       });
-                      setToastNotification({ message: 'Inlägg sparat och schemalagt!', type: 'success' });
-                    } else {
-                      setToastNotification({ message: 'Inlägg sparat i biblioteket!', type: 'success' });
+
+                      // 2. Schedule
+                      if (selectedWeek && selectedDay) {
+                        await addDoc(collection(db, 'scheduledPosts'), {
+                          templateId: templateRef.id,
+                          groupId: selectedCohort,
+                          excludedGroups: [],
+                          content: draft,
+                          category: category,
+                          programWeek: selectedWeek,
+                          programDay: selectedDay,
+                          status: 'scheduled',
+                          createdAt: serverTimestamp(),
+                          createdBy: currentUser.uid,
+                        });
+                        setToastNotification({ message: 'Inlägg sparat och schemalagt!', type: 'success' });
+                      } else {
+                        setToastNotification({ message: 'Inlägg sparat i biblioteket!', type: 'success' });
+                      }
                     }
                     setIsAIModalOpen(false);
+                    setEditingTemplateId(null);
                   } catch (error) {
                     console.error("Error saving AI post:", error);
                     setToastNotification({ message: 'Ett fel uppstod när inlägget skulle sparas.', type: 'error' });

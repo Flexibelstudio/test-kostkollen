@@ -10,10 +10,15 @@ import ReactMarkdown from 'react-markdown';
 interface CoachStudioViewProps {
   currentUser: any;
   setToastNotification: (notif: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
-  onPublish?: (draft: string, category: PostCategory, coach: any) => Promise<void>;
+  onPublish?: (draft: string, category: PostCategory, coach: any, title?: string, targetGroups?: string[]) => Promise<void>;
   lockedCoach?: keyof typeof COACH_PERSONAS;
   className?: string;
   hideCategory?: boolean;
+  showTemplateFields?: boolean;
+  initialTitle?: string;
+  initialTargetGroups?: string[];
+  initialContent?: string;
+  initialCategory?: PostCategory;
 }
 
 interface Message {
@@ -21,15 +26,47 @@ interface Message {
   text: string;
 }
 
-const CoachStudioView: React.FC<CoachStudioViewProps> = ({ currentUser, setToastNotification, onPublish, lockedCoach, className, hideCategory }) => {
+const CoachStudioView: React.FC<CoachStudioViewProps> = ({ 
+  currentUser, 
+  setToastNotification, 
+  onPublish, 
+  lockedCoach, 
+  className, 
+  hideCategory,
+  showTemplateFields = false,
+  initialTitle = '',
+  initialTargetGroups = ['all'],
+  initialContent = '',
+  initialCategory = 'general'
+}) => {
   const [selectedCoach, setSelectedCoach] = useState<keyof typeof COACH_PERSONAS>(lockedCoach || 'balanced');
   const [brief, setBrief] = useState('');
   const [chatHistory, setChatHistory] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [currentDraft, setCurrentDraft] = useState('');
-  const [category, setCategory] = useState<PostCategory>('general');
+  const [currentDraft, setCurrentDraft] = useState(initialContent || '');
+  const [category, setCategory] = useState<PostCategory>(initialCategory || 'general');
+  const [title, setTitle] = useState(initialTitle || '');
+  const [targetGroups, setTargetGroups] = useState<string[]>(initialTargetGroups || ['all']);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialTitle) setTitle(initialTitle);
+    if (initialTargetGroups) setTargetGroups(initialTargetGroups);
+    if (initialContent) {
+      setCurrentDraft(initialContent);
+      setChatHistory([{ role: 'model', text: initialContent }]);
+    }
+    if (initialCategory) setCategory(initialCategory);
+  }, [initialTitle, initialTargetGroups, initialContent, initialCategory]);
+
+  const toggleTargetGroup = (group: string) => {
+    setTargetGroups(prev => 
+      prev.includes(group) 
+        ? prev.filter(g => g !== group)
+        : [...prev, group]
+    );
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -91,12 +128,17 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
 
   const handlePublish = async () => {
     if (!currentDraft.trim() || !currentUser) return;
+    if (showTemplateFields && !title.trim()) {
+      setToastNotification({ message: 'Vänligen ange en titel för mallen.', type: 'error' });
+      return;
+    }
+    
     setIsPublishing(true);
 
     try {
       const coach = COACH_PERSONAS[selectedCoach];
       if (onPublish) {
-        await onPublish(currentDraft, category, coach);
+        await onPublish(currentDraft, category, coach, title, targetGroups);
       } else {
         await createUserPost(
           currentUser.uid,
@@ -122,16 +164,16 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
   };
 
   return (
-    <div className={`bg-white flex flex-col ${className || 'rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden h-[85vh] max-h-[900px]'}`}>
+    <div className={`bg-white flex flex-col ${className || 'rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden'}`}>
       {/* Header */}
       <div className="p-6 border-b border-neutral-light bg-neutral-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-neutral-dark flex items-center gap-2">
             <SparklesIcon className="w-6 h-6 text-primary" />
-            {lockedCoach ? `Skapa inlägg som ${COACH_PERSONAS[lockedCoach].label}` : 'Coach Studio'}
+            {initialTitle ? 'Redigera mall' : (lockedCoach ? `Skapa inlägg som ${COACH_PERSONAS[lockedCoach].label}` : 'Coach Studio')}
           </h2>
           <p className="text-sm text-neutral mt-1">
-            {lockedCoach ? `Skapa och publicera inlägg direkt i truppen som ${COACH_PERSONAS[lockedCoach].label}.` : 'Skapa och publicera inlägg som en av våra AI-coacher.'}
+            {initialTitle ? 'Gör ändringar i din mall och spara.' : (lockedCoach ? `Skapa och publicera inlägg direkt i truppen som ${COACH_PERSONAS[lockedCoach].label}.` : 'Skapa och publicera inlägg som en av våra AI-coacher.')}
           </p>
         </div>
         
@@ -153,6 +195,59 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
           </div>
         )}
       </div>
+
+      {showTemplateFields && (
+        <div className="p-4 sm:p-6 border-b border-neutral-light bg-white space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-dark mb-1">Titel på mallen</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="T.ex. Välkommen till vecka 1"
+              className="w-full px-4 py-2 bg-neutral-50 border border-neutral-light rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-dark mb-1">Målgrupper</label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => toggleTargetGroup('all')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  targetGroups.includes('all')
+                    ? 'bg-neutral-dark text-white border-neutral-dark'
+                    : 'bg-white text-neutral border-neutral-light hover:border-neutral-400'
+                }`}
+              >
+                Alla
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleTargetGroup('bootcamp')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  targetGroups.includes('bootcamp')
+                    ? 'bg-neutral-dark text-white border-neutral-dark'
+                    : 'bg-white text-neutral border-neutral-light hover:border-neutral-400'
+                }`}
+              >
+                Bootcamps
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleTargetGroup('solo')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  targetGroups.includes('solo')
+                    ? 'bg-neutral-dark text-white border-neutral-dark'
+                    : 'bg-white text-neutral border-neutral-light hover:border-neutral-400'
+                }`}
+              >
+                Solo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Top Bar: Coach Selection */}
@@ -186,7 +281,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
         </div>
 
         {/* Bottom Area: Chat & Draft */}
-        <div className="flex-1 flex flex-col bg-white relative overflow-hidden">
+        <div className="flex-1 flex flex-col bg-white relative overflow-hidden min-h-[400px]">
           {/* Chat History */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
             {chatHistory.length === 0 ? (
@@ -242,7 +337,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
                     <p className="text-sm font-medium text-emerald-800">Nöjd med utkastet?</p>
                     <p className="text-xs text-emerald-600">
                       {onPublish 
-                        ? `Det kommer att sparas som en mall och schemaläggas.` 
+                        ? (initialTitle ? 'Dina ändringar kommer att sparas i mallen.' : 'Det kommer att sparas som en mall.') 
                         : `Det kommer att publiceras i communityt som ${COACH_PERSONAS[selectedCoach].label}.`}
                     </p>
                 </div>
@@ -256,7 +351,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
                     ) : (
                         <Send className="w-5 h-5" />
                     )}
-                    {onPublish ? 'Spara inlägg' : 'Publicera'}
+                    {onPublish ? (initialTitle ? 'Spara ändringar' : 'Spara inlägg') : 'Publicera'}
                 </button>
             </div>
           )}
