@@ -1042,12 +1042,18 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
     logger.log("Running publishScheduledPosts cron job");
     
     try {
-        // 1. Hämta alla aktiva bootcamps
-        const bootcampsSnapshot = await db.collection("bootcamps").where("status", "==", "active").get();
+        // 1. Hämta alla aktiva bootcamps från rätt collection
+        const bootcampsSnapshot = await db.collection("bootcampCohorts").where("status", "==", "active").get();
         const activeBootcamps = [];
         bootcampsSnapshot.forEach(doc => {
             activeBootcamps.push({ id: doc.id, ...doc.data() });
         });
+
+        // Se till att 'solo' alltid finns med om den har ett startdatum, även om status inte är 'active'
+        const soloDoc = await db.collection("bootcampCohorts").doc("solo").get();
+        if (soloDoc.exists && !activeBootcamps.find(b => b.id === 'solo')) {
+            activeBootcamps.push({ id: 'solo', ...soloDoc.data() });
+        }
 
         if (activeBootcamps.length === 0) {
             logger.log("No active bootcamps found. Exiting.");
@@ -1070,13 +1076,15 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
         const currentHour = stockholmTime.getHours();
         const currentMinute = stockholmTime.getMinutes();
         const currentTimeString = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+        
+        const todayString = `${stockholmTime.getFullYear()}-${String(stockholmTime.getMonth() + 1).padStart(2, '0')}-${String(stockholmTime.getDate()).padStart(2, '0')}`;
 
         const batch = db.batch();
         let publishedCount = 0;
 
         for (const postDoc of scheduledPostsSnapshot.docs) {
             const postData = postDoc.data();
-            const { groupId, programWeek, programDay, publishTime = "08:00" } = postData;
+            const { groupId, programWeek, programDay, publishTime = "08:00", publishedLog = {} } = postData;
 
             // Kolla om tiden är inne (eller passerad för dagen)
             if (currentTimeString < publishTime) {
@@ -1088,24 +1096,45 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
                 ? activeBootcamps 
                 : activeBootcamps.filter(b => b.id === groupId);
 
+            let postUpdated = false;
+
             for (const bootcamp of targetBootcamps) {
+                // Har vi redan publicerat detta inlägg till denna bootcamp idag?
+                if (publishedLog[bootcamp.id] === todayString) {
+                    continue;
+                }
+
                 // Beräkna vilken vecka och dag bootcampen är på just nu
                 if (!bootcamp.startDate) continue;
                 
-                const startDate = bootcamp.startDate.toDate();
+                // Hantera startDate som kan vara en string (YYYY-MM-DD) eller en Firestore Timestamp
+                let startDate;
+                if (typeof bootcamp.startDate === 'string') {
+                    startDate = new Date(bootcamp.startDate);
+                } else if (bootcamp.startDate && typeof bootcamp.startDate.toDate === 'function') {
+                    startDate = bootcamp.startDate.toDate();
+                } else {
+                    continue;
+                }
+
                 // Nollställ tiden för att bara jämföra datum
                 startDate.setHours(0, 0, 0, 0);
                 const today = new Date(stockholmTime);
                 today.setHours(0, 0, 0, 0);
 
-                const diffTime = Math.abs(today - startDate);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-                
                 // Om startdatumet är i framtiden, hoppa över
                 if (today < startDate) continue;
 
+                const diffTime = Math.abs(today - startDate);
+                let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+                
+                // Looop-logik för Solo (12 veckor = 84 dagar)
+                if (bootcamp.id === 'solo') {
+                    diffDays = diffDays % 84;
+                }
+
                 const currentWeek = Math.floor(diffDays / 7) + 1;
-                let currentDay = (diffDays % 7) + 1; // 1 = Måndag, 7 = Söndag (förutsatt att bootcamp startar på en måndag)
+                const currentDay = (diffDays % 7) + 1; // 1 = Måndag, 7 = Söndag
 
                 // Kolla om inlägget ska publiceras idag för denna bootcamp
                 if (currentWeek === programWeek && currentDay === programDay) {
@@ -1115,12 +1144,12 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
                         continue;
                     }
 
-                    // Skapa inlägget i bootcampens flöde
-                    const newPostRef = db.collection("bootcampPosts").doc();
+                    // Skapa inlägget i bootcampens flöde (RÄTT SÖKVÄG NU)
+                    const newPostRef = db.collection("bootcampCohorts").doc(bootcamp.id).collection("posts").doc();
                     batch.set(newPostRef, {
                         cohortId: bootcamp.id,
-                        authorUid: "system", // Eller postData.createdBy om man vill att coachen ska stå som avsändare
-                        authorName: "Coach", // Borde hämtas från användaren egentligen
+                        authorUid: "system", 
+                        authorName: "Coach", 
                         text: postData.content,
                         category: postData.category || "general",
                         timestamp: admin.firestore.FieldValue.serverTimestamp(),
@@ -1129,16 +1158,20 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
                         comments: []
                     });
 
-                    // Markera det schemalagda inlägget som publicerat (om det var specifikt för en grupp, annars kanske vi vill behålla det för andra grupper som startar senare?)
-                    // För enkelhetens skull markerar vi det som publicerat nu. Om 'all' används och grupper startar vid olika tillfällen behövs en mer komplex logik (t.ex. en array av publicerade bootcamp-IDs).
-                    batch.update(postDoc.ref, {
-                        status: "published",
-                        publishedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-
+                    // Uppdatera loggen så vi inte publicerar igen idag
+                    publishedLog[bootcamp.id] = todayString;
+                    postUpdated = true;
                     publishedCount++;
-                    break; // Gå till nästa schemalagda inlägg när det är publicerat
                 }
+            }
+
+            if (postUpdated) {
+                batch.update(postDoc.ref, {
+                    publishedLog: publishedLog,
+                    // Vi ändrar inte status till "published" om det är 'all' eller 'solo' eftersom det kan behöva köras igen.
+                    // Men för att hålla databasen ren kan vi sätta status = published om groupId inte är 'all' och inte 'solo'.
+                    ...(groupId !== 'all' && groupId !== 'solo' ? { status: "published" } : {})
+                });
             }
         }
 
