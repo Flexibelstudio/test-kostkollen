@@ -796,9 +796,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
              activeBootcamp ? getEveningReportForDate(activeBootcamp.cohortId, currentUser.uid, yesterdayUID) : Promise.resolve(null)
            ]).then(([meals, bootcampReport]) => {
                setMorningReportData({ summary, currentStreak: displayStreak, yesterdayMeals: meals, yesterdayBootcampReport: bootcampReport });
+               localStorage.setItem('lastSeenMorningReport', todayUID);
            });
       }
-  }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday, activeBootcamp]);
+  }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday, activeBootcamp, hasRunCatchUp]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1477,6 +1478,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 bootcampReport = await getEveningReportForDate(activeBootcamp.cohortId, uid, yesterdayUID);
             }
             setMorningReportData({ summary, currentStreak: finalNewStreak, yesterdayMeals: mealsToProcess, yesterdayBootcampReport: bootcampReport });
+            localStorage.setItem('lastSeenMorningReport', dayKeySE(new Date()));
             playAudio('levelUp'); 
         }
 
@@ -1495,13 +1497,12 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     } finally {
         setIsSummarizingYesterday(false);
     }
-}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification]);
+}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, activeBootcamp]);
 
     const isCatchingUp = useRef(false);
     useEffect(() => {
         const catchUp = async () => {
             if (isCatchingUp.current) return;
-            // VI HAR TAGIT BORT !isSummarizingYesterday PÅ RADEN UNDER:
             if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
                 isCatchingUp.current = true;
                 try {
@@ -1572,7 +1573,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                     await ensureWeeklyBankReset();
                 } finally {
                     isCatchingUp.current = false;
-                    setHasRunCatchUp(true); // <--- LÄGG TILL DENNA
+                    setHasRunCatchUp(true);
                 }
             }
         };
@@ -1899,6 +1900,8 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 onSaveProfileAndGoals={handleSaveProfileAndGoals}
                 onSaveWeightLog={handleBootcampInitialWeightLog}
                 onCourseAborted={refreshUserData}
+                ensureYesterdayProcessed={ensureYesterdayProcessed}
+                activeBootcamp={activeBootcamp}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (
