@@ -1108,33 +1108,38 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
                 if (!bootcamp.startDate) continue;
                 
                 // Hantera startDate som kan vara en string (YYYY-MM-DD) eller en Firestore Timestamp
-                let startDate;
+                let startStockholmString;
                 if (typeof bootcamp.startDate === 'string') {
-                    startDate = new Date(bootcamp.startDate);
+                    startStockholmString = bootcamp.startDate.split('T')[0];
                 } else if (bootcamp.startDate && typeof bootcamp.startDate.toDate === 'function') {
-                    startDate = bootcamp.startDate.toDate();
+                    const d = bootcamp.startDate.toDate();
+                    const st = new Date(d.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+                    startStockholmString = `${st.getFullYear()}-${String(st.getMonth() + 1).padStart(2, '0')}-${String(st.getDate()).padStart(2, '0')}`;
                 } else {
                     continue;
                 }
 
-                // Nollställ tiden för att bara jämföra datum
-                startDate.setHours(0, 0, 0, 0);
-                const today = new Date(stockholmTime);
-                today.setHours(0, 0, 0, 0);
+                const startDate = new Date(startStockholmString);
+                const today = new Date(todayString);
 
                 // Om startdatumet är i framtiden, hoppa över
                 if (today < startDate) continue;
 
                 const diffTime = Math.abs(today - startDate);
-                let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+                // Använd Math.round för att undvika problem med sommartid/vintertid (där ett dygn kan vara 23 eller 25 timmar)
+                let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); 
                 
                 // Looop-logik för Solo (12 veckor = 84 dagar)
                 if (bootcamp.id === 'solo') {
                     diffDays = diffDays % 84;
                 }
 
+                // Beräkna vecka (1-12) och dag (1-7)
+                // diffDays = 0 -> Vecka 1, Dag 1
+                // diffDays = 6 -> Vecka 1, Dag 7
+                // diffDays = 7 -> Vecka 2, Dag 1
                 const currentWeek = Math.floor(diffDays / 7) + 1;
-                const currentDay = (diffDays % 7) + 1; // 1 = Måndag, 7 = Söndag
+                const currentDay = (diffDays % 7) + 1;
 
                 // Kolla om inlägget ska publiceras idag för denna bootcamp
                 if (currentWeek === programWeek && currentDay === programDay) {
