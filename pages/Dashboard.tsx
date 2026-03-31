@@ -475,25 +475,69 @@ const Dashboard: React.FC<DashboardProps> = ({
             } catch(e) {
                 console.error("Failed to update past day summary", e);
             }
-        }
 
-        if (viewingUID < currentUID) {
+            // --- RIPPLE EFFECT: Recalculate streaks for all subsequent days up to yesterday ---
             const yesterday = new Date(currentDate);
             yesterday.setDate(yesterday.getDate() - 1);
-            const isYesterday = viewingUID === getDateUID(yesterday);
+            const yesterdayUID = getDateUID(yesterday);
 
-            if (isYesterday) {
-                setStreakData(prev => ({ ...prev, currentStreak: newStreak }));
-                const userUpdates: any = { currentStreak: newStreak };
-                if (newStreak > highestStreak) {
-                    userUpdates.highestStreak = newStreak;
-                    setHighestStreak(newStreak);
+            let currentRippleDate = new Date(viewingDate);
+            currentRippleDate.setDate(currentRippleDate.getDate() + 1);
+            let currentRippleUID = getDateUID(currentRippleDate);
+            let runningStreak = newStreak;
+            
+            const updatedSummaries: Record<string, PastDaySummary> = {};
+            let highestStreakReached = Math.max(highestStreak, newStreak);
+
+            while (currentRippleUID <= yesterdayUID) {
+                const summaryToUpdate = pastDaysSummary[currentRippleUID];
+                if (summaryToUpdate) {
+                    if (summaryToUpdate.consumedCalories > 0) {
+                        runningStreak += 1;
+                    } else {
+                        runningStreak = 0;
+                    }
+                    
+                    if (summaryToUpdate.streakForThisDay !== runningStreak) {
+                        const updatedSummary = { ...summaryToUpdate, streakForThisDay: runningStreak };
+                        updatedSummaries[currentRippleUID] = updatedSummary;
+                        highestStreakReached = Math.max(highestStreakReached, runningStreak);
+                        
+                        try {
+                            await setPastDaySummaryFirestore(currentUser.uid, currentRippleUID, updatedSummary);
+                        } catch(e) {
+                            console.error(`Failed to update past day summary for ${currentRippleUID}`, e);
+                        }
+                    }
+                } else {
+                    runningStreak = 0;
                 }
-                try {
-                    await updateUserDocument(currentUser.uid, userUpdates);
-                } catch(e) {
-                    console.error("Failed to update user currentStreak", e);
-                }
+                
+                currentRippleDate.setDate(currentRippleDate.getDate() + 1);
+                currentRippleUID = getDateUID(currentRippleDate);
+            }
+
+            if (Object.keys(updatedSummaries).length > 0) {
+                setPastDaysSummary(prev => ({ ...prev, ...updatedSummaries }));
+            }
+
+            // Update user's current streak to whatever the streak was on yesterday
+            const finalYesterdayStreak = updatedSummaries[yesterdayUID]?.streakForThisDay 
+                ?? (yesterdayUID === viewingUID ? newStreak : pastDaysSummary[yesterdayUID]?.streakForThisDay) 
+                ?? 0;
+
+            setStreakData(prev => ({ ...prev, currentStreak: finalYesterdayStreak }));
+            
+            const userUpdates: any = { currentStreak: finalYesterdayStreak };
+            if (highestStreakReached > highestStreak) {
+                userUpdates.highestStreak = highestStreakReached;
+                setHighestStreak(highestStreakReached);
+            }
+            
+            try {
+                await updateUserDocument(currentUser.uid, userUpdates);
+            } catch(e) {
+                console.error("Failed to update user currentStreak", e);
             }
         }
     };
