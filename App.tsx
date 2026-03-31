@@ -796,10 +796,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
              activeBootcamp ? getEveningReportForDate(activeBootcamp.cohortId, currentUser.uid, yesterdayUID) : Promise.resolve(null)
            ]).then(([meals, bootcampReport]) => {
                setMorningReportData({ summary, currentStreak: displayStreak, yesterdayMeals: meals, yesterdayBootcampReport: bootcampReport });
-               localStorage.setItem('lastSeenMorningReport', todayUID);
            });
       }
-  }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday, activeBootcamp, hasRunCatchUp]);
+  }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, hasRunCatchUp, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday, activeBootcamp]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1472,13 +1471,6 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         pastDaysSummaryRef.current = newSummaries;
         
         if (!options.silent) {
-            // Trigger morning report with the NEW calculated streak
-            let bootcampReport = null;
-            if (activeBootcamp) {
-                bootcampReport = await getEveningReportForDate(activeBootcamp.cohortId, uid, yesterdayUID);
-            }
-            setMorningReportData({ summary, currentStreak: finalNewStreak, yesterdayMeals: mealsToProcess, yesterdayBootcampReport: bootcampReport });
-            localStorage.setItem('lastSeenMorningReport', dayKeySE(new Date()));
             playAudio('levelUp'); 
         }
 
@@ -1503,6 +1495,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     useEffect(() => {
         const catchUp = async () => {
             if (isCatchingUp.current) return;
+            // VI HAR TAGIT BORT !isSummarizingYesterday PÅ RADEN UNDER:
             if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
                 isCatchingUp.current = true;
                 try {
@@ -1573,7 +1566,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                     await ensureWeeklyBankReset();
                 } finally {
                     isCatchingUp.current = false;
-                    setHasRunCatchUp(true);
+                    setHasRunCatchUp(true); // <--- LÄGG TILL DENNA
                 }
             }
         };
