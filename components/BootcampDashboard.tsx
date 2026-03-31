@@ -9,6 +9,7 @@ import ToastNotification from './ToastNotification';
 import MealStructureGuide from './MealStructureGuide';
 import ProteinInfoModal from './ProteinInfoModal';
 import { InformationCircleIcon } from './icons';
+import { getDateUID } from '../utils/dateUtils';
 
 interface BootcampDashboardProps {
   participant: BootcampParticipant;
@@ -17,9 +18,10 @@ interface BootcampDashboardProps {
   weightLogs: WeightLogEntry[];
   weeklyBank: WeeklyCalorieBank;
   onBack: () => void;
+  ensureYesterdayProcessed?: (uid: string, now?: Date, options?: any, manualLogOverride?: any, prefetchedWater?: number) => Promise<void>;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack }) => {
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
@@ -41,26 +43,26 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
     window.scrollTo(0, 0);
   }, []);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getDateUID(new Date());
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const yesterdayStr = getDateUID(yesterday);
   
   const targetDateStr = editingYesterday ? yesterdayStr : todayStr;
   const hasReportedToday = reports.some(r => r.date === todayStr);
   const yesterdayReport = reports.find(r => r.date === yesterdayStr);
   
-  // Can edit yesterday if it's before noon today, and yesterday was reported but maybe we want to fix it.
+  // Can edit yesterday if yesterday was reported but maybe we want to fix it.
   // Or maybe we didn't report yesterday at all.
-  const currentHour = new Date().getHours();
-  const canEditYesterday = currentHour < 12 && (!yesterdayReport || !yesterdayReport.isGreenDay);
+  // The user can edit yesterday's report all day today.
+  const canEditYesterday = (!yesterdayReport || !yesterdayReport.isGreenDay);
 
   useEffect(() => {
     if (!auth.currentUser) return;
     const unsubscribe = subscribeToUserEveningReports(participant.cohortId, auth.currentUser.uid, (fetchedReports) => {
       setReports(fetchedReports);
       // Recalculate streak whenever reports change or on mount to fix any broken streaks
-      recalculateStreak(participant.cohortId, auth.currentUser!.uid).catch(console.error);
+      recalculateStreak(participant.cohortId, auth.currentUser!.uid, fetchedReports).catch(console.error);
     });
     return () => unsubscribe();
   }, [participant.cohortId]);
@@ -157,6 +159,11 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           });
         }
         setEditingYesterday(false);
+        
+        // Trigger morning report update
+        if (ensureYesterdayProcessed) {
+          await ensureYesterdayProcessed(auth.currentUser.uid, new Date());
+        }
       } else {
         setToast({ 
           message: isGreenDay ? 'Grön dag registrerad! Bra jobbat, rekryt!' : 'Röd dag registrerad. Streaken är bruten. Nya tag imorgon!', 

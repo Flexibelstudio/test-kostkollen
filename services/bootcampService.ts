@@ -1,6 +1,7 @@
 import { collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, updateDoc, onSnapshot, serverTimestamp, collectionGroup, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { BootcampCohort, BootcampParticipant, EveningReport, BootcampPost, BootcampComment, Gender } from '../types';
+import { getDateUID } from '../utils/dateUtils';
 
 // --- Cohort Management ---
 
@@ -293,43 +294,60 @@ export const getEveningReportForDate = async (cohortId: string, userId: string, 
   }
 };
 
-export const recalculateStreak = async (cohortId: string, userId: string) => {
+export const recalculateStreak = async (cohortId: string, userId: string, providedReports?: EveningReport[]) => {
   if (!db) throw new Error("Firestore not initialized");
 
-  const q = query(
-    collection(db, 'bootcampCohorts', cohortId, 'participants', userId, 'eveningReports'),
-    orderBy('date', 'desc')
-  );
+  let reports = providedReports;
   
-  const snapshot = await getDocs(q);
-  const reports = snapshot.docs.map(doc => doc.data() as EveningReport);
+  if (!reports) {
+    const q = query(
+      collection(db, 'bootcampCohorts', cohortId, 'participants', userId, 'eveningReports'),
+      orderBy('date', 'desc')
+    );
+    
+    const snapshot = await getDocs(q);
+    reports = snapshot.docs.map(doc => doc.data() as EveningReport);
+  }
   
   let currentStreak = 0;
   let longestStreak = 0;
   let currentTempStreak = 0;
+  let lastDateStr = '';
 
   // Calculate longest streak
   // We iterate from oldest to newest to calculate longest streak correctly
   const ascendingReports = [...reports].reverse();
   for (const report of ascendingReports) {
     if (report.isGreenDay) {
-      currentTempStreak++;
+      if (lastDateStr === '') {
+        currentTempStreak = 1;
+      } else {
+        const d = new Date(report.date);
+        d.setDate(d.getDate() - 1);
+        const expectedPrevDate = getDateUID(d);
+        if (lastDateStr === expectedPrevDate) {
+          currentTempStreak++;
+        } else {
+          currentTempStreak = 1; // Reset if not consecutive
+        }
+      }
       if (currentTempStreak > longestStreak) {
         longestStreak = currentTempStreak;
       }
+      lastDateStr = report.date;
     } else {
       currentTempStreak = 0;
+      lastDateStr = '';
     }
   }
 
   // Calculate current streak
   // We iterate from newest to oldest. We only count consecutive green days starting from today or yesterday.
   const today = new Date();
-  // Adjust to local Swedish time roughly by adding timezone offset if needed, or just use local date string
-  const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  const todayStr = getDateUID(today);
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = new Date(yesterday.getTime() - (yesterday.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  const yesterdayStr = getDateUID(yesterday);
 
   let expectedDateStr = '';
   
@@ -342,7 +360,7 @@ export const recalculateStreak = async (cohortId: string, userId: string) => {
           // Next expected date is the day before this report
           const d = new Date(report.date);
           d.setDate(d.getDate() - 1);
-          expectedDateStr = d.toISOString().split('T')[0];
+          expectedDateStr = getDateUID(d);
         } else {
           break; // Streak broken immediately
         }
@@ -356,7 +374,7 @@ export const recalculateStreak = async (cohortId: string, userId: string) => {
           currentStreak++;
           const d = new Date(report.date);
           d.setDate(d.getDate() - 1);
-          expectedDateStr = d.toISOString().split('T')[0];
+          expectedDateStr = getDateUID(d);
         } else {
           break; // Streak broken by a red day
         }
@@ -420,7 +438,9 @@ export const submitEveningReport = async (
   const reportRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId, 'eveningReports', report.date);
   await setDoc(reportRef, reportData);
   
-  await recalculateStreak(cohortId, userId);
+  // Note: We no longer call recalculateStreak here because the onSnapshot listener 
+  // in BootcampDashboard will trigger it with the most up-to-date reports, 
+  // avoiding race conditions with stale server reads.
 };
 
 // --- Bootcamp Feed ---
