@@ -166,6 +166,8 @@ BOOTCAMP-RAPPORT IGÅR:
 - Grön dag: ${yesterdayBootcampReport.isGreenDay ? 'JA' : 'NEJ'}
 - Mående: ${yesterdayBootcampReport.mood}/10
 - Tränat styrka: ${yesterdayBootcampReport.strengthTrained ? 'JA' : 'NEJ'}
+- Steg: ${yesterdayBootcampReport.steps || 'Ej angivet'}
+- Sömn: ${yesterdayBootcampReport.sleep ? yesterdayBootcampReport.sleep + ' timmar' : 'Ej angivet'}
 - Kommentar till Generalen: "${yesterdayBootcampReport.comment || 'Ingen'}"
 ` : ''}
 ${bootcampContext}
@@ -175,8 +177,10 @@ INSTRUKTIONER:
 2. VIKTIGT: Om 'Mål uppfyllt' är NEJ men 'Streak-status' är AKTIV: Beröm användaren tydligt för att hen ändå loggade och höll sin streak vid liv (det är det viktigaste beteendet!). Döm inte det missade målet, utan peppa mjukt att sikta på det idag istället.
 3. Om både mål och streak är positiva, ge stort beröm enligt din persona.
 4. Om streak är bruten, var uppmuntrande kring nystart idag.
-5. Avsluta med en kort uppmaning för idag.
-6. Svara på SVENSKA.${missingReportInstruction}`;
+5. Om användaren har skrivit en "Kommentar till Generalen", återkoppla på den!
+6. Om det finns data för mående, steg och sömn från bootcamp-rapporten, ge kort, peppande eller stöttande feedback på dessa (t.ex. om sömnen var kort, peppa till vila. Om stegen var många, beröm!).
+7. Avsluta med en kort uppmaning för idag.
+8. Svara på SVENSKA.${missingReportInstruction}`;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
