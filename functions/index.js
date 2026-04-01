@@ -1173,6 +1173,10 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
                     const newPostRef = db.collection("communityTimeline").doc(eventId);
                     
                     let title = 'delade ett meddelande till truppen';
+                    let userName = 'General Börje';
+                    let userPhotoURL = '/coach-borje.png';
+                    let icon = '🪖';
+
                     if (bootcamp.id === 'solo') {
                         title = 'delade ett meddelande till Solo-gruppen';
                     } else if (bootcamp.id === 'all') {
@@ -1184,10 +1188,10 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
                         timestamp: Date.now(),
                         title: title,
                         description: postData.content,
-                        icon: '📢',
+                        icon: icon,
                         userId: 'system',
-                        userName: 'Coach',
-                        userPhotoURL: '/favicon.png',
+                        userName: userName,
+                        userPhotoURL: userPhotoURL,
                         gender: 'female',
                         visibleTo: bootcamp.id === 'all' ? ['GLOBAL'] : [bootcamp.id],
                         reactions: {},

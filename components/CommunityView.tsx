@@ -488,14 +488,15 @@ export const TimelineEventCard: FC<{
     // Check if the post was made by a coach persona
     const isCoachPersona = event.userName && 
         Object.values(COACH_PERSONAS).some(coach => coach.label === event.userName);
+    const isBorje = event.userName === 'Börje' || event.userName === 'General Börje';
 
     const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
 
-    const displayName = isCoachPersona 
+    const displayName = isBorje || isCoachPersona 
         ? event.userName 
         : (isGlobalPost ? 'Kostloggen' : (isCurrentUser ? 'Du' : event.userName));
         
-    const displayPhotoURL = isCoachPersona 
+    const displayPhotoURL = isBorje || isCoachPersona 
         ? event.userPhotoURL 
         : (isGlobalPost ? '/favicon.png' : event.userPhotoURL);
 
@@ -503,6 +504,8 @@ export const TimelineEventCard: FC<{
     <div id={`event-${event.id}`} className={`group relative p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
         isNewEvent 
             ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+            : isBorje
+                ? 'bg-red-50/50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
             : (isGlobalPost || isCoachPersona)
                 ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                 : 'bg-white dark:bg-neutral-darker border-neutral-light'
