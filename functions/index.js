@@ -173,7 +173,7 @@ exports.onTimelineEventCreated = functions.firestore
         usersSnapshot.forEach(doc => targetUserIds.add(doc.id));
       } else if (event.bootcampId) {
         // Send to bootcamp participants
-        const participantsSnapshot = await db.collectionGroup("participants").where("cohortId", "==", event.bootcampId).get();
+        const participantsSnapshot = await db.collection("bootcampCohorts").doc(event.bootcampId).collection("participants").get();
         participantsSnapshot.forEach(doc => {
           const data = doc.data();
           if (data.userId && (data.status === 'fas1' || data.status === 'fas2')) {
