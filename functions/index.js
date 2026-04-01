@@ -151,20 +151,58 @@ exports.onTimelineEventCreated = functions.firestore
     const event = snapshot.data();
     if (!event) return;
 
-    const buddiesRef = db.collection("users").doc(event.userId).collection("buddies");
-    const buddiesSnapshot = await buddiesRef.get();
-    if (buddiesSnapshot.empty) return;
-
     const eventId = snapshot.id;
+    const isSystemOrCoach = event.userId === 'system' || event.isGlobal || (event.visibleTo && event.visibleTo.includes('GLOBAL'));
+    
     const payload = {
       notification: {
-        title: "Ny händelse i flödet!",
+        title: isSystemOrCoach ? `Nytt meddelande från ${event.userName}!` : "Ny händelse i flödet!",
         body: `${event.userName} ${event.title}`,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
         data: { url: `/?view=community&highlight=${eventId}` }
       }
     };
+
+    if (isSystemOrCoach) {
+      let targetUserIds = new Set();
+      
+      if (event.isGlobal || (event.visibleTo && event.visibleTo.includes('GLOBAL'))) {
+        // Send to all users
+        const usersSnapshot = await db.collection("users").get();
+        usersSnapshot.forEach(doc => targetUserIds.add(doc.id));
+      } else if (event.bootcampId) {
+        // Send to bootcamp participants
+        const participantsSnapshot = await db.collectionGroup("participants").where("cohortId", "==", event.bootcampId).get();
+        participantsSnapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.userId && (data.status === 'fas1' || data.status === 'fas2')) {
+            targetUserIds.add(data.userId);
+          }
+        });
+      } else if (event.visibleTo && event.visibleTo.length > 0) {
+        // Send to specific visibleTo users (if they are user IDs)
+        event.visibleTo.forEach(id => {
+            if (id !== 'GLOBAL' && id !== event.userId) {
+                targetUserIds.add(id);
+            }
+        });
+      }
+
+      // Remove the author from targets
+      targetUserIds.delete(event.userId);
+
+      const notificationPromises = Array.from(targetUserIds).map(uid => 
+        sendNotificationToUser(uid, payload, "newEvents")
+      );
+      await Promise.all(notificationPromises);
+      return;
+    }
+
+    // Normal user post - send to buddies
+    const buddiesRef = db.collection("users").doc(event.userId).collection("buddies");
+    const buddiesSnapshot = await buddiesRef.get();
+    if (buddiesSnapshot.empty) return;
 
     const notificationPromises = buddiesSnapshot.docs.map((doc) => {
       const buddy = doc.data();

@@ -37,7 +37,7 @@ import {
   fetchWaterLog,
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   listenForFriendRequests,
-  fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate,
+  fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate, listenToCommunityTimeline,
   setPastDaySummary, savePushSubscription, unlockAchievement
 } from './services/firestoreService.ts';
 
@@ -706,12 +706,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         if (!currentUser) return;
         setIsLoadingCommunityData(true);
         try {
-            const [timelineResult, details] = await Promise.all([
-                fetchCommunityTimeline(currentUser.uid, null, 10, activeBootcamp?.cohortId),
-                fetchBuddyDetailsList(currentUser.uid),
-            ]);
-            // FIX: Removed redundant filtering. The Firestore query already filters by 'visibleTo'.
-            setTimelineEvents(timelineResult);
+            const details = await fetchBuddyDetailsList(currentUser.uid);
             setBuddyDetails(details);
         } catch (error) {
             console.error("Failed to load community data:", error);
@@ -719,13 +714,56 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         } finally {
             setIsLoadingCommunityData(false);
         }
-    }, [currentUser, setToastNotification, activeBootcamp?.cohortId]); // Added setToastNotification and activeBootcamp to deps
+    }, [currentUser, setToastNotification]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved' && !isBootcampLoading) {
             loadCommunityData();
         }
     }, [currentUser, isInitialDataLoaded, userStatus, loadCommunityData, isBootcampLoading]);
+
+    const previousTimelineEventsRef = useRef<TimelineEvent[]>([]);
+
+    useEffect(() => {
+        if (!currentUser || userStatus !== 'approved') return;
+        
+        const unsubscribe = listenToCommunityTimeline(
+            currentUser.uid,
+            ({ events }) => {
+                setTimelineEvents(events);
+                
+                // Check for new events to show a toast
+                if (previousTimelineEventsRef.current.length > 0 && events.length > 0) {
+                    const newestEvent = events[0];
+                    const previousNewestEvent = previousTimelineEventsRef.current[0];
+                    
+                    if (newestEvent.id !== previousNewestEvent?.id && 
+                        newestEvent.userId !== currentUser.uid && 
+                        newestEvent.timestamp > (previousNewestEvent?.timestamp || 0)) {
+                        
+                        // Only show toast if we are not currently looking at the community feed
+                        if (previousViewModeRef.current !== 'community') {
+                            setToastNotification({
+                                message: `Nytt inlägg från ${newestEvent.userName || 'någon'} i communityt!`,
+                                type: 'info',
+                                onClick: () => {
+                                    setHighlightEventId(newestEvent.id);
+                                    setCommunityInitialTab('flode');
+                                    setViewMode('community');
+                                }
+                            });
+                            playAudio('logSuccess', 0.8);
+                        }
+                    }
+                }
+                previousTimelineEventsRef.current = events;
+            },
+            20,
+            activeBootcamp?.cohortId
+        );
+        
+        return () => unsubscribe();
+    }, [currentUser, userStatus, activeBootcamp?.cohortId, setToastNotification]);
 
     useEffect(() => {
         const previousViewMode = previousViewModeRef.current;

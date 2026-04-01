@@ -1267,6 +1267,24 @@ export const CommunityView: React.FC<{
     previousTabRef.current = activeTab;
   }, [activeTab]);
   
+  // Scroll to highlighted event
+  useEffect(() => {
+      if (highlightEventId && activeTab === 'flode') {
+          // Give the DOM a moment to render the events
+          setTimeout(() => {
+              const element = document.getElementById(`event-${highlightEventId}`);
+              if (element) {
+                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  // Add a temporary highlight class
+                  element.classList.add('ring-4', 'ring-primary', 'ring-opacity-50', 'transition-all', 'duration-1000');
+                  setTimeout(() => {
+                      element.classList.remove('ring-4', 'ring-primary', 'ring-opacity-50');
+                  }, 2000);
+              }
+          }, 300);
+      }
+  }, [highlightEventId, activeTab, visibleEvents.length]);
+  
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
@@ -1304,41 +1322,41 @@ export const CommunityView: React.FC<{
       }).sort((a,b) => b.timestamp - a.timestamp);
   }, [realtimeEvents, historicalEvents]);
 
-  // Initial Real-time Listener
+  // Initial Real-time Listener is now handled by App.tsx
+  // We just rely on the timelineEvents prop updating.
   useEffect(() => {
-      let unsubscribe: () => void;
-      
-      const setupListener = async () => {
-          if (activeTab === 'flode' && currentUser) {
-              unsubscribe = listenToCommunityTimeline(
-                  currentUser.uid, 
-                  ({ events, lastDoc: newLastDoc }) => {
-                      setRealtimeEvents(events || []); 
-                      if (historicalEvents.length === 0) {
-                          setLastDoc(newLastDoc);
-                          setHasMore(events.length >= 20); 
-                      }
-                  },
-                  20,
-                  activeBootcamp?.cohortId
-              );
-          }
-      };
-      
-      setupListener();
-      return () => {
-          if (unsubscribe) unsubscribe();
-      };
-  }, [currentUser.uid, activeTab, activeBootcamp?.cohortId]);
+      if (Array.isArray(timelineEvents) && timelineEvents.length > 0 && historicalEvents.length === 0) {
+          // We don't have lastDoc here directly from App.tsx listener, 
+          // but we can assume hasMore is true initially if we got 20 events.
+          // For pagination to work perfectly, App.tsx would need to pass lastDoc.
+          // For now, we'll just let the user scroll and if they hit the bottom, 
+          // loadMoreEvents will fetch from the last event's timestamp.
+          setHasMore(timelineEvents.length >= 20);
+      }
+  }, [timelineEvents, historicalEvents.length]);
 
   const loadMoreEvents = async () => {
-      if (isLoadingMore || !lastDoc) return;
+      if (isLoadingMore || !hasMore) return;
       setIsLoadingMore(true);
       try {
-          const { events, lastDoc: newLastDoc } = await _fetchCommunityTimelinePaginated(currentUser.uid, lastDoc, 10, activeBootcamp?.cohortId);
-          setHistoricalEvents(prev => [...prev, ...events]);
-          setLastDoc(newLastDoc);
-          setHasMore(events.length === 10);
+          // Use the last event in visibleEvents as the starting point for pagination
+          const lastEvent = visibleEvents[visibleEvents.length - 1];
+          // We need a document snapshot for true pagination, but we can approximate with timestamp
+          // Actually, _fetchCommunityTimelinePaginated takes a snapshot. 
+          // Since we don't have it, we might need to fetch it or change the pagination logic.
+          // For now, let's keep the existing lastDoc logic if it was set, otherwise we can't paginate easily without it.
+          // To fix this properly, App.tsx should pass down lastDoc, or we just fetch the next batch using the last event's timestamp.
+          
+          // Let's fetch the document snapshot for the last event
+          if (lastEvent) {
+              const { doc, getDoc } = await import('firebase/firestore');
+              const { db } = await import('../firebase');
+              const lastEventDoc = await getDoc(doc(db, 'communityTimeline', lastEvent.id));
+              
+              const { events, lastDoc: newLastDoc } = await _fetchCommunityTimelinePaginated(currentUser.uid, lastEventDoc, 10, activeBootcamp?.cohortId);
+              setHistoricalEvents(prev => [...prev, ...events]);
+              setHasMore(events.length === 10);
+          }
       } catch (e) {
           setToastNotification({ message: 'Kunde inte ladda fler händelser.', type: 'error' });
       } finally {
