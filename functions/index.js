@@ -1149,18 +1149,35 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
                         continue;
                     }
 
-                    // Skapa inlägget i bootcampens flöde (RÄTT SÖKVÄG NU)
-                    const newPostRef = db.collection("bootcampCohorts").doc(bootcamp.id).collection("posts").doc();
+                    // Skapa inlägget i communityTimeline istället så det syns i appens flöde
+                    const eventId = `post_system_${bootcamp.id}_${Date.now()}`;
+                    const newPostRef = db.collection("communityTimeline").doc(eventId);
+                    
+                    let title = 'delade ett meddelande till truppen';
+                    if (bootcamp.id === 'solo') {
+                        title = 'delade ett meddelande till Solo-gruppen';
+                    } else if (bootcamp.id === 'all') {
+                        title = 'delade ett meddelande till alla';
+                    }
+
                     batch.set(newPostRef, {
-                        cohortId: bootcamp.id,
-                        authorUid: "system", 
-                        authorName: "Coach", 
-                        text: postData.content,
+                        type: 'user_post',
+                        timestamp: Date.now(),
+                        title: title,
+                        description: postData.content,
+                        icon: '📢',
+                        userId: 'system',
+                        userName: 'Coach',
+                        userPhotoURL: '/favicon.png',
+                        gender: 'female',
+                        visibleTo: bootcamp.id === 'all' ? ['GLOBAL'] : [bootcamp.id],
+                        reactions: {},
+                        comments: [],
+                        relatedDocPath: `bootcampCohorts/${bootcamp.id}/posts/${eventId}`,
                         category: postData.category || "general",
-                        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                        isGlobal: bootcamp.id === 'all',
                         isOfficial: true,
-                        likes: {},
-                        comments: []
+                        bootcampId: bootcamp.id === 'all' ? null : bootcamp.id
                     });
 
                     // Uppdatera loggen så vi inte publicerar igen idag
