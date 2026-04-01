@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useMemo, FC, useCallback, useRef } from 'react';
 import type { User } from '@firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory, UserRole, Chat } from '../types';
 import { 
     searchForBuddies,
@@ -1267,24 +1269,6 @@ export const CommunityView: React.FC<{
     previousTabRef.current = activeTab;
   }, [activeTab]);
   
-  // Scroll to highlighted event
-  useEffect(() => {
-      if (highlightEventId && activeTab === 'flode') {
-          // Give the DOM a moment to render the events
-          setTimeout(() => {
-              const element = document.getElementById(`event-${highlightEventId}`);
-              if (element) {
-                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  // Add a temporary highlight class
-                  element.classList.add('ring-4', 'ring-primary', 'ring-opacity-50', 'transition-all', 'duration-1000');
-                  setTimeout(() => {
-                      element.classList.remove('ring-4', 'ring-primary', 'ring-opacity-50');
-                  }, 2000);
-              }
-          }, 300);
-      }
-  }, [highlightEventId, activeTab, visibleEvents.length]);
-  
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
@@ -1322,6 +1306,24 @@ export const CommunityView: React.FC<{
       }).sort((a,b) => b.timestamp - a.timestamp);
   }, [realtimeEvents, historicalEvents]);
 
+  // Scroll to highlighted event
+  useEffect(() => {
+      if (highlightEventId && activeTab === 'flode') {
+          // Give the DOM a moment to render the events
+          setTimeout(() => {
+              const element = document.getElementById(`event-${highlightEventId}`);
+              if (element) {
+                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  // Add a temporary highlight class
+                  element.classList.add('ring-4', 'ring-primary', 'ring-opacity-50', 'transition-all', 'duration-1000');
+                  setTimeout(() => {
+                      element.classList.remove('ring-4', 'ring-primary', 'ring-opacity-50');
+                  }, 2000);
+              }
+          }, 300);
+      }
+  }, [highlightEventId, activeTab, visibleEvents.length]);
+
   // Initial Real-time Listener is now handled by App.tsx
   // We just rely on the timelineEvents prop updating.
   useEffect(() => {
@@ -1349,8 +1351,6 @@ export const CommunityView: React.FC<{
           
           // Let's fetch the document snapshot for the last event
           if (lastEvent) {
-              const { doc, getDoc } = await import('firebase/firestore');
-              const { db } = await import('../firebase');
               const lastEventDoc = await getDoc(doc(db, 'communityTimeline', lastEvent.id));
               
               const { events, lastDoc: newLastDoc } = await _fetchCommunityTimelinePaginated(currentUser.uid, lastEventDoc, 10, activeBootcamp?.cohortId);
