@@ -198,6 +198,7 @@ export interface NotificationSettings {
 
 export interface UserProfileData {
   name?: string;
+  hasCompletedBootcamp?: boolean;
   currentWeightKg?: number;
   heightCm?: number;
   ageYears?: number;

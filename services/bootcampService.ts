@@ -201,6 +201,11 @@ const checkBootcampExpiration = async (participant: BootcampParticipant): Promis
   if (diffDays > 84) { // 12 weeks
     const participantRef = doc(db, 'bootcampCohorts', participant.cohortId, 'participants', participant.userId);
     await updateDoc(participantRef, { status: 'expired' });
+    
+    // Also update the user's profile to indicate they have completed a bootcamp
+    const userRef = doc(db, 'users', participant.userId);
+    await updateDoc(userRef, { hasCompletedBootcamp: true });
+    
     return { ...participant, status: 'expired' };
   }
 

@@ -102,6 +102,8 @@ interface CoursesViewProps {
   onSaveProfileAndGoals: (profile: UserProfileData, goals: GoalSettings) => Promise<void>;
   onSaveWeightLog: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
   onCourseAborted: () => Promise<void>;
+  ensureYesterdayProcessed?: (uid: string, now?: Date, options?: any, manualLogOverride?: any, prefetchedWater?: number) => Promise<void>;
+  activeBootcamp: BootcampParticipant | null;
 }
 
 const CourseCard: React.FC<{
@@ -110,19 +112,28 @@ const CourseCard: React.FC<{
   onShowInfo: () => void;
   onAbort?: () => void;
   hasStarted: boolean;
-}> = ({ course, onActivate, onShowInfo, onAbort, hasStarted }) => {
+  isLocked?: boolean;
+  lockedReason?: string;
+}> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason }) => {
 
   return (
-    <div className="bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group hover:scale-[1.01] transition-all duration-300">
+    <div className={`bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75 grayscale-[0.5]' : 'hover:scale-[1.01]'}`}>
         <div className="flex flex-col items-center text-center flex-grow mb-6">
             <div className="relative mb-4">
                 {/* Updated Icon Container to Squircle (rounded-2xl) */}
-                <div className="w-20 h-20 bg-neutral-light/50 rounded-2xl flex items-center justify-center text-primary shadow-inner">
+                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner ${isLocked ? 'bg-neutral-light text-neutral' : 'bg-neutral-light/50 text-primary'}`}>
                     <course.Icon className="w-10 h-10" />
                 </div>
                 {hasStarted && (
                     <div className="absolute -bottom-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-1 shadow-sm">
                         <CheckCircleIcon className="w-6 h-6 text-primary" />
+                    </div>
+                )}
+                {isLocked && (
+                    <div className="absolute -bottom-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-1 shadow-sm">
+                        <svg className="w-6 h-6 text-neutral" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
                     </div>
                 )}
             </div>
@@ -142,18 +153,25 @@ const CourseCard: React.FC<{
         </div>
 
         <div className="mt-auto pt-4 border-t border-neutral-light/50 flex flex-col gap-2">
-            <button
-                onClick={onActivate}
-                className={`w-full py-4 flex items-center justify-center gap-2 font-bold rounded-2xl shadow-md active:scale-95 transform transition-all ${
-                    hasStarted 
-                    ? 'bg-secondary hover:bg-secondary-darker text-white' 
-                    : 'bg-primary hover:bg-primary-darker text-white'
-                }`}
-            >
-                {hasStarted ? "Fortsätt kursen" : "Starta kursen"}
-                <ArrowRightIcon className="w-5 h-5" />
-            </button>
-            {hasStarted && onAbort && (
+            {isLocked ? (
+                <div className="w-full py-3 px-4 flex flex-col items-center justify-center text-center bg-neutral-light/30 rounded-2xl border border-neutral-light">
+                    <span className="text-sm font-bold text-neutral-dark mb-1">Låst</span>
+                    <span className="text-xs text-neutral">{lockedReason}</span>
+                </div>
+            ) : (
+                <button
+                    onClick={onActivate}
+                    className={`w-full py-4 flex items-center justify-center gap-2 font-bold rounded-2xl shadow-md active:scale-95 transform transition-all ${
+                        hasStarted 
+                        ? 'bg-secondary hover:bg-secondary-darker text-white' 
+                        : 'bg-primary hover:bg-primary-darker text-white'
+                    }`}
+                >
+                    {hasStarted ? "Fortsätt kursen" : "Starta kursen"}
+                    <ArrowRightIcon className="w-5 h-5" />
+                </button>
+            )}
+            {hasStarted && onAbort && !isLocked && (
                 <button
                     onClick={onAbort}
                     className="w-full py-2 text-sm font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors"
@@ -167,30 +185,19 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(false);
-  const [activeBootcamp, setActiveBootcamp] = useState<BootcampParticipant | null>(null);
-  const [isLoadingBootcamp, setIsLoadingBootcamp] = useState(true);
   const [courseToAbort, setCourseToAbort] = useState<CourseInfo | null>(null);
   const [isAborting, setIsAborting] = useState(false);
 
-  const fetchBootcamp = async () => {
-    if (auth.currentUser) {
-      const participant = await getUserActiveBootcamp(auth.currentUser.uid);
-      setActiveBootcamp(participant);
-    }
-    setIsLoadingBootcamp(false);
-  };
-
   useEffect(() => {
     window.scrollTo(0, 0);
-    fetchBootcamp();
   }, []);
 
   const handleJoinSuccess = async (profileUpdates: UserProfileData, goalUpdates: GoalSettings) => {
     await onSaveProfileAndGoals(profileUpdates, goalUpdates);
-    await fetchBootcamp(); // Refresh bootcamp status
+    // App.tsx listens to active bootcamp changes, so it will update automatically
   };
 
   const handleAbortConfirm = async () => {
@@ -200,7 +207,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
     try {
       if (courseToAbort.id === 'bootcamp' && activeBootcamp) {
         await abortBootcamp(auth.currentUser.uid, activeBootcamp.cohortId);
-        await fetchBootcamp();
+        // App.tsx listens to active bootcamp changes, so it will update automatically
       } else {
         await cancelCourse(auth.currentUser.uid, courseToAbort.id as 'praktisk-viktkontroll' | 'maxa-klimakteriet');
         await onCourseAborted();
@@ -216,7 +223,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
 
   if (showBootcampLanding) {
     if (activeBootcamp) {
-      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} weeklyBank={weeklyBank} onBack={() => setShowBootcampLanding(false)} />;
+      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} weeklyBank={weeklyBank} onBack={() => setShowBootcampLanding(false)} ensureYesterdayProcessed={ensureYesterdayProcessed} />;
     }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} userProfile={userProfile} goals={goals} onJoinSuccess={handleJoinSuccess} onSaveWeightLog={onSaveWeightLog} />;
   }
@@ -247,8 +254,15 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {ALL_COURSES.map(course => {
                 let hasStarted = false;
+                let isLocked = false;
+                let lockedReason = '';
+
                 if (course.id === 'praktisk-viktkontroll') {
                   hasStarted = !!userProgress['lektion1']?.unlockedAt;
+                  if (!userProfile.hasCompletedBootcamp && !hasStarted) {
+                    isLocked = true;
+                    lockedReason = 'Slutför en Bootcamp för att låsa upp denna kurs.';
+                  }
                 } else if (course.id === 'maxa-klimakteriet') {
                   hasStarted = !!userProgress['m-lektion1']?.unlockedAt;
                 } else if (course.id === 'bootcamp') {
@@ -263,6 +277,8 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
                         onShowInfo={() => setSelectedCourseForInfo(course)}
                         onAbort={hasStarted ? () => setCourseToAbort(course) : undefined}
                         hasStarted={hasStarted} 
+                        isLocked={isLocked}
+                        lockedReason={lockedReason}
                     />
                 );
             })}
