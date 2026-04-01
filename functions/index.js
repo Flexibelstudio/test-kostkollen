@@ -808,19 +808,38 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     }
 
     try {
-        // LÖSNINGEN FÖR V2: 1. Skapa kunden i Stripe först
-        const customer = await stripe.customers.create({
-            email: context.auth.token.email,
-            metadata: { firebaseUid: context.auth.uid }
+        const userEmail = context.auth.token.email;
+        const userId = context.auth.uid;
+        
+        // 1. Kolla om kunden redan finns i Stripe baserat på e-post
+        const existingCustomers = await stripe.customers.list({
+            email: userEmail,
+            limit: 1
         });
 
-        // 2. Skapa checkout-sessionen och länka till det nya kund-ID:t
+        let customerId;
+
+        if (existingCustomers.data.length > 0) {
+            // Använd befintlig kund
+            customerId = existingCustomers.data[0].id;
+            console.log(`Hittade befintlig Stripe-kund för ${userEmail}: ${customerId}`);
+        } else {
+            // Skapa ny kund om ingen hittades
+            const newCustomer = await stripe.customers.create({
+                email: userEmail,
+                metadata: { firebaseUid: userId }
+            });
+            customerId = newCustomer.id;
+            console.log(`Skapade ny Stripe-kund för ${userEmail}: ${customerId}`);
+        }
+
+        // 2. Skapa checkout-sessionen och länka till kund-ID:t
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             mode: 'subscription',
-            customer: customer.id, // <-- Här använder vi kundens ID istället för customer_email!
+            customer: customerId, // <-- Här använder vi kundens ID istället för att skapa ny varje gång
             line_items: [{ price: priceId, quantity: 1 }],
-            metadata: { firebaseUid: context.auth.uid },
+            metadata: { firebaseUid: userId },
             allow_promotion_codes: true,
             success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/cancel`,

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { PostTemplate, ScheduledPost, PostCategory, BootcampCohort } from '../types';
 import { subscribeToCohorts } from '../services/bootcampService';
 import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Timestamp, where, getDoc, setDoc } from 'firebase/firestore';
 import { PlusIcon, CalendarIcon, ArchiveBoxIcon, CheckIcon, XMarkIcon, TrashIcon, PencilIcon, SparklesIcon } from './icons';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -36,6 +36,36 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   const [scheduleTime, setScheduleTime] = useState<string>('08:00');
 
   useEffect(() => {
+    const initSolo = async () => {
+      try {
+        const soloRef = doc(db, 'bootcampCohorts', 'solo');
+        const soloDoc = await getDoc(soloRef);
+        const now = new Date();
+        const stockholmTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+        const todayString = `${stockholmTime.getFullYear()}-${String(stockholmTime.getMonth() + 1).padStart(2, '0')}-${String(stockholmTime.getDate()).padStart(2, '0')}`;
+        
+        if (!soloDoc.exists()) {
+          await setDoc(soloRef, {
+            name: "Solo-trupp",
+            status: "active",
+            startDate: todayString,
+            isPublic: false,
+            createdAt: Date.now(),
+            createdBy: "system"
+          });
+          console.log("Initialized solo bootcamp with startDate:", todayString);
+        } else if (!soloDoc.data().startDate) {
+          await updateDoc(soloRef, {
+            startDate: todayString
+          });
+          console.log("Updated solo bootcamp with startDate:", todayString);
+        }
+      } catch (e) {
+        console.error("Failed to init solo bootcamp", e);
+      }
+    };
+    initSolo();
+
     const unsubscribeCohorts = subscribeToCohorts((data) => {
       setCohorts(data);
     });
@@ -162,9 +192,48 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
     { id: 7, name: 'Dag 7' },
   ];
 
+  const getCohortCurrentDay = (cohortId: string) => {
+    const cohort = cohorts.find(c => c.id === cohortId);
+    if (!cohort || !cohort.startDate) return 'Okänt startdatum';
+    
+    let startStockholmString;
+    if (typeof cohort.startDate === 'string') {
+        startStockholmString = cohort.startDate.split('T')[0];
+    } else if (cohort.startDate && typeof (cohort.startDate as any).toDate === 'function') {
+        const d = (cohort.startDate as any).toDate();
+        const st = new Date(d.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+        startStockholmString = `${st.getFullYear()}-${String(st.getMonth() + 1).padStart(2, '0')}-${String(st.getDate()).padStart(2, '0')}`;
+    } else {
+        return 'Ogiltigt startdatum';
+    }
+
+    const startDate = new Date(startStockholmString);
+    const now = new Date();
+    const stockholmTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+    const todayString = `${stockholmTime.getFullYear()}-${String(stockholmTime.getMonth() + 1).padStart(2, '0')}-${String(stockholmTime.getDate()).padStart(2, '0')}`;
+    const today = new Date(todayString);
+    
+    if (today < startDate) return `Börjar ${startStockholmString}`;
+    
+    const diffTime = Math.abs(today.getTime() - startDate.getTime());
+    let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (cohort.id === 'solo') {
+        diffDays = diffDays % 84;
+    }
+    
+    const currentWeek = Math.floor(diffDays / 7) + 1;
+    const currentDay = (diffDays % 7) + 1;
+    
+    return `Idag: Vecka ${currentWeek}, Dag ${currentDay} (Startade ${startStockholmString})`;
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="text-sm font-medium text-neutral-600 bg-neutral-100 px-4 py-2 rounded-lg">
+          {selectedCohort !== 'all' ? getCohortCurrentDay(selectedCohort) : 'Välj en specifik trupp för att se aktuell dag'}
+        </div>
         <div className="flex items-center gap-4">
           <select
             value={selectedCohort}
