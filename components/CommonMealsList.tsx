@@ -112,7 +112,8 @@ const CommonMealCard: React.FC<{
   onUpdate: (id: string, data: { name: string; nutritionalInfo: NutritionalInfo }) => void;
   onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled: boolean;
-}> = ({ meal, onLog, onDelete, onUpdate, onShowRating, disabled }) => {
+  isBootcamp?: boolean;
+}> = ({ meal, onLog, onDelete, onUpdate, onShowRating, disabled, isBootcamp }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -216,7 +217,7 @@ const CommonMealCard: React.FC<{
   const { icon, bg, text } = getMealIcon(meal.name);
 
   return (
-    <div className={`relative group bg-white rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`relative group ${isBootcamp ? 'bg-white dark:!bg-[#2A3B2C] dark:border-[#4A5B4C]' : 'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
       {/* Menu Trigger */}
       <div className="absolute top-2 right-2 z-20">
         <button 
@@ -330,6 +331,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
                 onUpdate={onUpdateCommonMeal}
                 onShowRating={onShowRating}
                 disabled={disabled}
+                isBootcamp={isBootcamp}
               />
             ))}
           </div>

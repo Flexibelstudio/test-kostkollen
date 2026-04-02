@@ -119,13 +119,13 @@ const CourseCard: React.FC<{
 }> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason, isBootcamp }) => {
 
   const baseClasses = isBootcamp 
-    ? `bg-[#2A3B2C] p-6 rounded-3xl shadow-soft-xl border-2 border-[#4A5B4C] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75 grayscale-[0.5]' : 'hover:scale-[1.01]'}`
+    ? `bg-white dark:bg-[#2A3B2C] p-6 rounded-3xl shadow-soft-xl border-2 border-yellow-500/50 dark:border-[#4A5B4C] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75 grayscale-[0.5]' : 'hover:scale-[1.01]'}`
     : `bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75 grayscale-[0.5]' : 'hover:scale-[1.01]'}`;
 
-  const titleClasses = isBootcamp ? "text-2xl font-extrabold text-white mb-2 uppercase tracking-widest" : "text-2xl font-extrabold text-neutral-dark mb-2";
-  const descClasses = isBootcamp ? "text-neutral-300 text-base leading-relaxed mb-4" : "text-neutral text-base leading-relaxed mb-4";
+  const titleClasses = isBootcamp ? "text-2xl font-extrabold text-neutral-dark dark:text-white mb-2 uppercase tracking-widest" : "text-2xl font-extrabold text-neutral-dark mb-2";
+  const descClasses = isBootcamp ? "text-neutral dark:text-neutral-300 text-base leading-relaxed mb-4" : "text-neutral text-base leading-relaxed mb-4";
   const iconContainerClasses = isBootcamp 
-    ? `w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner ${isLocked ? 'bg-[#1A2B1C] text-neutral-500' : 'bg-[#3A4B3C] text-yellow-500'}`
+    ? `w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner overflow-hidden ${isLocked ? 'bg-neutral-100 dark:bg-[#1A2B1C] text-neutral-500' : 'bg-yellow-50 dark:bg-[#3A4B3C] text-yellow-500'}`
     : `w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner ${isLocked ? 'bg-neutral-light text-neutral' : 'bg-neutral-light/50 text-primary'}`;
 
   return (
@@ -139,7 +139,11 @@ const CourseCard: React.FC<{
             <div className="relative mb-4">
                 {/* Updated Icon Container to Squircle (rounded-2xl) */}
                 <div className={iconContainerClasses}>
-                    <course.Icon className="w-10 h-10" />
+                    {isBootcamp ? (
+                        <img src="/coach-borje.png" alt="General Börje" className="w-full h-full object-cover" />
+                    ) : (
+                        <course.Icon className="w-10 h-10" />
+                    )}
                 </div>
                 {hasStarted && (
                     <div className="absolute -bottom-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-1 shadow-sm">
@@ -169,11 +173,11 @@ const CourseCard: React.FC<{
             </button>
         </div>
 
-        <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${isBootcamp ? 'border-[#4A5B4C]' : 'border-neutral-light/50'}`}>
+        <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${isBootcamp ? 'border-neutral-light dark:border-[#4A5B4C]' : 'border-neutral-light/50'}`}>
             {isLocked ? (
-                <div className={`w-full py-3 px-4 flex flex-col items-center justify-center text-center rounded-2xl border ${isBootcamp ? 'bg-[#1A2B1C] border-[#3A4B3C]' : 'bg-neutral-light/30 border-neutral-light'}`}>
-                    <span className={`text-sm font-bold mb-1 ${isBootcamp ? 'text-white' : 'text-neutral-dark'}`}>Låst</span>
-                    <span className={`text-xs ${isBootcamp ? 'text-neutral-400' : 'text-neutral'}`}>{lockedReason}</span>
+                <div className={`w-full py-3 px-4 flex flex-col items-center justify-center text-center rounded-2xl border ${isBootcamp ? 'bg-neutral-light/30 dark:bg-[#1A2B1C] border-neutral-light dark:border-[#3A4B3C]' : 'bg-neutral-light/30 border-neutral-light'}`}>
+                    <span className={`text-sm font-bold mb-1 ${isBootcamp ? 'text-neutral-dark dark:text-white' : 'text-neutral-dark'}`}>Låst</span>
+                    <span className={`text-xs ${isBootcamp ? 'text-neutral dark:text-neutral-400' : 'text-neutral'}`}>{lockedReason}</span>
                 </div>
             ) : (
                 <button
@@ -191,7 +195,7 @@ const CourseCard: React.FC<{
             {hasStarted && onAbort && !isLocked && (
                 <button
                     onClick={onAbort}
-                    className={`w-full py-2 text-sm font-semibold rounded-xl transition-colors ${isBootcamp ? 'text-red-400 hover:text-red-300 hover:bg-red-900/30' : 'text-red-500 hover:text-red-700 hover:bg-red-50'}`}
+                    className={`w-full py-2 text-sm font-semibold rounded-xl transition-colors ${isBootcamp ? 'text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30' : 'text-red-500 hover:text-red-700 hover:bg-red-50'}`}
                 >
                     Avbryt kursen
                 </button>

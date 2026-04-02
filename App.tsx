@@ -1948,6 +1948,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                onSelectLesson={handleSelectLesson}
                currentStreak={streakData.currentStreak}
                courseId={activeCourse.id}
+               isBootcamp={!!activeBootcamp}
             />
          )}
           {viewMode === 'lessonDetail' && currentLessonId && currentLesson && (
@@ -1965,6 +1966,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 weightLogs={weightLogs}
                 pastDaysSummary={Object.values(pastDaysSummary)}
                 onOpenLogWeightModal={handleOpenLogWeightModal} 
+                isBootcamp={!!activeBootcamp}
             />
          )}
          {viewMode === 'community' && (
