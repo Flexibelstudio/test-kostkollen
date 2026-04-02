@@ -858,16 +858,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </p>
                         </div>
                         <div className="text-right">
-                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">Mål: 14 dagar</p>
+                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">
+                                Mål: {activeBootcamp.status === 'fas1' ? '14 dagar' : '12 veckor'}
+                            </p>
                             <p className="text-sm font-bold text-neutral-dark dark:text-white">
-                                {14 - activeBootcamp.currentStreak} dagar kvar
+                                {activeBootcamp.status === 'fas1' 
+                                    ? `${Math.max(0, 14 - activeBootcamp.currentStreak)} dagar kvar` 
+                                    : `${Math.max(0, 84 - Math.floor((Date.now() - new Date(activeBootcamp.originalStartDate || activeBootcamp.fas1StartDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24)))} dagar kvar`}
                             </p>
                         </div>
                     </div>
                     <div className="w-full bg-neutral-light dark:bg-[#1A2B1C] rounded-full h-2 mt-2 overflow-hidden">
                         <div 
                             className="bg-green-500 h-full rounded-full transition-all duration-500" 
-                            style={{ width: `${Math.min((activeBootcamp.currentStreak / 14) * 100, 100)}%` }}
+                            style={{ width: `${activeBootcamp.status === 'fas1' ? Math.min((activeBootcamp.currentStreak / 14) * 100, 100) : Math.min((Math.floor((Date.now() - new Date(activeBootcamp.originalStartDate || activeBootcamp.fas1StartDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24)) / 84) * 100, 100)}%` }}
                         ></div>
                     </div>
                 </div>

@@ -136,18 +136,25 @@ export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Pr
   let bootcampContext = '';
   let missingReportInstruction = '';
 
-  if (activeBootcamp && activeBootcamp.status === 'fas1') {
+  if (activeBootcamp) {
     const currentBootcampStreak = activeBootcamp.currentStreak || 0;
     
-    bootcampContext = `
+    if (activeBootcamp.status === 'fas1') {
+      bootcampContext = `
 PÅGÅENDE BOOTCAMP (FAS 1):
 - Användaren har klarat ${currentBootcampStreak} av 14 dagar i rad i Fas 1 av en intensiv Bootcamp.`;
+    } else {
+      const daysElapsed = Math.floor((Date.now() - new Date(activeBootcamp.originalStartDate || activeBootcamp.fas1StartDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24));
+      bootcampContext = `
+PÅGÅENDE BOOTCAMP (FAS 2):
+- Användaren är på dag ${daysElapsed} av 84 i en intensiv Bootcamp (Fas 2). Nuvarande streak är ${currentBootcampStreak} dagar i rad.`;
+    }
 
     if (!yesterdayBootcampReport) {
       bootcampContext += `\n- STATUS IGÅR: KATASTROF! Användaren har INTE fyllt i sin obligatoriska kvällsrapport för bootcampen.`;
       missingReportInstruction = `\n7. BOOTCAMP-VARNING: Eftersom användaren missade kvällsrapporten igår är dagen just nu UNDERKÄND i bootcampen. Du MÅSTE påpeka detta tydligt (enligt din persona). Beröm INTE gårdagen som en bootcamp-succé. Påminn om att kvällsrapporten är obligatorisk, men nämn att det går att fylla i den i efterhand för att rädda dagen!`;
     } else {
-      bootcampContext += `\n- Uppmärksamma detta och peppa dem att hålla i under denna tuffa startperiod!`;
+      bootcampContext += `\n- Uppmärksamma detta och peppa dem att hålla i under denna tuffa period!`;
     }
   }
 
