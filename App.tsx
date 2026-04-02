@@ -311,6 +311,7 @@ export const App = () => {
   // Local UI State
   const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
   const [viewMode, setViewMode] = useState<ViewMode>('main');
+  const [openBootcampDirectly, setOpenBootcampDirectly] = useState(false);
   const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'admin'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -1752,8 +1753,8 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
   return (
     <>
-      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
-       <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-30">
+      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} ${activeBootcamp ? 'bg-[#F0F4F1] dark:bg-[#1A2B1C]' : 'bg-neutral-light'} bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
+       <header className={`w-full ${activeBootcamp ? 'bg-white dark:bg-[#2A3B2C] border-b-2 border-[#4A5B4C]' : 'bg-white dark:bg-neutral-darker'} text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30`}>
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
@@ -1883,6 +1884,10 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 isProfileOpen={showUserProfileModal}
                 isMorningReportOpen={!!morningReportData}
                 activeBootcamp={activeBootcamp}
+                onOpenBootcamp={() => {
+                    setOpenBootcampDirectly(true);
+                    setViewMode('coursesView');
+                }}
                 onShareRecipe={(recipeText) => {
                     setCommunityInitialTab('flode');
                     setInitialPostText(recipeText);
@@ -1933,6 +1938,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 onCourseAborted={refreshUserData}
                 ensureYesterdayProcessed={ensureYesterdayProcessed}
                 activeBootcamp={activeBootcamp}
+                initialOpenBootcamp={openBootcampDirectly}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (

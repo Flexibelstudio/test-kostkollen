@@ -21,7 +21,7 @@ import {
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
-import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon, BookmarkIcon } from '../components/icons';
+import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon, BookmarkIcon, ShieldCheckIcon } from '../components/icons';
 import { PiggyBank, Coffee, Sandwich, CookingPot, Apple, Flame } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
@@ -205,6 +205,7 @@ interface DashboardProps {
     isMorningReportOpen: boolean;
     activeBootcamp: any | null;
     onShareRecipe?: (recipeText: string) => void;
+    onOpenBootcamp?: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -224,7 +225,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     isProfileOpen,
     isMorningReportOpen,
     activeBootcamp,
-    onShareRecipe
+    onShareRecipe,
+    onOpenBootcamp
 }) => {
     const {
         currentUser,
@@ -811,13 +813,77 @@ const Dashboard: React.FC<DashboardProps> = ({
     const coachPersona = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle] : COACH_PERSONAS['balanced'];
     const coachName = coachPersona.label;
 
+    const currentHour = new Date().getHours();
+    const showEveningReportCTA = activeBootcamp && currentHour >= 18;
+
+    let ctaText = "Dags för kvällsrapport!";
+    if (userProfile.coachStyle === 'hard') {
+        ctaText = "Dags för kvällsrapport, soldat!";
+    } else if (userProfile.coachStyle === 'soft') {
+        ctaText = "Dags för kvällsrapport, vännen!";
+    }
+
     return (
         <div className="flex flex-col gap-3 pb-0 relative">
+            {/* Bootcamp CTA */}
+            {showEveningReportCTA && (
+                <button 
+                    onClick={onOpenBootcamp}
+                    className="w-full bg-primary hover:bg-primary-darker text-white font-bold py-4 px-6 rounded-2xl shadow-lg flex items-center justify-between transition-transform active:scale-95"
+                >
+                    <span>{ctaText}</span>
+                    <ArrowRightIcon className="w-5 h-5" />
+                </button>
+            )}
+
+            {/* Bootcamp Progress Report */}
+            {activeBootcamp && (
+                <div className="bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-[#3A4B3C] flex items-center justify-center text-white">
+                                <ShieldCheckIcon className="w-5 h-5" />
+                            </div>
+                            <h3 className="text-lg font-bold text-neutral-dark dark:text-white">Bootcamp Lägesrapport</h3>
+                        </div>
+                        <span className="text-xs font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                            {activeBootcamp.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-4">
+                        <div>
+                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">Streak</p>
+                            <p className="text-xl font-extrabold text-neutral-dark dark:text-white flex items-center gap-1">
+                                {activeBootcamp.currentStreak} <Flame className="w-5 h-5 text-orange-500" />
+                            </p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">Mål: 14 dagar</p>
+                            <p className="text-sm font-bold text-neutral-dark dark:text-white">
+                                {14 - activeBootcamp.currentStreak} dagar kvar
+                            </p>
+                        </div>
+                    </div>
+                    <div className="w-full bg-neutral-light dark:bg-[#1A2B1C] rounded-full h-2 mt-2 overflow-hidden">
+                        <div 
+                            className="bg-green-500 h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${Math.min((activeBootcamp.currentStreak / 14) * 100, 100)}%` }}
+                        ></div>
+                    </div>
+                </div>
+            )}
+
             {/* Top Date & Progress Card */}
-            <div className="bg-white rounded-3xl shadow-soft-xl py-6 border border-neutral-light relative overflow-hidden">
+            <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'}`}>
+                {activeBootcamp && (
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#4A5B4C] text-white text-[10px] font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
+                        <TrophyIcon className="w-3 h-3 text-yellow-400" />
+                        Bootcamp Aktiv
+                    </div>
+                )}
                 <div className="flex flex-col items-center">
                     {/* Date Nav */}
-                    <div className="flex items-center justify-center gap-4 mb-6 w-full px-6">
+                    <div className={`flex items-center justify-center gap-4 mb-6 w-full px-6 ${activeBootcamp ? 'mt-2' : ''}`}>
                         <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
                         <div className="text-center">
                             <h2 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">{formattedViewingDate}</h2>
@@ -935,11 +1001,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onLogWater={(amount) => handleLogWater(amount)}
                                 onResetWater={handleResetWater}
                                 disabled={!isEditableView}
+                                isBootcamp={!!activeBootcamp}
                             />
                         </div>
                         <div className="flex flex-col gap-3">
                             {/* Streak Card */}
-                            <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
                                 <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
                                     <Flame className="w-6 h-6" />
                                 </div>
@@ -953,7 +1020,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
 
                             {/* Goal Progress Card */}
-                            <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
                                 <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10 shrink-0">
                                     <TrophyIcon className="w-6 h-6" />
                                 </div>
@@ -1015,6 +1082,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         }}
                         isSummarizingYesterday={isSummarizingYesterday}
                         bankedCalories={weeklyBank.bankedCalories}
+                        isBootcamp={!!activeBootcamp}
                     />
                 </div>
 
@@ -1034,7 +1102,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
 
                     {/* Meal Sections (Matlogg) */}
-                    <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
+                    <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
                         <div className="flex items-center justify-between mb-3">
                             <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
                         </div>

@@ -104,6 +104,7 @@ interface CoursesViewProps {
   onCourseAborted: () => Promise<void>;
   ensureYesterdayProcessed?: (uid: string, now?: Date, options?: any, manualLogOverride?: any, prefetchedWater?: number) => Promise<void>;
   activeBootcamp: BootcampParticipant | null;
+  initialOpenBootcamp?: boolean;
 }
 
 const CourseCard: React.FC<{
@@ -114,14 +115,30 @@ const CourseCard: React.FC<{
   hasStarted: boolean;
   isLocked?: boolean;
   lockedReason?: string;
-}> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason }) => {
+  isBootcamp?: boolean;
+}> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason, isBootcamp }) => {
+
+  const baseClasses = isBootcamp 
+    ? `bg-[#2A3B2C] p-6 rounded-3xl shadow-soft-xl border-2 border-[#4A5B4C] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75 grayscale-[0.5]' : 'hover:scale-[1.01]'}`
+    : `bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75 grayscale-[0.5]' : 'hover:scale-[1.01]'}`;
+
+  const titleClasses = isBootcamp ? "text-2xl font-extrabold text-white mb-2 uppercase tracking-widest" : "text-2xl font-extrabold text-neutral-dark mb-2";
+  const descClasses = isBootcamp ? "text-neutral-300 text-base leading-relaxed mb-4" : "text-neutral text-base leading-relaxed mb-4";
+  const iconContainerClasses = isBootcamp 
+    ? `w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner ${isLocked ? 'bg-[#1A2B1C] text-neutral-500' : 'bg-[#3A4B3C] text-yellow-500'}`
+    : `w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner ${isLocked ? 'bg-neutral-light text-neutral' : 'bg-neutral-light/50 text-primary'}`;
 
   return (
-    <div className={`bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75 grayscale-[0.5]' : 'hover:scale-[1.01]'}`}>
+    <div className={baseClasses}>
+        {isBootcamp && (
+            <div className="absolute top-0 right-0 bg-yellow-500 text-black text-xs font-bold px-3 py-1 rounded-bl-xl uppercase tracking-widest">
+                Top Secret
+            </div>
+        )}
         <div className="flex flex-col items-center text-center flex-grow mb-6">
             <div className="relative mb-4">
                 {/* Updated Icon Container to Squircle (rounded-2xl) */}
-                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner ${isLocked ? 'bg-neutral-light text-neutral' : 'bg-neutral-light/50 text-primary'}`}>
+                <div className={iconContainerClasses}>
                     <course.Icon className="w-10 h-10" />
                 </div>
                 {hasStarted && (
@@ -138,33 +155,33 @@ const CourseCard: React.FC<{
                 )}
             </div>
             
-            <h3 className="text-2xl font-extrabold text-neutral-dark mb-2">{course.title}</h3>
+            <h3 className={titleClasses}>{course.title}</h3>
             
-            <p className="text-neutral text-base leading-relaxed mb-4">
+            <p className={descClasses}>
                 {course.cardDescription}
             </p>
 
             <button
                 onClick={onShowInfo}
-                className="text-sm font-semibold text-primary hover:text-primary-darker hover:underline flex items-center gap-1 mt-auto interactive-transition"
+                className={`text-sm font-semibold flex items-center gap-1 mt-auto interactive-transition ${isBootcamp ? 'text-yellow-500 hover:text-yellow-400' : 'text-primary hover:text-primary-darker hover:underline'}`}
             >
                 <InformationCircleIcon className="w-4 h-4"/> Läs mer om kursen
             </button>
         </div>
 
-        <div className="mt-auto pt-4 border-t border-neutral-light/50 flex flex-col gap-2">
+        <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${isBootcamp ? 'border-[#4A5B4C]' : 'border-neutral-light/50'}`}>
             {isLocked ? (
-                <div className="w-full py-3 px-4 flex flex-col items-center justify-center text-center bg-neutral-light/30 rounded-2xl border border-neutral-light">
-                    <span className="text-sm font-bold text-neutral-dark mb-1">Låst</span>
-                    <span className="text-xs text-neutral">{lockedReason}</span>
+                <div className={`w-full py-3 px-4 flex flex-col items-center justify-center text-center rounded-2xl border ${isBootcamp ? 'bg-[#1A2B1C] border-[#3A4B3C]' : 'bg-neutral-light/30 border-neutral-light'}`}>
+                    <span className={`text-sm font-bold mb-1 ${isBootcamp ? 'text-white' : 'text-neutral-dark'}`}>Låst</span>
+                    <span className={`text-xs ${isBootcamp ? 'text-neutral-400' : 'text-neutral'}`}>{lockedReason}</span>
                 </div>
             ) : (
                 <button
                     onClick={onActivate}
                     className={`w-full py-4 flex items-center justify-center gap-2 font-bold rounded-2xl shadow-md active:scale-95 transform transition-all ${
                         hasStarted 
-                        ? 'bg-secondary hover:bg-secondary-darker text-white' 
-                        : 'bg-primary hover:bg-primary-darker text-white'
+                        ? (isBootcamp ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'bg-secondary hover:bg-secondary-darker text-white')
+                        : (isBootcamp ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-primary hover:bg-primary-darker text-white')
                     }`}
                 >
                     {hasStarted ? "Fortsätt kursen" : "Starta kursen"}
@@ -174,7 +191,7 @@ const CourseCard: React.FC<{
             {hasStarted && onAbort && !isLocked && (
                 <button
                     onClick={onAbort}
-                    className="w-full py-2 text-sm font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors"
+                    className={`w-full py-2 text-sm font-semibold rounded-xl transition-colors ${isBootcamp ? 'text-red-400 hover:text-red-300 hover:bg-red-900/30' : 'text-red-500 hover:text-red-700 hover:bg-red-50'}`}
                 >
                     Avbryt kursen
                 </button>
@@ -185,11 +202,17 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp, initialOpenBootcamp }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
-  const [showBootcampLanding, setShowBootcampLanding] = useState(false);
+  const [showBootcampLanding, setShowBootcampLanding] = useState(initialOpenBootcamp || false);
   const [courseToAbort, setCourseToAbort] = useState<CourseInfo | null>(null);
   const [isAborting, setIsAborting] = useState(false);
+
+  useEffect(() => {
+    if (initialOpenBootcamp) {
+      setShowBootcampLanding(true);
+    }
+  }, [initialOpenBootcamp]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -279,6 +302,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
                         hasStarted={hasStarted} 
                         isLocked={isLocked}
                         lockedReason={lockedReason}
+                        isBootcamp={course.id === 'bootcamp'}
                     />
                 );
             })}
