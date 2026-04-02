@@ -18,6 +18,8 @@ export interface AIDataForMorningBriefing {
   yesterdayMeals?: any[];
   yesterdayBootcampReport?: any;
   activeBootcamp?: any;
+  pastDaysSummary?: PastDaySummary[];
+  weightLogs?: WeightLogEntry[];
 }
 
 export const generateGrowthEngineMessage = async (context: string, userNames: string[]): Promise<string> => {
@@ -92,6 +94,8 @@ export const generateBorjePost = async (brief: string): Promise<string> => {
   const prompt = `Du är General Börje, en tuff men rättvis militär hälsocoach i appen Kostloggen.
 Din persona: Du är rak på sak, använder militär jargong (truppen, givakt, framåt marsch, pannben), men bryr dig genuint om dina rekryter. Du daltar inte.
 
+VIKTIGT: General Börjes Bootcamp har INGA lektioner. Prata ALDRIG om lektioner, moduler eller kursmaterial. Bootcampen bygger enbart på dagliga kvällsrapporter, invägningar, faser och disciplin.
+
 Din uppgift är att skriva ett inlägg till truppen (communityt) baserat på följande instruktion/brief från en administratör:
 "${brief}"
 
@@ -124,7 +128,7 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text. Bör
 };
 
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
-  const { userProfile, summary, currentStreak, yesterdayBootcampReport, activeBootcamp } = data;
+  const { userProfile, summary, currentStreak, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs } = data;
   const style = userProfile.coachStyle || 'balanced';
   const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
   const name = userProfile.name || 'du';
@@ -144,6 +148,52 @@ PÅGÅENDE BOOTCAMP (FAS 1):
       missingReportInstruction = `\n7. BOOTCAMP-VARNING: Eftersom användaren missade kvällsrapporten igår är dagen just nu UNDERKÄND i bootcampen. Du MÅSTE påpeka detta tydligt (enligt din persona). Beröm INTE gårdagen som en bootcamp-succé. Påminn om att kvällsrapporten är obligatorisk, men nämn att det går att fylla i den i efterhand för att rädda dagen!`;
     } else {
       bootcampContext += `\n- Uppmärksamma detta och peppa dem att hålla i under denna tuffa startperiod!`;
+    }
+  }
+
+  // Calculate 7-day summary
+  let recentContext = '';
+  if (pastDaysSummary && pastDaysSummary.length > 0) {
+    const last7Days = pastDaysSummary.slice(-7);
+    const totalConsumed = last7Days.reduce((sum, day) => sum + day.consumedCalories, 0);
+    const totalGoal = last7Days.reduce((sum, day) => sum + day.calorieGoal, 0);
+    const avgConsumed = totalConsumed / last7Days.length;
+    const avgGoal = totalGoal / last7Days.length;
+    
+    // Check if user has been good (consumed <= goal + small buffer)
+    const hasBeenGood = avgConsumed <= avgGoal + 50;
+
+    // Check weight changes
+    let weightChangeStr = '';
+    let weightChange = 0;
+    if (weightLogs && weightLogs.length >= 2) {
+      const sortedLogs = [...weightLogs].sort((a, b) => b.loggedAt - a.loggedAt);
+      const latestLog = sortedLogs[0];
+      const previousLog = sortedLogs[1];
+      weightChange = latestLog.weightKg - previousLog.weightKg;
+      
+      if (weightChange < 0) {
+        weightChangeStr = `Gått ner ${Math.abs(weightChange).toFixed(1)} kg sedan förra mätningen.`;
+      } else if (weightChange > 0) {
+        weightChangeStr = `Gått upp ${weightChange.toFixed(1)} kg sedan förra mätningen.`;
+      } else {
+        weightChangeStr = `Stått still i vikt sedan förra mätningen.`;
+      }
+    }
+
+    recentContext = `
+SENASTE 7 DAGARNA:
+- Snittkalorier: ${avgConsumed.toFixed(0)} kcal (Mål: ${avgGoal.toFixed(0)} kcal)
+- Har skött kosten: ${hasBeenGood ? 'JA' : 'NEJ'}
+${weightChangeStr ? `- Viktutveckling: ${weightChangeStr}` : ''}
+`;
+
+    if (hasBeenGood && weightChange >= 0 && weightChangeStr) {
+      recentContext += `\nVIKTIG COACHING: Användaren har skött kosten perfekt de senaste 7 dagarna, men vågen står still eller går upp. Förklara att detta är normalt (vätska, stress, muskler) och peppa dem att inte ge upp. Om de stått stilla länge, föreslå att justera aktivitetsnivån eller sänka kaloriintaget något.`;
+    } else if (!hasBeenGood && weightChange >= 0 && weightChangeStr) {
+      recentContext += `\nVIKTIG COACHING: Användaren har INTE skött kosten de senaste 7 dagarna och vågen står still eller går upp. Ge ärlig (men peppig/tuff) feedback. "Du får ut det du stoppar in. Dags att steppa upp."`;
+    } else if (hasBeenGood && weightChange < 0 && weightChangeStr) {
+      recentContext += `\nVIKTIG COACHING: Användaren har skött kosten och gått ner i vikt! Ge massivt beröm och bekräfta att metoden fungerar.`;
     }
   }
 
@@ -171,6 +221,7 @@ BOOTCAMP-RAPPORT IGÅR:
 - Kommentar till Generalen: "${yesterdayBootcampReport.comment || 'Ingen'}"
 ` : ''}
 ${bootcampContext}
+${recentContext}
 
 INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
@@ -669,9 +720,9 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 3.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
 
 **ANVÄNDARENS AKTUELLA KONTEXT:**
-${context.activeBootcamp ? `- Användaren deltar just nu i General Börjes Bootcamp (Fas: ${context.activeBootcamp.status}, Streak: ${context.activeBootcamp.currentStreak} dagar).` : ''}
+${context.activeBootcamp ? `- Användaren deltar just nu i General Börjes Bootcamp (Fas: ${context.activeBootcamp.status}, Streak: ${context.activeBootcamp.currentStreak} dagar). VIKTIGT: Bootcampen har INGA lektioner. Prata aldrig om lektioner i samband med bootcampen.` : ''}
 ${context.recentBootcampReports && context.recentBootcampReports.length > 0 ? `- Senaste kvällsrapport (Bootcamp): Mående ${context.recentBootcampReports[0].mood}/10, Styrketräning: ${context.recentBootcampReports[0].strengthTrained ? 'Ja' : 'Nej'}, Grön dag: ${context.recentBootcampReports[0].isGreenDay ? 'Ja' : 'Nej'}.` : ''}
-${context.userCourseProgress ? `- Användaren har tillgång till kurser. Uppmuntra dem att läsa lektioner om de har frågor om kost eller träning.` : ''}
+${context.userCourseProgress ? `- Användaren har tillgång till kurser (separat från bootcampen). Uppmuntra dem att läsa lektioner i kurserna om de har frågor om kost eller träning.` : ''}
 
 **REGLER FOR GRAF-SVAR:**
 1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { PastDaySummary, UserProfileData, LoggedMeal } from '../types';
+import { PastDaySummary, UserProfileData, LoggedMeal, WeightLogEntry } from '../types';
 import { CheckCircleIcon, XCircleIcon, TrophyIcon, SparklesIcon } from './icons';
 import { getMorningBriefingText, getMorningBriefingAudio } from '../services/geminiService';
 import { COACH_PERSONAS } from '../constants';
@@ -14,6 +14,8 @@ interface MorningReportModalProps {
   yesterdayMeals?: LoggedMeal[];
   yesterdayBootcampReport?: any;
   activeBootcamp?: any;
+  pastDaysSummary?: PastDaySummary[];
+  weightLogs?: WeightLogEntry[];
 }
 
 // Helper to decode raw PCM data from Gemini (16-bit, 24kHz, Mono)
@@ -43,7 +45,7 @@ const decodePCM = (base64: string, ctx: AudioContext): AudioBuffer => {
   return buffer;
 };
 
-const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile, yesterdayMeals, yesterdayBootcampReport, activeBootcamp }) => {
+const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile, yesterdayMeals, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs }) => {
   const [briefingText, setBriefingText] = useState<string | null>(null);
   const [isLoadingBriefing, setIsLoadingBriefing] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -56,7 +58,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
     if (show) {
       const fetchBriefing = async () => {
         setIsLoadingBriefing(true);
-        const text = await getMorningBriefingText({ userProfile, summary, currentStreak, yesterdayMeals, yesterdayBootcampReport, activeBootcamp });
+        const text = await getMorningBriefingText({ userProfile, summary, currentStreak, yesterdayMeals, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs });
         setBriefingText(text);
         setIsLoadingBriefing(false);
       };
