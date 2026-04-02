@@ -1887,6 +1887,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 isProfileOpen={showUserProfileModal}
                 isMorningReportOpen={!!morningReportData}
                 activeBootcamp={activeBootcamp}
+                hasCompletedTodaysReport={recentBootcampReports.some(report => report.date === dayKeySE(new Date()))}
                 onOpenBootcamp={() => {
                     setOpenBootcampDirectly(true);
                     setViewMode('coursesView');

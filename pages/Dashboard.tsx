@@ -204,6 +204,7 @@ interface DashboardProps {
     isProfileOpen: boolean;
     isMorningReportOpen: boolean;
     activeBootcamp: any | null;
+    hasCompletedTodaysReport?: boolean;
     onShareRecipe?: (recipeText: string) => void;
     onOpenBootcamp?: () => void;
 }
@@ -225,6 +226,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     isProfileOpen,
     isMorningReportOpen,
     activeBootcamp,
+    hasCompletedTodaysReport,
     onShareRecipe,
     onOpenBootcamp
 }) => {
@@ -814,7 +816,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const coachName = coachPersona.label;
 
     const currentHour = new Date().getHours();
-    const showEveningReportCTA = activeBootcamp && currentHour >= 18;
+    const showEveningReportCTA = activeBootcamp && currentHour >= 18 && !hasCompletedTodaysReport;
 
     let ctaText = "Dags för kvällsrapport!";
     if (userProfile.coachStyle === 'hard') {
