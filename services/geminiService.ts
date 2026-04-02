@@ -200,6 +200,13 @@ ${weightChangeStr ? `- Viktutveckling: ${weightChangeStr}` : ''}
   const prompt = `Du är ${persona.label}, ${persona.roleTitle}.
 Tonläge och instruktioner: ${persona.promptTone}
 
+**NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):**
+Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
+- Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
+- Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+
 DEFINITIONER:
 - Streak: Att logga mat. Hålls levande oavsett kalorimängd. Det är beviset på vanan att vara konsekvent.
 - Mål: Att träffa rätt kalorimängd. Detta är dagens prestation.
@@ -449,6 +456,13 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
   const fullPrompt = `Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.se.
 Din persona: ${persona.promptTone}
 Ge feedback på SVENSKA.
+
+**NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):**
+Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
+- Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
+- Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 
 **Användarens Status:**
 - Namn: ${userName || 'Användare'}
@@ -718,6 +732,11 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
 2.  Anpassa din ton efter din persona (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
 3.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
+4.  **NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):** Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
+    - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
+    - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+    - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+    - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 
 **ANVÄNDARENS AKTUELLA KONTEXT:**
 ${context.activeBootcamp ? `- Användaren deltar just nu i General Börjes Bootcamp (Fas: ${context.activeBootcamp.status}, Streak: ${context.activeBootcamp.currentStreak} dagar). VIKTIGT: Bootcampen har INGA lektioner. Prata aldrig om lektioner i samband med bootcampen.` : ''}
@@ -1038,6 +1057,14 @@ Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.
 Ditt tonläge: ${persona.promptTone}
 
 Du är en INTE en extern coach, du ÄR ${persona.label}. Skriv återkopplingen som att det är du som vägleder användaren. Undvik formuleringar som "prata med din coach" - du ÄR coachen.
+
+**NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):**
+Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
+- Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
+- Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+
 ${plateauPromptPart}
 Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med följande exakta struktur:
 {
