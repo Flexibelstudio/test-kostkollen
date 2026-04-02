@@ -105,6 +105,7 @@ interface CoursesViewProps {
   ensureYesterdayProcessed?: (uid: string, now?: Date, options?: any, manualLogOverride?: any, prefetchedWater?: number) => Promise<void>;
   activeBootcamp: BootcampParticipant | null;
   initialOpenBootcamp?: boolean;
+  onBootcampStateChange?: (isOpen: boolean) => void;
 }
 
 const CourseCard: React.FC<{
@@ -206,7 +207,7 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp, initialOpenBootcamp }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp, initialOpenBootcamp, onBootcampStateChange }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(initialOpenBootcamp || false);
   const [courseToAbort, setCourseToAbort] = useState<CourseInfo | null>(null);
@@ -217,6 +218,12 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
       setShowBootcampLanding(true);
     }
   }, [initialOpenBootcamp]);
+
+  useEffect(() => {
+    if (onBootcampStateChange) {
+      onBootcampStateChange(showBootcampLanding);
+    }
+  }, [showBootcampLanding, onBootcampStateChange]);
 
   useEffect(() => {
     window.scrollTo(0, 0);

@@ -312,6 +312,7 @@ export const App = () => {
   const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
   const [viewMode, setViewMode] = useState<ViewMode>('main');
   const [openBootcampDirectly, setOpenBootcampDirectly] = useState(false);
+  const [isBootcampViewActive, setIsBootcampViewActive] = useState(false);
   const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'admin'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -1751,10 +1752,12 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
   const coachName = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle].label : 'Din Coach';
 
+  const shouldShowGreenBackground = activeBootcamp && (viewMode === 'main' || (viewMode === 'coursesView' && isBootcampViewActive));
+
   return (
     <>
-      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} ${activeBootcamp ? 'bg-[#D0E5D4] dark:bg-[#1A2B1C]' : 'bg-neutral-light'} bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
-       <header className={`w-full ${activeBootcamp ? 'bg-white dark:bg-[#2A3B2C] border-b-2 border-[#4A5B4C]' : 'bg-white dark:bg-neutral-darker'} text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30`}>
+      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} ${shouldShowGreenBackground ? 'bg-[#D0E5D4] dark:bg-[#1A2B1C]' : 'bg-neutral-light dark:bg-neutral-darker'} bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
+       <header className={`w-full ${shouldShowGreenBackground ? 'bg-white dark:bg-[#2A3B2C] border-b-2 border-[#4A5B4C]' : 'bg-white dark:bg-neutral-darker'} text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30`}>
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
@@ -1939,6 +1942,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 ensureYesterdayProcessed={ensureYesterdayProcessed}
                 activeBootcamp={activeBootcamp}
                 initialOpenBootcamp={openBootcampDirectly}
+                onBootcampStateChange={setIsBootcampViewActive}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (
@@ -1948,7 +1952,6 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                onSelectLesson={handleSelectLesson}
                currentStreak={streakData.currentStreak}
                courseId={activeCourse.id}
-               isBootcamp={!!activeBootcamp}
             />
          )}
           {viewMode === 'lessonDetail' && currentLessonId && currentLesson && (
@@ -1966,7 +1969,6 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 weightLogs={weightLogs}
                 pastDaysSummary={Object.values(pastDaysSummary)}
                 onOpenLogWeightModal={handleOpenLogWeightModal} 
-                isBootcamp={!!activeBootcamp}
             />
          )}
          {viewMode === 'community' && (

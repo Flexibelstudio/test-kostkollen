@@ -491,6 +491,7 @@ export const TimelineEventCard: FC<{
     const isCoachPersona = event.userName && 
         Object.values(COACH_PERSONAS).some(coach => coach.label === event.userName);
     const isBorje = event.userName === 'Börje' || event.userName === 'General Börje';
+    const isBootcampPost = !!event.bootcampId;
 
     const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
 
@@ -506,8 +507,8 @@ export const TimelineEventCard: FC<{
     <div id={`event-${event.id}`} className={`group relative p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
         isNewEvent 
             ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-            : isBorje
-                ? 'bg-red-50/50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+            : (isBorje || isBootcampPost)
+                ? 'bg-[#E5EFE7] dark:bg-[#2A3B2C] border-[#4A5B4C]'
             : (isGlobalPost || isCoachPersona)
                 ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                 : 'bg-white dark:bg-neutral-darker border-neutral-light'
