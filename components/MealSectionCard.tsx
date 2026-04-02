@@ -16,6 +16,7 @@ interface MealSectionCardProps {
   onOpen: () => void;    // Controlled from parent
   onClose: () => void;   // Controlled from parent
   recommendedCalories?: number;
+  isBootcamp?: boolean;
 }
 
 const MealSectionCard: React.FC<MealSectionCardProps> = ({
@@ -29,7 +30,8 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
   isOpen,
   onOpen,
   onClose,
-  recommendedCalories
+  recommendedCalories,
+  isBootcamp = false
 }) => {
   // Calculate totals for this specific meal section
   const totals = useMemo(() => meals.reduce((acc, meal) => {
@@ -155,7 +157,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
       <div 
         onClick={handleCardClick}
         className={`
-            bg-white rounded-2xl p-4 border border-neutral-light shadow-sm 
+            ${isBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} rounded-2xl p-4 border shadow-sm 
             transition-all duration-300 ease-out flex flex-col justify-between h-32
             ${isEmpty 
                 ? 'opacity-100 hover:border-primary/40 cursor-pointer group' 

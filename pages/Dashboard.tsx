@@ -942,7 +942,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* Macros Integrated */}
                     <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full px-4 sm:px-6">
                         {/* Kolhydrater */}
-                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                        <div className={`${activeBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
                             <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Kolhydrater</p>
                             <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.carbohydrates)}/{goals.carbohydrateGoal}g
@@ -952,7 +952,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         {/* Protein */}
-                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                        <div className={`${activeBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
                             <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider flex items-center justify-center">
                                 Protein
                                 <button 
@@ -974,7 +974,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         {/* Fett */}
-                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                        <div className={`${activeBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
                             <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Fett</p>
                             <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.fat)}/{goals.fatGoal}g
@@ -1006,7 +1006,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         <div className="flex flex-col gap-3">
                             {/* Streak Card */}
-                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
+                            <div className={`${activeBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
                                 <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
                                     <Flame className="w-6 h-6" />
                                 </div>
@@ -1020,7 +1020,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
 
                             {/* Goal Progress Card */}
-                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
+                            <div className={`${activeBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
                                 <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10 shrink-0">
                                     <TrophyIcon className="w-6 h-6" />
                                 </div>
@@ -1099,10 +1099,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                             setShowFoodRatingModal(true);
                         }}
                         disabled={!isEditableView}
+                        isBootcamp={!!activeBootcamp}
                     />
 
                     {/* Meal Sections (Matlogg) */}
-                    <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
+                    <div className={`${activeBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
                         <div className="flex items-center justify-between mb-3">
                             <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
                         </div>
@@ -1119,6 +1120,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onOpen={() => setActiveMealSection('breakfast')}
                                 onClose={() => setActiveMealSection(null)}
                                 recommendedCalories={Math.round(goals.calorieGoal * 0.25)}
+                                isBootcamp={!!activeBootcamp}
                             />
                             <MealSectionCard 
                                 title="Lunch" 
@@ -1132,6 +1134,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onOpen={() => setActiveMealSection('lunch')}
                                 onClose={() => setActiveMealSection(null)}
                                 recommendedCalories={Math.round(goals.calorieGoal * 0.35)}
+                                isBootcamp={!!activeBootcamp}
                             />
                             <MealSectionCard 
                                 title="Middag" 
@@ -1145,6 +1148,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onOpen={() => setActiveMealSection('dinner')}
                                 onClose={() => setActiveMealSection(null)}
                                 recommendedCalories={Math.round(goals.calorieGoal * 0.30)}
+                                isBootcamp={!!activeBootcamp}
                             />
                             <MealSectionCard 
                                 title="Mellanmål" 
@@ -1158,6 +1162,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onOpen={() => setActiveMealSection('snack')}
                                 onClose={() => setActiveMealSection(null)}
                                 recommendedCalories={Math.round(goals.calorieGoal * 0.10)}
+                                isBootcamp={!!activeBootcamp}
                             />
                         </div>
                     </div>

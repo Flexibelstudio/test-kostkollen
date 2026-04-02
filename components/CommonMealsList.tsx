@@ -16,6 +16,7 @@ interface CommonMealsListProps {
   onUpdateCommonMeal: (commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) => void;
   onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled?: boolean;
+  isBootcamp?: boolean;
 }
 
 // Helper to match a Lucide icon and color theme based on the meal name
@@ -270,7 +271,7 @@ const CommonMealCard: React.FC<{
   );
 };
 
-export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false }) => {
+export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false, isBootcamp = false }) => {
   const [mealIdToConfirmDelete, setMealIdToConfirmDelete] = useState<string | null>(null);
 
   const handleDeleteRequest = (mealId: string) => {
@@ -296,7 +297,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
 
   return (
     <>
-      <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
+      <div className={`${isBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="text-xl">📌</span>

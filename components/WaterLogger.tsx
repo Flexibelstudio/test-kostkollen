@@ -30,7 +30,7 @@ const WaterLogger = React.forwardRef<HTMLDivElement, WaterLoggerProps>(({
   };
 
   return (
-    <div ref={ref} className={`relative overflow-hidden ${isBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} rounded-2xl shadow-soft-lg border h-full min-h-[160px] flex flex-col justify-between group select-none ${disabled ? 'opacity-70' : ''}`}>
+    <div ref={ref} className={`relative overflow-hidden ${isBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} rounded-2xl shadow-soft-lg border h-full min-h-[160px] flex flex-col justify-between group select-none ${disabled ? 'opacity-70' : ''}`}>
         
         {/* Background Fill Level */}
         <div 
