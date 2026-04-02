@@ -157,7 +157,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
       <div 
         onClick={handleCardClick}
         className={`
-            ${isBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} rounded-2xl p-4 border shadow-sm 
+            ${isBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} rounded-2xl p-4 border shadow-sm 
             transition-all duration-300 ease-out flex flex-col justify-between h-32
             ${isEmpty 
                 ? 'opacity-100 hover:border-primary/40 cursor-pointer group' 

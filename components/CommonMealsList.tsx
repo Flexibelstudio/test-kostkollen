@@ -298,7 +298,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
 
   return (
     <>
-      <div className={`${isBootcamp ? 'bg-[#E5EFE7] dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
+      <div className={`${isBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="text-xl">📌</span>
