@@ -2053,6 +2053,9 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 onCancelSuccess={() => {
                     setUserProfile(prev => ({ ...prev, subscriptionStatus: 'canceling' }));
                 }}
+                onUndoCancelSuccess={() => {
+                    setUserProfile(prev => ({ ...prev, subscriptionStatus: 'active' }));
+                }}
             />
         )}
 

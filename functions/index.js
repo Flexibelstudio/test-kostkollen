@@ -890,7 +890,49 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     }
 });
 
-exports.cancelSubscription = functions.https.onCall(async (data, context) => {
+exports.cancelSubscription = functions.runWith({ secrets: ["STRIPE_SECRET_KEY"] }).https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inte inloggad.');
+
+    const stripe = initStripe();
+    const userId = context.auth.uid;
+    
+    try {
+        const userSnapshot = await db.collection('users').doc(userId).get();
+        const userData = userSnapshot.data();
+
+        if (!userData || !userData.subscriptionId) {
+             throw new functions.https.HttpsError('failed-precondition', 'Ingen prenumeration hittades.');
+        }
+
+        const subscription = await stripe.subscriptions.update(userData.subscriptionId, { cancel_at_period_end: true });
+
+        // --- SÄKERHETSKUDDE FÖR DATUMET ---
+        let periodEndIso = null;
+        if (subscription && subscription.current_period_end) {
+            periodEndIso = new Date(subscription.current_period_end * 1000).toISOString();
+        } else if (userData.currentPeriodEnd) {
+            periodEndIso = userData.currentPeriodEnd; // Använd det vi redan har i databasen
+        }
+
+        const updateData = {
+            subscriptionStatus: 'canceling',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (periodEndIso) {
+            updateData.currentPeriodEnd = periodEndIso;
+        }
+
+        await db.collection('users').doc(userId).update(updateData);
+
+        return { success: true };
+    } catch (error) {
+        logger.error("Cancel Subscription Error:", error);
+        throw new functions.https.HttpsError('aborted', error.message || 'Kunde inte avsluta prenumerationen.');
+    }
+});
+
+exports.undoCancelSubscription = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inte inloggad.');
 
     const userId = context.auth.uid;
@@ -899,21 +941,21 @@ exports.cancelSubscription = functions.https.onCall(async (data, context) => {
         const userData = userSnapshot.data();
 
         if (!userData || !userData.subscriptionId) {
-             throw new functions.https.HttpsError('failed-precondition', 'Ingen prenumeration.');
+             throw new functions.https.HttpsError('failed-precondition', 'Ingen prenumeration hittades.');
         }
 
-        const subscription = await stripe.subscriptions.update(userData.subscriptionId, { cancel_at_period_end: true });
+        const subscription = await stripe.subscriptions.update(userData.subscriptionId, { cancel_at_period_end: false });
 
         await db.collection('users').doc(userId).update({
-            subscriptionStatus: 'canceling',
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+            subscriptionStatus: 'active',
+            currentPeriodEnd: admin.firestore.FieldValue.delete(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
         return { success: true };
     } catch (error) {
-        logger.error("Cancel Subscription Error:", error);
-        throw new functions.https.HttpsError('internal', 'Kunde inte avsluta prenumerationen.');
+        logger.error("Undo Cancel Subscription Error:", error);
+        throw new functions.https.HttpsError('aborted', error.message || 'Kunde inte ångra uppsägningen.');
     }
 });
 
@@ -1028,15 +1070,19 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     try {
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object;
-            const firebaseUid = session.metadata.firebaseUid;
+            const firebaseUid = session.metadata ? session.metadata.firebaseUid : null;
 
-            await db.collection('users').doc(firebaseUid).update({
-                subscriptionStatus: 'active',
-                status: 'approved',
-                stripeCustomerId: session.customer,
-                subscriptionId: session.subscription,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+            if (firebaseUid) {
+                await db.collection('users').doc(firebaseUid).set({
+                    subscriptionStatus: 'active',
+                    status: 'approved',
+                    stripeCustomerId: session.customer,
+                    subscriptionId: session.subscription,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            } else {
+                logger.warn("No firebaseUid in session metadata for checkout.session.completed", { sessionId: session.id });
+            }
         } 
         else if (event.type === 'customer.subscription.updated') {
              const subscription = event.data.object;

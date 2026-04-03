@@ -1748,3 +1748,9 @@ export async function cancelSubscription(userId: string) {
     const cancelSub = httpsCallable(functions, 'cancelSubscription');
     await cancelSub();
 }
+
+export async function undoCancelSubscription(userId: string) {
+    if (!functions) throw new Error("Functions not initialized");
+    const undoCancelSub = httpsCallable(functions, 'undoCancelSubscription');
+    await undoCancelSub();
+}
