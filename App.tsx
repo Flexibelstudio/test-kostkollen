@@ -855,7 +855,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       if (highlightParam) {
         setHighlightEventId(highlightParam);
       }
-      window.history.replaceState({}, '', window.location.pathname);
+      // Fördröj städningen av URL:en så att en eventuell Service Worker-omladdning inte tappar bort parametern
+      setTimeout(() => {
+        window.history.replaceState({}, '', window.location.pathname);
+      }, 5000);
     } else if (viewParam === 'chat') {
       setViewMode('community');
       setCommunityInitialTab('chatt');
@@ -863,7 +866,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       if (chatIdParam) {
         setInitialChatId(chatIdParam);
       }
-      window.history.replaceState({}, '', window.location.pathname);
+      // Fördröj städningen av URL:en
+      setTimeout(() => {
+        window.history.replaceState({}, '', window.location.pathname);
+      }, 5000);
     }
     
     if (params.get('payment_success') === 'true' && userStatus === 'approved') {
