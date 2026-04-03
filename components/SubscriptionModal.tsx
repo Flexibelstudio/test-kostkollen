@@ -8,9 +8,10 @@ interface SubscriptionModalProps {
   onClose: () => void;
   status: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive' | undefined;
   currentPeriodEnd?: string;
+  onCancelSuccess?: () => void;
 }
 
-const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ show, onClose, status, currentPeriodEnd }) => {
+const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ show, onClose, status, currentPeriodEnd, onCancelSuccess }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -24,6 +25,9 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ show, onClose, st
         await cancelSubscription('dummy'); // 'dummy' because auth context handles uid on backend
         setMessage("Din prenumeration har sagts upp. Du har tillgång perioden ut.");
         setShowConfirm(false);
+        if (onCancelSuccess) {
+            onCancelSuccess();
+        }
     } catch (error: any) {
         setMessage(error.message);
     } finally {

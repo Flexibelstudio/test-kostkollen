@@ -2050,6 +2050,9 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 onClose={() => setShowSubscriptionModal(false)} 
                 status={userProfile.subscriptionStatus || 'active'} 
                 currentPeriodEnd={userProfile.currentPeriodEnd}
+                onCancelSuccess={() => {
+                    setUserProfile(prev => ({ ...prev, subscriptionStatus: 'canceling' }));
+                }}
             />
         )}
 
