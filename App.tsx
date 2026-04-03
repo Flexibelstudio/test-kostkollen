@@ -1535,55 +1535,47 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     useEffect(() => {
         const catchUp = async () => {
             if (isCatchingUp.current) return;
-            // VI HAR TAGIT BORT !isSummarizingYesterday PÅ RADEN UNDER:
             if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
                 isCatchingUp.current = true;
                 try {
                     const today = new Date();
                     const yesterdayUID = dayKeySE(new Date(today.getTime() - 86400000));
                     
-                    const hasSummaryForYesterday = !!pastDaysSummaryRef.current[yesterdayUID];
+                    const deepHealDone = localStorage.getItem(`deepHealDone_${currentUser.uid}`) === 'true';
+                    const daysToProcess = [];
                     
-                    if (!hasSummaryForYesterday) {
-                        // We need to process yesterday (and potentially earlier days)
-                        let startDateToProcess = null;
+                    let currentCheckDate = new Date(today.getTime() - 30 * 86400000); // Check up to 30 days back
+                    if (summaryStartDate && new Date(summaryStartDate) > currentCheckDate) {
+                        currentCheckDate = new Date(summaryStartDate);
+                    }
+
+                    while (currentCheckDate < today) {
+                        const checkUID = dayKeySE(currentCheckDate);
+                        const summary = pastDaysSummaryRef.current[checkUID];
                         
-                        const summaryDates = Object.keys(pastDaysSummaryRef.current).sort();
-                        if (summaryDates.length > 0) {
-                            startDateToProcess = summaryDates[summaryDates.length - 1];
-                        } else if (summaryStartDate) {
-                            // Start from the day before summaryStartDate so we process summaryStartDate
-                            startDateToProcess = dayKeySE(new Date(new Date(summaryStartDate + "T12:00:00").getTime() - 86400000));
-                        } else if (streakDataRef.current.lastDateStreakChecked && streakDataRef.current.lastDateStreakChecked < yesterdayUID) {
-                            startDateToProcess = streakDataRef.current.lastDateStreakChecked;
+                        let needsProcessing = !summary;
+                        
+                        // Deep heal: check days with 0 calories to see if they actually have meals
+                        if (!deepHealDone && summary && summary.consumedCalories === 0) {
+                            needsProcessing = true;
                         }
                         
-                        if (startDateToProcess && startDateToProcess < yesterdayUID) {
-                            let currentCheckDate = new Date(startDateToProcess + "T12:00:00"); 
-                            currentCheckDate.setDate(currentCheckDate.getDate() + 1);
-                            
-                            let currentCheckUID = dayKeySE(currentCheckDate);
-                            
-                            // Limit catch-up to avoid performance issues (max 30 days)
-                            let safetyCounter = 0;
-                            const daysToProcess = [];
-                            
-                            while (currentCheckUID <= yesterdayUID && safetyCounter < 30) {
-                                const isFinalDay = currentCheckUID === yesterdayUID;
-                                const processNow = new Date(currentCheckDate.getTime() + 86400000);
-                                
-                                daysToProcess.push({
-                                    uid: currentCheckUID,
-                                    processNow,
-                                    isFinalDay
-                                });
-                                
-                                currentCheckDate.setDate(currentCheckDate.getDate() + 1);
-                                currentCheckUID = dayKeySE(currentCheckDate);
-                                safetyCounter++;
-                            }
+                        if (needsProcessing) {
+                            daysToProcess.push({
+                                uid: checkUID,
+                                processNow: new Date(currentCheckDate.getTime() + 86400000),
+                                isFinalDay: checkUID === yesterdayUID
+                            });
+                        }
+                        currentCheckDate.setDate(currentCheckDate.getDate() + 1);
+                    }
 
-                            const prefetchPromises = daysToProcess.map(async (day) => {
+                    if (daysToProcess.length > 0) {
+                        console.log("Catching up / Healing days:", daysToProcess.map(d => d.uid));
+                        // Process in batches of 5 to avoid overloading
+                        for (let i = 0; i < daysToProcess.length; i += 5) {
+                            const batch = daysToProcess.slice(i, i + 5);
+                            const prefetchPromises = batch.map(async (day) => {
                                 const [meals, water] = await Promise.all([
                                     fetchMealLogsForDate(currentUser.uid, day.uid),
                                     fetchWaterLog(currentUser.uid, day.uid)
@@ -1594,25 +1586,85 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                             const prefetchedData = await Promise.all(prefetchPromises);
 
                             for (const dayData of prefetchedData) {
-                                await ensureYesterdayProcessed(currentUser.uid, dayData.processNow, { silent: !dayData.isFinalDay }, dayData.meals, dayData.water);
+                                const summary = pastDaysSummaryRef.current[dayData.uid];
+                                const hasActualData = dayData.meals.length > 0 || dayData.water > 0;
+                                
+                                // Process if it was missing, or if we found actual data during deep heal
+                                if (!summary || hasActualData) {
+                                    await ensureYesterdayProcessed(currentUser.uid, dayData.processNow, { silent: !dayData.isFinalDay }, dayData.meals, dayData.water);
+                                }
                             }
-                        } else {
-                            // Fallback for new users or missing data
-                            await ensureYesterdayProcessed(currentUser.uid, today);
                         }
                     }
                     
-                    // After catchUp is done (or if it wasn't needed), ensure the weekly bank is reset if it's a new week
+                    if (!deepHealDone) {
+                        localStorage.setItem(`deepHealDone_${currentUser.uid}`, 'true');
+                    }
+
+                    // --- GLOBAL STREAK RECALCULATION ---
+                    // Now that all summaries are accurate, ensure the streak chain is mathematically perfect
+                    const summaries = pastDaysSummaryRef.current;
+                    const dates = Object.keys(summaries).sort();
+                    if (dates.length > 0) {
+                        let runningStreak = 0;
+                        let highestStreakReached = 0;
+                        const updates: Record<string, PastDaySummary> = {};
+
+                        for (const date of dates) {
+                            const summary = summaries[date];
+                            if (summary.consumedCalories > 0) {
+                                runningStreak += 1;
+                            } else {
+                                runningStreak = 0;
+                            }
+
+                            if (summary.streakForThisDay !== runningStreak) {
+                                updates[date] = { ...summary, streakForThisDay: runningStreak };
+                            }
+                            highestStreakReached = Math.max(highestStreakReached, runningStreak);
+                        }
+
+                        if (Object.keys(updates).length > 0) {
+                            console.log("Fixing broken streak links:", Object.keys(updates));
+                            const newSummaries = { ...summaries, ...updates };
+                            setPastDaysSummary(newSummaries);
+                            pastDaysSummaryRef.current = newSummaries;
+
+                            // Update Firestore sequentially to ensure order
+                            for (const [date, updatedSummary] of Object.entries(updates)) {
+                                await setPastDaySummary(currentUser.uid, date, updatedSummary);
+                            }
+                        }
+
+                        // Ensure current streak matches the recalculated truth for yesterday
+                        const actualYesterdayStreak = updates[yesterdayUID] ? updates[yesterdayUID].streakForThisDay : (summaries[yesterdayUID]?.streakForThisDay || 0);
+                        
+                        if (streakDataRef.current.currentStreak !== actualYesterdayStreak) {
+                            const newStreakData = { currentStreak: actualYesterdayStreak, lastDateStreakChecked: yesterdayUID };
+                            setStreakData(newStreakData);
+                            streakDataRef.current = newStreakData;
+                            await updateUserDocument(currentUser.uid, { currentStreak: actualYesterdayStreak, lastDateStreakChecked: yesterdayUID });
+                        }
+
+                        // Safely update highest streak if we found a new high
+                        setHighestStreak(prev => {
+                            const newHighest = Math.max(prev, highestStreakReached);
+                            if (newHighest > prev) {
+                                updateUserDocument(currentUser.uid, { highestStreak: newHighest }).catch(console.error);
+                            }
+                            return newHighest;
+                        });
+                    }
+
                     await ensureWeeklyBankReset();
                 } finally {
                     isCatchingUp.current = false;
-                    setHasRunCatchUp(true); // <--- LÄGG TILL DENNA
+                    setHasRunCatchUp(true);
                 }
             }
         };
 
         catchUp();
-    // TA BORT isSummarizingYesterday FRÅN LISTAN NEDANFÖR:
     }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, ensureYesterdayProcessed, ensureWeeklyBankReset, summaryStartDate]);
 
   
