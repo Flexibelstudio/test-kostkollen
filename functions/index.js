@@ -890,10 +890,13 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     }
 });
 
-exports.cancelSubscription = functions.runWith({ secrets: ["STRIPE_SECRET_KEY"] }).https.onCall(async (data, context) => {
+exports.cancelSubscription = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inte inloggad.');
 
-    const stripe = initStripe();
+    // Starta Stripe direkt här inne med din vanliga nyckel-hämtning!
+    const stripeSecret = process.env.STRIPE_SECRET_KEY || getSafeConfig('stripe', 'secret');
+    const stripe = require("stripe")(stripeSecret);
+
     const userId = context.auth.uid;
     
     try {
@@ -906,12 +909,12 @@ exports.cancelSubscription = functions.runWith({ secrets: ["STRIPE_SECRET_KEY"] 
 
         const subscription = await stripe.subscriptions.update(userData.subscriptionId, { cancel_at_period_end: true });
 
-        // --- SÄKERHETSKUDDE FÖR DATUMET ---
+        // Säkerhetskudde för datumet så vi slipper "Invalid time value"
         let periodEndIso = null;
         if (subscription && subscription.current_period_end) {
             periodEndIso = new Date(subscription.current_period_end * 1000).toISOString();
         } else if (userData.currentPeriodEnd) {
-            periodEndIso = userData.currentPeriodEnd; // Använd det vi redan har i databasen
+            periodEndIso = userData.currentPeriodEnd; 
         }
 
         const updateData = {
@@ -935,7 +938,12 @@ exports.cancelSubscription = functions.runWith({ secrets: ["STRIPE_SECRET_KEY"] 
 exports.undoCancelSubscription = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inte inloggad.');
 
+    // Starta Stripe direkt här inne med din vanliga nyckel-hämtning!
+    const stripeSecret = process.env.STRIPE_SECRET_KEY || getSafeConfig('stripe', 'secret');
+    const stripe = require("stripe")(stripeSecret);
+
     const userId = context.auth.uid;
+    
     try {
         const userSnapshot = await db.collection('users').doc(userId).get();
         const userData = userSnapshot.data();
