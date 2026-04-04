@@ -892,9 +892,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                             <h3 className="text-lg font-bold text-neutral-dark dark:text-white">Bootcamp Lägesrapport</h3>
                         </div>
-                        <span className="text-xs font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
-                            {rankInfo.currentRank}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold px-2 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 rounded-full">
+                                {activeBootcamp.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
+                            </span>
+                            <span className="text-xs font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                                {rankInfo.currentRank}
+                            </span>
+                        </div>
                     </div>
                     <div className="flex items-center justify-between mt-4">
                         <div>
