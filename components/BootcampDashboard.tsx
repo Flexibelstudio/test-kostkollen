@@ -10,6 +10,7 @@ import MealStructureGuide from './MealStructureGuide';
 import ProteinInfoModal from './ProteinInfoModal';
 import { InformationCircleIcon } from './icons';
 import { getDateUID } from '../utils/dateUtils';
+import { getBootcampRankInfo } from '../utils/bootcampUtils';
 
 interface BootcampDashboardProps {
   participant: BootcampParticipant;
@@ -229,7 +230,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         {isStatusOpen && (
           <div className="p-6 pt-0 relative z-10 animate-fade-in border-t border-white/10 mt-2">
             <p className="text-sm text-neutral-300 font-medium mb-6 leading-relaxed text-center italic">
-              "Disciplin är bron mellan mål och resultat. Visa mig vad du går för, rekryt!"
+              "Lystring! Disciplin är bron mellan mål och resultat. Visa mig vad du går för!"
             </p>
             <div className="flex gap-4 justify-center w-full max-w-md mx-auto">
               <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
@@ -243,9 +244,14 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
               <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
                 <div className="flex items-center gap-1 text-primary mb-2 whitespace-nowrap shrink-0">
                   <ShieldCheckIcon className="w-6 h-6 shrink-0" />
-                  <span className="font-bold text-2xl whitespace-nowrap shrink-0">
-                    {participant.currentStreak >= 14 ? 'Fas 2' : 'Fas 1'}
-                  </span>
+                  <div className="flex flex-col items-center">
+                    <span className="font-bold text-sm whitespace-nowrap shrink-0">
+                      {participant.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
+                    </span>
+                    <span className="font-bold text-lg whitespace-nowrap shrink-0 text-green-400">
+                      {getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).currentRank}
+                    </span>
+                  </div>
                 </div>
                 <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Rang</span>
               </div>
@@ -254,7 +260,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                 <div className="flex items-center gap-1 text-neutral-300 mb-2 whitespace-nowrap">
                   <CalendarIcon className="w-6 h-6 shrink-0" />
                   <span className="font-bold text-2xl">
-                    {Math.max(0, 84 - Math.floor((new Date().getTime() - new Date(participant.originalStartDate || participant.fas1StartDate || new Date()).getTime()) / (1000 * 60 * 60 * 24)))}
+                    {getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).nextRank ? getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).daysToNext : 0}
                   </span>
                 </div>
                 <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Dagar Kvar</span>

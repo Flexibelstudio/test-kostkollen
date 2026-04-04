@@ -41,7 +41,7 @@ const MealStructureGuide: React.FC<MealStructureGuideProps> = ({ calorieGoal, pr
       {isOpen && (
         <div className="p-6 border-t border-neutral-light animate-fade-in">
           <p className="text-sm text-neutral-dark font-medium mb-6 leading-relaxed">
-            <strong>LYSTRING REKRYT!</strong> För att nå ditt mål på <strong>{calorieGoal} kcal</strong> och <strong>{proteinGoal}g protein</strong> krävs disciplin och planering. Här är din order för hur du fördelar intaget över dagen för maximal prestation. Inga undantag!
+            <strong>LYSTRING!</strong> För att nå ditt mål på <strong>{calorieGoal} kcal</strong> och <strong>{proteinGoal}g protein</strong> krävs disciplin och planering. Här är din order för hur du fördelar intaget över dagen för maximal prestation. Inga undantag!
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

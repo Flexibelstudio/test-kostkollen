@@ -90,6 +90,25 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course
                 ))}
             </ul>
           </div>
+
+          {course.id === 'bootcamp' && (
+            <div className="p-6 bg-neutral-100 dark:bg-neutral-800/50 rounded-2xl border border-neutral-200 dark:border-neutral-700">
+              <h3 className="font-bold text-lg text-neutral-dark dark:text-white mb-3">Grader och Befordringar</h3>
+              <p className="text-sm mb-4">
+                Under din tid i Bootcampen kommer din disciplin att belönas. Genom att bygga en streak av godkända dagar klättrar du i graderna. Din grad baseras på din längsta streak, så du förlorar aldrig din högsta uppnådda grad!
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Soldat</span><span className="font-bold">0 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Korpral</span><span className="font-bold">7 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Sergeant</span><span className="font-bold">14 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Fänrik</span><span className="font-bold">25 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Löjtnant</span><span className="font-bold">35 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Kapten</span><span className="font-bold">50 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Major</span><span className="font-bold">65 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>General</span><span className="font-bold">80 dagar</span></div>
+              </div>
+            </div>
+          )}
           
           {hasReviews && (
             <div className="p-6 bg-secondary-100/50 dark:bg-secondary-900/20 rounded-2xl border border-secondary-200/70 dark:border-secondary-800/50">
