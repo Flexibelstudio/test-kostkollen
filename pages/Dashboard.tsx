@@ -5,10 +5,10 @@ import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, Weig
 import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal } from '../services/bootcampService';
 import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreService';
 import { auth } from '../firebase';
-import ToastNotification from './ToastNotification';
-import MealStructureGuide from './MealStructureGuide';
-import ProteinInfoModal from './ProteinInfoModal';
-import { InformationCircleIcon } from './icons';
+import ToastNotification from '../ToastNotification';
+import MealStructureGuide from '../MealStructureGuide';
+import ProteinInfoModal from '../ProteinInfoModal';
+import { InformationCircleIcon } from '../icons';
 import { getDateUID } from '../utils/dateUtils';
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
 
