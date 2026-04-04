@@ -36,6 +36,7 @@ import Lightbox from './Lightbox';
 import { ChatRoomsView } from './ChatRoomsView';
 import CameraModal from './CameraModal';
 import { COACH_PERSONAS } from '../constants';
+import { uploadImageToStorage, base64ToBlob } from '../utils/storageUtils';
 
 // --- HELPER FUNCTIONS ---
 
@@ -128,6 +129,23 @@ export const CreatePostWidget: FC<{
         playAudio('uiClick');
 
         try {
+            let finalImageUrl = image || undefined;
+            
+            // If image is a base64 string (from resizeImage or CameraModal), upload it to Storage
+            if (image && image.startsWith('data:image')) {
+                try {
+                    const blob = await base64ToBlob(image);
+                    const fileName = `post_${Date.now()}.jpg`;
+                    const path = `timeline_images/${currentUser.uid}/${fileName}`;
+                    finalImageUrl = await uploadImageToStorage(blob, path);
+                } catch (uploadError) {
+                    console.error("Error uploading image to storage:", uploadError);
+                    setToastNotification({ message: 'Kunde inte ladda upp bilden till servern.', type: 'error' });
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
             const isGlobal = isCoach || visibility === 'global';
             const isBootcampPost = visibility === 'bootcamp' || visibility === 'bootcamp_and_friends';
             
@@ -142,7 +160,7 @@ export const CreatePostWidget: FC<{
                 currentUser.uid, 
                 text, 
                 category, 
-                image || undefined, 
+                finalImageUrl, 
                 isCoach ? 'global' : visibility, 
                 isCoach ? displayName : undefined, 
                 isCoach ? displayPhotoURL : undefined,
@@ -483,10 +501,33 @@ export const TimelineEventCard: FC<{
         e.preventDefault();
         if ((!newComment.trim() && !commentImage) || isSubmitting) return;
         setIsSubmitting(true);
-        await onAddComment(event, newComment, commentImage || undefined);
-        setNewComment('');
-        setCommentImage(null);
-        setIsSubmitting(false);
+        
+        try {
+            let finalImageUrl = commentImage || undefined;
+            
+            if (commentImage && commentImage.startsWith('data:image')) {
+                try {
+                    const blob = await base64ToBlob(commentImage);
+                    const fileName = `comment_${Date.now()}.jpg`;
+                    const path = `comment_images/${currentUser.uid}/${fileName}`;
+                    finalImageUrl = await uploadImageToStorage(blob, path);
+                } catch (uploadError) {
+                    console.error("Error uploading comment image to storage:", uploadError);
+                    setToastNotification({ message: 'Kunde inte ladda upp bilden till servern.', type: 'error' });
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
+            await onAddComment(event, newComment, finalImageUrl);
+            setNewComment('');
+            setCommentImage(null);
+        } catch (error) {
+            console.error("Error submitting comment:", error);
+            setToastNotification({ message: 'Kunde inte skicka kommentar.', type: 'error' });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

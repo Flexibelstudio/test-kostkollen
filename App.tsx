@@ -75,6 +75,7 @@ import SubscriptionModal from './components/SubscriptionModal.tsx';
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
+import { uploadImageToStorage, base64ToBlob } from './utils/storageUtils';
 import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports } from './services/bootcampService.ts';
 import {
   InformationCircleIcon, AICoachIcon,
@@ -929,7 +930,23 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
 
     const updatedProfile = { ...profileData };
-    if (newPhotoDataUrl) {
+    
+    // Upload image to Firebase Storage if it's a new base64 image
+    if (newPhotoDataUrl && newPhotoDataUrl.startsWith('data:image')) {
+        try {
+            const blob = await base64ToBlob(newPhotoDataUrl);
+            const fileName = `profile_${Date.now()}.jpg`;
+            const path = `profile_images/${currentUser.uid}/${fileName}`;
+            const downloadUrl = await uploadImageToStorage(blob, path);
+            updatedProfile.photoURL = downloadUrl;
+        } catch (uploadError) {
+            console.error("Error uploading profile image to storage:", uploadError);
+            setToastNotification({ message: 'Kunde inte ladda upp profilbilden till servern.', type: 'error' });
+            setAIFeedbackLoading(false);
+            return;
+        }
+    } else if (newPhotoDataUrl) {
+        // Fallback if it's already a URL or something else
         updatedProfile.photoURL = newPhotoDataUrl;
     }
 
