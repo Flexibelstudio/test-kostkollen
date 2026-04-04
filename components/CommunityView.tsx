@@ -785,9 +785,13 @@ export const TimelineEventCard: FC<{
                                                 setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
                                                 setActiveCommentEmojiPickerId(null);
                                             }}
-                                            className={`text-xs font-semibold flex items-center gap-1 transition-colors ${userReactionEmoji ? 'text-primary' : 'text-neutral-400 hover:text-primary'}`}
+                                            className={`relative flex items-center justify-center w-6 h-6 rounded-full transition-colors border border-transparent ${userReactionEmoji ? 'bg-primary-50 text-primary border-primary-200 dark:bg-primary-900/20 dark:border-primary-800' : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600'}`}
+                                            title="Reagera"
                                         >
-                                            {userReactionEmoji ? 'Reagerat' : 'Reagera'}
+                                            <SmileIcon className="w-3.5 h-3.5" />
+                                            <span className="absolute -top-0.5 -right-0.5 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
+                                                <PlusIcon className="w-2 h-2 text-neutral-500" />
+                                            </span>
                                         </button>
                                         
                                         {activeCommentReactionId === comment.id && (
