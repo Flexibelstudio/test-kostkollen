@@ -489,14 +489,15 @@ export const TimelineEventCard: FC<{
         setIsSubmitting(false);
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setCommentImage(reader.result as string);
-            };
-            reader.readAsDataURL(file);
+            try {
+                const resized = await resizeImage(file, 1024);
+                setCommentImage(resized);
+            } catch (error) {
+                console.error("Error resizing image:", error);
+            }
         }
     };
 
