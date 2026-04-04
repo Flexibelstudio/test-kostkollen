@@ -104,29 +104,6 @@ async function sendNotificationToUser(userId, payload, notificationType) {
 
 // ---- Notis-funktioner ----
 
-exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
-    const { email, displayName } = user;
-    const name = displayName || email || "En ny användare";
-
-    logger.log(`New user registered: ${name} (${email})`);
-
-    const payload = {
-      notification: {
-        title: "Ny Medlem! 🎉",
-        body: `${name} har registrerat sig och väntar på godkännande.`,
-        icon: "/icons/icon-192x192.png",
-        badge: "/icons/badge-96x96.png",
-        data: { url: "/" }
-      }
-    };
-
-    const coachIds = await getCoachAndAdminIds();
-    if (coachIds.length === 0) return;
-
-    const notificationPromises = coachIds.map((id) => sendNotificationToUser(id, payload, "newEvents"));
-    await Promise.all(notificationPromises);
-});
-
 exports.onFriendRequestCreated = functions.firestore
   .document("peppkompisRequests/{requestId}")
   .onCreate(async (snapshot) => {
@@ -1088,6 +1065,28 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
                     subscriptionId: session.subscription,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
+
+                // Hämta användarens namn för notisen
+                const userDoc = await db.collection('users').doc(firebaseUid).get();
+                const userName = userDoc.exists ? (userDoc.data().displayName || userDoc.data().email || "En användare") : "En användare";
+
+                // Skicka push-notis till coacher/admins
+                const payload = {
+                    notification: {
+                        title: "Ny prenumerant! 🚀",
+                        body: `${userName} har precis startat sitt medlemskap!`,
+                        icon: "/icons/icon-192x192.png",
+                        badge: "/icons/badge-96x96.png",
+                        data: { url: "/" }
+                    }
+                };
+
+                const coachIds = await getCoachAndAdminIds();
+                if (coachIds.length > 0) {
+                    const notificationPromises = coachIds.map((id) => sendNotificationToUser(id, payload, "newEvents"));
+                    await Promise.all(notificationPromises);
+                }
+
             } else {
                 logger.warn("No firebaseUid in session metadata for checkout.session.completed", { sessionId: session.id });
             }
