@@ -1,585 +1,1430 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from '../icons';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry, WeeklyCalorieBank } from '../types';
-import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal } from '../services/bootcampService';
-import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreService';
-import { auth } from '../firebase';
-import ToastNotification from './ToastNotification';
-import MealStructureGuide from './MealStructureGuide';
-import ProteinInfoModal from './ProteinInfoModal';
-import { InformationCircleIcon } from './icons';
-import { getDateUID } from '../utils/dateUtils';
-import { getBootcampRankInfo } from '../utils/bootcampUtils';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { 
+    LoggedMeal, 
+    NutritionalInfo,
+    SearchedFoodInfo,
+    BarcodeScannedFoodInfo,
+    RecipeSuggestion,
+    OnboardingChecklistState,
+    CommonMeal,
+    MealType,
+    PastDaySummary,
+    OnboardingChecklistItemStatus
+} from '../types';
+import { 
+    DEFAULT_WATER_GOAL_ML,
+    MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
+    MIN_ABSOLUTE_CALORIES_THRESHOLD,
+    LOCAL_STORAGE_KEYS,
+    COACH_PERSONAS
+} from '../constants';
+import WeeklyActivityChart from '../components/WeeklyActivityChart';
+import CircularProgress from '../components/CircularProgress';
+import WaterLogger from '../components/WaterLogger';
+import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon, BookmarkIcon, ShieldCheckIcon } from '../components/icons';
+import { PiggyBank, Coffee, Sandwich, CookingPot, Apple, Flame } from 'lucide-react';
+import { useUserContext } from '../context/UserContext';
+import { playAudio } from '../services/audioService';
+import { getDateUID, getSuggestedMealType } from '../utils/dateUtils';
+import { 
+    addMealLog as addMealLogFirestore, 
+    setWaterLog, 
+    addCommonMeal, 
+    deleteCommonMeal as deleteCommonMealFromDB, 
+    updateCommonMeal,
+    deleteMealLog,
+    updateMealLog,
+    setPastDaySummary as setPastDaySummaryFirestore,
+    updateUserDocument,
+} from '../services/firestoreService';
+import { 
+    analyzeFoodImage, 
+    getRecipeSuggestion, 
+    getRecipesFromIngredientsImage,
+    analyzeNutritionLabelImage 
+} from '../services/geminiService';
+import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
 
-interface BootcampDashboardProps {
-  participant: BootcampParticipant;
-  userProfile: UserProfileData;
-  goals: GoalSettings;
-  weightLogs: WeightLogEntry[];
-  weeklyBank: WeeklyCalorieBank;
-  onBack: () => void;
-  ensureYesterdayProcessed?: (uid: string, now?: Date, options?: any, manualLogOverride?: any, prefetchedWater?: number) => Promise<void>;
-}
+// Modaler
+import CameraModal from '../components/CameraModal';
+import TextEntryModal from '../components/TextEntryModal';
+import ProteinInfoModal from '../components/ProteinInfoModal';
+import RecipeChoiceModal from '../components/RecipeChoiceModal';
+import RecipeModal from '../components/RecipeModal';
+import IngredientCaptureModal from '../components/IngredientCaptureModal';
+import IngredientRecipeResultsModal from '../components/IngredientRecipeResultsModal';
+import BarcodeScannerModal from '../components/BarcodeScannerModal';
+import BarcodeSearchResultModal from '../components/BarcodeSearchResultModal';
+import ImageAnalysisResultModal from '../components/ImageAnalysisResultModal';
+import SaveCommonMealModal from '../components/SaveCommonMealModal';
+import NutritionLabelResultModal from '../components/NutritionLabelResultModal';
+import FoodRatingModal from '../components/FoodRatingModal';
+import MyRecipesModal from '../components/MyRecipesModal';
+import LoadingSpinner from '../components/LoadingSpinner';
+import MealTypeSelector from '../components/MealTypeSelector';
+import MealSectionCard from '../components/MealSectionCard';
+import MealStructureGuide from '../components/MealStructureGuide';
+import { OnboardingChecklist } from '../components/OnboardingChecklist';
+import CoinFallEffect from '../components/CoinFallEffect';
+import CommonMealsList from '../components/CommonMealsList';
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed }) => {
-  const [reports, setReports] = useState<EveningReport[]>([]);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [isStatusOpen, setIsStatusOpen] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
+// Helper function for image resizing
+const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            if (!event.target?.result) {
+                return reject(new Error("File could not be read."));
+            }
+            const img = new Image();
+            img.src = event.target.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let { width, height } = img;
 
-  // Form state
-  const [loggedAllMeals, setLoggedAllMeals] = useState(false);
-  const [proteinMet, setProteinMet] = useState(false);
-  const [waterMet, setWaterMet] = useState(false);
-  const [steps, setSteps] = useState('');
-  const [comment, setComment] = useState('');
-  const [strengthTrained, setStrengthTrained] = useState(false);
-  const [mood, setMood] = useState(5);
-  const [sleep, setSleep] = useState('');
-  const [editingYesterday, setEditingYesterday] = useState(false);
+                if (width > height) {
+                    if (width > maxSize) {
+                        height = Math.round(height * (maxSize / width));
+                        width = maxSize;
+                    }
+                } else {
+                    if (height > maxSize) {
+                        width = Math.round(width * (maxSize / height));
+                        height = maxSize;
+                    }
+                }
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
-
-  const todayStr = getDateUID(new Date());
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = getDateUID(yesterday);
-  
-  const targetDateStr = editingYesterday ? yesterdayStr : todayStr;
-  const hasReportedToday = reports.some(r => r.date === todayStr);
-  const yesterdayReport = reports.find(r => r.date === yesterdayStr);
-  
-  // Can edit yesterday if yesterday was reported but maybe we want to fix it.
-  // Or maybe we didn't report yesterday at all.
-  // The user can edit yesterday's report all day today.
-  const canEditYesterday = (!yesterdayReport || !yesterdayReport.isGreenDay);
-
-  useEffect(() => {
-    if (!auth.currentUser) return;
-    const unsubscribe = subscribeToUserEveningReports(participant.cohortId, auth.currentUser.uid, (fetchedReports) => {
-      setReports(fetchedReports);
-      // Recalculate streak whenever reports change or on mount to fix any broken streaks
-      recalculateStreak(participant.cohortId, auth.currentUser!.uid, fetchedReports).catch(console.error);
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    return reject(new Error('Could not get canvas context'));
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                resolve(dataUrl);
+            };
+            img.onerror = reject;
+        };
+        reader.onerror = reject;
     });
-    return () => unsubscribe();
-  }, [participant.cohortId]);
-
-  useEffect(() => {
-    if (!auth.currentUser) return;
-    const fetchProgress = async () => {
-      try {
-        const [meals, water] = await Promise.all([
-          fetchMealLogsForDate(auth.currentUser!.uid, targetDateStr),
-          fetchWaterLog(auth.currentUser!.uid, targetDateStr)
-        ]);
-        
-        const totalProtein = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.protein, 0);
-        const totalCalories = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.calories, 0);
-        
-        // Kcal-kravet: Får inte gå över målet (0 kcal marginal, men sparpott får användas).
-        // Får ligga under målet, men max 20% under (för att bygga sparpott utan att svälta).
-        // Måste ha loggat minst 400 kcal för att räknas som en aktiv dag.
-        let isCaloriesWithinRange = false;
-        if (userProfile.goalType === 'gain_muscle') {
-          // För muskelbyggnad: Måste nå minst TDEE (mål - 300). Ingen strikt övre gräns.
-          isCaloriesWithinRange = totalCalories >= (goals.calorieGoal - 300);
-        } else {
-          const bankedCalories = weeklyBank?.bankedCalories || 0;
-          const upperLimit = goals.calorieGoal + bankedCalories;
-          const lowerLimit = goals.calorieGoal * 0.8; // 20% under
-          isCaloriesWithinRange = totalCalories >= lowerLimit && totalCalories <= upperLimit;
-        }
-        
-        setLoggedAllMeals(meals.length > 0 && totalCalories > 400 && isCaloriesWithinRange);
-        setProteinMet(totalProtein >= goals.proteinGoal);
-        setWaterMet(water >= 2000); // 2 liters
-
-        if (editingYesterday && yesterdayReport) {
-          setSteps(yesterdayReport.steps.toString());
-          setMood(yesterdayReport.mood);
-          setStrengthTrained(yesterdayReport.strengthTrained);
-          setSleep(yesterdayReport.sleep ? yesterdayReport.sleep.toString() : '');
-          setComment(yesterdayReport.comment || '');
-        } else if (!editingYesterday) {
-          setSteps('');
-          setMood(5);
-          setStrengthTrained(false);
-          setSleep('');
-          setComment('');
-        }
-      } catch (error) {
-        console.error("Error fetching progress:", error);
-      }
-    };
-    fetchProgress();
-  }, [targetDateStr, goals.calorieGoal, goals.proteinGoal, editingYesterday, yesterdayReport, weeklyBank, userProfile.goalType]);
-
-  const handleSubmitReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!auth.currentUser) return;
-
-    const stepsNum = parseInt(steps, 10);
-    if (isNaN(stepsNum)) {
-      setToast({ message: 'Ange antal steg som en siffra.', type: 'error' });
-      return;
-    }
-
-    const targetSteps = getBootcampStepGoal(userProfile.activityLevel, participant.status);
-    const stepsMet = stepsNum >= targetSteps;
-    const isGreenDay = loggedAllMeals && proteinMet && waterMet && stepsMet;
-
-    setIsSubmitting(true);
-    try {
-      await submitEveningReport(participant.cohortId, auth.currentUser.uid, {
-        date: targetDateStr,
-        steps: stepsNum,
-        mood,
-        strengthTrained,
-        sleep: sleep ? parseFloat(sleep) : undefined,
-        proteinMet,
-        waterMet,
-        loggedAllMeals,
-        comment,
-        isGreenDay
-      }, userProfile);
-      
-      if (editingYesterday) {
-        if (isGreenDay) {
-          setToast({ 
-            message: 'Ordningen återställd! Generalen har justerat protokollet och din streak är räddad!', 
-            type: 'success' 
-          });
-        } else {
-          setToast({ 
-            message: 'Gårdagens rapport har uppdaterats.', 
-            type: 'info' 
-          });
-        }
-        setEditingYesterday(false);
-        
-        // Trigger morning report update
-        if (ensureYesterdayProcessed) {
-          await ensureYesterdayProcessed(auth.currentUser.uid, new Date());
-        }
-      } else {
-        setToast({ 
-          message: isGreenDay ? 'Grön dag registrerad! Bra jobbat, rekryt!' : 'Röd dag registrerad. Streaken är bruten. Nya tag imorgon!', 
-          type: isGreenDay ? 'success' : 'error' 
-        });
-      }
-      
-      // Reset form
-      setLoggedAllMeals(false);
-      setProteinMet(false);
-      setWaterMet(false);
-      setSteps('');
-      setComment('');
-      setStrengthTrained(false);
-      setMood(5);
-      setSleep('');
-    } catch (error) {
-      console.error("Error submitting report:", error);
-      setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="animate-fade-in pb-20">
-      {toast && (
-        <ToastNotification
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-
-      <button 
-        onClick={onBack}
-        className="flex items-center gap-2 text-neutral-dark hover:text-primary transition-colors mb-6 font-bold"
-      >
-        <ArrowLeftIcon className="w-5 h-5" />
-        Tillbaka till Kurser
-      </button>
-
-      {/* Header */}
-      <div className="bg-neutral-darker text-white rounded-3xl shadow-soft-xl mb-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-        
-        <button 
-          onClick={() => setIsStatusOpen(!isStatusOpen)}
-          className="w-full p-6 relative z-10 flex items-center justify-between hover:bg-white/5 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <ShieldCheckIcon className="w-8 h-8 text-primary" />
-            <div className="text-left">
-              <h1 className="text-2xl font-extrabold uppercase tracking-wider">Lägesrapport</h1>
-              <p className="text-neutral-300 text-sm font-medium">
-                {participant.cohortId === 'solo' ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDTRÄNING' : 'FAS 2: ELIT'}
-              </p>
-            </div>
-          </div>
-          {isStatusOpen ? <ChevronUp className="w-6 h-6 text-neutral-400" /> : <ChevronDown className="w-6 h-6 text-neutral-400" />}
-        </button>
-
-        {isStatusOpen && (
-          <div className="p-6 pt-0 relative z-10 animate-fade-in border-t border-white/10 mt-2">
-            <p className="text-sm text-neutral-300 font-medium mb-6 leading-relaxed text-center italic">
-              "Lystring! Disciplin är bron mellan mål och resultat. Visa mig vad du går för!"
-            </p>
-            <div className="flex gap-4 justify-center w-full max-w-md mx-auto">
-              <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
-                <div className="flex items-center gap-1 text-orange-400 mb-2 whitespace-nowrap">
-                  <FireIcon className="w-6 h-6 shrink-0" />
-                  <span className="font-bold text-2xl">{participant.currentStreak}</span>
-                </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Nuvarande</span>
-              </div>
-              
-              <div className="bg-black/40 px-2 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1 relative">
-                <span className="absolute top-2 text-[10px] font-bold text-primary/80 uppercase tracking-wider">
-                  {participant.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
-                </span>
-                <div className="flex items-center gap-1 text-primary mb-2 whitespace-nowrap shrink-0">
-                  <ShieldCheckIcon className="w-6 h-6 shrink-0" />
-                  <span className="font-bold text-lg sm:text-xl whitespace-nowrap shrink-0 text-green-400">
-                    {getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).currentRank}
-                  </span>
-                </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Rang</span>
-              </div>
-
-              <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
-                <div className="flex items-center gap-1 text-neutral-300 mb-2 whitespace-nowrap">
-                  <CalendarIcon className="w-6 h-6 shrink-0" />
-                  <span className="font-bold text-2xl">
-                    {getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).nextRank ? getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).daysToNext : 0}
-                  </span>
-                </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Dagar Kvar</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* TV Screen - Generalens Briefing (Dynamic based on Phase) */}
-      <div className="bg-neutral-darker text-white rounded-3xl shadow-soft-xl mb-6 p-6 border border-white/5">
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
-          Sändning från Högkvarteret
-        </h2>
-        <div className="w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-neutral-dark bg-black relative aspect-video">
-          <video 
-            controls 
-            preload="metadata"
-            className="w-full h-full object-cover"
-            key={participant.status} // Force re-render when status changes
-          >
-            <source 
-              src={participant.status === 'fas1' ? "/general-fas1.mp4" : "/general-fas2.mp4"} 
-              type="video/mp4" 
-            />
-            Din webbläsare stöder inte videouppspelning.
-          </video>
-          <div className="absolute top-4 left-4 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded tracking-wider">
-            REC • {participant.status === 'fas1' ? 'FAS 1' : 'FAS 2'}
-          </div>
-        </div>
-      </div>
-
-      {/* Veckans Uppdrag (Weekly Assignment) */}
-      {(() => {
-        const now = new Date();
-        const day = now.getDay();
-        const hour = now.getHours();
-        const isSunday = day === 0;
-        const isMondayMorning = day === 1 && hour < 12;
-        
-        // Check if logged this week
-        let hasLoggedThisWeek = false;
-        if (weightLogs && weightLogs.length > 0) {
-          const startOfWeighInWindow = new Date(now);
-          const daysSinceMonday = day === 0 ? 6 : day - 1;
-          startOfWeighInWindow.setDate(now.getDate() - daysSinceMonday);
-          startOfWeighInWindow.setHours(0, 0, 0, 0);
-          
-          // If it's Sunday, we consider the week starting from last Monday to this Sunday.
-          // Actually, the "weigh-in week" starts on Sunday and ends on Saturday.
-          // Let's define the start of the weigh-in week as the most recent Sunday.
-          const startOfWeighInWeek = new Date(now);
-          startOfWeighInWeek.setDate(now.getDate() - day); // Go back to Sunday
-          startOfWeighInWeek.setHours(0, 0, 0, 0);
-          
-          hasLoggedThisWeek = weightLogs.some(log => log.loggedAt >= startOfWeighInWeek.getTime());
-        }
-
-        const isDelayed = !isSunday && !isMondayMorning && !hasLoggedThisWeek;
-
-        // Show if it's Sunday/Monday morning, OR if they haven't logged this week (delayed)
-        if (isSunday || isMondayMorning || isDelayed) {
-          return (
-            <div className={`mb-6 p-5 rounded-2xl border-2 shadow-sm flex items-center justify-between ${hasLoggedThisWeek ? 'bg-green-50 border-green-200' : (isDelayed ? 'bg-red-50 border-red-200' : 'bg-primary-50 border-primary-200')}`}>
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${hasLoggedThisWeek ? 'bg-green-100 text-green-600' : (isDelayed ? 'bg-red-100 text-red-600' : 'bg-primary-100 text-primary-darker')}`}>
-                  {hasLoggedThisWeek ? <CheckCircleIcon className="w-8 h-8" /> : '⚖️'}
-                </div>
-                <div>
-                  <h3 className={`text-lg font-bold ${hasLoggedThisWeek ? 'text-green-800' : (isDelayed ? 'text-red-800' : 'text-primary-darker')}`}>
-                    Veckans Uppdrag: Invägning
-                  </h3>
-                  <p className={`text-sm ${hasLoggedThisWeek ? 'text-green-700' : (isDelayed ? 'text-red-700 font-medium' : 'text-primary-dark')}`}>
-                    {hasLoggedThisWeek 
-                      ? 'Bra jobbat! Du har loggat din vikt för denna vecka.' 
-                      : (isDelayed 
-                          ? 'FÖRSENAD! Du missade söndagens invägning. Logga din vikt omedelbart, soldat!' 
-                          : 'Det är söndag! Dags att ställa sig på vågen och logga din vikt.')}
-                  </p>
-                </div>
-              </div>
-              {!hasLoggedThisWeek && (
-                <button 
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent('open-log-weight-modal'));
-                  }}
-                  className={`px-4 py-2 rounded-lg font-bold text-white shadow-sm transition-transform active:scale-95 ${isDelayed ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary-darker'}`}
-                >
-                  Logga nu
-                </button>
-              )}
-            </div>
-          );
-        }
-        return null;
-      })()}
-
-      {/* Måltidsstruktur Guide */}
-      <MealStructureGuide calorieGoal={goals.calorieGoal} proteinGoal={goals.proteinGoal} />
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column: Today's Report */}
-          <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
-                <CheckCircleIcon className="w-6 h-6 text-primary" />
-                {editingYesterday ? 'Gårdagens Kvällsrapport' : 'Dagens Kvällsrapport'}
-              </h2>
-              {!editingYesterday && canEditYesterday && (
-                <button 
-                  onClick={() => setEditingYesterday(true)}
-                  className="text-sm font-bold text-orange-600 hover:text-orange-700 underline"
-                >
-                  Rätta gårdagen
-                </button>
-              )}
-            </div>
-
-            {(!editingYesterday && hasReportedToday) ? (
-              <div className="p-6 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 text-center">
-                <CheckCircleIcon className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-400 mb-2">Rapport inlämnad!</h3>
-                <p className="text-emerald-600 dark:text-emerald-300">
-                  Du har lämnat din rapport för idag. Generalen har mottagit den. Vila upp dig inför morgondagen.
-                </p>
-                {canEditYesterday && (
-                  <button 
-                    onClick={() => setEditingYesterday(true)}
-                    className="mt-4 px-4 py-2 bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300 rounded-full font-bold text-sm hover:bg-orange-200 dark:hover:bg-orange-800/60 transition-colors"
-                  >
-                    Rätta gårdagens rapport
-                  </button>
-                )}
-              </div>
-            ) : (
-              <form onSubmit={handleSubmitReport} className="space-y-6">
-                {editingYesterday && (
-                  <div className="p-4 bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-400 rounded-2xl mb-4 flex justify-between items-center">
-                    <span>Du redigerar gårdagens rapport ({yesterdayStr}).</span>
-                    <button type="button" onClick={() => setEditingYesterday(false)} className="text-sm font-bold underline">Avbryt</button>
-                  </div>
-                )}
-                <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400 rounded-2xl text-sm mb-4">
-                    <p>
-                      <strong>OBS:</strong> Mat, protein och vatten hämtas automatiskt från din loggbok. 
-                      Om du saknar något, gå tillbaka till Hem-fliken och logga det innan du skickar in rapporten.
-                    </p>
-                  </div>
-
-                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${loggedAllMeals ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${loggedAllMeals ? 'bg-emerald-500 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
-                      <CheckCircleIcon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1">
-                      <span className={`font-bold block ${loggedAllMeals ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Kalorimålet</span>
-                      <span className={`text-sm ${loggedAllMeals ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
-                        {userProfile.goalType === 'gain_muscle' 
-                          ? (loggedAllMeals ? 'Du har nått ditt minimiintag för muskelbyggnad.' : 'Du måste nå ditt minimiintag (TDEE) för att bygga muskler.')
-                          : (loggedAllMeals ? 'Du ligger inom din kaloribudget (eller täcks av sparpotten).' : 'Du måste ligga inom din kaloribudget (max 20% under, ej över utan sparpott).')
-                        }
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${proteinMet ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${proteinMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
-                      <CheckCircleIcon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1">
-                      <span className={`font-bold flex items-center ${proteinMet ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>
-                        Proteinkravet
-                        <button 
-                            type="button" 
-                            onClick={() => setShowProteinInfoModal(true)}
-                            className={`ml-1.5 transition-colors ${proteinMet ? 'text-emerald-600 hover:text-emerald-800' : 'text-neutral-400 hover:text-primary'}`}
-                            aria-label="Information om proteinmål"
-                        >
-                            <InformationCircleIcon className="w-4 h-4" />
-                        </button>
-                      </span>
-                      <span className={`text-sm ${proteinMet ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
-                        {proteinMet ? `Du har nått ditt mål (${goals.proteinGoal}g).` : `Du har inte nått ditt proteinmål (${goals.proteinGoal}g).`}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${waterMet ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${waterMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
-                      <CheckCircleIcon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1">
-                      <span className={`font-bold block ${waterMet ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Vätskekontroll</span>
-                      <span className={`text-sm ${waterMet ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
-                        {waterMet ? 'Du har druckit minst 2 liter vatten.' : 'Du har inte druckit 2 liter vatten än.'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700">
-                    <label className="block font-bold text-neutral-dark dark:text-white mb-2">Stegmålet (Minst {getBootcampStepGoal(userProfile.activityLevel, participant.status).toLocaleString()})</label>
-                    <input 
-                      type="number" 
-                      value={steps}
-                      onChange={(e) => setSteps(e.target.value)}
-                      placeholder="Ange antal steg..."
-                      className="w-full p-3 rounded-xl border border-neutral-light dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-dark dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <label className="flex items-center gap-3 p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={strengthTrained}
-                      onChange={(e) => setStrengthTrained(e.target.checked)}
-                      className="w-6 h-6 rounded text-primary focus:ring-primary"
-                    />
-                    <div className="flex-1">
-                      <span className="font-bold text-neutral-dark dark:text-white block">Styrketräning</span>
-                      <span className="text-sm text-neutral-500 dark:text-neutral-400">Jag har genomfört ett träningspass idag.</span>
-                    </div>
-                  </label>
-
-                  <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700">
-                    <label className="block font-bold text-neutral-dark dark:text-white mb-2">Sömn (Timmar)</label>
-                    <input 
-                      type="number" 
-                      step="0.5"
-                      value={sleep}
-                      onChange={(e) => setSleep(e.target.value)}
-                      placeholder="T.ex. 7.5"
-                      className="w-full p-3 rounded-xl border border-neutral-light dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-dark dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
-
-                  <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700">
-                    <label className="block font-bold text-neutral-dark dark:text-white mb-2">Energinivå / Mående ({mood}/10)</label>
-                    <input 
-                      type="range" 
-                      min="1" 
-                      max="10" 
-                      value={mood}
-                      onChange={(e) => setMood(parseInt(e.target.value, 10))}
-                      className="w-full h-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-primary"
-                    />
-                    <div className="flex justify-between text-xs text-neutral-500 dark:text-neutral-400 mt-2">
-                      <span>1 (Låg)</span>
-                      <span>10 (Hög)</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-neutral-dark dark:text-white mb-2">Kommentar till Generalen (Frivilligt)</label>
-                  <textarea 
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Hur kändes dagen? Några utmaningar?"
-                    className="w-full p-4 rounded-2xl border border-neutral-light dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-dark dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent min-h-[120px] resize-none"
-                  />
-                </div>
-
-                <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-2xl border border-orange-200 dark:border-orange-800/50">
-                  <p className="text-sm text-orange-800 dark:text-orange-400 font-medium">
-                    <strong>OBS:</strong> Om du inte kan kryssa i alla boxar och har minst {getBootcampStepGoal(userProfile.activityLevel, participant.status).toLocaleString()} steg, kommer detta att registreras som en <strong className="text-red-600 dark:text-red-400">Röd Dag</strong> och din streak bryts.
-                  </p>
-                </div>
-
-                <button 
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-4 bg-neutral-darker text-white font-bold rounded-xl hover:bg-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {editingYesterday ? 'Uppdatera Gårdagens Rapport' : 'Skicka Kvällsrapport'}
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: History & Chat */}
-        <div className="space-y-6">
-          <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-soft-xl border border-neutral-light dark:border-neutral-700">
-            <h3 className="font-bold text-neutral-dark dark:text-white mb-4 flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5 text-primary" />
-              Historik (Senaste 7 dagarna)
-            </h3>
-            
-            {reports.length === 0 ? (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400 italic text-center py-4">Inga rapporter inlämnade ännu.</p>
-            ) : (
-              <div className="space-y-3">
-                {reports.slice(0, 7).map((report, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800">
-                    <span className="text-sm font-medium text-neutral-dark dark:text-white">{report.date}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400">{report.steps} steg</span>
-                      <div className={`w-3 h-3 rounded-full ${report.isGreenDay ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {showProteinInfoModal && (
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
-            <div onClick={e => e.stopPropagation()}>
-                <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
-            </div>
-        </div>
-      )}
-    </div>
-  );
 };
 
-export default BootcampDashboard;
+const calculateProgressPercentage = (
+    method: 'scale' | 'inbody' | undefined,
+    startWeight?: number, currentWeight?: number, desiredWeightChange?: number,
+    startFat?: number, currentFat?: number, desiredFatChange?: number,
+    startMuscle?: number, currentMuscle?: number, desiredMuscleChange?: number,
+    isGoalCompleted?: boolean
+): number => {
+    if (isGoalCompleted) return 100;
+
+    let start, current, goalChange;
+
+    const isScaleGoal = method === 'scale';
+    const isFatLossGoal = !isScaleGoal && desiredFatChange && desiredFatChange < 0;
+    const isMuscleGainGoal = !isScaleGoal && desiredMuscleChange && desiredMuscleChange > 0;
+
+    if (isFatLossGoal) {
+        if (currentFat != null && startFat != null) {
+            start = startFat;
+            current = currentFat;
+            goalChange = desiredFatChange;
+        } else {
+            start = startWeight;
+            current = currentWeight;
+            goalChange = desiredFatChange;
+        }
+    } else if (isMuscleGainGoal) {
+        if (currentMuscle != null && startMuscle != null) {
+            start = startMuscle;
+            current = currentMuscle;
+            goalChange = desiredMuscleChange;
+        } else {
+            start = startWeight;
+            current = currentWeight;
+            goalChange = desiredMuscleChange;
+        }
+    } else {
+        start = startWeight;
+        current = currentWeight;
+        goalChange = desiredWeightChange;
+    }
+    
+    if (start == null || current == null || !goalChange) return 0;
+    
+    const totalChangeNeeded = Math.abs(goalChange);
+    let changeAchieved;
+    
+    if (goalChange > 0) { 
+        changeAchieved = current - start;
+    } else { 
+        changeAchieved = start - current;
+    }
+    
+    changeAchieved = Math.max(0, changeAchieved);
+
+    if (totalChangeNeeded < 0.01) return 100;
+
+    const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
+    return Math.max(0, Math.min(progressRaw, 100));
+};
+
+const getGoalShortDescription = (
+    method: 'scale' | 'inbody' | undefined,
+    desiredWeightChange?: number,
+    desiredFatChange?: number,
+    desiredMuscleChange?: number
+): string => {
+    if (method === 'scale' && desiredWeightChange) {
+        return `Mål: ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange.toFixed(1).replace('.', ',')} kg`;
+    } else if (method === 'inbody') {
+        if (desiredFatChange) return `Mål: ${desiredFatChange > 0 ? '+' : ''}${desiredFatChange.toFixed(1).replace('.', ',')} kg fett`;
+        if (desiredMuscleChange) return `Mål: ${desiredMuscleChange > 0 ? '+' : ''}${desiredMuscleChange.toFixed(1).replace('.', ',')} kg muskler`;
+    }
+    return 'Mål: Bibehålla vikten';
+};
+
+interface DashboardProps {
+    checklistState: OnboardingChecklistState | null;
+    onOnboardingNavigate: (view: 'journey' | 'community', subView?: 'search') => void;
+    onChecklistUpdate: (item: keyof OnboardingChecklistItemStatus) => void;
+    showSpotlight: boolean;
+    onDismissSpotlight: () => void;
+    isInstallBannerVisible: boolean;
+    viewingDate: Date;
+    onDateSelect: (date: Date) => void;
+    formattedViewingDate: string;
+    ensureYesterdayProcessed: (uid: string, now?: Date, options?: { force?: boolean; silent?: boolean }) => Promise<any>;
+    setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+    onOpenAICoach: () => void;
+    isSummarizingYesterday: boolean;
+    isAICoachOpen: boolean;
+    isProfileOpen: boolean;
+    isMorningReportOpen: boolean;
+    activeBootcamp: any | null;
+    hasCompletedTodaysReport?: boolean;
+    onShareRecipe?: (recipeText: string) => void;
+    onOpenBootcamp?: () => void;
+}
+
+import { getBootcampRankInfo } from '../utils/bootcampUtils';
+
+const Dashboard: React.FC<DashboardProps> = ({ 
+    checklistState,
+    onOnboardingNavigate,
+    onChecklistUpdate,
+    showSpotlight,
+    onDismissSpotlight,
+    isInstallBannerVisible,
+    viewingDate,
+    onDateSelect,
+    formattedViewingDate,
+    setToastNotification,
+    onOpenAICoach,
+    isSummarizingYesterday,
+    isAICoachOpen,
+    isProfileOpen,
+    isMorningReportOpen,
+    activeBootcamp,
+    hasCompletedTodaysReport,
+    onShareRecipe,
+    onOpenBootcamp
+}) => {
+    const {
+        currentUser,
+        goals,
+        userProfile,
+        dailyLog,
+        setDailyLog,
+        waterLoggedMl,
+        setWaterLoggedMl,
+        commonMeals,
+        setCommonMeals,
+        pastDaysSummary,
+        setPastDaysSummary,
+        streakData,
+        setStreakData,
+        highestStreak,
+        setHighestStreak,
+        weeklyBank,
+        currentDate,
+        isInitialDataLoaded,
+        isDataLoading // Hämta denna för att veta om vi laddar data
+    } = useUserContext();
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [appStatus, setAppStatus] = useState<'idle' | 'analyzing' | 'searching' | 'searching_recipe' | 'saving' | 'error'>('idle');
+    
+    // Modal states
+    const [showCameraModal, setShowCameraModal] = useState(false);
+    const [showTextEntryModal, setShowTextEntryModal] = useState(false);
+    const [showRecipeChoiceModal, setShowRecipeChoiceModal] = useState(false);
+    const [showRecipeModal, setShowRecipeModal] = useState(false);
+    const [showMyRecipesModal, setShowMyRecipesModal] = useState(false);
+    const [isRecipeSaved, setIsRecipeSaved] = useState(false);
+    const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(new Set());
+    const [showIngredientCaptureModal, setShowIngredientCaptureModal] = useState(false);
+    const [showIngredientRecipeResultsModal, setShowIngredientRecipeResultsModal] = useState(false);
+    const [showBarcodeScannerModal, setShowBarcodeScannerModal] = useState(false);
+    const [showBarcodeSearchResultModal, setShowBarcodeSearchResultModal] = useState(false);
+    const [showImageAnalysisResultModal, setShowImageAnalysisResultModal] = useState(false);
+    const [showSaveCommonMealModal, setShowSaveCommonMealModal] = useState(false);
+    const [showNutritionLabelResultModal, setShowNutritionLabelResultModal] = useState(false);
+    const [showFoodRatingModal, setShowFoodRatingModal] = useState(false);
+    const [foodRatingData, setFoodRatingData] = useState<{ nutritionalInfo: NutritionalInfo, mealType: MealType } | null>(null);
+    const [showCommonMealsPopup, setShowCommonMealsPopup] = useState<CommonMeal | null>(null);
+    const [selectedCommonMealType, setSelectedCommonMealType] = useState<MealType | null>(null);
+    const [selectedCommonMealPortion, setSelectedCommonMealPortion] = useState<number>(1);
+
+    // Data states for modals
+    const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
+    const [scannedFoodInfo, setScannedFoodInfo] = useState<BarcodeScannedFoodInfo | null>(null);
+    const [imageAnalysisResult, setImageAnalysisResult] = useState<NutritionalInfo | null>(null);
+    const [analyzedImageDataUrl, setAnalyzedImageDataUrl] = useState<string | null>(null);
+    const [recipeSuggestions, setRecipeSuggestions] = useState<RecipeSuggestion[] | null>(null);
+    const [identifiedIngredients, setIdentifiedIngredients] = useState<string[]>([]);
+    const [ingredientImages, setIngredientImages] = useState<string[]>([]);
+    const [searchedRecipe, setSearchedRecipe] = useState<RecipeSuggestion | null>(null);
+    const [mealToSaveAsCommon, setMealToSaveAsCommon] = useState<LoggedMeal | null>(null);
+    const [nutritionLabelResult, setNutritionLabelResult] = useState<NutritionalInfo | null>(null);
+    const [defaultMealTypeForModal, setDefaultMealTypeForModal] = useState<MealType | null>(null);
+    
+    // Camera context state
+    const [cameraMode, setCameraMode] = useState<'mealAnalysis' | 'ingredientCapture' | 'nutritionLabel'>('mealAnalysis');
+
+    // UI States
+    const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
+    const [showBonusCoin, setShowBonusCoin] = useState(false);
+    const [activeMealSection, setActiveMealSection] = useState<MealType | null>(null); // Lifted state for open section
+    const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
+
+    const bankRef = useRef<HTMLDivElement>(null);
+    const waterLoggerRef = useRef<HTMLDivElement>(null);
+
+    // Derived values
+    const isViewingToday = useMemo(() => {
+        return getDateUID(viewingDate) === getDateUID(new Date());
+    }, [viewingDate]);
+
+    const isEditableView = useMemo(() => {
+        const today = new Date();
+        const viewingUID = getDateUID(viewingDate);
+        const todayUID = getDateUID(today);
+        
+        if (viewingUID === todayUID) return true;
+
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayUID = getDateUID(yesterday);
+
+        return viewingUID === yesterdayUID;
+    }, [viewingDate]);
+
+    // Check if viewing date is a Monday (0=Sun, 1=Mon)
+    const isViewingMonday = useMemo(() => {
+        return viewingDate.getDay() === 1;
+    }, [viewingDate]);
+
+    const totalNutrients = useMemo(() => dailyLog.reduce(
+        (acc, meal) => {
+            acc.calories += meal.nutritionalInfo.calories;
+            acc.protein += meal.nutritionalInfo.protein;
+            acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
+            acc.fat += meal.nutritionalInfo.fat;
+            return acc;
+        },
+        { calories: 0, protein: 0, carbohydrates: 0, fat: 0 }
+    ), [dailyLog]);
+
+    // --- DYNAMIC BANK CALCULATION START ---
+    const availableBank = isViewingMonday ? 0 : weeklyBank.bankedCalories;
+    const rawCaloriesOver = Math.max(0, totalNutrients.calories - goals.calorieGoal);
+    const calculatedBankUsage = Math.min(rawCaloriesOver, availableBank);
+    const netCaloriesOver = Math.max(0, rawCaloriesOver - calculatedBankUsage);
+    const remainingBankDisplay = Math.max(0, availableBank - calculatedBankUsage);
+    const minSafeCalories = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+    const caloriesRemaining = Math.max(0, goals.calorieGoal - totalNutrients.calories);
+    
+    const isOverBudget = rawCaloriesOver > 0;
+    const isFullyCoveredByBank = isOverBudget && netCaloriesOver === 0;
+    const isNetOverBudget = netCaloriesOver > 0;
+
+    let progressColor = "text-primary";
+    
+    if (totalNutrients.calories < minSafeCalories) {
+        progressColor = "text-secondary"; 
+    } else if (isNetOverBudget) {
+        progressColor = "text-secondary"; 
+    } else if (isFullyCoveredByBank) {
+        progressColor = "text-blue-500"; 
+    }
+    // --- DYNAMIC BANK CALCULATION END ---
+
+    const groupedMeals = useMemo(() => {
+        const grouped: LoggedMeal[] = [];
+        dailyLog.forEach(meal => {
+            const existingIndex = grouped.findIndex(m => 
+                m.mealType === meal.mealType &&
+                m.nutritionalInfo.foodItem === meal.nutritionalInfo.foodItem &&
+                m.nutritionalInfo.calories === meal.nutritionalInfo.calories &&
+                Math.abs(m.nutritionalInfo.protein - meal.nutritionalInfo.protein) < 1 // Tolerance
+            );
+
+            if (existingIndex > -1) {
+                const existing = grouped[existingIndex];
+                existing.count = (existing.count || 1) + 1;
+                if (meal.timestamp > existing.timestamp) {
+                    existing.id = meal.id; 
+                    existing.timestamp = meal.timestamp;
+                }
+            } else {
+                grouped.push({ ...meal, count: 1 });
+            }
+        });
+        return grouped;
+    }, [dailyLog]);
+
+    const mealsBySection = useMemo(() => ({
+        breakfast: groupedMeals.filter(m => m.mealType === 'breakfast'),
+        lunch: groupedMeals.filter(m => m.mealType === 'lunch'),
+        dinner: groupedMeals.filter(m => m.mealType === 'dinner'),
+        snack: groupedMeals.filter(m => !m.mealType || m.mealType === 'snack'), // Fallback for old data
+    }), [groupedMeals]);
+
+    // Navigation Handlers
+    const handlePrevWeek = () => {
+        playAudio('uiClick');
+        const newDate = new Date(viewingDate);
+        newDate.setDate(newDate.getDate() - 7);
+        onDateSelect(newDate);
+    };
+
+    const handleNextWeek = () => {
+        playAudio('uiClick');
+        const newDate = new Date(viewingDate);
+        newDate.setDate(newDate.getDate() + 7);
+        onDateSelect(newDate);
+    };
+
+    const handleJumpToToday = () => {
+        playAudio('uiClick');
+        onDateSelect(new Date());
+    };
+
+    // Recalculate summary helper
+    const recalculateAndSaveSummary = async (currentLogs: LoggedMeal[], currentWater: number) => {
+        if (!currentUser) return;
+
+        const viewingUID = getDateUID(viewingDate);
+        const currentUID = getDateUID(currentDate);
+
+        const totals = currentLogs.reduce((acc, meal) => ({
+            calories: acc.calories + meal.nutritionalInfo.calories,
+            protein: acc.protein + meal.nutritionalInfo.protein,
+            carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
+            fat: acc.fat + meal.nutritionalInfo.fat,
+        }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+
+        const minSafe = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+        let goalMet = false;
+        
+        if (totals.calories >= minSafe) {
+                if (userProfile.goalType === 'lose_fat') goalMet = totals.calories <= goals.calorieGoal;
+                else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300); 
+                else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
+        }
+
+        // --- STREAK LOGIC: Check previous day to determine new streak ---
+        const dayBefore = new Date(viewingDate);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        const dayBeforeUID = getDateUID(dayBefore);
+        const prevDaySummary = pastDaysSummary[dayBeforeUID];
+        const prevStreak = prevDaySummary?.streakForThisDay || 0;
+
+        // FIXED LOGIC: Strict check for activity. Any calories > 0 means the day is active.
+        let newStreak = 0;
+        if (totals.calories > 0) {
+            newStreak = prevStreak + 1;
+        } else {
+            newStreak = 0;
+        }
+
+        const existingSummary = pastDaysSummary[viewingUID];
+
+        const newSummary: PastDaySummary = {
+            date: viewingUID,
+            goalMet: goalMet,
+            consumedCalories: totals.calories,
+            calorieGoal: goals.calorieGoal,
+            proteinGoalMet: totals.protein >= goals.proteinGoal,
+            consumedProtein: totals.protein,
+            proteinGoal: goals.proteinGoal,
+            consumedCarbohydrates: totals.carbohydrates,
+            carbohydrateGoal: goals.carbohydrateGoal,
+            consumedFat: totals.fat,
+            fatGoal: goals.fatGoal,
+            goalType: userProfile.goalType,
+            waterGoalMet: currentWater >= DEFAULT_WATER_GOAL_ML,
+            streakForThisDay: newStreak, 
+            savedBy: existingSummary?.savedBy,
+            bankedAmount: existingSummary?.bankedAmount,
+        };
+
+        setPastDaysSummary(prev => ({ ...prev, [viewingUID]: newSummary }));
+        
+        // Spara BARA till databasen om det är en historisk dag. Dagens datum får ALDRIG sparas ner i förtid!
+        if (viewingUID < currentUID) {
+            try {
+                await setPastDaySummaryFirestore(currentUser.uid, viewingUID, newSummary);
+            } catch(e) {
+                console.error("Failed to update past day summary", e);
+            }
+
+            // --- RIPPLE EFFECT: Recalculate streaks for all subsequent days up to yesterday ---
+            const yesterday = new Date(currentDate);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayUID = getDateUID(yesterday);
+
+            let currentRippleDate = new Date(viewingDate);
+            currentRippleDate.setDate(currentRippleDate.getDate() + 1);
+            let currentRippleUID = getDateUID(currentRippleDate);
+            let runningStreak = newStreak;
+            
+            const updatedSummaries: Record<string, PastDaySummary> = {};
+            let highestStreakReached = Math.max(highestStreak, newStreak);
+
+            while (currentRippleUID <= yesterdayUID) {
+                const summaryToUpdate = pastDaysSummary[currentRippleUID];
+                if (summaryToUpdate) {
+                    if (summaryToUpdate.consumedCalories > 0) {
+                        runningStreak += 1;
+                    } else {
+                        runningStreak = 0;
+                    }
+                    
+                    if (summaryToUpdate.streakForThisDay !== runningStreak) {
+                        const updatedSummary = { ...summaryToUpdate, streakForThisDay: runningStreak };
+                        updatedSummaries[currentRippleUID] = updatedSummary;
+                        highestStreakReached = Math.max(highestStreakReached, runningStreak);
+                        
+                        try {
+                            await setPastDaySummaryFirestore(currentUser.uid, currentRippleUID, updatedSummary);
+                        } catch(e) {
+                            console.error(`Failed to update past day summary for ${currentRippleUID}`, e);
+                        }
+                    }
+                } else {
+                    runningStreak = 0;
+                }
+                
+                currentRippleDate.setDate(currentRippleDate.getDate() + 1);
+                currentRippleUID = getDateUID(currentRippleDate);
+            }
+
+            if (Object.keys(updatedSummaries).length > 0) {
+                setPastDaysSummary(prev => ({ ...prev, ...updatedSummaries }));
+            }
+
+            // Update user's current streak to whatever the streak was on yesterday
+            const finalYesterdayStreak = updatedSummaries[yesterdayUID]?.streakForThisDay 
+                ?? (yesterdayUID === viewingUID ? newStreak : pastDaysSummary[yesterdayUID]?.streakForThisDay) 
+                ?? 0;
+
+            setStreakData(prev => ({ ...prev, currentStreak: finalYesterdayStreak }));
+            
+            const userUpdates: any = { currentStreak: finalYesterdayStreak };
+            if (highestStreakReached > highestStreak) {
+                userUpdates.highestStreak = highestStreakReached;
+                setHighestStreak(highestStreakReached);
+            }
+            
+            try {
+                await updateUserDocument(currentUser.uid, userUpdates);
+            } catch(e) {
+                console.error("Failed to update user currentStreak", e);
+            }
+        }
+    };
+
+    // SELF-HEALING EFFECT (Fixad för att undvika spökdata)
+    useEffect(() => {
+        // 1. Kör inte om data laddas eller användaren saknas
+        if (!isInitialDataLoaded || !currentUser || isDataLoading) return;
+        
+        const viewingUID = getDateUID(viewingDate);
+        
+        // 2. ID-KONTROLL: Är maten i loggen verkligen för den här dagen?
+        // Om vi precis bytt datum men dailyLog inte uppdaterats än -> AVBRYT.
+        if (dailyLog.length > 0) {
+            const logDate = dailyLog[0].dateString;
+            if (logDate !== viewingUID) {
+                return; // Matloggen matchar inte visningsdatumet. Rör ingenting.
+            }
+        }
+
+        // 3. Räkna ut "Sanningen" från loggen
+        const actualCalories = dailyLog.reduce((acc, m) => acc + m.nutritionalInfo.calories, 0);
+        
+        // 4. Hämta nuvarande status
+        const summary = pastDaysSummary[viewingUID];
+        const summaryCalories = summary?.consumedCalories || 0;
+        
+        // 5. STÄDPATRULLEN: Hitta felmatchningar
+        // Fall A: Loggen har mat (>0), men summeringen säger 0 (det ursprungliga felet).
+        // Fall B: Loggen är tom (0), men summeringen säger att vi ätit (spökdata).
+        if (Math.abs(actualCalories - summaryCalories) > 1) { // 1 kcal tolerans
+            console.log(`Self-healing triggered for ${viewingUID}. Log: ${actualCalories}, Summary: ${summaryCalories}`);
+            recalculateAndSaveSummary(dailyLog, waterLoggedMl);
+        }
+    }, [dailyLog, viewingDate, isInitialDataLoaded, currentUser, pastDaysSummary, waterLoggedMl, isDataLoading]);
+
+
+    // Handlers
+    const handleAddMealToLog = async (
+        data: LoggedMeal | Omit<LoggedMeal, 'id'> | NutritionalInfo | SearchedFoodInfo, 
+        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean; portionMultiplier?: number }
+    ) => {
+        if (!currentUser) return;
+        
+        const timestamp = Date.now();
+        const mealType = options?.mealType || defaultMealTypeForModal || 'breakfast'; 
+        const multiplier = options?.portionMultiplier || 1;
+        
+        setIsSaving(true);
+        setAppStatus('saving');
+        
+        let newMeal: LoggedMeal;
+
+        if ('nutritionalInfo' in data) {
+             newMeal = {
+                ...(data as Omit<LoggedMeal, 'id'>),
+                id: 'temp-id-' + timestamp, 
+                dateString: getDateUID(viewingDate),
+                timestamp: timestamp,
+                mealType: mealType,
+                caloriesCoveredByBank: 0
+            };
+        } else {
+             newMeal = {
+                id: 'temp-id-' + timestamp, 
+                dateString: getDateUID(viewingDate),
+                timestamp: timestamp,
+                mealType: mealType,
+                nutritionalInfo: data as NutritionalInfo,
+                caloriesCoveredByBank: 0
+            };
+        }
+
+        if (multiplier !== 1) {
+            newMeal.nutritionalInfo = {
+                ...newMeal.nutritionalInfo,
+                calories: Math.round(newMeal.nutritionalInfo.calories * multiplier),
+                protein: Math.round(newMeal.nutritionalInfo.protein * multiplier),
+                carbohydrates: Math.round(newMeal.nutritionalInfo.carbohydrates * multiplier),
+                fat: Math.round(newMeal.nutritionalInfo.fat * multiplier),
+            };
+        }
+
+        try {
+            const updatedLogs = [newMeal, ...dailyLog];
+            setDailyLog(updatedLogs);
+            recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
+            
+            if (options?.saveAsCommon) {
+                const timestamp = Date.now();
+                const newCommonId = await addCommonMeal(currentUser.uid, {
+                    name: newMeal.nutritionalInfo.foodItem || 'Måltid',
+                    nutritionalInfo: newMeal.nutritionalInfo,
+                    timestamp
+                });
+                // Fix: Use the actual ID from Firestore for the local state immediately
+                setCommonMeals(prev => [...prev, { 
+                    id: newCommonId, 
+                    name: newMeal.nutritionalInfo.foodItem || 'Måltid', 
+                    nutritionalInfo: newMeal.nutritionalInfo, 
+                    timestamp
+                }]); 
+            }
+
+            await addMealLogFirestore(currentUser.uid, newMeal.id, newMeal); 
+            
+            if (options?.skipRatingModal) {
+                setToastNotification({ message: 'Måltid loggad!', type: 'success' });
+            } else {
+                // Show Food Rating Modal instead of just toast
+                setFoodRatingData({ nutritionalInfo: newMeal.nutritionalInfo, mealType: newMeal.mealType });
+                setShowFoodRatingModal(true);
+            }
+            playAudio('logSuccess');
+
+            if (checklistState && !checklistState.items.mealLogged) {
+                onChecklistUpdate('mealLogged');
+            }
+
+        } catch (error) {
+            console.error("Error adding meal:", error);
+            setToastNotification({ message: 'Kunde inte spara måltiden.', type: 'error' });
+            setDailyLog(prev => prev.filter(m => m.timestamp !== newMeal.timestamp));
+        } finally {
+            setIsSaving(false);
+            setAppStatus('idle');
+        }
+    };
+
+    const handleDeleteMeal = async (mealId: string) => {
+        if (!currentUser) return;
+        const mealToDelete = dailyLog.find(m => m.id === mealId);
+        if (!mealToDelete) return;
+
+        const updatedLogs = dailyLog.filter(m => m.id !== mealId);
+        setDailyLog(updatedLogs);
+        recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
+
+        try {
+            await deleteMealLog(currentUser.uid, mealId);
+            setToastNotification({ message: 'Måltid borttagen.', type: 'success' });
+        } catch (error) {
+            console.error("Error deleting meal:", error);
+            setToastNotification({ message: 'Kunde inte ta bort måltiden.', type: 'error' });
+            setDailyLog(prev => [...prev, mealToDelete]); 
+        }
+    };
+
+    const handleUpdateMeal = async (mealId: string, updatedInfo: NutritionalInfo) => {
+        if (!currentUser) return;
+        const updatedLogs = dailyLog.map(m => m.id === mealId ? { ...m, nutritionalInfo: updatedInfo } : m);
+        setDailyLog(updatedLogs);
+        recalculateAndSaveSummary(updatedLogs, waterLoggedMl);
+
+        try {
+            await updateMealLog(currentUser.uid, mealId, updatedInfo);
+            setToastNotification({ message: 'Måltid uppdaterad.', type: 'success' });
+        } catch (error) {
+            console.error("Error updating meal:", error);
+            setToastNotification({ message: 'Kunde inte uppdatera måltiden.', type: 'error' });
+        }
+    };
+
+    const handleLogWater = async (amount: number) => {
+        if (!currentUser) return;
+        const newAmount = waterLoggedMl + amount;
+        setWaterLoggedMl(newAmount);
+        recalculateAndSaveSummary(dailyLog, newAmount);
+        playAudio('waterSplash');
+        try {
+            await setWaterLog(currentUser.uid, getDateUID(viewingDate), newAmount);
+            if (checklistState && !checklistState.items.waterLogged && newAmount > 0) {
+                onChecklistUpdate('waterLogged');
+            }
+        } catch (error) {
+            console.error("Error logging water:", error);
+            setWaterLoggedMl(waterLoggedMl); 
+        }
+    };
+
+    const handleResetWater = async () => {
+        if (!currentUser) return;
+        setWaterLoggedMl(0);
+        recalculateAndSaveSummary(dailyLog, 0);
+        try {
+            await setWaterLog(currentUser.uid, getDateUID(viewingDate), 0);
+        } catch (error) {
+            console.error("Error resetting water:", error);
+        }
+    };
+
+    const handleCommonMealLog = (commonMeal: CommonMeal) => {
+        setSelectedCommonMealType(getSuggestedMealType());
+        setSelectedCommonMealPortion(1);
+        setShowCommonMealsPopup(commonMeal);
+    };
+
+    const confirmCommonMealLog = (type: MealType) => {
+        if (showCommonMealsPopup) {
+            handleAddMealToLog(
+                showCommonMealsPopup.nutritionalInfo, 
+                { mealType: type, skipRatingModal: true, portionMultiplier: selectedCommonMealPortion }
+            );
+            setShowCommonMealsPopup(null);
+            setSelectedCommonMealType(null);
+            setSelectedCommonMealPortion(1);
+        }
+    }
+
+    const handleDeleteCommonMeal = async (id: string) => {
+        if (!currentUser) return;
+        setCommonMeals(prev => prev.filter(cm => cm.id !== id));
+        try {
+            await deleteCommonMealFromDB(currentUser.uid, id);
+            setToastNotification({ message: 'Vanligt val borttaget.', type: 'success' });
+        } catch (error) {
+            console.error("Error deleting common meal:", error);
+            setToastNotification({ message: 'Kunde inte ta bort valet.', type: 'error' });
+        }
+    };
+
+    const handleUpdateCommonMeal = async (id: string, data: { name: string; nutritionalInfo: NutritionalInfo }) => {
+        if (!currentUser) return;
+        setCommonMeals(prev => prev.map(cm => cm.id === id ? { ...cm, ...data } : cm));
+        try {
+            await updateCommonMeal(currentUser.uid, id, data);
+            setToastNotification({ message: 'Vanligt val uppdaterat.', type: 'success' });
+        } catch (error) {
+            console.error("Error updating common meal:", error);
+            setToastNotification({ message: 'Kunde inte uppdatera valet.', type: 'error' });
+        }
+    };
+
+    const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType | null = null) => {
+        const typeToUse = type || activeMealSection || getSuggestedMealType();
+        setDefaultMealTypeForModal(typeToUse);
+        setActiveMealSection(null);
+        setter(true);
+        setIsSpeedDialOpen(false);
+    }
+
+    const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal);
+    const handleSearchText = () => openModalWithType(setShowTextEntryModal);
+    const handleTakePhoto = () => {
+        setCameraMode('mealAnalysis'); 
+        openModalWithType(setShowCameraModal);
+    };
+    const handleFindRecipe = () => {
+        setSearchedRecipe(null);
+        openModalWithType(setShowRecipeChoiceModal); 
+    };
+    const handleMyRecipes = () => openModalWithType(setShowMyRecipesModal);
+
+    const handleSaveRecipe = async (recipe: RecipeSuggestion) => {
+        if (!currentUser) return;
+        try {
+            const { addSavedRecipe } = await import('../services/firestoreService');
+            await addSavedRecipe(currentUser.uid, {
+                timestamp: Date.now(),
+                recipe
+            });
+            setIsRecipeSaved(true);
+            setSavedRecipeIds(prev => new Set(prev).add(recipe.title));
+            setToastNotification({ message: 'Receptet har sparats i din receptbank!', type: 'success' });
+        } catch (error) {
+            console.error("Error saving recipe:", error);
+            setToastNotification({ message: 'Kunde inte spara receptet.', type: 'error' });
+        }
+    };
+
+    const coachPersona = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle] : COACH_PERSONAS['balanced'];
+    const coachName = coachPersona.label;
+
+    const currentHour = new Date().getHours();
+    const showEveningReportCTA = activeBootcamp && currentHour >= 18 && !hasCompletedTodaysReport;
+
+    let ctaText = "Dags för kvällsrapport!";
+    if (userProfile.coachStyle === 'hard') {
+        ctaText = "Dags för kvällsrapport, soldat!";
+    } else if (userProfile.coachStyle === 'soft') {
+        ctaText = "Dags för kvällsrapport, vännen!";
+    }
+
+    return (
+        <div className="flex flex-col gap-3 pb-0 relative">
+            {/* Bootcamp CTA */}
+            {showEveningReportCTA && (
+                <button 
+                    onClick={onOpenBootcamp}
+                    className="w-full bg-primary hover:bg-primary-darker text-white font-bold py-4 px-6 rounded-2xl shadow-lg flex items-center justify-between transition-transform active:scale-95"
+                >
+                    <span>{ctaText}</span>
+                    <ArrowRightIcon className="w-5 h-5" />
+                </button>
+            )}
+
+            {/* Bootcamp Progress Report */}
+            {activeBootcamp && (() => {
+                const rankInfo = getBootcampRankInfo(activeBootcamp.longestStreak || 0, activeBootcamp.currentStreak || 0, activeBootcamp.status);
+                return (
+                <div className="bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-[#3A4B3C] flex items-center justify-center text-white">
+                                <ShieldCheckIcon className="w-5 h-5" />
+                            </div>
+                            <h3 className="text-lg font-bold text-neutral-dark dark:text-white">Bootcamp Lägesrapport</h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold px-2 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 rounded-full">
+                                {activeBootcamp.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
+                            </span>
+                            <span className="text-xs font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                                {rankInfo.currentRank}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-4">
+                        <div>
+                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">Streak</p>
+                            <p className="text-xl font-extrabold text-neutral-dark dark:text-white flex items-center gap-1">
+                                {activeBootcamp.currentStreak} <Flame className="w-5 h-5 text-orange-500" />
+                            </p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">
+                                {rankInfo.nextRank ? `Nästa: ${rankInfo.nextRank}` : 'Högsta graden nådd!'}
+                            </p>
+                            <p className="text-sm font-bold text-neutral-dark dark:text-white">
+                                {rankInfo.nextRank ? `${rankInfo.daysToNext} dagar kvar` : 'Bra jobbat!'}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="w-full bg-neutral-light dark:bg-[#1A2B1C] rounded-full h-2 mt-2 overflow-hidden">
+                        <div 
+                            className="bg-green-500 h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${rankInfo.progress}%` }}
+                        ></div>
+                    </div>
+                </div>
+                );
+            })()}
+
+            {/* Top Date & Progress Card */}
+            <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'}`}>
+                {activeBootcamp && (
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#4A5B4C] text-white text-[10px] font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
+                        <TrophyIcon className="w-3 h-3 text-yellow-400" />
+                        Bootcamp Aktiv
+                    </div>
+                )}
+                <div className="flex flex-col items-center">
+                    {/* Date Nav */}
+                    <div className={`flex items-center justify-center gap-4 mb-6 w-full px-6 ${activeBootcamp ? 'mt-2' : ''}`}>
+                        <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
+                        <div className="text-center">
+                            <h2 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">{formattedViewingDate}</h2>
+                            {!isViewingToday && (
+                                <button onClick={() => onDateSelect(new Date())} className="text-xs font-semibold text-primary hover:underline mt-1 block w-full text-center">
+                                    Gå till idag
+                                </button>
+                            )}
+                        </div>
+                        <button onClick={() => onDateSelect(new Date(viewingDate.getTime() + 86400000))} className={`p-2 rounded-full hover:bg-neutral-light transition-colors ${isViewingToday ? 'opacity-30 cursor-default' : ''}`} disabled={isViewingToday}><ArrowRightIcon className="w-5 h-5 text-neutral-dark" /></button>
+                    </div>
+
+                    {/* Lifesum Style Header */}
+                    <div className="flex w-full items-center justify-between mb-6 px-6">
+                        {/* Left: Ätit */}
+                        <div className="text-center flex-1">
+                            <p className="text-sm font-medium text-neutral-dark mb-1">Ätit</p>
+                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(totalNutrients.calories)}</p>
+                        </div>
+
+                        {/* Center: Circular Progress */}
+                        <div className="flex-shrink-0 mx-2">
+                            <CircularProgress
+                                value={totalNutrients.calories}
+                                max={goals.calorieGoal}
+                                size={180}
+                                strokeWidth={14}
+                                color={progressColor}
+                                trackColor="text-neutral-light"
+                                centerContent={
+                                    <div className="text-center">
+                                        <span className="text-sm font-medium text-neutral-dark mb-1 block">
+                                            {isNetOverBudget ? 'Överskridit' : 'Återstående'}
+                                        </span>
+                                        <span className="text-4xl font-bold block text-neutral-dark leading-none tracking-tight">
+                                            {isNetOverBudget
+                                                ? netCaloriesOver.toFixed(0)
+                                                : (isFullyCoveredByBank ? '0' : caloriesRemaining.toFixed(0))
+                                            }
+                                        </span>
+                                        <span className="text-xs font-medium text-neutral-500 mt-2 block">
+                                            Mål {goals.calorieGoal} kcal
+                                        </span>
+                                    </div>
+                                }
+                            />
+                        </div>
+
+                        {/* Right: Sparpott */}
+                        <div className="text-center flex-1">
+                            <p className="text-sm font-medium text-neutral-dark mb-1">Sparpott</p>
+                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(remainingBankDisplay)}</p>
+                        </div>
+                    </div>
+
+                    {/* Macros Integrated */}
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full px-4 sm:px-6">
+                        {/* Kolhydrater */}
+                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Kolhydrater</p>
+                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
+                                {Math.round(totalNutrients.carbohydrates)}/{goals.carbohydrateGoal}g
+                            </p>
+                            <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-blue-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
+                            </div>
+                        </div>
+                        {/* Protein */}
+                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider flex items-center justify-center">
+                                Protein
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowProteinInfoModal(true)}
+                                    className="ml-1 text-neutral-400 hover:text-primary transition-colors"
+                                    aria-label="Information om proteinmål"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                      <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </p>
+                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
+                                {Math.round(totalNutrients.protein)}/{goals.proteinGoal}g
+                            </p>
+                            <div className="w-full bg-pink-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-pink-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
+                            </div>
+                        </div>
+                        {/* Fett */}
+                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Fett</p>
+                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
+                                {Math.round(totalNutrients.fat)}/{goals.fatGoal}g
+                            </p>
+                            <div className="w-full bg-purple-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-purple-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Layout Columns */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                
+                {/* Left Column */}
+                <div className="flex flex-col gap-3">
+                    {/* Water & Streak/Bank */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div ref={waterLoggerRef} className="h-full">
+                            <WaterLogger
+                                currentWaterMl={waterLoggedMl}
+                                waterGoalMl={DEFAULT_WATER_GOAL_ML}
+                                onLogWater={(amount) => handleLogWater(amount)}
+                                onResetWater={handleResetWater}
+                                disabled={!isEditableView}
+                                isBootcamp={!!activeBootcamp}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            {/* Streak Card */}
+                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
+                                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
+                                    <Flame className="w-6 h-6" />
+                                </div>
+                                <div className="relative z-10 flex-1">
+                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Streak</p>
+                                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
+                                        {streakData.currentStreak} 
+                                        <span className="text-sm font-medium text-neutral ml-1">dagar</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Goal Progress Card */}
+                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
+                                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10 shrink-0">
+                                    <TrophyIcon className="w-6 h-6" />
+                                </div>
+                                <div className="relative z-10 flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-0.5">
+                                        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ditt Mål</p>
+                                        <span className="text-xs font-bold text-primary whitespace-nowrap">
+                                            {`${Math.round(calculateProgressPercentage(
+                                                userProfile.measurementMethod,
+                                                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                                userProfile.mainGoalCompleted
+                                            ))}%`} klart
+                                        </span>
+                                    </div>
+                                    <p className="text-sm font-bold text-neutral-dark leading-tight line-clamp-2 mb-1.5">
+                                        {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
+                                            userProfile.measurementMethod,
+                                            userProfile.desiredWeightChangeKg,
+                                            userProfile.desiredFatMassChangeKg,
+                                            userProfile.desiredMuscleMassChangeKg
+                                        )}
+                                    </p>
+                                    <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
+                                        <div 
+                                            className="bg-primary h-full rounded-full transition-all duration-500" 
+                                            style={{ 
+                                                width: `${calculateProgressPercentage(
+                                                    userProfile.measurementMethod,
+                                                    userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                                    userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                                    userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                                    userProfile.mainGoalCompleted
+                                                )}%` 
+                                            }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Weekly Activity */}
+                    <WeeklyActivityChart 
+                        pastDaysSummary={pastDaysSummary}
+                        currentAppDate={new Date()}
+                        viewingDate={viewingDate}
+                        onDateSelect={onDateSelect}
+                        onPrevWeek={handlePrevWeek}
+                        onNextWeek={handleNextWeek}
+                        onToday={handleJumpToToday}
+                        goalType={userProfile.goalType} 
+                        currentViewStats={{ 
+                            calories: totalNutrients.calories,
+                            calorieGoal: goals.calorieGoal,
+                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
+                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
+                        }}
+                        isSummarizingYesterday={isSummarizingYesterday}
+                        bankedCalories={weeklyBank.bankedCalories}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                </div>
+
+                {/* Right Column */}
+                <div className="flex flex-col gap-3">
+                    
+                    <CommonMealsList 
+                        commonMeals={commonMeals}
+                        onLogCommonMeal={handleCommonMealLog}
+                        onDeleteCommonMeal={handleDeleteCommonMeal}
+                        onUpdateCommonMeal={handleUpdateCommonMeal}
+                        onShowRating={(nutritionalInfo) => {
+                            setFoodRatingData({ nutritionalInfo, mealType: 'snack' }); // default to snack for rating display
+                            setShowFoodRatingModal(true);
+                        }}
+                        disabled={!isEditableView}
+                        isBootcamp={!!activeBootcamp}
+                    />
+
+                    {/* Meal Sections (Matlogg) */}
+                    <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <MealSectionCard 
+                                title="Frukost" 
+                                icon={<Coffee className="w-6 h-6" />} 
+                                meals={mealsBySection.breakfast} 
+                                onDeleteMeal={handleDeleteMeal}
+                                onUpdateMeal={handleUpdateMeal}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                isEditable={isEditableView}
+                                isOpen={activeMealSection === 'breakfast'}
+                                onOpen={() => setActiveMealSection('breakfast')}
+                                onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.25)}
+                                isBootcamp={!!activeBootcamp}
+                            />
+                            <MealSectionCard 
+                                title="Lunch" 
+                                icon={<Sandwich className="w-6 h-6" />} 
+                                meals={mealsBySection.lunch} 
+                                onDeleteMeal={handleDeleteMeal}
+                                onUpdateMeal={handleUpdateMeal}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                isEditable={isEditableView}
+                                isOpen={activeMealSection === 'lunch'}
+                                onOpen={() => setActiveMealSection('lunch')}
+                                onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.35)}
+                                isBootcamp={!!activeBootcamp}
+                            />
+                            <MealSectionCard 
+                                title="Middag" 
+                                icon={<CookingPot className="w-6 h-6" />} 
+                                meals={mealsBySection.dinner} 
+                                onDeleteMeal={handleDeleteMeal}
+                                onUpdateMeal={handleUpdateMeal}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                isEditable={isEditableView}
+                                isOpen={activeMealSection === 'dinner'}
+                                onOpen={() => setActiveMealSection('dinner')}
+                                onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.30)}
+                                isBootcamp={!!activeBootcamp}
+                            />
+                            <MealSectionCard 
+                                title="Mellanmål" 
+                                icon={<Apple className="w-6 h-6" />} 
+                                meals={mealsBySection.snack} 
+                                onDeleteMeal={handleDeleteMeal}
+                                onUpdateMeal={handleUpdateMeal}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                isEditable={isEditableView}
+                                isOpen={activeMealSection === 'snack'}
+                                onOpen={() => setActiveMealSection('snack')}
+                                onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.10)}
+                                isBootcamp={!!activeBootcamp}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Backdrop for Speed Dial */}
+            {isEditableView && isSpeedDialOpen && (
+                <div 
+                    className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[40] animate-fade-in"
+                    onClick={() => setIsSpeedDialOpen(false)}
+                />
+            )}
+
+            {/* Floating Action Button (FAB) */}
+            {isEditableView && !isAICoachOpen && !isProfileOpen && !isMorningReportOpen && (
+                <div className="fixed bottom-6 right-6 z-[50] flex flex-col items-end gap-3 pointer-events-none">
+                    {isSpeedDialOpen && (
+                        <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
+                            <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Chatta med {coachName}</span>
+                                <div className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white overflow-hidden border-2 border-primary">
+                                    {coachPersona.imageUrl ? (
+                                        <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-xl">{coachPersona.emoji}</span>
+                                    )}
+                                </div>
+                            </button>
+                            <button onClick={handleTakePhoto} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fota mat</span>
+                                <div className="w-12 h-12 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-secondary-darker transition-colors"><CameraIcon className="w-6 h-6" /></div>
+                            </button>
+                            <button onClick={handleScanBarcode} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Skanna kod</span>
+                                <div className="w-12 h-12 bg-accent text-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent-darker transition-colors"><BarcodeIcon className="w-6 h-6" /></div>
+                            </button>
+                            <button onClick={handleSearchText} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Sök & logga</span>
+                                <div className="w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-colors"><SearchIcon className="w-5 h-6" /></div>
+                            </button>
+                            <button onClick={handleFindRecipe} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Hitta recept</span>
+                                <div className="w-12 h-12 bg-purple-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-purple-600 transition-colors"><RecipeIcon className="w-6 h-6" /></div>
+                            </button>
+                            <button onClick={handleMyRecipes} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Mina recept</span>
+                                <div className="w-12 h-12 bg-pink-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-pink-600 transition-colors"><BookmarkIcon className="w-6 h-6" /></div>
+                            </button>
+                        </div>
+                    )}
+                    <button 
+                        onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
+                        className={`pointer-events-auto w-16 h-16 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 ${isSpeedDialOpen ? 'bg-neutral-dark text-white border-neutral-dark rotate-45' : 'bg-white border-primary'}`}
+                        aria-label="Lägg till"
+                    >
+                        {isSpeedDialOpen ? (
+                            <PlusIcon className="w-8 h-8" />
+                        ) : coachPersona.imageUrl ? (
+                            <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-full h-full object-cover" />
+                        ) : (
+                            <span className="text-3xl">{coachPersona.emoji}</span>
+                        )}
+                    </button>
+                </div>
+            )}
+
+            {/* Checklist & Spotlight (Onboarding) */}
+            {checklistState && !checklistState.dismissed && (
+                <div className="mb-4 max-w-lg mx-auto w-full">
+                    <OnboardingChecklist 
+                        state={checklistState}
+                        onNavigate={onOnboardingNavigate}
+                        onTriggerLog={() => { setIsSpeedDialOpen(true); }}
+                        onScrollToWater={() => { waterLoggerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+                    />
+                </div>
+            )}
+            
+            {showSpotlight && (
+                <div className="fixed inset-0 bg-black/50 z-[100] pointer-events-none">
+                    <div className="absolute bottom-6 right-6 w-16 h-16 rounded-full ring-4 ring-white animate-pulse pointer-events-auto cursor-pointer" onClick={onDismissSpotlight}></div>
+                    <div className="absolute bottom-28 right-6 bg-white p-4 rounded-xl shadow-lg w-64 pointer-events-auto">
+                        <h4 className="font-bold text-neutral-dark mb-1">Här är magin! ✨</h4>
+                        <p className="text-sm text-neutral">Använd plus-knappen för att logga allt: kameran, sök, recept och streckkod.</p>
+                        <button onClick={onDismissSpotlight} className="mt-3 text-sm font-semibold text-primary hover:underline w-full text-right">Fattar!</button>
+                    </div>
+                </div>
+            )}
+
+            {/* Effects & Modals */}
+            {showBonusCoin && bankRef.current && (
+                <CoinFallEffect 
+                    targetX={bankRef.current.getBoundingClientRect().left + bankRef.current.offsetWidth / 2} 
+                    targetY={bankRef.current.getBoundingClientRect().top + bankRef.current.offsetHeight / 2} 
+                    onComplete={() => setShowBonusCoin(false)} 
+                />
+            )}
+
+            {/* All Modals */}
+            {showCommonMealsPopup && (
+                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in" onClick={() => setShowCommonMealsPopup(null)}>
+                    <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-neutral-dark">Logga {showCommonMealsPopup.name}</h3>
+                            <button onClick={() => setShowCommonMealsPopup(null)} className="p-1 text-neutral hover:text-red-500 rounded-full transition-colors">
+                                <XMarkIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="mb-8">
+                            <label className="block text-sm font-bold text-neutral-500 mb-3 uppercase tracking-wider">Välj måltidstyp:</label>
+                            <MealTypeSelector 
+                                selectedType={selectedCommonMealType} 
+                                onSelect={(type) => setSelectedCommonMealType(type)} 
+                                className="w-full" 
+                            />
+                        </div>
+
+                        <div className="mb-8">
+                            <label className="block text-sm font-bold text-neutral-500 mb-3 uppercase tracking-wider">Portionsstorlek:</label>
+                            <div className="flex items-center gap-2">
+                                {[0.5, 0.75, 1, 1.5, 2].map(multiplier => (
+                                    <button
+                                        key={multiplier}
+                                        onClick={() => setSelectedCommonMealPortion(multiplier)}
+                                        className={`flex-1 py-2 px-1 rounded-xl font-bold text-sm transition-all ${
+                                            selectedCommonMealPortion === multiplier
+                                                ? 'bg-primary text-white shadow-md'
+                                                : 'bg-neutral-light text-neutral-dark hover:bg-neutral-200'
+                                        }`}
+                                    >
+                                        {multiplier * 100}%
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                            <button 
+                                onClick={() => selectedCommonMealType && confirmCommonMealLog(selectedCommonMealType)}
+                                disabled={!selectedCommonMealType}
+                                className="w-full py-4 bg-primary text-white font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                            >
+                                <CheckIcon className="w-6 h-6" /> Logga som {
+                                    selectedCommonMealType === 'breakfast' ? 'frukost' :
+                                    selectedCommonMealType === 'lunch' ? 'lunch' :
+                                    selectedCommonMealType === 'dinner' ? 'middag' : 'mellis'
+                                }
+                            </button>
+                            <button onClick={() => setShowCommonMealsPopup(null)} className="w-full py-2 text-neutral text-sm font-medium hover:text-neutral-dark transition-colors">Avbryt</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showCameraModal && (
+                <CameraModal 
+                    show={showCameraModal} 
+                    onClose={() => setShowCameraModal(false)} 
+                    onImageCapture={async (imgData) => { 
+                        setShowCameraModal(false); 
+                        if (cameraMode === 'mealAnalysis') {
+                            setAnalyzedImageDataUrl(`data:image/jpeg;base64,${imgData}`); 
+                            setAppStatus('analyzing'); 
+                            try { 
+                                const result = await analyzeFoodImage(imgData); 
+                                setImageAnalysisResult(result); 
+                                setShowImageAnalysisResultModal(true); 
+                            } catch (e: any) { 
+                                alert(e.message); 
+                            } finally { 
+                                setAppStatus('idle'); 
+                            }
+                        } else if (cameraMode === 'ingredientCapture') {
+                            setIngredientImages(prev => [...prev, `data:image/jpeg;base64,${imgData}`]);
+                            setShowIngredientCaptureModal(true); 
+                        } else if (cameraMode === 'nutritionLabel') {
+                            setAppStatus('analyzing');
+                            try {
+                                const result = await analyzeNutritionLabelImage(imgData);
+                                setNutritionLabelResult(result);
+                                setShowNutritionLabelResultModal(true);
+                            } catch (e: any) {
+                                alert(e.message);
+                            } finally {
+                                setAppStatus('idle');
+                            }
+                        }
+                    }} 
+                    onCameraError={(err) => alert(err)} 
+                />
+            )}
+            {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => setShowTextEntryModal(false)} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => setShowRecipeChoiceModal(false)} onChooseSearch={() => { setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
+            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => { setShowRecipeModal(false); setIsRecipeSaved(false); }} onSearch={async (q) => { setAppStatus('searching_recipe'); setIsRecipeSaved(false); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching_recipe'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} onSaveRecipe={handleSaveRecipe} isSaved={isRecipeSaved} onShareRecipe={onShareRecipe} />}
+            {showMyRecipesModal && <MyRecipesModal show={showMyRecipesModal} onClose={() => setShowMyRecipesModal(false)} onShareRecipe={onShareRecipe} onLogRecipe={handleAddMealToLog} />}
+            {showIngredientCaptureModal && (
+                <IngredientCaptureModal 
+                    show={showIngredientCaptureModal} 
+                    onClose={() => setShowIngredientCaptureModal(false)} 
+                    images={ingredientImages} 
+                    onRemoveImage={(i) => setIngredientImages(prev => prev.filter((_, idx) => idx !== i))} 
+                    onUploadImages={async (files) => { for(let i=0; i<files.length; i++) { const base64 = await resizeImageForLog(files[i], 800); setIngredientImages(prev => [...prev, base64]); } }} 
+                    openCameraModal={() => { 
+                        setCameraMode('ingredientCapture'); 
+                        setShowIngredientCaptureModal(false); 
+                        setShowCameraModal(true); 
+                    }} 
+                    onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} 
+                />
+            )}
+            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} onSaveRecipe={handleSaveRecipe} savedRecipeIds={savedRecipeIds} />}
+            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setCameraMode('nutritionLabel'); setShowCameraModal(true); }} />}
+            {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
+            {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
+            {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
+            {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => setShowNutritionLabelResultModal(false)} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            {showFoodRatingModal && foodRatingData && userProfile && (
+                <FoodRatingModal 
+                    show={showFoodRatingModal} 
+                    onClose={() => setShowFoodRatingModal(false)} 
+                    nutritionalInfo={foodRatingData.nutritionalInfo} 
+                    mealType={foodRatingData.mealType} 
+                    userProfile={userProfile} 
+                />
+            )}
+            
+            {showProteinInfoModal && (
+                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+                    <div onClick={e => e.stopPropagation()}>
+                        <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+                    </div>
+                </div>
+            )}
+
+            {appStatus !== 'idle' && appStatus !== 'searching_recipe' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
+        </div>
+    );
+};
+
+const getLocalStorageItem = <T,>(key: string, defaultValue: T): T => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : defaultValue;
+    } catch (error) {
+      return defaultValue;
+    }
+};
+
+export default Dashboard;
