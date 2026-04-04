@@ -209,6 +209,48 @@ interface DashboardProps {
     onOpenBootcamp?: () => void;
 }
 
+export const getBootcampRankInfo = (longestStreak: number, currentStreak: number, status: string) => {
+    const ranks = [
+        { name: 'Soldat', req: 0 },
+        { name: 'Korpral', req: 7 },
+        { name: 'Sergeant', req: 14 },
+        { name: 'Fänrik', req: 25 },
+        { name: 'Löjtnant', req: 35 },
+        { name: 'Kapten', req: 50 },
+        { name: 'Major', req: 65 },
+        { name: 'General', req: 80 }
+    ];
+
+    // Om man är i Fas 2 är man alltid minst Sergeant
+    const effectiveLongestStreak = status === 'fas2' ? Math.max(14, longestStreak) : longestStreak;
+
+    let currentRankIndex = 0;
+    for (let i = ranks.length - 1; i >= 0; i--) {
+        if (effectiveLongestStreak >= ranks[i].req) {
+            currentRankIndex = i;
+            break;
+        }
+    }
+
+    const currentRank = ranks[currentRankIndex];
+    const nextRank = currentRankIndex < ranks.length - 1 ? ranks[currentRankIndex + 1] : null;
+
+    let daysToNext = 0;
+    let progress = 100;
+
+    if (nextRank) {
+        daysToNext = Math.max(0, nextRank.req - currentStreak);
+        progress = (currentStreak / nextRank.req) * 100;
+    }
+
+    return {
+        currentRank: currentRank.name,
+        nextRank: nextRank?.name,
+        daysToNext,
+        progress: Math.min(100, Math.max(0, progress))
+    };
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ 
     checklistState,
     onOnboardingNavigate,
@@ -839,7 +881,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
 
             {/* Bootcamp Progress Report */}
-            {activeBootcamp && (
+            {activeBootcamp && (() => {
+                const rankInfo = getBootcampRankInfo(activeBootcamp.longestStreak || 0, activeBootcamp.currentStreak || 0, activeBootcamp.status);
+                return (
                 <div className="bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -849,7 +893,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <h3 className="text-lg font-bold text-neutral-dark dark:text-white">Bootcamp Lägesrapport</h3>
                         </div>
                         <span className="text-xs font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
-                            {activeBootcamp.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
+                            {rankInfo.currentRank}
                         </span>
                     </div>
                     <div className="flex items-center justify-between mt-4">
@@ -861,23 +905,22 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         <div className="text-right">
                             <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">
-                                Mål: {activeBootcamp.status === 'fas1' ? '14 dagar' : '12 veckor'}
+                                {rankInfo.nextRank ? `Nästa: ${rankInfo.nextRank}` : 'Högsta graden nådd!'}
                             </p>
                             <p className="text-sm font-bold text-neutral-dark dark:text-white">
-                                {activeBootcamp.status === 'fas1' 
-                                    ? `${Math.max(0, 14 - activeBootcamp.currentStreak)} dagar kvar` 
-                                    : `${Math.max(0, 84 - Math.floor((Date.now() - new Date(activeBootcamp.originalStartDate || activeBootcamp.fas1StartDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24)))} dagar kvar`}
+                                {rankInfo.nextRank ? `${rankInfo.daysToNext} dagar kvar` : 'Bra jobbat!'}
                             </p>
                         </div>
                     </div>
                     <div className="w-full bg-neutral-light dark:bg-[#1A2B1C] rounded-full h-2 mt-2 overflow-hidden">
                         <div 
                             className="bg-green-500 h-full rounded-full transition-all duration-500" 
-                            style={{ width: `${activeBootcamp.status === 'fas1' ? Math.min((activeBootcamp.currentStreak / 14) * 100, 100) : Math.min((Math.floor((Date.now() - new Date(activeBootcamp.originalStartDate || activeBootcamp.fas1StartDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24)) / 84) * 100, 100)}%` }}
+                            style={{ width: `${rankInfo.progress}%` }}
                         ></div>
                     </div>
                 </div>
-            )}
+                );
+            })()}
 
             {/* Top Date & Progress Card */}
             <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'}`}>
