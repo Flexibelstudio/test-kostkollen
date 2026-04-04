@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
+import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from '../icons';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry, WeeklyCalorieBank } from '../types';
 import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal } from '../services/bootcampService';
