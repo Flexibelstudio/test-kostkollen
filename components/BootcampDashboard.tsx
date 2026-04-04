@@ -232,36 +232,40 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             <p className="text-sm text-neutral-300 font-medium mb-6 leading-relaxed text-center italic">
               "Lystring! Disciplin är bron mellan mål och resultat. Visa mig vad du går för!"
             </p>
-            <div className="flex gap-4 justify-center w-full max-w-md mx-auto">
-              <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
-                <div className="flex items-center gap-1 text-orange-400 mb-2 whitespace-nowrap">
+            <div className="flex gap-2 sm:gap-4 justify-center w-full max-w-md mx-auto">
+              <div className="bg-black/40 px-2 py-4 rounded-2xl border border-white/10 flex flex-col items-center flex-1">
+                <div className="h-4 mb-0.5"></div>
+                <div className="h-8 flex items-center gap-1 text-orange-400 mb-2 whitespace-nowrap">
                   <FireIcon className="w-6 h-6 shrink-0" />
-                  <span className="font-bold text-2xl">{participant.currentStreak}</span>
+                  <span className="font-bold text-2xl leading-none">{participant.currentStreak}</span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Nuvarande</span>
+                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Nuvarande</span>
               </div>
               
-              <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
-                <span className="font-bold text-sm text-primary mb-1 whitespace-nowrap shrink-0">
-                  {participant.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
-                </span>
-                <div className="flex items-center gap-1 text-primary mb-1 whitespace-nowrap shrink-0">
+              <div className="bg-black/40 px-2 py-4 rounded-2xl border border-white/10 flex flex-col items-center flex-1">
+                <div className="h-4 mb-0.5 flex items-end justify-center">
+                  <span className="font-bold text-xs text-primary whitespace-nowrap leading-none">
+                    {participant.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
+                  </span>
+                </div>
+                <div className="h-8 flex items-center gap-1 text-primary mb-2 whitespace-nowrap shrink-0">
                   <ShieldCheckIcon className="w-5 h-5 shrink-0" />
-                  <span className="font-bold text-xl whitespace-nowrap shrink-0 text-green-400">
+                  <span className="font-bold text-xl leading-none whitespace-nowrap shrink-0 text-green-400">
                     {getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).currentRank}
                   </span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Rang</span>
+                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Rang</span>
               </div>
 
-              <div className="bg-black/40 px-4 py-4 rounded-2xl border border-white/10 flex flex-col items-center justify-center flex-1">
-                <div className="flex items-center gap-1 text-neutral-300 mb-2 whitespace-nowrap">
+              <div className="bg-black/40 px-2 py-4 rounded-2xl border border-white/10 flex flex-col items-center flex-1">
+                <div className="h-4 mb-0.5"></div>
+                <div className="h-8 flex items-center gap-1 text-neutral-300 mb-2 whitespace-nowrap">
                   <CalendarIcon className="w-6 h-6 shrink-0" />
-                  <span className="font-bold text-2xl">
+                  <span className="font-bold text-2xl leading-none">
                     {getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).nextRank ? getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).daysToNext : 0}
                   </span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center">Dagar Kvar</span>
+                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Dagar Kvar</span>
               </div>
             </div>
           </div>
