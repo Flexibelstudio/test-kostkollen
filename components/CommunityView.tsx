@@ -14,6 +14,7 @@ import {
     togglePeppOnTimelineEvent,
     addCommentToTimelineEvent,
     toggleLikeOnComment,
+    toggleReactionOnComment,
     fetchCommunityTimeline,
     _fetchCommunityTimelinePaginated,
     listenToCommunityTimeline,
@@ -435,8 +436,9 @@ export const TimelineEventCard: FC<{
     currentUser: User;
     userProfile: UserProfileData;
     onTogglePepp: (event: TimelineEvent, emoji: string) => void;
-    onAddComment: (event: TimelineEvent, text: string) => Promise<void>;
+    onAddComment: (event: TimelineEvent, text: string, imageBase64?: string) => Promise<void>;
     onToggleLike: (event: TimelineEvent, commentId: string) => void;
+    onToggleCommentReaction: (event: TimelineEvent, commentId: string, emoji: string) => void;
     onDelete: (eventId: string) => void;
     onImageClick: (src: string, alt: string) => void;
     onShare?: (event: TimelineEvent) => void;
@@ -444,13 +446,19 @@ export const TimelineEventCard: FC<{
     buddyDetails: BuddyDetails[]; // Passed for stats lookup
     currentStreak: number; // Current user's streak
     activeBootcamp?: any;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp }) => {
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp }) => {
     const [newComment, setNewComment] = useState('');
+    const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [showReactionMenu, setShowReactionMenu] = useState(false);
+    const [activeCommentReactionId, setActiveCommentReactionId] = useState<string | null>(null);
+    const [activeCommentEmojiPickerId, setActiveCommentEmojiPickerId] = useState<string | null>(null);
+    const [showCameraModal, setShowCameraModal] = useState(false);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
     const reactionMenuRef = useRef<HTMLDivElement>(null);
+    const commentReactionMenuRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -460,20 +468,36 @@ export const TimelineEventCard: FC<{
             if (reactionMenuRef.current && !reactionMenuRef.current.contains(e.target as Node)) {
                 setShowReactionMenu(false);
             }
+            if (commentReactionMenuRef.current && !commentReactionMenuRef.current.contains(e.target as Node)) {
+                setActiveCommentReactionId(null);
+                setActiveCommentEmojiPickerId(null);
+            }
         };
-        if (showEmojiPicker || showReactionMenu) {
+        if (showEmojiPicker || showReactionMenu || activeCommentReactionId || activeCommentEmojiPickerId) {
             document.addEventListener('mousedown', handleClickOutside);
         }
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showEmojiPicker, showReactionMenu]);
+    }, [showEmojiPicker, showReactionMenu, activeCommentReactionId, activeCommentEmojiPickerId]);
 
     const handleCommentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newComment.trim() || isSubmitting) return;
+        if ((!newComment.trim() && !commentImage) || isSubmitting) return;
         setIsSubmitting(true);
-        await onAddComment(event, newComment);
+        await onAddComment(event, newComment, commentImage || undefined);
         setNewComment('');
+        setCommentImage(null);
         setIsSubmitting(false);
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCommentImage(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleDelete = async () => {
@@ -716,12 +740,21 @@ export const TimelineEventCard: FC<{
         </div>
         
         {/* Comments Section */}
-        {((event.comments && event.comments.length > 0) || newComment) && (
+        {((event.comments && event.comments.length > 0) || newComment || commentImage) && (
              <div className="space-y-3 mt-4 ml-[50px]">
                 {(event.comments || []).map(comment => {
-                    const likes = comment.likes || {};
-                    const likeCount = Object.keys(likes).length;
-                    const userHasLiked = !!likes[currentUser.uid];
+                    const reactions = comment.reactions || {};
+                    const reactionCounts: { [emoji: string]: number } = {};
+                    let userReactionEmoji: string | null = null;
+                    
+                    Object.keys(reactions).forEach(emoji => {
+                        reactionCounts[emoji] = Object.keys(reactions[emoji]).length;
+                        if (reactions[emoji][currentUser.uid]) {
+                            userReactionEmoji = emoji;
+                        }
+                    });
+                    
+                    const hasReactions = Object.keys(reactionCounts).length > 0;
                     const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
 
                     return (
@@ -729,23 +762,88 @@ export const TimelineEventCard: FC<{
                             <Avatar photoURL={comment.authorPhotoURL} size={28} />
                             <div className="flex-1">
                                 <div 
-                                    onDoubleClick={() => onToggleLike(event, comment.id)} 
+                                    onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
                                     className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
                                 >
                                     <p className="font-bold text-neutral-dark text-xs mb-0.5">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
-                                    <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>
+                                    {comment.text && <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>}
+                                    {comment.imageUrl && (
+                                        <div className="mt-2 rounded-lg overflow-hidden max-w-xs">
+                                            <img src={comment.imageUrl} alt="Kommentar bild" className="w-full h-auto object-cover cursor-pointer" onClick={() => onImageClick(comment.imageUrl!, 'Kommentar bild')} />
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="flex items-center gap-3 mt-1 ml-1">
+                                <div className="flex items-center gap-3 mt-1 ml-1 relative">
                                     <span className="text-[10px] text-neutral-400">
                                         {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
                                     </span>
-                                    <button 
-                                        onClick={() => onToggleLike(event, comment.id)}
-                                        className={`text-xs font-semibold flex items-center gap-1 transition-colors ${userHasLiked ? 'text-red-500' : 'text-neutral-400 hover:text-red-500'}`}
-                                    >
-                                        {userHasLiked ? 'Gillat' : 'Gilla'}
-                                        {likeCount > 0 && <span className="bg-white dark:bg-neutral-darker px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">{likeCount} ❤️</span>}
-                                    </button>
+                                    
+                                    <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
+                                                setActiveCommentEmojiPickerId(null);
+                                            }}
+                                            className={`text-xs font-semibold flex items-center gap-1 transition-colors ${userReactionEmoji ? 'text-primary' : 'text-neutral-400 hover:text-primary'}`}
+                                        >
+                                            {userReactionEmoji ? 'Reagerat' : 'Reagera'}
+                                        </button>
+                                        
+                                        {activeCommentReactionId === comment.id && (
+                                            <div className="absolute bottom-full left-0 mb-2 flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5 z-20 animate-fade-in">
+                                                {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                                                    <button 
+                                                        key={emoji}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            onToggleCommentReaction(event, comment.id, emoji);
+                                                            setActiveCommentReactionId(null);
+                                                        }} 
+                                                        className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!comment.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
+                                                        title={emoji}
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+                                                <div className="relative">
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            setActiveCommentEmojiPickerId(activeCommentEmojiPickerId === comment.id ? null : comment.id);
+                                                        }} 
+                                                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
+                                                        title="Fler emojis"
+                                                    >
+                                                        <PlusIcon className="w-4 h-4" />
+                                                    </button>
+                                                    {activeCommentEmojiPickerId === comment.id && (
+                                                        <div className="absolute bottom-full right-0 mb-2 z-50">
+                                                            <EmojiPicker 
+                                                                onEmojiClick={(emojiData) => {
+                                                                    onToggleCommentReaction(event, comment.id, emojiData.emoji);
+                                                                    setActiveCommentReactionId(null);
+                                                                    setActiveCommentEmojiPickerId(null);
+                                                                }}
+                                                                autoFocusSearch={false}
+                                                                theme={Theme.LIGHT}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {hasReactions && (
+                                        <div className="flex items-center gap-1">
+                                            {Object.entries(reactionCounts).map(([emoji, count]) => (
+                                                <span key={emoji} className="bg-white dark:bg-neutral-darker px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">
+                                                    {count} {emoji}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -754,24 +852,75 @@ export const TimelineEventCard: FC<{
             </div>
         )}
 
-        <form onSubmit={handleCommentSubmit} className="flex items-center gap-3 mt-4 ml-[50px]">
+        <form onSubmit={handleCommentSubmit} className="flex items-start gap-3 mt-4 ml-[50px]">
                 <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
-                <div className="flex-1 relative">
-                    <input
-                        value={newComment}
-                        onChange={e => setNewComment(e.target.value)}
-                        className="w-full pl-4 pr-10 py-2 text-sm bg-[#ffffff] text-[#000000] rounded-full border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
-                        placeholder="Skriv en kommentar..."
-                    />
-                    <button 
-                        type="submit" 
-                        disabled={isSubmitting || !newComment.trim()} 
-                        className={`absolute right-1 top-1 p-1.5 rounded-full transition-all ${newComment.trim() ? 'text-primary hover:bg-primary-50' : 'text-neutral-300'}`}
-                    >
-                        <Send className="w-4 h-4" />
-                    </button>
+                <div className="flex-1">
+                    <div className="relative flex items-center">
+                        <input
+                            value={newComment}
+                            onChange={e => setNewComment(e.target.value)}
+                            className="w-full pl-4 pr-20 py-2 text-sm bg-[#ffffff] text-[#000000] rounded-full border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
+                            placeholder="Skriv en kommentar..."
+                        />
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={() => setShowCameraModal(true)}
+                                className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                                title="Ta bild"
+                            >
+                                <CameraIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                                title="Ladda upp bild"
+                            >
+                                <ImageIcon className="w-4 h-4" />
+                            </button>
+                            <button 
+                                type="submit" 
+                                disabled={isSubmitting || (!newComment.trim() && !commentImage)} 
+                                className={`p-1.5 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary hover:bg-primary-50' : 'text-neutral-300'}`}
+                            >
+                                <Send className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleImageUpload} 
+                            accept="image/*" 
+                            className="hidden" 
+                        />
+                    </div>
+                    {commentImage && (
+                        <div className="mt-2 relative inline-block">
+                            <img src={commentImage} alt="Preview" className="h-20 w-auto rounded-lg object-cover border border-neutral-light" />
+                            <button 
+                                type="button" 
+                                onClick={() => setCommentImage(null)}
+                                className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-md text-neutral-400 hover:text-red-500"
+                            >
+                                <XMarkIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
                 </div>
         </form>
+
+        <CameraModal 
+            show={showCameraModal} 
+            onClose={() => setShowCameraModal(false)} 
+            onImageCapture={(imageDataUrl) => { 
+                setCommentImage('data:image/jpeg;base64,' + imageDataUrl); 
+                setShowCameraModal(false); 
+            }} 
+            onCameraError={(err) => console.error(err)} 
+            instructionText="Ta en bild att dela i kommentar"
+            hideTip={true}
+        />
     </div>
     );
 };
@@ -1405,6 +1554,55 @@ export const CommunityView: React.FC<{
         }
     };
     
+    const handleToggleCommentReaction = async (event: TimelineEvent, commentId: string, emoji: string) => {
+        playAudio('uiClick');
+        const fromUser = { uid: currentUser.uid, name: userProfile.name || 'Användare' };
+        
+        // Optimistic update
+        const updateEventList = (list: TimelineEvent[]) => list.map(e => {
+            if (e.id === event.id) {
+                return {
+                    ...e,
+                    comments: (e.comments || []).map(c => {
+                        if (c.id === commentId) {
+                            const newReactions = { ...(c.reactions || {}) };
+                            let userPreviousReactionEmoji: string | null = null;
+                            
+                            Object.keys(newReactions).forEach(key => {
+                                if (newReactions[key]?.[currentUser.uid]) {
+                                    userPreviousReactionEmoji = key;
+                                }
+                            });
+
+                            if (userPreviousReactionEmoji) {
+                                delete newReactions[userPreviousReactionEmoji][currentUser.uid];
+                                if (Object.keys(newReactions[userPreviousReactionEmoji]).length === 0) {
+                                    delete newReactions[userPreviousReactionEmoji];
+                                }
+                            }
+
+                            if (userPreviousReactionEmoji !== emoji) {
+                                if (!newReactions[emoji]) newReactions[emoji] = {};
+                                newReactions[emoji][currentUser.uid] = fromUser.name;
+                            }
+
+                            return { ...c, reactions: newReactions };
+                        }
+                        return c;
+                    })
+                };
+            }
+            return e;
+        });
+
+        setRealtimeEvents(prev => updateEventList(prev));
+        setHistoricalEvents(prev => updateEventList(prev));
+        
+        try { await toggleReactionOnComment(fromUser, event.id, commentId, emoji); } catch (error) {
+            setToastNotification({ message: 'Kunde inte reagera på kommentar.', type: 'error' });
+        }
+    };
+
     const handleToggleLike = async (event: TimelineEvent, commentId: string) => {
         playAudio('uiClick', 0.5);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
@@ -1433,8 +1631,8 @@ export const CommunityView: React.FC<{
         }
     };
     
-    const handleAddComment = async (event: TimelineEvent, text: string) => {
-        if (!text.trim()) return;
+    const handleAddComment = async (event: TimelineEvent, text: string, imageBase64?: string) => {
+        if (!text.trim() && !imageBase64) return;
         playAudio('uiClick');
         const clientTimestamp = Date.now();
         const optimisticComment: TimelineComment = { 
@@ -1444,7 +1642,9 @@ export const CommunityView: React.FC<{
             authorPhotoURL: userProfile.photoURL, 
             text: text.trim(), 
             timestamp: clientTimestamp, 
-            likes: {} 
+            imageUrl: imageBase64,
+            likes: {},
+            reactions: {}
         };
         
         const updateEventList = (list: TimelineEvent[]) => list.map(e => 
@@ -1461,7 +1661,9 @@ export const CommunityView: React.FC<{
                 authorPhotoURL: optimisticComment.authorPhotoURL, 
                 text: optimisticComment.text, 
                 timestamp: optimisticComment.timestamp,
+                imageUrl: optimisticComment.imageUrl,
                 likes: optimisticComment.likes,
+                reactions: optimisticComment.reactions
             };
             await addCommentToTimelineEvent(event.id, commentDataForFirestore);
         } catch (error) {
@@ -1538,6 +1740,7 @@ export const CommunityView: React.FC<{
                                             onTogglePepp={handleTogglePepp}
                                             onAddComment={handleAddComment}
                                             onToggleLike={handleToggleLike}
+                                            onToggleCommentReaction={handleToggleCommentReaction}
                                             onDelete={handleDeleteEvent}
                                             onImageClick={(src, alt) => setLightboxImage({ src, alt })}
                                             onShare={(event) => setShareEvent(event)}

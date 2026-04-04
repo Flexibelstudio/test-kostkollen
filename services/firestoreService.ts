@@ -1712,6 +1712,33 @@ export async function addCommentToTimelineEvent(eventId: string, commentData: Om
   return docRef.id;
 }
 
+export async function toggleReactionOnComment(fromUser: { uid: string, name: string }, eventId: string, commentId: string, emoji: string): Promise<void> {
+  if (!db) return;
+  const commentRef = doc(db, 'communityTimeline', eventId, 'comments', commentId);
+  await runTransaction(db, async (transaction) => {
+    const commentDoc = await transaction.get(commentRef);
+    if (!commentDoc.exists()) throw "Comment does not exist!";
+    
+    const currentData = commentDoc.data() || {};
+    let userPreviousReactionEmoji: string | null = null;
+    Object.keys(currentData.reactions || {}).forEach(key => {
+      if (currentData.reactions[key]?.[fromUser.uid]) {
+        userPreviousReactionEmoji = key;
+      }
+    });
+    
+    const updates: Record<string, any> = {};
+    if (userPreviousReactionEmoji) {
+      updates[`reactions.${userPreviousReactionEmoji}.${fromUser.uid}`] = deleteField();
+    }
+    if (userPreviousReactionEmoji !== emoji) {
+      updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
+    }
+    
+    transaction.update(commentRef, updates);
+  });
+}
+
 export async function toggleLikeOnComment(fromUser: { uid: string, name: string }, event: TimelineEvent, commentId: string): Promise<void> {
   if (!db) return;
   const likeRef = doc(db, 'communityTimeline', event.id, 'comments', commentId, 'likes', fromUser.uid);

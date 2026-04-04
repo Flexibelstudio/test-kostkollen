@@ -716,9 +716,11 @@ export interface TimelineComment {
   authorPhotoURL?: string;
   text: string;
   timestamp: number;
+  imageUrl?: string;
   likes?: {
     [uid: string]: string; // key is UID, value is user's name
   };
+  reactions?: Reactions;
 }
 
 export interface BootcampComment {
@@ -729,7 +731,9 @@ export interface BootcampComment {
   authorGender?: Gender;
   text: string;
   timestamp: number;
+  imageUrl?: string;
   likes: { [uid: string]: string };
+  reactions?: Reactions;
 }
 
 export interface BootcampPost {
