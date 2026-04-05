@@ -1090,6 +1090,20 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
       if (weightLog.bodyFatMassKg != null && previousLog.bodyFatMassKg != null) {
         fatChange = weightLog.bodyFatMassKg - previousLog.bodyFatMassKg;
       }
+    } else {
+      const userSnap = await getDoc(userDocRef);
+      if (userSnap.exists()) {
+        const userProfile = userSnap.data();
+        if (userProfile.goalStartWeight != null) {
+          weightChange = weightLog.weightKg - userProfile.goalStartWeight;
+        }
+        if (weightLog.skeletalMuscleMassKg != null && userProfile.goalStartMuscleMassKg != null) {
+          muscleChange = weightLog.skeletalMuscleMassKg - userProfile.goalStartMuscleMassKg;
+        }
+        if (weightLog.bodyFatMassKg != null && userProfile.goalStartFatMassKg != null) {
+          fatChange = weightLog.bodyFatMassKg - userProfile.goalStartFatMassKg;
+        }
+      }
     }
 
     const descriptionParts = [`Vikt: ${weightLog.weightKg.toFixed(1)}kg (${formatChange(weightChange)})`];

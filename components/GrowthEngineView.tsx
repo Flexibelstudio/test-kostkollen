@@ -34,6 +34,15 @@ const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToa
     const today = new Date();
     const riskUsers = useMemo(() => {
         return activeMembers.filter(m => {
+            // Exclude users created in the last 7 days
+            if (m.memberSince) {
+                const memberSinceDate = new Date(m.memberSince);
+                const diffDaysSinceCreation = Math.floor((today.getTime() - memberSinceDate.getTime()) / (1000 * 3600 * 24));
+                if (diffDaysSinceCreation < 7) {
+                    return false;
+                }
+            }
+
             if (!m.lastLogDate) return true;
             const lastLog = new Date(m.lastLogDate);
             const diffDays = Math.floor((today.getTime() - lastLog.getTime()) / (1000 * 3600 * 24));
@@ -217,13 +226,14 @@ const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToa
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Risk Users List */}
                 <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex justify-between items-center mb-2">
                         <h3 className="text-xl font-bold flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5 text-red-500" />
                             Tappar motivationen?
                         </h3>
                         <span className="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">{riskUsers.length} st</span>
                     </div>
+                    <p className="text-xs text-neutral mb-6">Konton skapade de senaste 7 dagarna visas inte här.</p>
                     <div className="space-y-3">
                         {riskUsers.length > 0 ? riskUsers.map(user => (
                             <div key={user.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-100">

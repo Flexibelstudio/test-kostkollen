@@ -1567,20 +1567,14 @@ export const CommunityView: React.FC<{
         const updateEventList = (list: TimelineEvent[]) => list.map(e => {
             if (e.id === event.id) {
                 const newReactions: Reactions = JSON.parse(JSON.stringify(e.reactions || {}));
-                let previousReactionEmoji: string | null = null;
-                for (const emojiKey in newReactions) {
-                    if (newReactions[emojiKey]?.[fromUser.uid]) {
-                        previousReactionEmoji = emojiKey;
-                        break;
+                const hasReactedWithThisEmoji = !!newReactions[newEmoji]?.[fromUser.uid];
+                
+                if (hasReactedWithThisEmoji) {
+                    delete newReactions[newEmoji][fromUser.uid];
+                    if (Object.keys(newReactions[newEmoji]).length === 0) {
+                        delete newReactions[newEmoji];
                     }
-                }
-                if (previousReactionEmoji) {
-                    delete newReactions[previousReactionEmoji][fromUser.uid];
-                    if (Object.keys(newReactions[previousReactionEmoji]).length === 0) {
-                        delete newReactions[previousReactionEmoji];
-                    }
-                }
-                if (previousReactionEmoji !== newEmoji) {
+                } else {
                     if (!newReactions[newEmoji]) newReactions[newEmoji] = {};
                     newReactions[newEmoji][fromUser.uid] = fromUser.name;
                 }
@@ -1612,22 +1606,14 @@ export const CommunityView: React.FC<{
                     comments: (e.comments || []).map(c => {
                         if (c.id === commentId) {
                             const newReactions = { ...(c.reactions || {}) };
-                            let userPreviousReactionEmoji: string | null = null;
+                            const hasReactedWithThisEmoji = !!newReactions[emoji]?.[currentUser.uid];
                             
-                            Object.keys(newReactions).forEach(key => {
-                                if (newReactions[key]?.[currentUser.uid]) {
-                                    userPreviousReactionEmoji = key;
+                            if (hasReactedWithThisEmoji) {
+                                delete newReactions[emoji][currentUser.uid];
+                                if (Object.keys(newReactions[emoji]).length === 0) {
+                                    delete newReactions[emoji];
                                 }
-                            });
-
-                            if (userPreviousReactionEmoji) {
-                                delete newReactions[userPreviousReactionEmoji][currentUser.uid];
-                                if (Object.keys(newReactions[userPreviousReactionEmoji]).length === 0) {
-                                    delete newReactions[userPreviousReactionEmoji];
-                                }
-                            }
-
-                            if (userPreviousReactionEmoji !== emoji) {
+                            } else {
                                 if (!newReactions[emoji]) newReactions[emoji] = {};
                                 newReactions[emoji][currentUser.uid] = fromUser.name;
                             }
