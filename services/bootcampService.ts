@@ -95,6 +95,9 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
     const existingData = participantSnap.data() as BootcampParticipant;
     if (existingData.originalStartDate) {
       participantData.originalStartDate = existingData.originalStartDate;
+    } else if (existingData.fas1StartDate) {
+      // Fallback for older documents that didn't have originalStartDate
+      participantData.originalStartDate = existingData.fas1StartDate;
     }
   } else {
     participantData.longestStreak = 0;
@@ -149,6 +152,8 @@ export const joinCohort = async (userId: string, inviteCode: string): Promise<{ 
     const existingData = participantSnap.data() as BootcampParticipant;
     if (existingData.originalStartDate) {
       participantData.originalStartDate = existingData.originalStartDate;
+    } else if (existingData.fas1StartDate) {
+      participantData.originalStartDate = existingData.fas1StartDate;
     }
   } else {
     participantData.longestStreak = 0;
