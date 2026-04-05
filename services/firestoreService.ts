@@ -1073,15 +1073,12 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
 
   // --- Automatic Timeline Event ---
   try {
-    const logsQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(2));
+    const logsQuery = query(weightLogsRef, where('loggedAt', '<', weightLog.loggedAt), orderBy('loggedAt', 'desc'), limit(1));
     const logsSnap = await getDocsSafe(logsQuery);
     
     let previousLog: WeightLogEntry | null = null;
-    for (const doc of logsSnap.docs) {
-      if (doc.id !== newLogId) {
-        previousLog = doc.data() as WeightLogEntry;
-        break;
-      }
+    if (!logsSnap.empty) {
+      previousLog = logsSnap.docs[0].data() as WeightLogEntry;
     }
 
     let weightChange, muscleChange, fatChange;
@@ -1684,18 +1681,12 @@ export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: s
     if (!eventDoc.exists()) throw "Event does not exist!";
     
     const currentReactions = eventDoc.data() || {};
-    let userPreviousReactionEmoji: string | null = null;
-    Object.keys(currentReactions.reactions || {}).forEach(key => {
-      if (currentReactions.reactions[key]?.[fromUser.uid]) {
-        userPreviousReactionEmoji = key;
-      }
-    });
+    const hasReactedWithThisEmoji = !!currentReactions.reactions?.[emoji]?.[fromUser.uid];
     
     const updates: Record<string, any> = {};
-    if (userPreviousReactionEmoji) {
-      updates[`reactions.${userPreviousReactionEmoji}.${fromUser.uid}`] = deleteField();
-    }
-    if (userPreviousReactionEmoji !== emoji) {
+    if (hasReactedWithThisEmoji) {
+      updates[`reactions.${emoji}.${fromUser.uid}`] = deleteField();
+    } else {
       updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
     }
     
@@ -1720,18 +1711,12 @@ export async function toggleReactionOnComment(fromUser: { uid: string, name: str
     if (!commentDoc.exists()) throw "Comment does not exist!";
     
     const currentData = commentDoc.data() || {};
-    let userPreviousReactionEmoji: string | null = null;
-    Object.keys(currentData.reactions || {}).forEach(key => {
-      if (currentData.reactions[key]?.[fromUser.uid]) {
-        userPreviousReactionEmoji = key;
-      }
-    });
+    const hasReactedWithThisEmoji = !!currentData.reactions?.[emoji]?.[fromUser.uid];
     
     const updates: Record<string, any> = {};
-    if (userPreviousReactionEmoji) {
-      updates[`reactions.${userPreviousReactionEmoji}.${fromUser.uid}`] = deleteField();
-    }
-    if (userPreviousReactionEmoji !== emoji) {
+    if (hasReactedWithThisEmoji) {
+      updates[`reactions.${emoji}.${fromUser.uid}`] = deleteField();
+    } else {
       updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
     }
     
