@@ -84,24 +84,12 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
     cohortId: 'solo', // Special ID for solo participants
     status: 'fas1',
     currentStreak: 0,
+    longestStreak: 0,
     fas1StartDate: startDateStr, // Starts today
     originalStartDate: startDateStr, // Absolute start date
     needsCoachAttention: false,
     joinedAt: Date.now(),
   };
-
-  // Preserve longestStreak and originalStartDate if it exists
-  if (participantSnap.exists()) {
-    const existingData = participantSnap.data() as BootcampParticipant;
-    if (existingData.originalStartDate) {
-      participantData.originalStartDate = existingData.originalStartDate;
-    } else if (existingData.fas1StartDate) {
-      // Fallback for older documents that didn't have originalStartDate
-      participantData.originalStartDate = existingData.fas1StartDate;
-    }
-  } else {
-    participantData.longestStreak = 0;
-  }
 
   await setDoc(participantRef, participantData, { merge: true });
 
@@ -142,22 +130,12 @@ export const joinCohort = async (userId: string, inviteCode: string): Promise<{ 
     cohortId: cohort.id,
     status: 'fas1',
     currentStreak: 0,
+    longestStreak: 0,
     fas1StartDate: cohort.startDate, // Initial start date
     originalStartDate: cohort.startDate, // Absolute start date
     needsCoachAttention: false,
     joinedAt: Date.now(),
   };
-
-  if (participantSnap.exists()) {
-    const existingData = participantSnap.data() as BootcampParticipant;
-    if (existingData.originalStartDate) {
-      participantData.originalStartDate = existingData.originalStartDate;
-    } else if (existingData.fas1StartDate) {
-      participantData.originalStartDate = existingData.fas1StartDate;
-    }
-  } else {
-    participantData.longestStreak = 0;
-  }
 
   await setDoc(participantRef, participantData, { merge: true });
 
