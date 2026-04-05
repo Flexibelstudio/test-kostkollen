@@ -228,6 +228,7 @@ export interface UserProfileData {
   isCourseActive?: boolean;
   courseInterest?: boolean;
   coachStyle: CoachStyle; // New field for coaching style
+  highestBootcampStreak?: number; // New field for lifetime bootcamp streak
   
   // Subscription fields
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
@@ -786,6 +787,7 @@ export interface TimelineEvent {
   // Historical context for posts
   streakAtPost?: number;
   bootcampStreakAtPost?: number;
+  highestBootcampStreak?: number; // Lifetime highest streak at the time of the post
   goalTextAtPost?: string;
   progressAtPost?: number;
   bootcampId?: string;

@@ -434,15 +434,27 @@ export const recalculateStreak = async (cohortId: string, userId: string, provid
        attentionReason = null;
     }
 
+    const newLongestStreak = Math.max(longestStreak, participant.longestStreak);
     const updateData: any = {
       currentStreak,
-      longestStreak: Math.max(longestStreak, participant.longestStreak),
+      longestStreak: newLongestStreak,
       status: newStatus,
       needsCoachAttention: needsAttention,
       attentionReason: attentionReason || null
     };
 
     await updateDoc(participantRef, updateData);
+
+    // Update highestBootcampStreak on user profile if needed
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      const currentHighest = userData.highestBootcampStreak || 0;
+      if (newLongestStreak > currentHighest) {
+        await updateDoc(userRef, { highestBootcampStreak: newLongestStreak });
+      }
+    }
   }
 };
 

@@ -679,11 +679,15 @@ export async function createUserPost(
 
     // Fetch active bootcamp for bootcamp streak
     let bootcampStreakAtPost: number | undefined = undefined;
+    let highestBootcampStreak: number | undefined = userData.highestBootcampStreak;
     try {
         const { getUserActiveBootcamp } = await import('./bootcampService');
         const activeBootcamp = await getUserActiveBootcamp(userId);
         if (activeBootcamp) {
             bootcampStreakAtPost = activeBootcamp.currentStreak || 0;
+            if (!highestBootcampStreak || activeBootcamp.longestStreak > highestBootcampStreak) {
+                highestBootcampStreak = activeBootcamp.longestStreak;
+            }
         }
     } catch (e) {
         console.error("Failed to fetch bootcamp streak for post", e);
@@ -718,6 +722,7 @@ export async function createUserPost(
         isGlobal: isGlobal,
         streakAtPost: userData.currentStreak || 0,
         bootcampStreakAtPost: bootcampStreakAtPost,
+        highestBootcampStreak: highestBootcampStreak,
         goalTextAtPost: goalTextAtPost,
         progressAtPost: progressAtPost,
         bootcampId: isBootcampPost && bootcampId ? bootcampId : undefined
@@ -752,6 +757,7 @@ export async function addTimelineEvent(
 
   // Fetch bootcamp info if applicable
   let bootcampStreakAtPost: number | undefined;
+  let highestBootcampStreak: number | undefined = userData.highestBootcampStreak;
   let bootcampId: string | undefined;
   try {
     const { getUserActiveBootcamp } = await import('./bootcampService');
@@ -759,6 +765,9 @@ export async function addTimelineEvent(
     if (activeBootcamp) {
       bootcampStreakAtPost = activeBootcamp.currentStreak;
       bootcampId = activeBootcamp.cohortId;
+      if (!highestBootcampStreak || activeBootcamp.longestStreak > highestBootcampStreak) {
+        highestBootcampStreak = activeBootcamp.longestStreak;
+      }
     }
   } catch (e) {
     console.warn("Could not fetch bootcamp info for timeline event", e);
@@ -830,6 +839,7 @@ export async function addTimelineEvent(
     relatedDocPath: `users/${userId}/${eventData.type}/${eventData.relatedDocId}`,
     streakAtPost: userData.currentStreak || 0,
     bootcampStreakAtPost: bootcampStreakAtPost,
+    highestBootcampStreak: highestBootcampStreak,
     bootcampId: bootcampId,
     goalTextAtPost: goalTextAtPost,
     progressAtPost: progressAtPost

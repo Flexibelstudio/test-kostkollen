@@ -37,6 +37,7 @@ import { ChatRoomsView } from './ChatRoomsView';
 import CameraModal from './CameraModal';
 import { COACH_PERSONAS } from '../constants';
 import { uploadImageToStorage, base64ToBlob } from '../utils/storageUtils';
+import { getBootcampRankInfo } from '../utils/bootcampUtils';
 
 // --- HELPER FUNCTIONS ---
 
@@ -603,34 +604,53 @@ export const TimelineEventCard: FC<{
                         {!isGlobalPost && !isCoachPersona && (
                             (event.streakAtPost !== undefined && event.streakAtPost > 0) || 
                             (event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0) || 
+                            (event.highestBootcampStreak !== undefined && event.highestBootcampStreak > 0) ||
                             event.goalTextAtPost || 
                             (event.progressAtPost !== undefined && event.progressAtPost > 0)
-                        ) && (
-                            <div className="mt-1 mb-2 w-full max-w-[200px]">
-                                <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
-                                    {event.streakAtPost !== undefined && event.streakAtPost > 0 && (
-                                        <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
-                                    )}
-                                    {event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0 && (
-                                        <>
-                                            {event.streakAtPost !== undefined && event.streakAtPost > 0 && <span className="text-neutral-300">|</span>}
-                                            <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
-                                        </>
-                                    )}
-                                    {event.goalTextAtPost && (
-                                        <>
-                                            {((event.streakAtPost !== undefined && event.streakAtPost > 0) || (event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0)) && <span className="text-neutral-300">|</span>}
-                                            <span className="truncate">{event.goalTextAtPost}</span>
-                                        </>
+                        ) && (() => {
+                            const hasBootcampStreak = event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0;
+                            const hasHighestStreak = event.highestBootcampStreak !== undefined && event.highestBootcampStreak > 0;
+                            const showBootcampBadge = hasBootcampStreak || hasHighestStreak;
+                            
+                            let bootcampBadgeText = '';
+                            if (showBootcampBadge) {
+                                const rankName = event.highestBootcampStreak ? getBootcampRankInfo(event.highestBootcampStreak, 0, 'fas1').currentRank : '';
+                                if (hasBootcampStreak && rankName) {
+                                    bootcampBadgeText = `${event.bootcampStreakAtPost} | ${rankName}`;
+                                } else if (hasBootcampStreak) {
+                                    bootcampBadgeText = `${event.bootcampStreakAtPost}`;
+                                } else if (rankName) {
+                                    bootcampBadgeText = rankName;
+                                }
+                            }
+
+                            return (
+                                <div className="mt-1 mb-2 w-full max-w-[200px]">
+                                    <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
+                                        {event.streakAtPost !== undefined && event.streakAtPost > 0 && (
+                                            <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
+                                        )}
+                                        {showBootcampBadge && bootcampBadgeText && (
+                                            <>
+                                                {event.streakAtPost !== undefined && event.streakAtPost > 0 && <span className="text-neutral-300">|</span>}
+                                                <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {bootcampBadgeText}</span>
+                                            </>
+                                        )}
+                                        {event.goalTextAtPost && (
+                                            <>
+                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || showBootcampBadge) && <span className="text-neutral-300">|</span>}
+                                                <span className="truncate">{event.goalTextAtPost}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    {event.progressAtPost !== undefined && event.progressAtPost > 0 && (
+                                        <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
+                                            <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
+                                        </div>
                                     )}
                                 </div>
-                                {event.progressAtPost !== undefined && event.progressAtPost > 0 && (
-                                    <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
-                                        <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                            );
+                        })()}
                         {/* ------------------------- */}
                     </div>
 
