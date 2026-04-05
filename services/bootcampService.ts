@@ -200,13 +200,28 @@ const checkBootcampExpiration = async (participant: BootcampParticipant): Promis
 
   if (diffDays > 84) { // 12 weeks
     const participantRef = doc(db, 'bootcampCohorts', participant.cohortId, 'participants', participant.userId);
-    await updateDoc(participantRef, { status: 'expired' });
+    await updateDoc(participantRef, { status: 'completed' });
     
     // Also update the user's profile to indicate they have completed a bootcamp
     const userRef = doc(db, 'users', participant.userId);
     await updateDoc(userRef, { hasCompletedBootcamp: true });
     
-    return { ...participant, status: 'expired' };
+    // Create a timeline event for completing the bootcamp
+    try {
+      const { addTimelineEvent } = await import('./firestoreService');
+      await addTimelineEvent(participant.userId, {
+        type: 'achievement',
+        timestamp: Date.now(),
+        title: 'har slutfört General Börjes Bootcamp!',
+        description: `Klarade 12 veckor och uppnådde graden ${participant.longestStreak >= 80 ? 'General' : participant.longestStreak >= 65 ? 'Major' : participant.longestStreak >= 50 ? 'Kapten' : participant.longestStreak >= 35 ? 'Löjtnant' : participant.longestStreak >= 25 ? 'Fänrik' : participant.longestStreak >= 14 ? 'Sergeant' : participant.longestStreak >= 7 ? 'Korpral' : 'Soldat'}!`,
+        icon: '🎖️',
+        relatedDocId: participant.cohortId
+      });
+    } catch (e) {
+      console.error("Failed to create bootcamp completion timeline event", e);
+    }
+
+    return { ...participant, status: 'completed' };
   }
 
   return participant;
@@ -426,6 +441,21 @@ export const recalculateStreak = async (cohortId: string, userId: string, provid
 
     if (currentStreak >= 14 && participant.status === 'fas1') {
       newStatus = 'fas2';
+      
+      // Create a timeline event for reaching Phase 2
+      try {
+        const { addTimelineEvent } = await import('./firestoreService');
+        await addTimelineEvent(userId, {
+          type: 'achievement',
+          timestamp: Date.now(),
+          title: 'har nått Fas 2 i Generalens Bootcamp!',
+          description: 'Överlevde grundträningen och är nu redo för Elit-fasen.',
+          icon: '🔥',
+          relatedDocId: `bootcamp_${cohortId}_fas2`
+        });
+      } catch (e) {
+        console.error("Failed to create bootcamp fas2 timeline event", e);
+      }
     } else if (currentStreak === 0 && reports.length > 0 && !reports[0].isGreenDay) {
       needsAttention = true;
       attentionReason = 'Bröt sin streak (Röd dag)';
@@ -435,6 +465,39 @@ export const recalculateStreak = async (cohortId: string, userId: string, provid
     }
 
     const newLongestStreak = Math.max(longestStreak, participant.longestStreak);
+    
+    // Check for rank ups
+    if (newLongestStreak > participant.longestStreak) {
+      const ranks = [
+        { name: 'General', req: 80 },
+        { name: 'Major', req: 65 },
+        { name: 'Kapten', req: 50 },
+        { name: 'Löjtnant', req: 35 },
+        { name: 'Fänrik', req: 25 },
+        { name: 'Sergeant', req: 14 },
+        { name: 'Korpral', req: 7 }
+      ];
+      
+      const oldRank = ranks.find(r => participant.longestStreak >= r.req);
+      const newRank = ranks.find(r => newLongestStreak >= r.req);
+      
+      if (newRank && (!oldRank || newRank.req > oldRank.req)) {
+        try {
+          const { addTimelineEvent } = await import('./firestoreService');
+          await addTimelineEvent(userId, {
+            type: 'achievement',
+            timestamp: Date.now(),
+            title: `har befordrats till ${newRank.name}!`,
+            description: `Nådde ${newLongestStreak} dagar i Generalens Bootcamp.`,
+            icon: '🎖️',
+            relatedDocId: `bootcamp_${cohortId}_rank_${newRank.req}`
+          });
+        } catch (e) {
+          console.error("Failed to create bootcamp rank timeline event", e);
+        }
+      }
+    }
+
     const updateData: any = {
       currentStreak,
       longestStreak: newLongestStreak,

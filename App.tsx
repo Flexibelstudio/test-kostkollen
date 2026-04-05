@@ -1120,6 +1120,22 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             setUserCourseProgress(prev => ({ ...prev, [firstLessonId]: newProg }));
             setToastNotification({ message: 'Kursen är nu aktiverad!', type: 'success' });
             playAudio('levelUp');
+            
+            // Create a timeline event for starting the course
+            try {
+                const { addTimelineEvent } = await import('./services/firestoreService');
+                await addTimelineEvent(currentUser.uid, {
+                    type: 'course',
+                    timestamp: Date.now(),
+                    title: `har påbörjat kursen ${course.title}!`,
+                    description: 'Nu börjar resan mot ny kunskap.',
+                    icon: '🚀',
+                    relatedDocId: courseId
+                });
+            } catch (e) {
+                console.error("Failed to create course start timeline event", e);
+            }
+            
         } catch (e) {
             console.error("Failed to activate course", e);
         }

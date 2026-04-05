@@ -378,7 +378,7 @@ const BuddyCard: FC<{
                                 <span className="font-medium text-yellow-600">🎖️ {buddy.bootcampStreak}</span>
                             )}
                             <span className="text-neutral-300">|</span>
-                            <span className="truncate max-w-[150px]">{goalDescription}</span>
+                            <span className="truncate">{goalDescription}</span>
                         </p>
                     </div>
                 </div>
@@ -631,7 +631,7 @@ export const TimelineEventCard: FC<{
                             const rankName = hasHighestStreak ? getBootcampRankInfo(effectiveHighestStreak!, 0, 'fas1').currentRank : '';
 
                             return (
-                                <div className="mt-1 mb-2 w-full max-w-[200px]">
+                                <div className="mt-1 mb-2 w-full">
                                     <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-1 flex-wrap">
                                         {event.streakAtPost !== undefined && event.streakAtPost > 0 && (
                                             <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost}</span>

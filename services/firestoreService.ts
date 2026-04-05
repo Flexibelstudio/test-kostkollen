@@ -304,6 +304,30 @@ export async function fetchInitialAppData(userId: string) {
       userDocData.weeklyBank.bankedCalories = healedValue;
     }
 
+    let highestBootcampStreak = userDocData.highestBootcampStreak;
+
+    // --- SYNC HIGHEST BOOTCAMP STREAK ---
+    if (highestBootcampStreak === undefined) {
+      try {
+        const participantsQuery = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
+        const participantsSnap = await getDocsSafe(participantsQuery);
+        let maxStreak = 0;
+        participantsSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.longestStreak && data.longestStreak > maxStreak) {
+            maxStreak = data.longestStreak;
+          }
+        });
+        if (maxStreak > 0) {
+          highestBootcampStreak = maxStreak;
+          // Update the user document asynchronously
+          updateDoc(userDocRef, { highestBootcampStreak: maxStreak }).catch(e => console.error("Failed to sync highestBootcampStreak", e));
+        }
+      } catch (e) {
+        console.error("Failed to fetch bootcamp participants for sync", e);
+      }
+    }
+
     const profile: UserProfileData = {
       name: userDocData.displayName,
       photoURL: userDocData.photoURL ?? undefined,
@@ -331,6 +355,7 @@ export async function fetchInitialAppData(userId: string) {
       coachStyle: ((userDocData.coachStyle as string) === 'tough' ? 'hard' : userDocData.coachStyle) || DEFAULT_USER_PROFILE.coachStyle,
       subscriptionStatus: userDocData.subscriptionStatus,
       currentPeriodEnd: userDocData.currentPeriodEnd,
+      highestBootcampStreak: highestBootcampStreak,
     };
     
     const commonMeals = commonMealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as CommonMeal[];
