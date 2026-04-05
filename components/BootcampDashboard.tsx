@@ -56,7 +56,10 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   // Can edit yesterday if yesterday was reported but maybe we want to fix it.
   // Or maybe we didn't report yesterday at all.
   // The user can edit yesterday's report all day today.
-  const canEditYesterday = (!yesterdayReport || !yesterdayReport.isGreenDay);
+  // BUT they cannot edit yesterday if they just started the bootcamp today.
+  const joinedToday = participant.joinedAt ? getDateUID(new Date(participant.joinedAt)) === todayStr : false;
+  const justStartedToday = participant.originalStartDate === todayStr || joinedToday;
+  const canEditYesterday = !justStartedToday && (!yesterdayReport || !yesterdayReport.isGreenDay);
 
   useEffect(() => {
     if (!auth.currentUser) return;
