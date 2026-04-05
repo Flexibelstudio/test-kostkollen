@@ -67,7 +67,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       setReports(fetchedReports);
       // Recalculate streak whenever reports change or on mount to fix any broken streaks
       recalculateStreak(participant.cohortId, auth.currentUser!.uid, fetchedReports).catch(console.error);
-    });
+    }, participant.fas1StartDate);
     return () => unsubscribe();
   }, [participant.cohortId]);
 

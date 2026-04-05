@@ -19,9 +19,9 @@ const ParticipantDetailModal: React.FC<ParticipantDetailModalProps> = ({ partici
   useEffect(() => {
     const unsubscribe = subscribeToUserEveningReports(participant.cohortId, participant.userId, (data) => {
       setReports(data);
-    });
+    }, participant.fas1StartDate);
     return () => unsubscribe();
-  }, [participant.cohortId, participant.userId]);
+  }, [participant.cohortId, participant.userId, participant.fas1StartDate]);
 
   const handleClearAttention = async () => {
     if (!isCoach) return;

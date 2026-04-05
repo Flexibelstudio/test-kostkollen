@@ -90,8 +90,13 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
     joinedAt: Date.now(),
   };
 
-  // Preserve longestStreak if it exists
-  if (!participantSnap.exists()) {
+  // Preserve longestStreak and originalStartDate if it exists
+  if (participantSnap.exists()) {
+    const existingData = participantSnap.data() as BootcampParticipant;
+    if (existingData.originalStartDate) {
+      participantData.originalStartDate = existingData.originalStartDate;
+    }
+  } else {
     participantData.longestStreak = 0;
   }
 
@@ -140,7 +145,12 @@ export const joinCohort = async (userId: string, inviteCode: string): Promise<{ 
     joinedAt: Date.now(),
   };
 
-  if (!participantSnap.exists()) {
+  if (participantSnap.exists()) {
+    const existingData = participantSnap.data() as BootcampParticipant;
+    if (existingData.originalStartDate) {
+      participantData.originalStartDate = existingData.originalStartDate;
+    }
+  } else {
     participantData.longestStreak = 0;
   }
 
@@ -322,7 +332,7 @@ export const markBootcampFinaleAsSeen = async (cohortId: string, userId: string)
   }
 };
 
-export const subscribeToUserEveningReports = (cohortId: string, userId: string, callback: (reports: EveningReport[]) => void) => {
+export const subscribeToUserEveningReports = (cohortId: string, userId: string, callback: (reports: EveningReport[]) => void, startDate?: string) => {
   if (!db) return () => {};
 
   const q = query(
@@ -331,7 +341,10 @@ export const subscribeToUserEveningReports = (cohortId: string, userId: string, 
   );
 
   return onSnapshot(q, (snapshot) => {
-    const reports = snapshot.docs.map(doc => doc.data() as EveningReport);
+    let reports = snapshot.docs.map(doc => doc.data() as EveningReport);
+    if (startDate) {
+      reports = reports.filter(r => r.date >= startDate);
+    }
     callback(reports);
   });
 };
@@ -357,6 +370,14 @@ export const getEveningReportForDate = async (cohortId: string, userId: string, 
 export const recalculateStreak = async (cohortId: string, userId: string, providedReports?: EveningReport[]) => {
   if (!db) throw new Error("Firestore not initialized");
 
+  const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
+  const participantSnap = await getDoc(participantRef);
+  
+  if (!participantSnap.exists()) return;
+  
+  const participant = participantSnap.data() as BootcampParticipant;
+  const startDate = participant.fas1StartDate;
+
   let reports = providedReports;
   
   if (!reports) {
@@ -367,6 +388,11 @@ export const recalculateStreak = async (cohortId: string, userId: string, provid
     
     const snapshot = await getDocs(q);
     reports = snapshot.docs.map(doc => doc.data() as EveningReport);
+  }
+
+  // Filter reports to only include those on or after the current attempt's start date
+  if (startDate) {
+    reports = reports.filter(r => r.date >= startDate);
   }
   
   let currentStreak = 0;
@@ -444,11 +470,8 @@ export const recalculateStreak = async (cohortId: string, userId: string, provid
     }
   }
 
-  const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
-  const participantSnap = await getDoc(participantRef);
-  
   if (participantSnap.exists()) {
-    const participant = participantSnap.data() as BootcampParticipant;
+    // participant is already defined at the top of the function
     let newStatus = participant.status;
     let needsAttention = participant.needsCoachAttention;
     let attentionReason = participant.attentionReason;
