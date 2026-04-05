@@ -70,24 +70,32 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
   const participantSnap = await getDoc(participantRef);
 
   if (participantSnap.exists()) {
-    return { success: false, message: 'Du är redan med i ett Bootcamp.' };
+    const data = participantSnap.data() as BootcampParticipant;
+    if (data.status === 'fas1' || data.status === 'fas2') {
+      return { success: false, message: 'Du är redan med i ett Bootcamp.' };
+    }
+    // If status is 'dropped' or 'completed', they can restart. We will update the document.
   }
 
-  // Add participant
+  // Add or update participant
   const startDateStr = new Date().toISOString().split('T')[0];
-  const participantData: BootcampParticipant = {
+  const participantData: Partial<BootcampParticipant> = {
     userId,
     cohortId: 'solo', // Special ID for solo participants
     status: 'fas1',
     currentStreak: 0,
-    longestStreak: 0,
     fas1StartDate: startDateStr, // Starts today
     originalStartDate: startDateStr, // Absolute start date
     needsCoachAttention: false,
     joinedAt: Date.now(),
   };
 
-  await setDoc(participantRef, participantData);
+  // Preserve longestStreak if it exists
+  if (!participantSnap.exists()) {
+    participantData.longestStreak = 0;
+  }
+
+  await setDoc(participantRef, participantData, { merge: true });
 
   return { 
     success: true, 
@@ -114,23 +122,29 @@ export const joinCohort = async (userId: string, inviteCode: string): Promise<{ 
   const participantSnap = await getDoc(participantRef);
 
   if (participantSnap.exists()) {
-    return { success: false, message: 'Du är redan med i denna trupp.' };
+    const data = participantSnap.data() as BootcampParticipant;
+    if (data.status === 'fas1' || data.status === 'fas2') {
+      return { success: false, message: 'Du är redan med i denna trupp.' };
+    }
   }
 
-  // Add participant
-  const participantData: BootcampParticipant = {
+  // Add or update participant
+  const participantData: Partial<BootcampParticipant> = {
     userId,
     cohortId: cohort.id,
     status: 'fas1',
     currentStreak: 0,
-    longestStreak: 0,
     fas1StartDate: cohort.startDate, // Initial start date
     originalStartDate: cohort.startDate, // Absolute start date
     needsCoachAttention: false,
     joinedAt: Date.now(),
   };
 
-  await setDoc(participantRef, participantData);
+  if (!participantSnap.exists()) {
+    participantData.longestStreak = 0;
+  }
+
+  await setDoc(participantRef, participantData, { merge: true });
 
   return { 
     success: true, 

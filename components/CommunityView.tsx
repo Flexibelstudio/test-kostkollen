@@ -371,13 +371,13 @@ const BuddyCard: FC<{
                     <div className="min-w-0 flex-1">
                         <h3 className="text-xl font-bold text-neutral-dark truncate">{buddy.name}</h3>
                         <p className="text-xs text-neutral flex items-center gap-2 mt-0.5 min-w-0">
-                            {buddy.currentStreak !== undefined && buddy.currentStreak > 0 && (
+                            {buddy.currentStreak !== undefined && buddy.currentStreak >= 0 && (
                                 <span className="font-medium text-orange-500 whitespace-nowrap">🔥 {buddy.currentStreak}</span>
                             )}
-                            {buddy.currentStreak !== undefined && buddy.currentStreak > 0 && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! > 0 && (
+                            {buddy.currentStreak !== undefined && buddy.currentStreak >= 0 && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! >= 0 && (
                                 <span className="text-neutral-300 shrink-0">|</span>
                             )}
-                            {(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! > 0 && (
+                            {(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! >= 0 && (
                                 <span className="font-medium text-yellow-600 flex items-center gap-1 whitespace-nowrap">
                                     🎖️ {buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak}
                                     {getBootcampRankInfo(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak!, 0, 'fas1').currentRank && (
@@ -390,7 +390,7 @@ const BuddyCard: FC<{
                                     )}
                                 </span>
                             )}
-                            {((buddy.currentStreak !== undefined && buddy.currentStreak > 0) || ((buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! > 0)) && goalDescription && (
+                            {((buddy.currentStreak !== undefined && buddy.currentStreak >= 0) || ((buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! >= 0)) && goalDescription && (
                                 <span className="text-neutral-300 shrink-0">|</span>
                             )}
                             {goalDescription && (
@@ -632,11 +632,11 @@ export const TimelineEventCard: FC<{
                                 }
                             }
 
-                            const hasBootcampStreak = event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0;
-                            const hasHighestStreak = effectiveHighestStreak !== undefined && effectiveHighestStreak > 0;
+                            const hasBootcampStreak = event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost >= 0;
+                            const hasHighestStreak = effectiveHighestStreak !== undefined && effectiveHighestStreak >= 0;
                             
                             if (!(
-                                (event.streakAtPost !== undefined && event.streakAtPost > 0) || 
+                                (event.streakAtPost !== undefined && event.streakAtPost >= 0) || 
                                 hasBootcampStreak || 
                                 hasHighestStreak ||
                                 event.goalTextAtPost || 
@@ -650,18 +650,18 @@ export const TimelineEventCard: FC<{
                             return (
                                 <div className="mt-1 mb-2 w-full min-w-0">
                                     <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-1 min-w-0">
-                                        {event.streakAtPost !== undefined && event.streakAtPost > 0 && (
+                                        {event.streakAtPost !== undefined && event.streakAtPost >= 0 && (
                                             <span className="flex items-center gap-0.5 text-orange-600 whitespace-nowrap shrink-0"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
                                         )}
                                         {hasBootcampStreak && (
                                             <>
-                                                {event.streakAtPost !== undefined && event.streakAtPost > 0 && <span className="text-neutral-300 shrink-0">|</span>}
+                                                {event.streakAtPost !== undefined && event.streakAtPost >= 0 && <span className="text-neutral-300 shrink-0">|</span>}
                                                 <span className="flex items-center gap-0.5 text-yellow-600 whitespace-nowrap shrink-0"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
                                             </>
                                         )}
                                         {hasHighestStreak && rankName && (
                                             <>
-                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak) && <span className="text-neutral-300 shrink-0">|</span>}
+                                                {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak) && <span className="text-neutral-300 shrink-0">|</span>}
                                                 <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full whitespace-nowrap shrink-0">
                                                     {rankName}
                                                 </span>
@@ -669,7 +669,7 @@ export const TimelineEventCard: FC<{
                                         )}
                                         {event.goalTextAtPost && (
                                             <>
-                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak || (hasHighestStreak && rankName)) && <span className="text-neutral-300 shrink-0">|</span>}
+                                                {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak || (hasHighestStreak && rankName)) && <span className="text-neutral-300 shrink-0">|</span>}
                                                 <span className="truncate min-w-0">{event.goalTextAtPost}</span>
                                             </>
                                         )}

@@ -1528,12 +1528,19 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
         // Level Check
         const newLevel = LEVEL_DEFINITIONS.find(l => l.requiredStreak === finalNewStreak);
-        if (newLevel) {
+        if (newLevel && newLevel.id !== 'level0') {
             setShowLevelUpModal(newLevel);
-            if (highestLevelId !== newLevel.id) {
+            
+            const currentHighestLevelIndex = LEVEL_DEFINITIONS.findIndex(l => l.id === highestLevelId);
+            const newLevelIndex = LEVEL_DEFINITIONS.findIndex(l => l.id === newLevel.id);
+            
+            if (newLevelIndex > currentHighestLevelIndex) {
                 setHighestLevelId(newLevel.id);
                 userUpdates.highestLevelId = newLevel.id;
             }
+        } else if (newLevel && newLevel.id === 'level0' && !highestLevelId) {
+            setHighestLevelId(newLevel.id);
+            userUpdates.highestLevelId = newLevel.id;
         }
 
         if (bankedAmount > 0) {
