@@ -1620,6 +1620,7 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
       achievementInteractions: userData.achievementInteractions || {},
       bootcampStreak,
       bootcampStatus,
+      highestBootcampStreak: userData.highestBootcampStreak,
     } as BuddyDetails;
   });
 

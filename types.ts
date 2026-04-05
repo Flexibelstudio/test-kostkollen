@@ -635,6 +635,7 @@ export interface BuddyDetails extends Peppkompis {
   currentStreak?: number;
   unlockedAchievements: { [id: string]: string };
   role?: UserRole;
+  highestBootcampStreak?: number;
 
   // For progress bar
   goalStartWeight?: number;

@@ -601,16 +601,34 @@ export const TimelineEventCard: FC<{
                         </p>
                         
                         {/* --- COMPACT STATS ROW --- */}
-                        {!isGlobalPost && !isCoachPersona && (
-                            (event.streakAtPost !== undefined && event.streakAtPost > 0) || 
-                            (event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0) || 
-                            (event.highestBootcampStreak !== undefined && event.highestBootcampStreak > 0) ||
-                            event.goalTextAtPost || 
-                            (event.progressAtPost !== undefined && event.progressAtPost > 0)
-                        ) && (() => {
+                        {!isGlobalPost && !isCoachPersona && (() => {
+                            // Fallback to current user profile or buddy details if event doesn't have the highest streak
+                            let effectiveHighestStreak = event.highestBootcampStreak;
+                            if (effectiveHighestStreak === undefined) {
+                                if (event.userId === currentUser.uid) {
+                                    effectiveHighestStreak = userProfile.highestBootcampStreak;
+                                } else {
+                                    const buddy = buddyDetails.find(b => b.uid === event.userId);
+                                    if (buddy) {
+                                        effectiveHighestStreak = buddy.highestBootcampStreak;
+                                    }
+                                }
+                            }
+
                             const hasBootcampStreak = event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0;
-                            const hasHighestStreak = event.highestBootcampStreak !== undefined && event.highestBootcampStreak > 0;
-                            const rankName = hasHighestStreak ? getBootcampRankInfo(event.highestBootcampStreak!, 0, 'fas1').currentRank : '';
+                            const hasHighestStreak = effectiveHighestStreak !== undefined && effectiveHighestStreak > 0;
+                            
+                            if (!(
+                                (event.streakAtPost !== undefined && event.streakAtPost > 0) || 
+                                hasBootcampStreak || 
+                                hasHighestStreak ||
+                                event.goalTextAtPost || 
+                                (event.progressAtPost !== undefined && event.progressAtPost > 0)
+                            )) {
+                                return null;
+                            }
+
+                            const rankName = hasHighestStreak ? getBootcampRankInfo(effectiveHighestStreak!, 0, 'fas1').currentRank : '';
 
                             return (
                                 <div className="mt-1 mb-2 w-full max-w-[200px]">
