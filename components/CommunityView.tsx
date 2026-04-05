@@ -610,35 +610,31 @@ export const TimelineEventCard: FC<{
                         ) && (() => {
                             const hasBootcampStreak = event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost > 0;
                             const hasHighestStreak = event.highestBootcampStreak !== undefined && event.highestBootcampStreak > 0;
-                            const showBootcampBadge = hasBootcampStreak || hasHighestStreak;
-                            
-                            let bootcampBadgeText = '';
-                            if (showBootcampBadge) {
-                                const rankName = event.highestBootcampStreak ? getBootcampRankInfo(event.highestBootcampStreak, 0, 'fas1').currentRank : '';
-                                if (hasBootcampStreak && rankName) {
-                                    bootcampBadgeText = `${event.bootcampStreakAtPost} | ${rankName}`;
-                                } else if (hasBootcampStreak) {
-                                    bootcampBadgeText = `${event.bootcampStreakAtPost}`;
-                                } else if (rankName) {
-                                    bootcampBadgeText = rankName;
-                                }
-                            }
+                            const rankName = hasHighestStreak ? getBootcampRankInfo(event.highestBootcampStreak!, 0, 'fas1').currentRank : '';
 
                             return (
                                 <div className="mt-1 mb-2 w-full max-w-[200px]">
-                                    <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
+                                    <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-1 flex-wrap">
                                         {event.streakAtPost !== undefined && event.streakAtPost > 0 && (
                                             <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
                                         )}
-                                        {showBootcampBadge && bootcampBadgeText && (
+                                        {hasBootcampStreak && (
                                             <>
                                                 {event.streakAtPost !== undefined && event.streakAtPost > 0 && <span className="text-neutral-300">|</span>}
-                                                <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {bootcampBadgeText}</span>
+                                                <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
+                                            </>
+                                        )}
+                                        {hasHighestStreak && rankName && (
+                                            <>
+                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak) && <span className="text-neutral-300">|</span>}
+                                                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                                                    {rankName}
+                                                </span>
                                             </>
                                         )}
                                         {event.goalTextAtPost && (
                                             <>
-                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || showBootcampBadge) && <span className="text-neutral-300">|</span>}
+                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak || hasHighestStreak) && <span className="text-neutral-300">|</span>}
                                                 <span className="truncate">{event.goalTextAtPost}</span>
                                             </>
                                         )}
@@ -904,11 +900,26 @@ export const TimelineEventCard: FC<{
                                     
                                     {hasReactions && (
                                         <div className="flex items-center gap-1">
-                                            {Object.entries(reactionCounts).map(([emoji, count]) => (
-                                                <span key={emoji} className="bg-white dark:bg-neutral-darker px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">
-                                                    {count} {emoji}
-                                                </span>
-                                            ))}
+                                            {Object.entries(reactionCounts).map(([emoji, count]) => {
+                                                const hasReacted = userReactions[emoji];
+                                                return (
+                                                    <button 
+                                                        key={emoji} 
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            onToggleCommentReaction(event, comment.id, emoji);
+                                                        }}
+                                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all active:scale-95 border shadow-sm
+                                                            ${hasReacted 
+                                                                ? 'bg-primary-50 border-primary text-primary-darker' 
+                                                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span>{emoji}</span>
+                                                        <span className="font-semibold">{count}</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -1500,11 +1511,10 @@ export const CommunityView: React.FC<{
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  // Sync prop to state when it changes (e.g. initial load finishes in App.tsx)
-  // But only if we don't have events yet, to avoid overwriting newer realtime updates
+  // Sync prop to state when it changes (e.g. initial load finishes in App.tsx or new realtime events arrive)
   useEffect(() => {
-      if (Array.isArray(timelineEvents) && timelineEvents.length > 0) {
-          setRealtimeEvents(prev => (prev.length === 0 ? timelineEvents : prev));
+      if (Array.isArray(timelineEvents)) {
+          setRealtimeEvents(timelineEvents);
       }
   }, [timelineEvents]);
 
