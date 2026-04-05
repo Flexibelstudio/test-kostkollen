@@ -256,7 +256,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
 
           <div className="p-6 bg-neutral-50 rounded-2xl border border-neutral-200 text-center">
             <p className="text-neutral-dark mb-6">
-              Du följer exakt samma hårda regler och övervakas av AI-Generalen. Du får tillgång till en gemensam Solo-grupp i ditt flöde där alla befinner sig på olika stadier av sin resa – vissa snörar precis på sig kängorna, andra närmar sig mållinjen. Peppa varandra!
+              Du får tillgång till en gemensam Solo-grupp i ditt flöde där alla befinner sig på olika stadier av sin resa – vissa snörar precis på sig kängorna, andra närmar sig mållinjen. Peppa varandra!
             </p>
             <button
               onClick={handleJoinSolo}
