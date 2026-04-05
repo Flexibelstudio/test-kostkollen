@@ -692,32 +692,6 @@ export const TimelineEventCard: FC<{
 
         {/* Reactions and Action Bar */}
         <div className="flex flex-wrap items-center gap-1.5 mt-3 ml-[50px]">
-            {/* Existing Reactions */}
-            {Object.entries(event.reactions || {}).map(([emoji, users]) => {
-                const count = Object.keys(users).length;
-                if (count === 0) return null;
-                const hasReacted = !!users[currentUser.uid];
-                
-                return (
-                    <button 
-                        key={emoji} 
-                        onClick={(e) => {
-                            e.preventDefault();
-                            onTogglePepp(event, emoji);
-                        }} 
-                        onMouseDown={(e) => e.preventDefault()}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all active:scale-95 border
-                            ${hasReacted 
-                                ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
-                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
-                            }`}
-                    >
-                        <span>{emoji}</span>
-                        <span className="font-semibold">{count}</span>
-                    </button>
-                )
-            })}
-
             {/* Add Reaction Button */}
             <div className="relative" ref={reactionMenuRef}>
                 <button 
@@ -779,6 +753,32 @@ export const TimelineEventCard: FC<{
                     </div>
                 )}
             </div>
+
+            {/* Existing Reactions */}
+            {Object.entries(event.reactions || {}).map(([emoji, users]) => {
+                const count = Object.keys(users).length;
+                if (count === 0) return null;
+                const hasReacted = !!users[currentUser.uid];
+                
+                return (
+                    <button 
+                        key={emoji} 
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onTogglePepp(event, emoji);
+                        }} 
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all active:scale-95 border
+                            ${hasReacted 
+                                ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
+                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
+                            }`}
+                    >
+                        <span>{emoji}</span>
+                        <span className="font-semibold">{count}</span>
+                    </button>
+                )
+            })}
         </div>
         
         {/* Comments Section */}
