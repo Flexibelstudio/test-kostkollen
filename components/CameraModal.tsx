@@ -201,7 +201,7 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
           </button>
         </div>
 
-        <div className="relative w-full aspect-[4/3] bg-neutral-darker rounded-lg shadow-md mb-4 overflow-hidden">
+        <div className="relative w-full aspect-[3/4] sm:aspect-[9/16] max-h-[70vh] bg-neutral-darker rounded-lg shadow-md mb-4 overflow-hidden">
             <video
                 ref={videoRef}
                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${(isCameraLoading || !!cameraError) ? 'opacity-0' : 'opacity-100'}`}
