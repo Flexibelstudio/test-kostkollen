@@ -901,7 +901,7 @@ export const TimelineEventCard: FC<{
                                     {hasReactions && (
                                         <div className="flex items-center gap-1">
                                             {Object.entries(reactionCounts).map(([emoji, count]) => {
-                                                const hasReacted = userReactions[emoji];
+                                                const hasReacted = !!comment.reactions?.[emoji]?.[currentUser.uid];
                                                 return (
                                                     <button 
                                                         key={emoji} 
