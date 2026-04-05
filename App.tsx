@@ -71,12 +71,13 @@ import WaterSplashEffect from './components/WaterSplashEffect';
 import MorningReportModal from './components/MorningReportModal.tsx';
 import GamificationModal from './components/GamificationModal.tsx';
 import SubscriptionModal from './components/SubscriptionModal.tsx';
+import { BootcampFinaleModal } from './components/BootcampFinaleModal.tsx';
 
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
 import { uploadImageToStorage, base64ToBlob } from './utils/storageUtils';
-import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports } from './services/bootcampService.ts';
+import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports, getUnseenBootcampFinale, markBootcampFinaleAsSeen } from './services/bootcampService.ts';
 import {
   InformationCircleIcon, AICoachIcon,
   PencilIcon,
@@ -346,6 +347,8 @@ export const App = () => {
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
+  const [unseenFinale, setUnseenFinale] = useState<any>(null);
+  const [showFinaleModal, setShowFinaleModal] = useState(false);
   
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState<boolean>(false);
@@ -794,6 +797,15 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
               setActiveBootcamp(bootcamp);
               setIsBootcampLoading(false);
           });
+          
+          // Also check for unseen finale
+          getUnseenBootcampFinale(currentUser.uid).then(finale => {
+              if (finale) {
+                  setUnseenFinale(finale);
+                  setShowFinaleModal(true);
+              }
+          });
+          
           return () => unsubscribe();
       } else {
           setActiveBootcamp(null);
@@ -2130,6 +2142,20 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 }}
                 onUndoCancelSuccess={() => {
                     setUserProfile(prev => ({ ...prev, subscriptionStatus: 'active' }));
+                }}
+            />
+        )}
+        {showFinaleModal && unseenFinale && currentUser && (
+            <BootcampFinaleModal
+                participant={unseenFinale}
+                onClose={() => {
+                    setShowFinaleModal(false);
+                    markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                }}
+                onGoToCourse={() => {
+                    setShowFinaleModal(false);
+                    markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                    setViewMode('coursesView');
                 }}
             />
         )}

@@ -464,7 +464,8 @@ export const TimelineEventCard: FC<{
     buddyDetails: BuddyDetails[]; // Passed for stats lookup
     currentStreak: number; // Current user's streak
     activeBootcamp?: any;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp }) => {
+    setToastNotification?: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification }) => {
     const [newComment, setNewComment] = useState('');
     const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -513,7 +514,7 @@ export const TimelineEventCard: FC<{
                     finalImageUrl = await uploadImageToStorage(blob, path);
                 } catch (uploadError) {
                     console.error("Error uploading comment image to storage:", uploadError);
-                    setToastNotification({ message: 'Kunde inte ladda upp bilden till servern.', type: 'error' });
+                    if (setToastNotification) setToastNotification({ message: 'Kunde inte ladda upp bilden till servern.', type: 'error' });
                     setIsSubmitting(false);
                     return;
                 }
@@ -524,7 +525,7 @@ export const TimelineEventCard: FC<{
             setCommentImage(null);
         } catch (error) {
             console.error("Error submitting comment:", error);
-            setToastNotification({ message: 'Kunde inte skicka kommentar.', type: 'error' });
+            if (setToastNotification) setToastNotification({ message: 'Kunde inte skicka kommentar.', type: 'error' });
         } finally {
             setIsSubmitting(false);
         }

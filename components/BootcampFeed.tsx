@@ -99,6 +99,9 @@ const BootcampFeed: React.FC<BootcampFeedProps> = ({ cohortId, userProfile, acti
             onTogglePepp={handleTogglePepp}
             onAddComment={handleAddComment}
             onToggleLike={handleToggleLike}
+            onToggleCommentReaction={async (event, commentId, emoji) => {
+                // Placeholder for now, or implement it if needed
+            }}
             onDelete={handleDeleteEvent}
             onImageClick={() => {}}
             lastViewTimestamp={null}

@@ -508,6 +508,7 @@ export interface BootcampParticipant {
   needsCoachAttention: boolean;
   attentionReason?: string;
   joinedAt: number;
+  finaleSeen?: boolean;
 }
 
 // --- Coach & Admin Types ---

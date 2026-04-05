@@ -267,6 +267,32 @@ export const subscribeToUserActiveBootcamp = (userId: string, callback: (partici
   });
 };
 
+export const getUnseenBootcampFinale = async (userId: string): Promise<BootcampParticipant | null> => {
+  if (!db) return null;
+  try {
+    const q = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    
+    // Find a completed bootcamp where finaleSeen is not true
+    const unseenFinale = snapshot.docs.map(doc => doc.data() as BootcampParticipant).find(p => p.status === 'completed' && !p.finaleSeen);
+    return unseenFinale || null;
+  } catch (error) {
+    console.error("Error fetching unseen bootcamp finale:", error);
+    return null;
+  }
+};
+
+export const markBootcampFinaleAsSeen = async (cohortId: string, userId: string): Promise<void> => {
+  if (!db) return;
+  try {
+    const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
+    await updateDoc(participantRef, { finaleSeen: true });
+  } catch (error) {
+    console.error("Error marking bootcamp finale as seen:", error);
+  }
+};
+
 export const subscribeToUserEveningReports = (cohortId: string, userId: string, callback: (reports: EveningReport[]) => void) => {
   if (!db) return () => {};
 
