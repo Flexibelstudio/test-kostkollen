@@ -1598,6 +1598,8 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
     const currentMuscleMass = latestLog?.skeletalMuscleMassKg ?? userData.skeletalMuscleMassKg;
     const currentFatMass = latestLog?.bodyFatMassKg ?? userData.bodyFatMassKg;
 
+    let highestBootcampStreak = userData.highestBootcampStreak;
+
     let bootcampStreak: number | undefined = undefined;
     let bootcampStatus: string | undefined = undefined;
     try {
@@ -1606,6 +1608,22 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
       if (activeBootcamp) {
         bootcampStreak = activeBootcamp.currentStreak;
         bootcampStatus = activeBootcamp.status;
+      }
+
+      // Fallback for highestBootcampStreak if missing
+      if (highestBootcampStreak === undefined) {
+        const participantsQuery = query(collectionGroup(db, 'participants'), where('userId', '==', buddy.uid));
+        const participantsSnap = await getDocsSafe(participantsQuery);
+        let maxStreak = 0;
+        participantsSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.longestStreak && data.longestStreak > maxStreak) {
+            maxStreak = data.longestStreak;
+          }
+        });
+        if (maxStreak > 0) {
+          highestBootcampStreak = maxStreak;
+        }
       }
     } catch (e) {
       console.warn("Could not fetch bootcamp info for buddy", e);
@@ -1645,7 +1663,7 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
       achievementInteractions: userData.achievementInteractions || {},
       bootcampStreak,
       bootcampStatus,
-      highestBootcampStreak: userData.highestBootcampStreak,
+      highestBootcampStreak: highestBootcampStreak,
     } as BuddyDetails;
   });
 

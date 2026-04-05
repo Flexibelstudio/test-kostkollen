@@ -366,16 +366,16 @@ const BuddyCard: FC<{
     return (
         <div className="bg-white dark:bg-neutral-darker p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3 relative">
              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                     <Avatar photoURL={buddy.photoURL} gender={buddy.gender} size={48} />
-                    <div>
-                        <h3 className="text-xl font-bold text-neutral-dark">{buddy.name}</h3>
-                        <p className="text-xs text-neutral flex items-center gap-2 mt-0.5 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-xl font-bold text-neutral-dark truncate">{buddy.name}</h3>
+                        <p className="text-xs text-neutral flex items-center gap-2 mt-0.5 min-w-0">
                             {buddy.currentStreak !== undefined && buddy.currentStreak > 0 && (
-                                <span className="font-medium text-orange-500">🔥 {buddy.currentStreak}</span>
+                                <span className="font-medium text-orange-500 whitespace-nowrap">🔥 {buddy.currentStreak}</span>
                             )}
                             {(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! > 0 && (
-                                <span className="font-medium text-yellow-600 flex items-center gap-1">
+                                <span className="font-medium text-yellow-600 flex items-center gap-1 whitespace-nowrap">
                                     🎖️ {buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak}
                                     {getBootcampRankInfo(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak!, 0, 'fas1').currentRank && (
                                         <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
@@ -384,8 +384,8 @@ const BuddyCard: FC<{
                                     )}
                                 </span>
                             )}
-                            <span className="text-neutral-300">|</span>
-                            <span className="truncate">{goalDescription}</span>
+                            <span className="text-neutral-300 shrink-0">|</span>
+                            <span className="truncate min-w-0">{goalDescription}</span>
                         </p>
                     </div>
                 </div>
@@ -651,7 +651,7 @@ export const TimelineEventCard: FC<{
                                         )}
                                         {hasHighestStreak && rankName && (
                                             <>
-                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) && !hasBootcampStreak) && <span className="text-neutral-300">|</span>}
+                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak) && <span className="text-neutral-300">|</span>}
                                                 <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
                                                     {rankName}
                                                 </span>
