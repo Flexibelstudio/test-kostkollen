@@ -374,18 +374,28 @@ const BuddyCard: FC<{
                             {buddy.currentStreak !== undefined && buddy.currentStreak > 0 && (
                                 <span className="font-medium text-orange-500 whitespace-nowrap">🔥 {buddy.currentStreak}</span>
                             )}
+                            {buddy.currentStreak !== undefined && buddy.currentStreak > 0 && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! > 0 && (
+                                <span className="text-neutral-300 shrink-0">|</span>
+                            )}
                             {(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! > 0 && (
                                 <span className="font-medium text-yellow-600 flex items-center gap-1 whitespace-nowrap">
                                     🎖️ {buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak}
                                     {getBootcampRankInfo(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak!, 0, 'fas1').currentRank && (
-                                        <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
-                                            {getBootcampRankInfo(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak!, 0, 'fas1').currentRank}
-                                        </span>
+                                        <>
+                                            <span className="text-neutral-300 shrink-0">|</span>
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                                                {getBootcampRankInfo(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak!, 0, 'fas1').currentRank}
+                                            </span>
+                                        </>
                                     )}
                                 </span>
                             )}
-                            <span className="text-neutral-300 shrink-0">|</span>
-                            <span className="truncate min-w-0">{goalDescription}</span>
+                            {((buddy.currentStreak !== undefined && buddy.currentStreak > 0) || ((buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! > 0)) && goalDescription && (
+                                <span className="text-neutral-300 shrink-0">|</span>
+                            )}
+                            {goalDescription && (
+                                <span className="truncate min-w-0">{goalDescription}</span>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -659,7 +669,7 @@ export const TimelineEventCard: FC<{
                                         )}
                                         {event.goalTextAtPost && (
                                             <>
-                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak || hasHighestStreak) && <span className="text-neutral-300">|</span>}
+                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak || (hasHighestStreak && rankName)) && <span className="text-neutral-300">|</span>}
                                                 <span className="truncate">{event.goalTextAtPost}</span>
                                             </>
                                         )}
