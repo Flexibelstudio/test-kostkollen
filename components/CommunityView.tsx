@@ -483,7 +483,8 @@ export const TimelineEventCard: FC<{
     currentStreak: number; // Current user's streak
     activeBootcamp?: any;
     setToastNotification?: (toast: { message: string; type: 'success' | 'error' } | null) => void;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification }) => {
+    onAddFriend?: (userId: string, userName: string) => void;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend }) => {
     const [newComment, setNewComment] = useState('');
     const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -604,6 +605,14 @@ export const TimelineEventCard: FC<{
                     <div className="flex flex-col min-w-0 flex-1">
                         <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
                             <span className="font-bold">{displayName}</span>
+                            {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
+                                <button 
+                                    onClick={() => onAddFriend(event.userId, event.userName)}
+                                    className="ml-1 text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
+                                >
+                                    + Lägg till kompis
+                                </button>
+                            )}
                             {isGlobalPost && !event.bootcampId && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                     Officiellt
@@ -859,7 +868,17 @@ export const TimelineEventCard: FC<{
                                     onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
                                     className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
                                 >
-                                    <p className="font-bold text-neutral-dark text-xs mb-0.5">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                        <p className="font-bold text-neutral-dark text-xs">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
+                                        {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
+                                            <button 
+                                                onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
+                                                className="text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
+                                            >
+                                                + Lägg till kompis
+                                            </button>
+                                        )}
+                                    </div>
                                     {comment.text && <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>}
                                     {comment.imageUrl && (
                                         <div className="mt-2 rounded-lg overflow-hidden max-w-xs">
@@ -1845,6 +1864,7 @@ export const CommunityView: React.FC<{
                                             lastViewTimestamp={effectiveLastViewTimestamp}
                                             buddyDetails={buddyDetails}
                                             currentStreak={currentStreak}
+                                            onAddFriend={(userId, userName) => handleSendRequest({ uid: userId, name: userName, email: '', photoURL: '', gender: 'other' })}
                                         />
                                     ))}
                                 </div>

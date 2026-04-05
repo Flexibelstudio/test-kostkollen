@@ -509,6 +509,7 @@ export interface BootcampParticipant {
   needsCoachAttention: boolean;
   attentionReason?: string;
   joinedAt: number;
+  endedAt?: number; // Timestamp when they completed or dropped
   finaleSeen?: boolean;
 }
 

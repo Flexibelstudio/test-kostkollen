@@ -206,7 +206,7 @@ export const subscribeToCohortParticipants = (cohortId: string, callback: (parti
 export const abortBootcamp = async (userId: string, cohortId: string): Promise<void> => {
   if (!db) throw new Error("Firestore not initialized");
   const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
-  await updateDoc(participantRef, { status: 'dropped' });
+  await updateDoc(participantRef, { status: 'dropped', endedAt: Date.now() });
 };
 
 const checkBootcampExpiration = async (participant: BootcampParticipant): Promise<BootcampParticipant> => {
@@ -224,7 +224,7 @@ const checkBootcampExpiration = async (participant: BootcampParticipant): Promis
 
   if (diffDays > 84) { // 12 weeks
     const participantRef = doc(db, 'bootcampCohorts', participant.cohortId, 'participants', participant.userId);
-    await updateDoc(participantRef, { status: 'completed' });
+    await updateDoc(participantRef, { status: 'completed', endedAt: Date.now() });
     
     // Also update the user's profile to indicate they have completed a bootcamp
     const userRef = doc(db, 'users', participant.userId);
@@ -249,6 +249,41 @@ const checkBootcampExpiration = async (participant: BootcampParticipant): Promis
   }
 
   return participant;
+};
+
+export const cleanupExpiredBootcampGroups = async (userId: string): Promise<void> => {
+  if (!db) return;
+  try {
+    const q = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) return;
+    
+    const now = Date.now();
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+    for (const docSnap of snapshot.docs) {
+      const participant = docSnap.data() as BootcampParticipant;
+      
+      if ((participant.status === 'completed' || participant.status === 'dropped') && participant.endedAt) {
+        if (now - participant.endedAt > THREE_DAYS_MS) {
+          // Remove from chat group
+          try {
+            const { removeMemberFromChat } = await import('./chatService');
+            // The chat ID is usually the cohortId
+            await removeMemberFromChat(participant.cohortId, userId);
+            
+            // Optionally, mark as expired so we don't keep trying to remove them
+            await updateDoc(docSnap.ref, { status: 'expired' });
+          } catch (e) {
+            console.error(`Failed to remove user ${userId} from chat ${participant.cohortId}`, e);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error cleaning up expired bootcamp groups:", error);
+  }
 };
 
 export const getUserActiveBootcamp = async (userId: string): Promise<BootcampParticipant | null> => {

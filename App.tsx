@@ -817,7 +817,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       if (currentUser && activeBootcamp) {
           const unsubscribe = subscribeToUserEveningReports(activeBootcamp.cohortId, currentUser.uid, (reports) => {
               setRecentBootcampReports(reports);
-          });
+          }, activeBootcamp.fas1StartDate);
           return () => unsubscribe();
       } else {
           setRecentBootcampReports([]);

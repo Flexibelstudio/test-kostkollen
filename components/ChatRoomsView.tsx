@@ -538,6 +538,15 @@ export const ChatWindow: React.FC<{
         }
     }, [messages, prevScrollHeight]);
 
+    const handleAddFriend = async (userId: string, userName: string) => {
+        try {
+            await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, userId);
+            setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
+        } catch (error: any) {
+            setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
+        }
+    };
+
     const handleScroll = () => {
         if (messagesContainerRef.current && initialScrollDone) {
             if (messagesContainerRef.current.scrollTop === 0) {
@@ -1094,6 +1103,14 @@ export const ChatWindow: React.FC<{
                                 <div className="flex items-center gap-2 mb-1 ml-1">
                                     <Avatar photoURL={msg.senderPhotoURL} size={20} />
                                     <span className="text-xs font-medium text-neutral">{msg.senderName}</span>
+                                    {msg.senderId !== currentUser.uid && !buddyDetails.some(b => b.uid === msg.senderId) && (
+                                        <button 
+                                            onClick={() => handleAddFriend(msg.senderId, msg.senderName)}
+                                            className="text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
+                                        >
+                                            + Lägg till kompis
+                                        </button>
+                                    )}
                                 </div>
                             )}
                             <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : isNewMessage ? 'bg-primary-50 border border-primary-200 text-neutral-dark rounded-bl-sm shadow-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}>

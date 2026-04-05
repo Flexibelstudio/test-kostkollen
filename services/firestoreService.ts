@@ -1696,6 +1696,19 @@ export async function searchForBuddies(currentUserId: string): Promise<Peppkompi
 export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string): Promise<void> {
   if (!db) return;
   const requestsRef = collection(db, 'peppkompisRequests');
+  
+  // Check if a pending request already exists
+  const q = query(
+    requestsRef, 
+    where('fromUid', '==', fromUser.uid), 
+    where('toUid', '==', toUserUid),
+    where('status', '==', 'pending')
+  );
+  const snapshot = await getDocs(q);
+  if (!snapshot.empty) {
+    throw new Error('En vänförfrågan har redan skickats till den här användaren.');
+  }
+
   const newRequest: Omit<PeppkompisRequest, 'id'> = {
     fromUid: fromUser.uid,
     fromName: fromUser.name,
