@@ -601,7 +601,7 @@ export const TimelineEventCard: FC<{
             <Avatar photoURL={displayPhotoURL} gender={event.gender} size={42} />
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
-                    <div className="flex flex-col">
+                    <div className="flex flex-col min-w-0 flex-1">
                         <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
                             <span className="font-bold">{displayName}</span>
                             {isGlobalPost && !event.bootcampId && (
@@ -648,29 +648,29 @@ export const TimelineEventCard: FC<{
                             const rankName = hasHighestStreak ? getBootcampRankInfo(effectiveHighestStreak!, 0, 'fas1').currentRank : '';
 
                             return (
-                                <div className="mt-1 mb-2 w-full">
-                                    <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-1 flex-wrap">
+                                <div className="mt-1 mb-2 w-full min-w-0">
+                                    <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-1 min-w-0">
                                         {event.streakAtPost !== undefined && event.streakAtPost > 0 && (
-                                            <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
+                                            <span className="flex items-center gap-0.5 text-orange-600 whitespace-nowrap shrink-0"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
                                         )}
                                         {hasBootcampStreak && (
                                             <>
-                                                {event.streakAtPost !== undefined && event.streakAtPost > 0 && <span className="text-neutral-300">|</span>}
-                                                <span className="flex items-center gap-0.5 text-yellow-600"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
+                                                {event.streakAtPost !== undefined && event.streakAtPost > 0 && <span className="text-neutral-300 shrink-0">|</span>}
+                                                <span className="flex items-center gap-0.5 text-yellow-600 whitespace-nowrap shrink-0"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
                                             </>
                                         )}
                                         {hasHighestStreak && rankName && (
                                             <>
-                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak) && <span className="text-neutral-300">|</span>}
-                                                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak) && <span className="text-neutral-300 shrink-0">|</span>}
+                                                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full whitespace-nowrap shrink-0">
                                                     {rankName}
                                                 </span>
                                             </>
                                         )}
                                         {event.goalTextAtPost && (
                                             <>
-                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak || (hasHighestStreak && rankName)) && <span className="text-neutral-300">|</span>}
-                                                <span className="truncate">{event.goalTextAtPost}</span>
+                                                {((event.streakAtPost !== undefined && event.streakAtPost > 0) || hasBootcampStreak || (hasHighestStreak && rankName)) && <span className="text-neutral-300 shrink-0">|</span>}
+                                                <span className="truncate min-w-0">{event.goalTextAtPost}</span>
                                             </>
                                         )}
                                     </div>
