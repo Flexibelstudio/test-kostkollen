@@ -59,7 +59,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
 
   const handleCreateCohort = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCohortName.trim() || !newCohortCode.trim() || !newCohortStartDate) {
+    if (!newCohortName.trim() || (!newCohortIsPublic && !newCohortCode.trim()) || !newCohortStartDate) {
       setToastNotification({ message: 'Fyll i alla fält', type: 'error' });
       return;
     }
@@ -78,10 +78,12 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         true // isSystemGroup
       );
 
+      const finalInviteCode = newCohortIsPublic ? `PUB-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : newCohortCode;
+
       // 2. Create the cohort
       await createCohort(
         newCohortName,
-        newCohortCode,
+        finalInviteCode,
         newCohortStartDate,
         chatGroupId,
         currentUser.uid,
