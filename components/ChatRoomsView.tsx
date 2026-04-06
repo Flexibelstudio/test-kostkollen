@@ -3,7 +3,7 @@ import { User } from 'firebase/auth';
 import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings } from '../types';
 import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleReactionMessage, approveMember, rejectMember, leaveChat } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
-import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon } from './icons';
+import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon, SmileIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
 import { searchForBuddies, fetchUsersByUids, sendFriendRequest } from '../services/firestoreService';
 import EmojiPicker from 'emoji-picker-react';
