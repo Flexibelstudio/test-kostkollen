@@ -93,6 +93,20 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
 
   await setDoc(participantRef, participantData, { merge: true });
 
+  try {
+    const { addTimelineEvent } = await import('./firestoreService');
+    await addTimelineEvent(userId, {
+      type: 'achievement',
+      timestamp: Date.now(),
+      title: 'har mönstrat in till Bootcamp!',
+      description: 'Har antagit utmaningen och startat General Börjes Bootcamp (Solo).',
+      icon: '🪖',
+      relatedDocId: `bootcamp_join_solo_${Date.now()}`
+    });
+  } catch (e) {
+    console.error("Failed to create bootcamp join timeline event", e);
+  }
+
   return { 
     success: true, 
     message: 'Välkommen till Bootcampet, rekryt! Din första dag börjar nu.' 
@@ -138,6 +152,20 @@ export const joinCohort = async (userId: string, inviteCode: string): Promise<{ 
   };
 
   await setDoc(participantRef, participantData, { merge: true });
+
+  try {
+    const { addTimelineEvent } = await import('./firestoreService');
+    await addTimelineEvent(userId, {
+      type: 'achievement',
+      timestamp: Date.now(),
+      title: 'har mönstrat in till Bootcamp!',
+      description: `Har antagit utmaningen och anslutit sig till truppen: ${cohort.name}.`,
+      icon: '🪖',
+      relatedDocId: `bootcamp_join_${cohort.id}_${Date.now()}`
+    });
+  } catch (e) {
+    console.error("Failed to create bootcamp join timeline event", e);
+  }
 
   return { 
     success: true, 

@@ -798,6 +798,10 @@ export async function addTimelineEvent(
     console.warn("Could not fetch bootcamp info for timeline event", e);
   }
 
+  if (bootcampId) {
+    visibleTo.push(bootcampId);
+  }
+
   // Calculate goal text and progress
   let goalTextAtPost: string | undefined;
   let progressAtPost: number | undefined;
