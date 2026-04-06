@@ -62,6 +62,18 @@ export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) =
 
 // --- Participant Management ---
 
+export const updateCohort = async (cohortId: string, updates: Partial<BootcampCohort>): Promise<void> => {
+  if (!db) throw new Error("Firestore not initialized");
+  const cohortRef = doc(db, 'bootcampCohorts', cohortId);
+  await updateDoc(cohortRef, updates);
+};
+
+export const deleteCohort = async (cohortId: string): Promise<void> => {
+  if (!db) throw new Error("Firestore not initialized");
+  const cohortRef = doc(db, 'bootcampCohorts', cohortId);
+  await deleteDoc(cohortRef);
+};
+
 export const joinSoloBootcamp = async (userId: string): Promise<{ success: boolean; message: string }> => {
   if (!db) throw new Error("Firestore not initialized");
 

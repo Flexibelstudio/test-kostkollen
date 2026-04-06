@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '@firebase/auth';
 import { UserProfileData, BootcampCohort, CoachViewMember, BootcampParticipant } from '../types';
-import { subscribeToCohorts, createCohort, subscribeToAllBootcampParticipants } from '../services/bootcampService';
+import { subscribeToCohorts, createCohort, subscribeToAllBootcampParticipants, updateCohort, deleteCohort } from '../services/bootcampService';
 import { createChat } from '../services/chatService';
 import { TrophyIcon, UsersIcon, PlusIcon, XMarkIcon, CalendarIcon, KeyIcon, FireIcon, CheckIcon, ArrowLeftIcon } from './icons';
 import BootcampFeed from './BootcampFeed';
@@ -41,6 +41,13 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
   const [selectedCohortId, setSelectedCohortId] = useState<string | null>(null);
   const [selectedParticipant, setSelectedParticipant] = useState<BootcampParticipant | null>(null);
   
+  const [editingCohort, setEditingCohort] = useState<BootcampCohort | null>(null);
+  const [editCohortName, setEditCohortName] = useState('');
+  const [editCohortCode, setEditCohortCode] = useState('');
+  const [editCohortStartDate, setEditCohortStartDate] = useState('');
+  const [editCohortIsPublic, setEditCohortIsPublic] = useState(false);
+  const [cohortToDelete, setCohortToDelete] = useState<BootcampCohort | null>(null);
+
   const [activeTab, setActiveTab] = useState<'cohorts' | 'participants' | 'library'>('cohorts');
   const [sortConfig, setSortConfig] = useState<{ key: keyof BootcampParticipant | 'name' | 'cohortName'; direction: 'asc' | 'desc' }>({ key: 'currentStreak', direction: 'desc' });
 
@@ -99,6 +106,53 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
     } catch (error) {
       console.error("Error creating cohort:", error);
       setToastNotification({ message: 'Ett fel uppstod', type: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateCohort = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCohort) return;
+    if (!editCohortName.trim() || (!editCohortIsPublic && !editCohortCode.trim()) || !editCohortStartDate) {
+      setToastNotification({ message: 'Fyll i alla fält', type: 'error' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const finalInviteCode = editCohortIsPublic ? (editingCohort.inviteCode.startsWith('PUB-') ? editingCohort.inviteCode : `PUB-${Math.random().toString(36).substring(2, 8).toUpperCase()}`) : editCohortCode;
+
+      await updateCohort(editingCohort.id, {
+        name: editCohortName,
+        inviteCode: finalInviteCode,
+        startDate: editCohortStartDate,
+        isPublic: editCohortIsPublic
+      });
+
+      setToastNotification({ message: 'Truppen har uppdaterats!', type: 'success' });
+      setEditingCohort(null);
+    } catch (error) {
+      console.error("Error updating cohort:", error);
+      setToastNotification({ message: 'Ett fel uppstod vid uppdatering', type: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteCohort = async () => {
+    if (!cohortToDelete) return;
+    setIsSubmitting(true);
+    try {
+      await deleteCohort(cohortToDelete.id);
+      setToastNotification({ message: 'Truppen har raderats', type: 'success' });
+      if (selectedCohortId === cohortToDelete.id) {
+        setSelectedCohortId(null);
+      }
+      setCohortToDelete(null);
+    } catch (error) {
+      console.error("Error deleting cohort:", error);
+      setToastNotification({ message: 'Ett fel uppstod vid radering', type: 'error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -182,6 +236,29 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
               {cohort.status === 'active' ? 'Aktiv' : cohort.status === 'upcoming' ? 'Kommande' : 'Avslutad'}
             </span>
           </div>
+          
+          {cohort.id !== 'solo' && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-neutral-100">
+              <button
+                onClick={() => {
+                  setEditingCohort(cohort);
+                  setEditCohortName(cohort.name);
+                  setEditCohortCode(cohort.inviteCode);
+                  setEditCohortStartDate(cohort.startDate);
+                  setEditCohortIsPublic(cohort.isPublic);
+                }}
+                className="px-4 py-2 text-sm font-bold text-primary bg-primary-50 rounded-xl hover:bg-primary-100 transition-colors"
+              >
+                Redigera trupp
+              </button>
+              <button
+                onClick={() => setCohortToDelete(cohort)}
+                className="px-4 py-2 text-sm font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
+              >
+                Radera trupp
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -571,6 +648,147 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
           onClose={() => setSelectedParticipant(null)}
           isCoach={true}
         />
+      )}
+
+      {/* Edit Cohort Modal */}
+      {editingCohort && (
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setEditingCohort(null)}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-soft-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-neutral-dark">Redigera Trupp</h2>
+              <button onClick={() => setEditingCohort(null)} className="text-neutral hover:text-neutral-dark transition-colors">
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateCohort} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Truppens Namn</label>
+                <input
+                  type="text"
+                  value={editCohortName}
+                  onChange={(e) => setEditCohortName(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-3">
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Typ av trupp</label>
+                
+                <div 
+                  className={`p-4 rounded-xl border cursor-pointer transition-colors ${editCohortIsPublic ? 'border-primary bg-primary-50/30' : 'border-neutral-light bg-white hover:bg-neutral-50'}`}
+                  onClick={() => setEditCohortIsPublic(true)}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="editCohortType"
+                      checked={editCohortIsPublic}
+                      onChange={() => setEditCohortIsPublic(true)}
+                      className="w-5 h-5 text-primary focus:ring-primary"
+                    />
+                    <div>
+                      <div className="font-bold text-neutral-dark">Publik trupp</div>
+                      <p className="text-xs text-neutral-500">Vem som helst kan se och gå med i truppen utan kod.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div 
+                  className={`p-4 rounded-xl border cursor-pointer transition-colors ${!editCohortIsPublic ? 'border-primary bg-primary-50/30' : 'border-neutral-light bg-white hover:bg-neutral-50'}`}
+                  onClick={() => setEditCohortIsPublic(false)}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="editCohortType"
+                      checked={!editCohortIsPublic}
+                      onChange={() => setEditCohortIsPublic(false)}
+                      className="w-5 h-5 text-primary focus:ring-primary"
+                    />
+                    <div>
+                      <div className="font-bold text-neutral-dark">Privat trupp (Kräver kod)</div>
+                      <p className="text-xs text-neutral-500">Deltagare måste ange en specifik kod för att gå med.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {!editCohortIsPublic && (
+                <div className="animate-fade-in">
+                  <label className="block text-sm font-bold text-neutral-dark mb-1">Inbjudningskod</label>
+                  <input
+                    type="text"
+                    value={editCohortCode}
+                    onChange={(e) => setEditCohortCode(e.target.value.toUpperCase())}
+                    placeholder="T.ex. BÖRJE-APRIL"
+                    className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent uppercase"
+                    required={!editCohortIsPublic}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Startdatum</label>
+                <input
+                  type="date"
+                  value={editCohortStartDate}
+                  onChange={(e) => setEditCohortStartDate(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setEditingCohort(null)}
+                  className="px-6 py-3 font-bold text-neutral-dark hover:bg-neutral-100 rounded-xl transition-colors"
+                  disabled={isSubmitting}
+                >
+                  Avbryt
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Sparar...' : 'Spara ändringar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Cohort Confirmation Modal */}
+      {cohortToDelete && (
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setCohortToDelete(null)}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-soft-xl text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-red-600 mx-auto mb-4">
+              <XMarkIcon className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-neutral-dark mb-2">Radera Trupp?</h2>
+            <p className="text-neutral-600 mb-6">
+              Är du säker på att du vill radera <strong>{cohortToDelete.name}</strong>? Detta går inte att ångra. Eventuella deltagare kommer att förlora sin koppling till truppen.
+            </p>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setCohortToDelete(null)}
+                className="px-6 py-3 font-bold text-neutral-dark hover:bg-neutral-100 rounded-xl transition-colors"
+                disabled={isSubmitting}
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={handleDeleteCohort}
+                disabled={isSubmitting}
+                className="px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? 'Raderar...' : 'Ja, radera trupp'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

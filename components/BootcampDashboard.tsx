@@ -206,7 +206,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const handleWeightSaved = async (data: Omit<WeightLogEntry, 'id'>) => {
     if (!auth.currentUser) return;
     try {
-      await saveWeightLog(data);
+      await saveWeightLog(auth.currentUser.uid, data);
       
       const isUsingInBody = data.skeletalMuscleMassKg != null || data.bodyFatMassKg != null;
       
