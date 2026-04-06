@@ -771,22 +771,22 @@ export const TimelineEventCard: FC<{
                 
                 {/* Reaction Menu Dropdown */}
                 {showReactionMenu && (
-                    <div className="absolute bottom-full left-0 mb-2 flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5 z-20 animate-fade-in">
-                        {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
-                            <button 
-                                key={emoji}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    onTogglePepp(event, emoji);
-                                    setShowReactionMenu(false);
-                                }} 
-                                className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!event.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
-                                title={emoji}
-                            >
-                                {emoji}
-                            </button>
-                        ))}
-                        <div className="relative" ref={emojiPickerRef}>
+                    <div className="absolute bottom-full left-0 mb-2 z-20 animate-fade-in" ref={emojiPickerRef}>
+                        <div className="flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5">
+                            {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                                <button 
+                                    key={emoji}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        onTogglePepp(event, emoji);
+                                        setShowReactionMenu(false);
+                                    }} 
+                                    className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!event.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
+                                    title={emoji}
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
                             <button 
                                 onClick={(e) => {
                                     e.preventDefault();
@@ -797,20 +797,20 @@ export const TimelineEventCard: FC<{
                             >
                                 <PlusIcon className="w-4 h-4" />
                             </button>
-                            {showEmojiPicker && (
-                                <div className="absolute bottom-full right-0 mb-2 z-50">
-                                    <EmojiPicker 
-                                        onEmojiClick={(emojiData) => {
-                                            onTogglePepp(event, emojiData.emoji);
-                                            setShowEmojiPicker(false);
-                                            setShowReactionMenu(false);
-                                        }}
-                                        autoFocusSearch={false}
-                                        theme={Theme.LIGHT}
-                                    />
-                                </div>
-                            )}
                         </div>
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-full left-0 mb-2 z-50">
+                                <EmojiPicker 
+                                    onEmojiClick={(emojiData) => {
+                                        onTogglePepp(event, emojiData.emoji);
+                                        setShowEmojiPicker(false);
+                                        setShowReactionMenu(false);
+                                    }}
+                                    autoFocusSearch={false}
+                                    theme={Theme.LIGHT}
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

@@ -324,6 +324,7 @@ export const ChatWindow: React.FC<{
     const [mentionSearch, setMentionSearch] = useState<string | null>(null);
     const [mentionIndex, setMentionIndex] = useState<number>(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const emojiPickerRef = useRef<HTMLDivElement>(null);
 
     // Capture the last read timestamp when opening the chat to highlight new messages
     const [initialLastReadTimestamp] = useState(() => {
@@ -466,6 +467,10 @@ export const ChatWindow: React.FC<{
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
                 setShowSettings(false);
                 setShowAdminMenu(false);
+            }
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+                setShowEmojiPickerFor(null);
+                setShowFullEmojiPicker(false);
             }
         };
 
@@ -1184,27 +1189,28 @@ export const ChatWindow: React.FC<{
                                     
                                     {/* Reaction Menu Dropdown */}
                                     {showEmojiPickerFor === msg.id && (
-                                        <div className={`absolute bottom-full ${isMe ? 'right-0' : 'left-0'} mb-2 flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5 z-20 animate-fade-in`}>
-                                            {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                                        <div className={`absolute bottom-full ${isMe ? 'right-0' : 'left-0'} mb-2 z-20 animate-fade-in`} ref={emojiPickerRef}>
+                                            <div className="flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5">
+                                                {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                                                    <button 
+                                                        key={emoji}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            const hasReacted = !!msg.reactions?.[emoji]?.[currentUser.uid];
+                                                            toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emoji, !hasReacted);
+                                                            setShowEmojiPickerFor(null);
+                                                            setShowFullEmojiPicker(false);
+                                                        }} 
+                                                        className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!msg.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
+                                                        title={emoji}
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
                                                 <button 
-                                                    key={emoji}
                                                     onClick={(e) => {
                                                         e.preventDefault();
-                                                        const hasReacted = !!msg.reactions?.[emoji]?.[currentUser.uid];
-                                                        toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emoji, !hasReacted);
-                                                        setShowEmojiPickerFor(null);
-                                                    }} 
-                                                    className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!msg.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
-                                                    title={emoji}
-                                                >
-                                                    {emoji}
-                                                </button>
-                                            ))}
-                                            <div className="relative">
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        setShowFullEmojiPicker(true);
+                                                        setShowFullEmojiPicker(!showFullEmojiPicker);
                                                     }} 
                                                     className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
                                                     title="Fler emojis"
@@ -1212,6 +1218,20 @@ export const ChatWindow: React.FC<{
                                                     <PlusIcon className="w-4 h-4" />
                                                 </button>
                                             </div>
+                                            {showFullEmojiPicker && (
+                                                <div className={`absolute bottom-full ${isMe ? 'right-0' : 'left-0'} mb-2 z-50`}>
+                                                    <EmojiPicker 
+                                                        onEmojiClick={(emojiData) => {
+                                                            const hasReacted = !!msg.reactions?.[emojiData.emoji]?.[currentUser.uid];
+                                                            toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emojiData.emoji, !hasReacted);
+                                                            setShowEmojiPickerFor(null);
+                                                            setShowFullEmojiPicker(false);
+                                                        }}
+                                                        autoFocusSearch={false}
+                                                        theme={Theme.LIGHT}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1398,29 +1418,6 @@ export const ChatWindow: React.FC<{
                     </button>
                 </form>
             </div>
-            {showEmojiPickerFor && showFullEmojiPicker && (
-                <div className="flex-shrink-0 bg-white border-t border-neutral-light w-full">
-                    <div className="flex justify-end p-2 border-b border-neutral-light">
-                        <button onClick={() => {
-                            setShowEmojiPickerFor(null);
-                            setShowFullEmojiPicker(false);
-                        }} className="text-neutral hover:text-neutral-dark font-medium text-sm px-3 py-1 bg-gray-100 rounded-full">Stäng</button>
-                    </div>
-                    <EmojiPicker 
-                        onEmojiClick={(emojiData) => {
-                            const msg = messages.find(m => m.id === showEmojiPickerFor);
-                            if (msg) {
-                                const hasReacted = !!msg.reactions?.[emojiData.emoji]?.[currentUser.uid];
-                                toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emojiData.emoji, !hasReacted);
-                            }
-                            setShowEmojiPickerFor(null);
-                            setShowFullEmojiPicker(false);
-                        }}
-                        width="100%"
-                        height="50vh"
-                    />
-                </div>
-            )}
         </div>
     );
 };
