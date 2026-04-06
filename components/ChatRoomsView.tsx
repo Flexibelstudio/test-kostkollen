@@ -1141,54 +1141,9 @@ export const ChatWindow: React.FC<{
                                     <span className="text-[10px] opacity-70 ml-2">(redigerad)</span>
                                 )}
                                 
-                                {/* Reactions */}
-                                {(msg.likes?.length || 0) > 0 || Object.keys(msg.reactions || {}).length > 0 ? (
-                                    <div className={`absolute -bottom-3 ${isMe ? 'right-2' : 'left-2'} bg-white border border-neutral-light rounded-full px-1.5 py-0.5 flex items-center gap-1 shadow-sm text-xs text-neutral-dark z-10`}>
-                                        {Object.entries(msg.reactions || {}).map(([emoji, users]) => {
-                                            const count = Object.keys(users).length;
-                                            if (count === 0) return null;
-                                            return (
-                                                <div key={emoji} className="flex items-center gap-0.5">
-                                                    <span>{emoji}</span>
-                                                    <span>{count}</span>
-                                                </div>
-                                            );
-                                        })}
-                                        {/* Legacy likes */}
-                                        {msg.likes && msg.likes.length > 0 && !msg.reactions?.['❤️'] && (
-                                            <div className="flex items-center gap-0.5">
-                                                <HeartIcon className="w-3 h-3 fill-red-500 text-red-500" />
-                                                <span>{msg.likes.length}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : null}
-                                
                                 {/* Message Actions */}
                                 {!msg.isDeleted && (
                                     <div className={`absolute -top-10 ${isMe ? 'right-0' : 'left-0'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white shadow-sm border border-neutral-light rounded-lg p-1 z-20`}>
-                                        {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
-                                            <button 
-                                                key={emoji}
-                                                onClick={() => {
-                                                    const hasReacted = !!msg.reactions?.[emoji]?.[currentUser.uid] || (emoji === '❤️' && msg.likes?.includes(currentUser.uid));
-                                                    toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emoji, !hasReacted);
-                                                }} 
-                                                className={`p-1 rounded hover:bg-gray-100 ${!!msg.reactions?.[emoji]?.[currentUser.uid] || (emoji === '❤️' && msg.likes?.includes(currentUser.uid)) ? 'bg-primary-50' : ''}`} 
-                                                title={emoji}
-                                            >
-                                                {emoji}
-                                            </button>
-                                        ))}
-                                        <div className="relative">
-                                            <button 
-                                                onClick={() => setShowEmojiPickerFor(showEmojiPickerFor === msg.id ? null : msg.id)} 
-                                                className="p-1 rounded hover:bg-gray-100 text-neutral" 
-                                                title="Fler emojis"
-                                            >
-                                                <PlusIcon className="w-4 h-4" />
-                                            </button>
-                                        </div>
                                         <button onClick={() => setReplyingToMessage(msg)} className="p-1 text-neutral hover:text-primary rounded hover:bg-gray-100" title="Svara">
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
                                         </button>
@@ -1207,6 +1162,71 @@ export const ChatWindow: React.FC<{
                                     </div>
                                 )}
                             </div>
+
+                            {/* Reactions and Action Bar (Outside Bubble) */}
+                            <div className={`flex flex-wrap items-center gap-1.5 mt-1 ${isMe ? 'justify-end' : 'justify-start'} w-full max-w-[80%]`}>
+                                {/* Add Reaction Button */}
+                                <div className="relative">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setShowEmojiPickerFor(showEmojiPickerFor === msg.id ? null : msg.id);
+                                        }}
+                                        className={`flex items-center justify-center w-6 h-6 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 transition-colors shadow-sm ${isMe ? 'order-last' : 'order-first'}`}
+                                        title="Reagera"
+                                    >
+                                        <SmileIcon className="w-3.5 h-3.5" />
+                                        <span className="absolute -top-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
+                                            <PlusIcon className="w-2 h-2 text-neutral-500" />
+                                        </span>
+                                    </button>
+                                </div>
+
+                                {/* Existing Reactions */}
+                                {Object.entries(msg.reactions || {}).map(([emoji, users]) => {
+                                    const count = Object.keys(users).length;
+                                    if (count === 0) return null;
+                                    const hasReacted = !!users[currentUser.uid];
+                                    
+                                    return (
+                                        <button 
+                                            key={emoji} 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emoji, !hasReacted);
+                                            }} 
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all active:scale-95 border shadow-sm
+                                                ${hasReacted 
+                                                    ? 'bg-primary-50 border-primary text-primary-darker' 
+                                                    : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
+                                                }`}
+                                        >
+                                            <span>{emoji}</span>
+                                            <span className="font-semibold">{count}</span>
+                                        </button>
+                                    )
+                                })}
+                                {/* Legacy likes */}
+                                {msg.likes && msg.likes.length > 0 && !msg.reactions?.['❤️'] && (
+                                    <button 
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            const hasReacted = msg.likes?.includes(currentUser.uid);
+                                            toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', '❤️', !hasReacted);
+                                        }}
+                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all active:scale-95 border shadow-sm
+                                            ${msg.likes?.includes(currentUser.uid)
+                                                ? 'bg-primary-50 border-primary text-primary-darker' 
+                                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
+                                            }`}
+                                    >
+                                        <HeartIcon className="w-2.5 h-2.5 fill-red-500 text-red-500" />
+                                        <span className="font-semibold">{msg.likes.length}</span>
+                                    </button>
+                                )}
+                            </div>
+
                             <span className="text-[10px] text-neutral mt-1 mx-1">
                                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
