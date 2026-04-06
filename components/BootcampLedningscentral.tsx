@@ -323,18 +323,63 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                 required
               />
             </div>
-            <div>
-              <label className="block text-sm font-bold text-neutral-dark mb-1">Inbjudningskod</label>
-              <input
-                type="text"
-                value={newCohortCode}
-                onChange={(e) => setNewCohortCode(e.target.value.toUpperCase())}
-                placeholder="T.ex. BÖRJE-APRIL"
-                className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent uppercase"
-                required
-              />
-              <p className="text-xs text-neutral-500 mt-1">Detta är koden deltagarna använder för att gå med.</p>
+            <div className="space-y-3">
+              <label className="block text-sm font-bold text-neutral-dark mb-1">Typ av trupp</label>
+              
+              <div 
+                className={`p-4 rounded-xl border cursor-pointer transition-colors ${newCohortIsPublic ? 'border-primary bg-primary-50/30' : 'border-neutral-light bg-white hover:bg-neutral-50'}`}
+                onClick={() => setNewCohortIsPublic(true)}
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="cohortType"
+                    checked={newCohortIsPublic}
+                    onChange={() => setNewCohortIsPublic(true)}
+                    className="w-5 h-5 text-primary focus:ring-primary"
+                  />
+                  <div>
+                    <div className="font-bold text-neutral-dark">Publik trupp</div>
+                    <p className="text-xs text-neutral-500">Vem som helst kan se och gå med i truppen utan kod.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div 
+                className={`p-4 rounded-xl border cursor-pointer transition-colors ${!newCohortIsPublic ? 'border-primary bg-primary-50/30' : 'border-neutral-light bg-white hover:bg-neutral-50'}`}
+                onClick={() => setNewCohortIsPublic(false)}
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="cohortType"
+                    checked={!newCohortIsPublic}
+                    onChange={() => setNewCohortIsPublic(false)}
+                    className="w-5 h-5 text-primary focus:ring-primary"
+                  />
+                  <div>
+                    <div className="font-bold text-neutral-dark">Privat trupp (Kräver kod)</div>
+                    <p className="text-xs text-neutral-500">Deltagare måste ange en specifik kod för att gå med.</p>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            {!newCohortIsPublic && (
+              <div className="animate-fade-in">
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Inbjudningskod</label>
+                <input
+                  type="text"
+                  value={newCohortCode}
+                  onChange={(e) => setNewCohortCode(e.target.value.toUpperCase())}
+                  placeholder="T.ex. BÖRJE-APRIL"
+                  className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent uppercase"
+                  required={!newCohortIsPublic}
+                />
+                <p className="text-xs text-neutral-500 mt-1">Detta är koden deltagarna använder för att gå med.</p>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-bold text-neutral-dark mb-1">Startdatum</label>
               <input
@@ -344,19 +389,6 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                 className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
-            </div>
-            <div className="flex items-center gap-3 p-4 bg-neutral-50 rounded-xl border border-neutral-light">
-              <input
-                type="checkbox"
-                id="isPublic"
-                checked={newCohortIsPublic}
-                onChange={(e) => setNewCohortIsPublic(e.target.checked)}
-                className="w-5 h-5 text-primary rounded border-neutral-300 focus:ring-primary"
-              />
-              <div>
-                <label htmlFor="isPublic" className="font-bold text-neutral-dark block cursor-pointer">Gör truppen publik i appen</label>
-                <p className="text-xs text-neutral-500">Om ikryssad kan vem som helst se och gå med i truppen utan kod.</p>
-              </div>
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <button

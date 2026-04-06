@@ -89,6 +89,7 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
     originalStartDate: startDateStr, // Absolute start date
     needsCoachAttention: false,
     joinedAt: Date.now(),
+    bootcampOnboardingCompleted: false,
   };
 
   await setDoc(participantRef, participantData, { merge: true });
@@ -111,6 +112,29 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
     success: true, 
     message: 'Välkommen till Bootcampet, rekryt! Din första dag börjar nu.' 
   };
+};
+
+export const completeBootcampOnboarding = async (userId: string, cohortId: string): Promise<void> => {
+  if (!db) throw new Error("Firestore not initialized");
+  const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
+  
+  const participantSnap = await getDoc(participantRef);
+  if (!participantSnap.exists()) return;
+
+  const data = participantSnap.data() as BootcampParticipant;
+  
+  const updates: Partial<BootcampParticipant> = {
+    bootcampOnboardingCompleted: true
+  };
+
+  // If solo, start the 12 weeks from today
+  if (cohortId === 'solo') {
+    const startDateStr = new Date().toISOString().split('T')[0];
+    updates.fas1StartDate = startDateStr;
+    updates.originalStartDate = startDateStr;
+  }
+
+  await updateDoc(participantRef, updates);
 };
 
 export const joinCohort = async (userId: string, inviteCode: string): Promise<{ success: boolean; message: string; cohortId?: string; chatGroupId?: string }> => {
@@ -149,6 +173,7 @@ export const joinCohort = async (userId: string, inviteCode: string): Promise<{ 
     originalStartDate: cohort.startDate, // Absolute start date
     needsCoachAttention: false,
     joinedAt: Date.now(),
+    bootcampOnboardingCompleted: false,
   };
 
   await setDoc(participantRef, participantData, { merge: true });

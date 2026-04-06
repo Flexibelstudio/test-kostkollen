@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry, WeeklyCalorieBank } from '../types';
-import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal } from '../services/bootcampService';
-import { fetchMealLogsForDate, fetchWaterLog } from '../services/firestoreService';
+import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal, completeBootcampOnboarding } from '../services/bootcampService';
+import { fetchMealLogsForDate, fetchWaterLog, saveWeightLog } from '../services/firestoreService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
 import MealStructureGuide from './MealStructureGuide';
 import ProteinInfoModal from './ProteinInfoModal';
+import LogWeightModal from './LogWeightModal';
+import UserProfileModal from './UserProfileModal';
 import { InformationCircleIcon } from './icons';
 import { getDateUID } from '../utils/dateUtils';
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
@@ -30,6 +33,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [isStatusOpen, setIsStatusOpen] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
+
+  // Waiting Room state
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [tempProfile, setTempProfile] = useState<UserProfileData | null>(null);
+  const [hasCompletedWeight, setHasCompletedWeight] = useState(false);
 
   // Form state
   const [loggedAllMeals, setLoggedAllMeals] = useState(false);
@@ -193,6 +202,168 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       setIsSubmitting(false);
     }
   };
+
+  const handleWeightSaved = async (data: Omit<WeightLogEntry, 'id'>) => {
+    if (!auth.currentUser) return;
+    try {
+      await saveWeightLog(data);
+      
+      const isUsingInBody = data.skeletalMuscleMassKg != null || data.bodyFatMassKg != null;
+      
+      const startDate = participant.originalStartDate ? new Date(participant.originalStartDate) : new Date();
+      const targetDate = new Date(startDate);
+      targetDate.setDate(targetDate.getDate() + 84); // 12 weeks
+
+      const updatedProfile: UserProfileData = { 
+        ...userProfile, 
+        currentWeightKg: data.weightKg,
+        skeletalMuscleMassKg: data.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg,
+        bodyFatMassKg: data.bodyFatMassKg ?? userProfile.bodyFatMassKg,
+        measurementMethod: isUsingInBody ? 'inbody' : 'scale',
+        goalCompletionDate: targetDate.toISOString().split('T')[0]
+      };
+      
+      setTempProfile(updatedProfile);
+      setHasCompletedWeight(true);
+      setShowWeightModal(false);
+      setShowProfileModal(true);
+    } catch (error) {
+      console.error("Error saving weight log during bootcamp onboarding:", error);
+      setToast({ message: 'Kunde inte spara mätningen', type: 'error' });
+    }
+  };
+
+  const handleProfileSaved = async (updatedProfile: UserProfileData, updatedGoals: GoalSettings) => {
+    if (!auth.currentUser) return;
+    try {
+      await completeBootcampOnboarding(auth.currentUser.uid, participant.cohortId);
+      setShowProfileModal(false);
+      setToast({ message: 'Du är nu redo för Bootcamp!', type: 'success' });
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
+    }
+  };
+
+  const isWaitingRoom = !participant.bootcampOnboardingCompleted || (participant.originalStartDate && new Date(participant.originalStartDate) > new Date());
+
+  if (isWaitingRoom) {
+    return (
+      <div className="animate-fade-in pb-20">
+        {toast && (
+          <ToastNotification
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 text-neutral-dark hover:text-primary transition-colors mb-6 font-bold"
+        >
+          <ArrowLeftIcon className="w-5 h-5" />
+          Tillbaka
+        </button>
+
+        <div className="bg-white p-8 rounded-3xl shadow-soft-xl border border-neutral-light text-center max-w-2xl mx-auto">
+          <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center text-primary mx-auto mb-6">
+            <CalendarIcon className="w-10 h-10" />
+          </div>
+          <h1 className="text-3xl font-black text-neutral-darker mb-4">Väntrummet</h1>
+          
+          {participant.originalStartDate && new Date(participant.originalStartDate) > new Date() ? (
+            <p className="text-lg text-neutral-600 mb-8">
+              Din trupp drar igång den <strong className="text-primary">{participant.originalStartDate}</strong>. 
+              Tills dess kan du förbereda dig genom att göra din startmätning och sätta dina mål.
+            </p>
+          ) : (
+            <p className="text-lg text-neutral-600 mb-8">
+              Innan du kan börja rapportera måste du göra din startmätning och sätta dina mål.
+            </p>
+          )}
+
+          <div className="space-y-4">
+            <div className={`p-4 rounded-xl border ${hasCompletedWeight ? 'bg-green-50 border-green-200' : 'bg-neutral-50 border-neutral-200'} flex items-center justify-between`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasCompletedWeight ? 'bg-green-500 text-white' : 'bg-neutral-200 text-neutral-500'}`}>
+                  1
+                </div>
+                <span className={`font-bold ${hasCompletedWeight ? 'text-green-700' : 'text-neutral-dark'}`}>Startmätning</span>
+              </div>
+              {hasCompletedWeight ? (
+                <CheckCircleIcon className="w-6 h-6 text-green-500" />
+              ) : (
+                <button 
+                  onClick={() => setShowWeightModal(true)}
+                  className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-darker transition-colors"
+                >
+                  Gör nu
+                </button>
+              )}
+            </div>
+
+            <div className={`p-4 rounded-xl border ${participant.bootcampOnboardingCompleted ? 'bg-green-50 border-green-200' : 'bg-neutral-50 border-neutral-200'} flex items-center justify-between`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${participant.bootcampOnboardingCompleted ? 'bg-green-500 text-white' : 'bg-neutral-200 text-neutral-500'}`}>
+                  2
+                </div>
+                <span className={`font-bold ${participant.bootcampOnboardingCompleted ? 'text-green-700' : 'text-neutral-dark'}`}>Sätt dina mål</span>
+              </div>
+              {participant.bootcampOnboardingCompleted ? (
+                <CheckCircleIcon className="w-6 h-6 text-green-500" />
+              ) : (
+                <button 
+                  onClick={() => {
+                    if (!hasCompletedWeight) {
+                      setToast({ message: 'Gör startmätningen först!', type: 'info' });
+                    } else {
+                      setShowProfileModal(true);
+                    }
+                  }}
+                  disabled={!hasCompletedWeight}
+                  className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-darker transition-colors disabled:opacity-50"
+                >
+                  Gör nu
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {showWeightModal && createPortal(
+          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setShowWeightModal(false)}>
+            <LogWeightModal 
+              show={showWeightModal} 
+              onClose={() => setShowWeightModal(false)} 
+              onSave={handleWeightSaved} 
+              measurementMethod="unknown" 
+              hideComment={true}
+            />
+          </div>,
+          document.body
+        )}
+
+        {showProfileModal && tempProfile && createPortal(
+          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setShowProfileModal(false)}>
+            <div onClick={e => e.stopPropagation()} className="animate-scale-in w-full max-w-2xl">
+              <UserProfileModal
+                initialProfile={tempProfile}
+                onSave={handleProfileSaved}
+                onClose={() => setShowProfileModal(false)}
+                isOnboarding={true}
+                onboardingStep="form"
+                isBootcampOnboarding={true}
+                aiFeedbackLoading={false}
+                onSubscribeToPush={async () => false}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in pb-20">

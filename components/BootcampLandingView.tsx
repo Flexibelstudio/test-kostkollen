@@ -38,79 +38,61 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
     return () => unsubscribe();
   }, []);
 
-  const handleJoinSolo = () => {
-    setSelectedCohort('solo');
-    setShowWeightModal(true);
-  };
-
-  const handleJoinWithCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteCode.trim()) return;
-    setSelectedCohort(inviteCode);
-    setShowWeightModal(true);
-  };
-
-  const handleJoinPublicCohort = (cohort: BootcampCohort) => {
-    setSelectedCohort(cohort);
-    setShowWeightModal(true);
-  };
-
-  const handleWeightSaved = async (data: Omit<WeightLogEntry, 'id'>) => {
+  const handleJoinSolo = async () => {
     if (!auth.currentUser) return;
-    try {
-      await onSaveWeightLog(data);
-      
-      const isUsingInBody = data.skeletalMuscleMassKg != null || data.bodyFatMassKg != null;
-      
-      const startDate = (typeof selectedCohort === 'object' && selectedCohort !== null && 'startDate' in selectedCohort) 
-        ? new Date(selectedCohort.startDate) 
-        : new Date();
-      const targetDate = new Date(startDate);
-      targetDate.setDate(targetDate.getDate() + 84); // 12 weeks
-
-      const updatedProfile: UserProfileData = { 
-        ...userProfile, 
-        currentWeightKg: data.weightKg,
-        skeletalMuscleMassKg: data.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg,
-        bodyFatMassKg: data.bodyFatMassKg ?? userProfile.bodyFatMassKg,
-        measurementMethod: isUsingInBody ? 'inbody' : 'scale',
-        goalCompletionDate: targetDate.toISOString().split('T')[0]
-      };
-      
-      setTempProfile(updatedProfile);
-      setShowWeightModal(false);
-    } catch (error) {
-      console.error("Error saving weight log during bootcamp onboarding:", error);
-      setToast({ message: 'Kunde inte spara mätningen', type: 'error' });
-    }
-  };
-
-  const handleConfirmJoin = async (updatedProfile: UserProfileData, updatedGoals: GoalSettings) => {
-    if (!auth.currentUser || !selectedCohort) return;
     setIsJoining(true);
     try {
-      let result;
-      if (selectedCohort === 'solo') {
-        result = await joinSoloBootcamp(auth.currentUser.uid);
-      } else if (typeof selectedCohort === 'string') {
-        result = await joinCohort(auth.currentUser.uid, selectedCohort);
-      } else {
-        result = await joinCohort(auth.currentUser.uid, selectedCohort.inviteCode);
-      }
-
+      const result = await joinSoloBootcamp(auth.currentUser.uid);
       if (result.success) {
         setToast({ message: result.message, type: 'success' });
-        await onJoinSuccess(updatedProfile, updatedGoals);
+        await onJoinSuccess(userProfile, goals);
       } else {
         setToast({ message: result.message, type: 'error' });
       }
     } catch (error) {
-      console.error("Error joining bootcamp:", error);
+      console.error("Error joining solo bootcamp:", error);
       setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
     } finally {
       setIsJoining(false);
-      setSelectedCohort(null);
-      setTempProfile(null);
+    }
+  };
+
+  const handleJoinWithCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteCode.trim() || !auth.currentUser) return;
+    setIsJoining(true);
+    try {
+      const result = await joinCohort(auth.currentUser.uid, inviteCode);
+      if (result.success) {
+        setToast({ message: result.message, type: 'success' });
+        await onJoinSuccess(userProfile, goals);
+      } else {
+        setToast({ message: result.message, type: 'error' });
+      }
+    } catch (error) {
+      console.error("Error joining bootcamp with code:", error);
+      setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleJoinPublicCohort = async (cohort: BootcampCohort) => {
+    if (!auth.currentUser) return;
+    setIsJoining(true);
+    try {
+      const result = await joinCohort(auth.currentUser.uid, cohort.inviteCode);
+      if (result.success) {
+        setToast({ message: result.message, type: 'success' });
+        await onJoinSuccess(userProfile, goals);
+      } else {
+        setToast({ message: result.message, type: 'error' });
+      }
+    } catch (error) {
+      console.error("Error joining public bootcamp:", error);
+      setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -299,50 +281,6 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
           </button>
         </form>
       </div>
-
-      {showWeightModal && createPortal(
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseModals}>
-          <LogWeightModal 
-            show={showWeightModal} 
-            onClose={handleCloseModals} 
-            onSave={handleWeightSaved} 
-            measurementMethod="unknown" 
-            hideComment={true}
-          />
-        </div>,
-        document.body
-      )}
-
-      {selectedCohort && tempProfile && !showWeightModal && createPortal(
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseModals}>
-          <div onClick={e => e.stopPropagation()} className="animate-scale-in w-full max-w-2xl">
-            <UserProfileModal
-              initialProfile={tempProfile}
-              onSave={async (updatedProfile, updatedGoals, newPhotoDataUrl) => {
-                updatedProfile.coachStyle = 'hard'; // Force Börje
-                updatedProfile.preferredWeighInDay = 'söndag'; // Force Sunday weigh-ins
-                
-                // Set goal date to 12 weeks (84 days) from start date or today
-                const startDate = (typeof selectedCohort === 'object' && selectedCohort !== null && 'startDate' in selectedCohort) 
-                  ? new Date(selectedCohort.startDate) 
-                  : new Date();
-                const targetDate = new Date(startDate);
-                targetDate.setDate(targetDate.getDate() + 84);
-                updatedProfile.goalCompletionDate = targetDate.toISOString().split('T')[0];
-
-                await handleConfirmJoin(updatedProfile, updatedGoals);
-              }}
-              onClose={handleCloseModals}
-              isOnboarding={true}
-              onboardingStep="form"
-              isBootcampOnboarding={true}
-              aiFeedbackLoading={isJoining}
-              onSubscribeToPush={async () => false}
-            />
-          </div>
-        </div>,
-        document.body
-      )}
 
       {showProteinInfoModal && (
         <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>

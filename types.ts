@@ -511,6 +511,7 @@ export interface BootcampParticipant {
   joinedAt: number;
   endedAt?: number; // Timestamp when they completed or dropped
   finaleSeen?: boolean;
+  bootcampOnboardingCompleted?: boolean;
 }
 
 // --- Coach & Admin Types ---
