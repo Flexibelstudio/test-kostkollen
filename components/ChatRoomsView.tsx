@@ -6,7 +6,7 @@ import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon, SmileIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
 import { searchForBuddies, fetchUsersByUids, sendFriendRequest } from '../services/firestoreService';
-import EmojiPicker from 'emoji-picker-react';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 
 const resizeImage = (file: File, maxSize: number): Promise<string> => {
     return new Promise((resolve, reject) => {
