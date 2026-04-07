@@ -257,7 +257,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
 
   if (showBootcampLanding) {
     if (activeBootcamp) {
-      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} weeklyBank={weeklyBank} onBack={() => setShowBootcampLanding(false)} ensureYesterdayProcessed={ensureYesterdayProcessed} />;
+      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} weeklyBank={weeklyBank} onBack={() => setShowBootcampLanding(false)} ensureYesterdayProcessed={ensureYesterdayProcessed} onSaveProfileAndGoals={onSaveProfileAndGoals} onSaveWeightLog={onSaveWeightLog} />;
     }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} userProfile={userProfile} goals={goals} onJoinSuccess={handleJoinSuccess} onSaveWeightLog={onSaveWeightLog} />;
   }

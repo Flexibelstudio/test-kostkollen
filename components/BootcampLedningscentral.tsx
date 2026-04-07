@@ -335,6 +335,147 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
             isCoach={true}
           />
         )}
+
+        {/* Edit Cohort Modal */}
+        {editingCohort && (
+          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setEditingCohort(null)}>
+            <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-soft-xl" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-neutral-dark">Redigera Trupp</h2>
+                <button onClick={() => setEditingCohort(null)} className="text-neutral-400 hover:text-neutral-dark transition-colors">
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
+              <form onSubmit={handleUpdateCohort} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-neutral-dark mb-1">Truppens Namn</label>
+                  <input
+                    type="text"
+                    value={editCohortName}
+                    onChange={(e) => setEditCohortName(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-neutral-dark mb-1">Typ av trupp</label>
+                  
+                  <div 
+                    className={`p-4 rounded-xl border cursor-pointer transition-colors ${editCohortIsPublic ? 'border-primary bg-primary-50/30' : 'border-neutral-light bg-white hover:bg-neutral-50'}`}
+                    onClick={() => setEditCohortIsPublic(true)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="editCohortType"
+                        checked={editCohortIsPublic}
+                        onChange={() => setEditCohortIsPublic(true)}
+                        className="w-5 h-5 text-primary focus:ring-primary"
+                      />
+                      <div>
+                        <div className="font-bold text-neutral-dark">Publik trupp</div>
+                        <p className="text-xs text-neutral-500">Vem som helst kan se och gå med i truppen utan kod.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div 
+                    className={`p-4 rounded-xl border cursor-pointer transition-colors ${!editCohortIsPublic ? 'border-primary bg-primary-50/30' : 'border-neutral-light bg-white hover:bg-neutral-50'}`}
+                    onClick={() => setEditCohortIsPublic(false)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="editCohortType"
+                        checked={!editCohortIsPublic}
+                        onChange={() => setEditCohortIsPublic(false)}
+                        className="w-5 h-5 text-primary focus:ring-primary"
+                      />
+                      <div>
+                        <div className="font-bold text-neutral-dark">Privat trupp (Kräver kod)</div>
+                        <p className="text-xs text-neutral-500">Deltagare måste ange en specifik kod för att gå med.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {!editCohortIsPublic && (
+                  <div className="animate-fade-in">
+                    <label className="block text-sm font-bold text-neutral-dark mb-1">Inbjudningskod</label>
+                    <input
+                      type="text"
+                      value={editCohortCode}
+                      onChange={(e) => setEditCohortCode(e.target.value.toUpperCase())}
+                      placeholder="T.ex. BÖRJE-APRIL"
+                      className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent uppercase"
+                      required={!editCohortIsPublic}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-bold text-neutral-dark mb-1">Startdatum</label>
+                  <input
+                    type="date"
+                    value={editCohortStartDate}
+                    onChange={(e) => setEditCohortStartDate(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setEditingCohort(null)}
+                    className="px-6 py-3 font-bold text-neutral-dark hover:bg-neutral-100 rounded-xl transition-colors"
+                    disabled={isSubmitting}
+                  >
+                    Avbryt
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Sparar...' : 'Spara ändringar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Cohort Confirmation Modal */}
+        {cohortToDelete && (
+          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setCohortToDelete(null)}>
+            <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-soft-xl text-center" onClick={e => e.stopPropagation()}>
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-red-600 mx-auto mb-4">
+                <XMarkIcon className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl font-bold text-neutral-dark mb-2">Radera Trupp?</h2>
+              <p className="text-neutral-600 mb-6">
+                Är du säker på att du vill radera <strong>{cohortToDelete.name}</strong>? Detta går inte att ångra. Eventuella deltagare kommer att förlora sin koppling till truppen.
+              </p>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => setCohortToDelete(null)}
+                  className="px-6 py-3 font-bold text-neutral-dark hover:bg-neutral-100 rounded-xl transition-colors"
+                  disabled={isSubmitting}
+                >
+                  Avbryt
+                </button>
+                <button
+                  onClick={handleDeleteCohort}
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Raderar...' : 'Ja, radera trupp'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -648,147 +789,6 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
           onClose={() => setSelectedParticipant(null)}
           isCoach={true}
         />
-      )}
-
-      {/* Edit Cohort Modal */}
-      {editingCohort && (
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setEditingCohort(null)}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-soft-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-neutral-dark">Redigera Trupp</h2>
-              <button onClick={() => setEditingCohort(null)} className="text-neutral hover:text-neutral-dark transition-colors">
-                <XMarkIcon className="w-6 h-6" />
-              </button>
-            </div>
-            <form onSubmit={handleUpdateCohort} className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-neutral-dark mb-1">Truppens Namn</label>
-                <input
-                  type="text"
-                  value={editCohortName}
-                  onChange={(e) => setEditCohortName(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-3">
-                <label className="block text-sm font-bold text-neutral-dark mb-1">Typ av trupp</label>
-                
-                <div 
-                  className={`p-4 rounded-xl border cursor-pointer transition-colors ${editCohortIsPublic ? 'border-primary bg-primary-50/30' : 'border-neutral-light bg-white hover:bg-neutral-50'}`}
-                  onClick={() => setEditCohortIsPublic(true)}
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="editCohortType"
-                      checked={editCohortIsPublic}
-                      onChange={() => setEditCohortIsPublic(true)}
-                      className="w-5 h-5 text-primary focus:ring-primary"
-                    />
-                    <div>
-                      <div className="font-bold text-neutral-dark">Publik trupp</div>
-                      <p className="text-xs text-neutral-500">Vem som helst kan se och gå med i truppen utan kod.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div 
-                  className={`p-4 rounded-xl border cursor-pointer transition-colors ${!editCohortIsPublic ? 'border-primary bg-primary-50/30' : 'border-neutral-light bg-white hover:bg-neutral-50'}`}
-                  onClick={() => setEditCohortIsPublic(false)}
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="editCohortType"
-                      checked={!editCohortIsPublic}
-                      onChange={() => setEditCohortIsPublic(false)}
-                      className="w-5 h-5 text-primary focus:ring-primary"
-                    />
-                    <div>
-                      <div className="font-bold text-neutral-dark">Privat trupp (Kräver kod)</div>
-                      <p className="text-xs text-neutral-500">Deltagare måste ange en specifik kod för att gå med.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {!editCohortIsPublic && (
-                <div className="animate-fade-in">
-                  <label className="block text-sm font-bold text-neutral-dark mb-1">Inbjudningskod</label>
-                  <input
-                    type="text"
-                    value={editCohortCode}
-                    onChange={(e) => setEditCohortCode(e.target.value.toUpperCase())}
-                    placeholder="T.ex. BÖRJE-APRIL"
-                    className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent uppercase"
-                    required={!editCohortIsPublic}
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-bold text-neutral-dark mb-1">Startdatum</label>
-                <input
-                  type="date"
-                  value={editCohortStartDate}
-                  onChange={(e) => setEditCohortStartDate(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setEditingCohort(null)}
-                  className="px-6 py-3 font-bold text-neutral-dark hover:bg-neutral-100 rounded-xl transition-colors"
-                  disabled={isSubmitting}
-                >
-                  Avbryt
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Sparar...' : 'Spara ändringar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Cohort Confirmation Modal */}
-      {cohortToDelete && (
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setCohortToDelete(null)}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-soft-xl text-center" onClick={e => e.stopPropagation()}>
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-red-600 mx-auto mb-4">
-              <XMarkIcon className="w-8 h-8" />
-            </div>
-            <h2 className="text-2xl font-bold text-neutral-dark mb-2">Radera Trupp?</h2>
-            <p className="text-neutral-600 mb-6">
-              Är du säker på att du vill radera <strong>{cohortToDelete.name}</strong>? Detta går inte att ångra. Eventuella deltagare kommer att förlora sin koppling till truppen.
-            </p>
-            <div className="flex justify-center gap-3">
-              <button
-                onClick={() => setCohortToDelete(null)}
-                className="px-6 py-3 font-bold text-neutral-dark hover:bg-neutral-100 rounded-xl transition-colors"
-                disabled={isSubmitting}
-              >
-                Avbryt
-              </button>
-              <button
-                onClick={handleDeleteCohort}
-                disabled={isSubmitting}
-                className="px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50"
-              >
-                {isSubmitting ? 'Raderar...' : 'Ja, radera trupp'}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

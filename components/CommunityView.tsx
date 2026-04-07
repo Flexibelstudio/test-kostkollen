@@ -1540,6 +1540,7 @@ export const CommunityView: React.FC<{
   userRole
 }) => {
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
+  const [feedFilter, setFeedFilter] = useState<'all' | 'bootcamp'>('all');
   const [effectiveLastViewTimestamp, setEffectiveLastViewTimestamp] = useState(lastViewTimestamp);
   
   const previousTabRef = useRef(activeTab);
@@ -1579,12 +1580,18 @@ export const CommunityView: React.FC<{
       
       const all = [...rt, ...hist];
       const seen = new Set();
-      return all.filter(e => {
+      let filtered = all.filter(e => {
           if (seen.has(e.id)) return false;
           seen.add(e.id);
           return true;
       }).sort((a,b) => b.timestamp - a.timestamp);
-  }, [realtimeEvents, historicalEvents]);
+
+      if (feedFilter === 'bootcamp' && activeBootcamp) {
+          filtered = filtered.filter(e => e.bootcampId === activeBootcamp.cohortId || e.visibleTo === 'bootcamp' || e.visibleTo === 'bootcamp_and_friends');
+      }
+
+      return filtered;
+  }, [realtimeEvents, historicalEvents, feedFilter, activeBootcamp]);
 
   // Scroll to highlighted event
   useEffect(() => {
@@ -1836,6 +1843,22 @@ export const CommunityView: React.FC<{
             <main className={`flex-grow bg-transparent ${activeTab === 'chatt' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
                 {activeTab === 'flode' && (
                     <div className="p-2 sm:p-4 max-w-2xl mx-auto w-full">
+                        {activeBootcamp && (
+                            <div className="flex bg-neutral-100 p-1 rounded-xl mb-4">
+                                <button
+                                    onClick={() => setFeedFilter('all')}
+                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-colors ${feedFilter === 'all' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+                                >
+                                    Alla inlägg
+                                </button>
+                                <button
+                                    onClick={() => setFeedFilter('bootcamp')}
+                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-colors ${feedFilter === 'bootcamp' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+                                >
+                                    Bootcamp-gruppen
+                                </button>
+                            </div>
+                        )}
                         <CreatePostWidget 
                             currentUser={currentUser} 
                             userProfile={userProfile} 

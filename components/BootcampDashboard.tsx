@@ -25,9 +25,11 @@ interface BootcampDashboardProps {
   ensureYesterdayProcessed?: (uid: string, now?: Date, options?: any, manualLogOverride?: any, prefetchedWater?: number) => Promise<void>;
   buddyDetails?: BuddyDetails[];
   onAddFriend?: (userId: string, userName: string) => void;
+  onSaveProfileAndGoals?: (profileUpdates: UserProfileData, goalUpdates: GoalSettings) => Promise<void>;
+  onSaveWeightLog?: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend }) => {
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
@@ -206,7 +208,11 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const handleWeightSaved = async (data: Omit<WeightLogEntry, 'id'>) => {
     if (!auth.currentUser) return;
     try {
-      await saveWeightLog(auth.currentUser.uid, data);
+      if (onSaveWeightLog) {
+        await onSaveWeightLog(data);
+      } else {
+        await saveWeightLog(auth.currentUser.uid, data);
+      }
       
       const isUsingInBody = data.skeletalMuscleMassKg != null || data.bodyFatMassKg != null;
       
@@ -236,6 +242,9 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const handleProfileSaved = async (updatedProfile: UserProfileData, updatedGoals: GoalSettings) => {
     if (!auth.currentUser) return;
     try {
+      if (onSaveProfileAndGoals) {
+        await onSaveProfileAndGoals(updatedProfile, updatedGoals);
+      }
       await completeBootcampOnboarding(auth.currentUser.uid, participant.cohortId);
       setShowProfileModal(false);
       setToast({ message: 'Du är nu redo för Bootcamp!', type: 'success' });

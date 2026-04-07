@@ -51,8 +51,14 @@ export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) =
   const q = query(collection(db, 'bootcampCohorts'), where('isPublic', '==', true), where('status', '==', 'upcoming'));
   return onSnapshot(q, (snapshot) => {
     const cohorts: BootcampCohort[] = [];
+    const todayStr = new Date().toISOString().split('T')[0];
+    
     snapshot.forEach(doc => {
-      cohorts.push({ id: doc.id, ...doc.data() } as BootcampCohort);
+      const data = doc.data() as BootcampCohort;
+      // Filter out cohorts that have already started
+      if (data.startDate >= todayStr) {
+        cohorts.push({ id: doc.id, ...data });
+      }
     });
     // Sort by start date ascending (closest first)
     cohorts.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
