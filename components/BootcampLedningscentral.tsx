@@ -211,7 +211,9 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                 {cohort.name}
               </h2>
               <div className="flex items-center gap-4 mt-2 text-sm text-neutral-500">
-                <span className="flex items-center gap-1"><KeyIcon className="w-4 h-4" /> Kod: {cohort.inviteCode}</span>
+                {(!cohort.isPublic && cohort.id !== 'solo') && (
+                  <span className="flex items-center gap-1"><KeyIcon className="w-4 h-4" /> Kod: {cohort.inviteCode}</span>
+                )}
                 <span className="flex items-center gap-1"><CalendarIcon className="w-4 h-4" /> Start: {cohort.startDate}</span>
                 <span className="flex items-center gap-1"><UsersIcon className="w-4 h-4" /> {cohortParticipants.length} deltagare</span>
               </div>
@@ -471,13 +473,6 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-neutral-dark flex items-center gap-2">
-            <TrophyIcon className="w-6 h-6 text-primary" />
-            Ledningscentral: Bootcamp
-          </h2>
-          <p className="text-neutral-500">Hantera General Börjes trupper och rekryter.</p>
-        </div>
         <div className="flex gap-2">
           <div className="flex bg-neutral-100 p-1 rounded-xl">
             <button
@@ -496,7 +491,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
               onClick={() => setActiveTab('library')}
               className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'library' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
             >
-              Bibliotek & Schema
+              Schema
             </button>
           </div>
           {activeTab === 'cohorts' && (
@@ -643,10 +638,12 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
               </div>
               
               <div className="space-y-2 mb-4">
-                <div className="flex items-center gap-2 text-sm text-neutral-600">
-                  <KeyIcon className="w-4 h-4" />
-                  <span className="font-mono font-bold">{cohort.inviteCode}</span>
-                </div>
+                {(!cohort.isPublic && cohort.id !== 'solo') && (
+                  <div className="flex items-center gap-2 text-sm text-neutral-600">
+                    <KeyIcon className="w-4 h-4" />
+                    <span className="font-mono font-bold">{cohort.inviteCode}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-sm text-neutral-600">
                   <CalendarIcon className="w-4 h-4" />
                   <span>Startar: {cohort.startDate}</span>
