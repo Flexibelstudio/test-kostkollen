@@ -1,4 +1,4 @@
-import { collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, updateDoc, onSnapshot, serverTimestamp, collectionGroup, orderBy } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, collectionGroup, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { BootcampCohort, BootcampParticipant, EveningReport, BootcampPost, BootcampComment, Gender } from '../types';
 import { getDateUID } from '../utils/dateUtils';
@@ -224,7 +224,10 @@ export const fetchAllBootcampParticipants = async (): Promise<BootcampParticipan
   const snapshot = await getDocs(q);
   const participants: BootcampParticipant[] = [];
   snapshot.forEach(doc => {
-    participants.push(doc.data() as BootcampParticipant);
+    const data = doc.data() as BootcampParticipant;
+    if (data.status !== 'dropped' && data.status !== 'expired') {
+      participants.push(data);
+    }
   });
   return participants;
 };
@@ -236,7 +239,10 @@ export const subscribeToAllBootcampParticipants = (callback: (participants: Boot
   return onSnapshot(q, (snapshot) => {
     const participants: BootcampParticipant[] = [];
     snapshot.forEach(doc => {
-      participants.push(doc.data() as BootcampParticipant);
+      const data = doc.data() as BootcampParticipant;
+      if (data.status !== 'dropped' && data.status !== 'expired') {
+        participants.push(data);
+      }
     });
     callback(participants);
   });
@@ -249,7 +255,10 @@ export const subscribeToCohortParticipants = (cohortId: string, callback: (parti
   return onSnapshot(q, (snapshot) => {
     const participants: BootcampParticipant[] = [];
     snapshot.forEach(doc => {
-      participants.push(doc.data() as BootcampParticipant);
+      const data = doc.data() as BootcampParticipant;
+      if (data.status !== 'dropped' && data.status !== 'expired') {
+        participants.push(data);
+      }
     });
     callback(participants);
   });
