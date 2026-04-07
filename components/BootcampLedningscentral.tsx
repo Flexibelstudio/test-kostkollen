@@ -73,26 +73,14 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
 
     setIsSubmitting(true);
     try {
-      // 1. Create the official chat group
-      const chatGroupId = await createChat(
-        'public_room',
-        newCohortName,
-        `Officiell grupp för ${newCohortName}`,
-        currentUser.uid,
-        [], // members will be added when they join
-        'admin_only',
-        false,
-        true // isSystemGroup
-      );
-
       const finalInviteCode = newCohortIsPublic ? `PUB-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : newCohortCode;
 
-      // 2. Create the cohort
+      // 1. Create the cohort (no chat group)
       await createCohort(
         newCohortName,
         finalInviteCode,
         newCohortStartDate,
-        chatGroupId,
+        '', // No chat group
         currentUser.uid,
         newCohortIsPublic
       );

@@ -40,7 +40,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [tempProfile, setTempProfile] = useState<UserProfileData | null>(null);
-  const [hasCompletedWeight, setHasCompletedWeight] = useState(false);
+  const [hasCompletedWeight, setHasCompletedWeight] = useState(participant.bootcampOnboardingCompleted || false);
 
   // Form state
   const [loggedAllMeals, setLoggedAllMeals] = useState(false);
