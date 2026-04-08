@@ -1077,6 +1077,7 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
                     // It's a bootcamp payment
                     await db.collection('bootcampCohorts').doc(cohortId).collection('participants').doc(firebaseUid).set({
                         userId: firebaseUid,
+                        cohortId: cohortId,
                         status: 'fas1',
                         joinedAt: admin.firestore.FieldValue.serverTimestamp(),
                         bootcampOnboardingCompleted: false

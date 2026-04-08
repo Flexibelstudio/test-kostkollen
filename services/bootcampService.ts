@@ -225,6 +225,9 @@ export const fetchAllBootcampParticipants = async (): Promise<BootcampParticipan
   const participants: BootcampParticipant[] = [];
   snapshot.forEach(doc => {
     const data = doc.data() as BootcampParticipant;
+    if (!data.cohortId && doc.ref.parent.parent) {
+        data.cohortId = doc.ref.parent.parent.id;
+    }
     if (data.status !== 'dropped' && data.status !== 'expired') {
       participants.push(data);
     }
@@ -240,6 +243,9 @@ export const subscribeToAllBootcampParticipants = (callback: (participants: Boot
     const participants: BootcampParticipant[] = [];
     snapshot.forEach(doc => {
       const data = doc.data() as BootcampParticipant;
+      if (!data.cohortId && doc.ref.parent.parent) {
+          data.cohortId = doc.ref.parent.parent.id;
+      }
       if (data.status !== 'dropped' && data.status !== 'expired') {
         participants.push(data);
       }
@@ -327,6 +333,9 @@ export const cleanupExpiredBootcampGroups = async (userId: string): Promise<void
 
     for (const docSnap of snapshot.docs) {
       const participant = docSnap.data() as BootcampParticipant;
+      if (!participant.cohortId && docSnap.ref.parent.parent) {
+          participant.cohortId = docSnap.ref.parent.parent.id;
+      }
       
       if ((participant.status === 'completed' || participant.status === 'dropped') && participant.endedAt) {
         if (now - participant.endedAt > THREE_DAYS_MS) {
@@ -359,7 +368,13 @@ export const getUserActiveBootcamp = async (userId: string): Promise<BootcampPar
     if (snapshot.empty) return null;
     
     // Return the first active one (assuming user can only be in one at a time)
-    const activeParticipant = snapshot.docs.map(doc => doc.data() as BootcampParticipant).find(p => p.status === 'fas1' || p.status === 'fas2');
+    const activeParticipant = snapshot.docs.map(doc => {
+        const data = doc.data() as BootcampParticipant;
+        if (!data.cohortId && doc.ref.parent.parent) {
+            data.cohortId = doc.ref.parent.parent.id;
+        }
+        return data;
+    }).find(p => p.status === 'fas1' || p.status === 'fas2');
     
     if (activeParticipant) {
       const checkedParticipant = await checkBootcampExpiration(activeParticipant);
@@ -386,7 +401,13 @@ export const subscribeToUserActiveBootcamp = (userId: string, callback: (partici
     if (snapshot.empty) {
       callback(null);
     } else {
-      const activeParticipant = snapshot.docs.map(doc => doc.data() as BootcampParticipant).find(p => p.status === 'fas1' || p.status === 'fas2');
+      const activeParticipant = snapshot.docs.map(doc => {
+          const data = doc.data() as BootcampParticipant;
+          if (!data.cohortId && doc.ref.parent.parent) {
+              data.cohortId = doc.ref.parent.parent.id;
+          }
+          return data;
+      }).find(p => p.status === 'fas1' || p.status === 'fas2');
       if (activeParticipant) {
         const checkedParticipant = await checkBootcampExpiration(activeParticipant);
         if (checkedParticipant.status === 'fas1' || checkedParticipant.status === 'fas2') {
@@ -412,7 +433,13 @@ export const getUnseenBootcampFinale = async (userId: string): Promise<BootcampP
     if (snapshot.empty) return null;
     
     // Find a completed bootcamp where finaleSeen is not true
-    const unseenFinale = snapshot.docs.map(doc => doc.data() as BootcampParticipant).find(p => p.status === 'completed' && !p.finaleSeen);
+    const unseenFinale = snapshot.docs.map(doc => {
+        const data = doc.data() as BootcampParticipant;
+        if (!data.cohortId && doc.ref.parent.parent) {
+            data.cohortId = doc.ref.parent.parent.id;
+        }
+        return data;
+    }).find(p => p.status === 'completed' && !p.finaleSeen);
     return unseenFinale || null;
   } catch (error) {
     console.error("Error fetching unseen bootcamp finale:", error);
