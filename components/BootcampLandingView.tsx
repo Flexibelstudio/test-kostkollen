@@ -103,7 +103,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         Tillbaka till Kurser
       </button>
 
-      {/* Hero Section */}
+        {/* Hero Section */}
       <div className="bg-neutral-darker text-white p-8 rounded-3xl shadow-soft-xl mb-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
         <div className="relative z-10">
@@ -115,6 +115,14 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
             Detta är inget för veklingar. Vi ska krossa fettet med disciplin och tydliga regler. 
             Antingen mönstrar du in i en trupp och krigar tillsammans med andra, eller så kör du solo.
           </p>
+
+          <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-2xl inline-block">
+             <p className="text-sm text-primary-light font-bold uppercase tracking-wider mb-1">Introduktionspris (Beta)</p>
+             <div className="flex items-baseline gap-2">
+                 <span className="text-4xl font-extrabold text-white">395 kr</span>
+                 <span className="text-sm text-neutral-400 font-medium">engångsbetalning</span>
+             </div>
+          </div>
           
           <div className="bg-black/30 p-6 rounded-2xl border border-white/10">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -199,7 +207,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
                     disabled={isJoining}
                     className="px-6 py-2 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50 whitespace-nowrap"
                   >
-                    Gå med
+                    Betala & Gå med
                   </button>
                 </div>
               ))}
@@ -229,7 +237,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
               className="w-full py-4 bg-neutral-darker text-white font-bold rounded-xl hover:bg-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <ShieldCheckIcon className="w-5 h-5" />
-              Starta Bootcamp Solo
+              Betala & Starta Solo
             </button>
           </div>
         </div>
@@ -258,9 +266,9 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
           <button
             type="submit"
             disabled={isJoining || !inviteCode.trim()}
-            className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50"
+            className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50 whitespace-nowrap"
           >
-            Gå med
+            Betala & Gå med
           </button>
         </form>
       </div>

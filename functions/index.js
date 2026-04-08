@@ -813,12 +813,21 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
         throw new functions.https.HttpsError('unauthenticated', 'Användaren är inte inloggad.');
     }
 
-    // Hämta priceId från .env ELLER molnet ELLER frontend
-    const priceId = process.env.STRIPE_PRICE_ID || data.priceId || getSafeConfig('stripe', 'price');
+    const mode = data.mode || 'subscription';
     const origin = data.returnUrl || 'https://app.kostloggen.se';
 
+    // Hämta rätt priceId beroende på om det är prenumeration eller engångsbetalning (Bootcamp)
+    let priceId = data.priceId;
     if (!priceId) {
-        console.error("Price ID is missing in both .env and functions.config()");
+        if (mode === 'payment') {
+            priceId = process.env.STRIPE_BOOTCAMP_PRICE_ID || getSafeConfig('stripe', 'bootcamp_price');
+        } else {
+            priceId = process.env.STRIPE_PRICE_ID || getSafeConfig('stripe', 'price');
+        }
+    }
+
+    if (!priceId) {
+        console.error(`Price ID is missing for mode: ${mode}`);
         throw new functions.https.HttpsError('internal', "Kunde inte hitta ett pris för produkten.");
     }
 
@@ -849,7 +858,6 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
         }
 
         // 2. Skapa checkout-sessionen och länka till kund-ID:t
-        const mode = data.mode || 'subscription';
         const sessionConfig = {
             payment_method_types: ['card'],
             mode: mode,
