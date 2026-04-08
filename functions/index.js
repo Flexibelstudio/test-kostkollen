@@ -808,7 +808,7 @@ exports.manualSummarizeYesterday = functions
 // NYTT: STRIPE INTEGRATION
 // ==========================================
 
-exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
+exports.createCheckoutSession = functions.runWith({ secrets: ["STRIPE_BOOTCAMP_PRICE"] }).https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Användaren är inte inloggad.');
     }
@@ -820,7 +820,7 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     let priceId = data.priceId;
     if (!priceId) {
         if (mode === 'payment') {
-            priceId = process.env.STRIPE_BOOTCAMP_PRICE_ID || getSafeConfig('stripe', 'bootcamp_price');
+            priceId = process.env.STRIPE_BOOTCAMP_PRICE || process.env.STRIPE_BOOTCAMP_PRICE_ID || getSafeConfig('stripe', 'bootcamp_price');
         } else {
             priceId = process.env.STRIPE_PRICE_ID || getSafeConfig('stripe', 'price');
         }
