@@ -254,19 +254,19 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         <p className="text-sm text-neutral-500 mb-4">
           Om du har fått en kod till en privat trupp (t.ex. via ditt företag), fyll i den här.
         </p>
-        <form onSubmit={handleJoinWithCode} className="flex gap-3">
+        <form onSubmit={handleJoinWithCode} className="flex flex-col gap-3">
           <input
             type="text"
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
             placeholder="T.ex. BÖRJE-APRIL"
-            className="flex-1 p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent uppercase"
+            className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent uppercase"
             required
           />
           <button
             type="submit"
             disabled={isJoining || !inviteCode.trim()}
-            className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50 whitespace-nowrap"
+            className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50"
           >
             Betala & Gå med
           </button>

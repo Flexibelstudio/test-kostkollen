@@ -258,7 +258,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
     }
   };
 
-  const isWaitingRoom = !participant.bootcampOnboardingCompleted || (participant.originalStartDate && new Date(participant.originalStartDate) > new Date());
+  const isWaitingRoom = !participant.bootcampOnboardingCompleted || (participant.originalStartDate && participant.originalStartDate > todayStr);
 
   if (isWaitingRoom) {
     return (
@@ -285,7 +285,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           </div>
           <h1 className="text-3xl font-black text-neutral-darker mb-4">Väntrummet</h1>
           
-          {participant.originalStartDate && new Date(participant.originalStartDate) > new Date() ? (
+          {participant.originalStartDate && participant.originalStartDate > todayStr ? (
             <p className="text-lg text-neutral-600 mb-8">
               Din trupp drar igång den <strong className="text-primary">{participant.originalStartDate}</strong>. 
               Tills dess kan du förbereda dig genom att göra din startmätning och sätta dina mål.
