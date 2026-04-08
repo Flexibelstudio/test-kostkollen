@@ -885,7 +885,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       }, 5000);
     }
     
-    if (params.get('payment_success') === 'true' && userStatus === 'approved') {
+    if ((params.get('payment_success') === 'true' || window.location.pathname.endsWith('/success')) && userStatus === 'approved') {
         setToastNotification({ message: "Betalning bekräftad! Välkommen in!", type: 'success' });
         
         // --- SKICKA KÖP TILL META PIXEL ---
@@ -899,7 +899,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
-        window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
+        newUrl.searchParams.delete('session_id');
+        const newPath = newUrl.pathname.endsWith('/success') ? '/' : newUrl.pathname;
+        window.history.replaceState({}, '', newPath + newUrl.search);
     }
   }, [userStatus, setToastNotification]);
 
