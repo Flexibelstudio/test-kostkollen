@@ -36,8 +36,18 @@ export const subscribeToCohorts = (callback: (cohorts: BootcampCohort[]) => void
   const q = query(collection(db, 'bootcampCohorts'));
   return onSnapshot(q, (snapshot) => {
     const cohorts: BootcampCohort[] = [];
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
     snapshot.forEach(doc => {
-      cohorts.push({ id: doc.id, ...doc.data() } as BootcampCohort);
+      const data = doc.data() as BootcampCohort;
+      let effectiveStatus = data.status;
+      
+      if (effectiveStatus === 'upcoming' && data.startDate <= todayStr) {
+        effectiveStatus = 'active';
+      }
+      
+      cohorts.push({ id: doc.id, ...data, status: effectiveStatus } as BootcampCohort);
     });
     // Sort by start date descending
     cohorts.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
@@ -51,7 +61,8 @@ export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) =
   const q = query(collection(db, 'bootcampCohorts'), where('isPublic', '==', true), where('status', '==', 'upcoming'));
   return onSnapshot(q, (snapshot) => {
     const cohorts: BootcampCohort[] = [];
-    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     
     snapshot.forEach(doc => {
       const data = doc.data() as BootcampCohort;

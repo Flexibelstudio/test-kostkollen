@@ -184,7 +184,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
               <UsersIcon className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-neutral-dark">Kommande Truppstarter</h2>
+              <h2 className="text-xl font-bold text-neutral-dark">Öppna Truppstarter</h2>
               <p className="text-sm text-neutral-500">Kör tillsammans med andra i en gemensam chatt.</p>
             </div>
           </div>
