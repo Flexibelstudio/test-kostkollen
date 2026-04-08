@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry, WeeklyCalorieBank } from '../types';
+import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry, WeeklyCalorieBank, BuddyDetails } from '../types';
 import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal, completeBootcampOnboarding } from '../services/bootcampService';
 import { fetchMealLogsForDate, fetchWaterLog, saveWeightLog } from '../services/firestoreService';
 import { auth } from '../firebase';

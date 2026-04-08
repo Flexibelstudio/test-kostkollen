@@ -894,6 +894,9 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
         // ----------------------------------
 
+        setOpenBootcampDirectly(true);
+        setViewMode('coursesView');
+
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
         window.history.replaceState({}, '', newUrl.pathname + newUrl.search);

@@ -169,7 +169,18 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
         }
 
         if (dailyAdjustment === 0) {
-            return { milestones: [], paceFeedback: { type: 'info', text: "Du har valt att bibehålla vikten, så ingen tidslinje behövs." } };
+            return { 
+                milestones: [], 
+                paceFeedback: { type: 'info', text: "Du har valt att bibehålla vikten, så ingen tidslinje behövs." },
+                metrics: {
+                    currentPacePerWeek: 0,
+                    requiredPacePerWeek: 0,
+                    projectedFinalWeight: currentWeightKg,
+                    isHealthyPace: true,
+                    isOffTrack: false,
+                    daysRemaining: 0
+                }
+            };
         }
 
         const totalDays = Math.abs(totalCalorieChange / dailyAdjustment);

@@ -1158,15 +1158,6 @@ const FriendManagementView: FC<{
         );
     }, [searchQuery, allSearchableUsers, buddyDetails]);
     
-    const filteredBuddyDetails = useMemo(() => {
-        const query = buddySearchQuery.trim().toLowerCase();
-        if (!query) return buddyDetails;
-        return buddyDetails.filter(buddy => 
-            buddy.name.toLowerCase().includes(query) || 
-            (buddy.email && buddy.email.toLowerCase().includes(query))
-        );
-    }, [buddySearchQuery, buddyDetails]);
-
     const handleSendRequest = async (toUser: Peppkompis) => {
         const currentUserPeppkompis: Peppkompis = {
             uid: currentUser.uid,
@@ -1184,6 +1175,15 @@ const FriendManagementView: FC<{
             setToastNotification({ message: (error as Error).message || 'Kunde inte skicka förfrågan.', type: 'error' });
         }
     };
+
+    const filteredBuddyDetails = useMemo(() => {
+        const query = buddySearchQuery.trim().toLowerCase();
+        if (!query) return buddyDetails;
+        return buddyDetails.filter(buddy => 
+            buddy.name.toLowerCase().includes(query) || 
+            (buddy.email && buddy.email.toLowerCase().includes(query))
+        );
+    }, [buddySearchQuery, buddyDetails]);
 
     const handleRequestAction = async (request: PeppkompisRequest, status: 'accepted' | 'declined') => {
         try {
@@ -1587,7 +1587,7 @@ export const CommunityView: React.FC<{
       }).sort((a,b) => b.timestamp - a.timestamp);
 
       if (feedFilter === 'bootcamp' && activeBootcamp) {
-          filtered = filtered.filter(e => e.bootcampId === activeBootcamp.cohortId || e.visibleTo === 'bootcamp' || e.visibleTo === 'bootcamp_and_friends');
+          filtered = filtered.filter(e => e.bootcampId === activeBootcamp.cohortId || (e.visibleTo && e.visibleTo.includes('bootcamp')) || (e.visibleTo && e.visibleTo.includes('bootcamp_and_friends')));
       }
 
       return filtered;
