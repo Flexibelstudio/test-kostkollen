@@ -1075,12 +1075,28 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
             if (firebaseUid) {
                 if (cohortId) {
                     // It's a bootcamp payment
+                    let originalStartDate = null;
+                    if (cohortId === 'solo_group') {
+                        const today = new Date();
+                        originalStartDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    } else {
+                        const cohortDoc = await db.collection('bootcampCohorts').doc(cohortId).get();
+                        if (cohortDoc.exists) {
+                            originalStartDate = cohortDoc.data().startDate;
+                        }
+                    }
+
                     await db.collection('bootcampCohorts').doc(cohortId).collection('participants').doc(firebaseUid).set({
                         userId: firebaseUid,
                         cohortId: cohortId,
                         status: 'fas1',
                         joinedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        bootcampOnboardingCompleted: false
+                        bootcampOnboardingCompleted: false,
+                        originalStartDate: originalStartDate,
+                        fas1StartDate: originalStartDate,
+                        currentStreak: 0,
+                        longestStreak: 0,
+                        needsCoachAttention: false
                     });
                     
                     // Update user profile to indicate they are in a course
