@@ -311,16 +311,19 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
           // Keep date, just acknowledge the tougher pace
           setToastNotification({ message: 'Måldatum behållet. Kämpa på!', type: 'success' });
       } else if (type === 'date') {
-          // Move date forward based on current pace
-          if (timeline.metrics.currentPacePerWeek !== 0) {
-              const weightRemaining = (userProfile.goalStartWeight || userProfile.currentWeightKg || 0) + (userProfile.desiredWeightChangeKg || 0) - (userProfile.currentWeightKg || 0);
-              const weeksNeeded = Math.abs(weightRemaining / timeline.metrics.currentPacePerWeek);
-              const newDate = new Date();
-              newDate.setDate(newDate.getDate() + Math.ceil(weeksNeeded * 7));
-              updatedProfile.goalCompletionDate = newDate.toISOString().split('T')[0];
-              await onSaveProfileAndGoals(updatedProfile, goals);
-              setToastNotification({ message: 'Måldatum framflyttat baserat på din nuvarande takt.', type: 'success' });
+          // Move date forward based on planned pace
+          let paceToUse = Math.abs(timeline.metrics.plannedPacePerWeek);
+          if (paceToUse === 0 || isNaN(paceToUse)) {
+              paceToUse = 0.5; // Default healthy pace
           }
+          
+          const weightRemaining = (userProfile.goalStartWeight || userProfile.currentWeightKg || 0) + (userProfile.desiredWeightChangeKg || 0) - (userProfile.currentWeightKg || 0);
+          const weeksNeeded = Math.abs(weightRemaining / paceToUse);
+          const newDate = new Date();
+          newDate.setDate(newDate.getDate() + Math.ceil(weeksNeeded * 7));
+          updatedProfile.goalCompletionDate = newDate.toISOString().split('T')[0];
+          await onSaveProfileAndGoals(updatedProfile, goals);
+          setToastNotification({ message: 'Måldatum framflyttat för att behålla en hållbar takt.', type: 'success' });
       } else if (type === 'auto_adjust') {
           // Adjust target weight to be healthy (e.g. max 1% per week)
           const maxSafePace = (userProfile.currentWeightKg || 80) * 0.01; // 1% of body weight

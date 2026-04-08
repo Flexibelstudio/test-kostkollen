@@ -598,8 +598,8 @@ export const recalculateStreak = async (cohortId: string, userId: string, provid
   if (participantSnap.exists()) {
     // participant is already defined at the top of the function
     let newStatus = participant.status;
-    let needsAttention = participant.needsCoachAttention;
-    let attentionReason = participant.attentionReason;
+    let needsAttention = participant.needsCoachAttention || false;
+    let attentionReason = participant.attentionReason || null;
 
     if (currentStreak >= 14 && participant.status === 'fas1') {
       newStatus = 'fas2';

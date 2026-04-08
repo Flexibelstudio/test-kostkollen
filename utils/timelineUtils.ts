@@ -150,6 +150,7 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
         metrics = {
             currentPacePerWeek,
             requiredPacePerWeek,
+            plannedPacePerWeek: weeklyChange,
             projectedFinalWeight,
             isHealthyPace,
             isOffTrack,
@@ -175,6 +176,7 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
                 metrics: {
                     currentPacePerWeek: 0,
                     requiredPacePerWeek: 0,
+                    plannedPacePerWeek: 0,
                     projectedFinalWeight: currentWeightKg,
                     isHealthyPace: true,
                     isOffTrack: false,
