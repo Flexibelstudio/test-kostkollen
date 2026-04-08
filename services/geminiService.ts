@@ -139,22 +139,42 @@ export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Pr
   if (activeBootcamp) {
     const currentBootcampStreak = activeBootcamp.currentStreak || 0;
     
-    if (activeBootcamp.status === 'fas1') {
+    // Check if the bootcamp starts today or in the future
+    const startDateStr = activeBootcamp.startDate || activeBootcamp.fas1StartDate;
+    const isWaitroom = startDateStr && new Date(startDateStr).getTime() > Date.now();
+    const isStartingToday = startDateStr && new Date(startDateStr).toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
+
+    if (isWaitroom) {
       bootcampContext = `
+PÅGÅENDE BOOTCAMP:
+- Användaren är anmäld till en Bootcamp, men den har INTE STARTAT ÄN (startar ${startDateStr}).
+- Användaren befinner sig i "Väntrummet".
+- VIKTIGT: Nämn INTE några bootcamp-krav, kvällsrapporter eller misslyckanden. Peppa bara inför starten!`;
+      missingReportInstruction = '';
+    } else if (isStartingToday) {
+      bootcampContext = `
+PÅGÅENDE BOOTCAMP:
+- BOOTCAMPEN STARTAR IDAG! (${startDateStr}).
+- VIKTIGT: Ignorera helt vad användaren gjorde igår (de var i väntrummet). Var extremt peppande och taggad på att Bootcampen drar igång IDAG!`;
+      missingReportInstruction = '';
+    } else {
+      if (activeBootcamp.status === 'fas1') {
+        bootcampContext = `
 PÅGÅENDE BOOTCAMP (FAS 1):
 - Användaren har klarat ${currentBootcampStreak} av 14 dagar i rad i Fas 1 av en intensiv Bootcamp.`;
-    } else {
-      const daysElapsed = Math.floor((Date.now() - new Date(activeBootcamp.originalStartDate || activeBootcamp.fas1StartDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24));
-      bootcampContext = `
+      } else {
+        const daysElapsed = Math.floor((Date.now() - new Date(activeBootcamp.originalStartDate || activeBootcamp.fas1StartDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24));
+        bootcampContext = `
 PÅGÅENDE BOOTCAMP (FAS 2):
 - Användaren är på dag ${daysElapsed} av 84 i en intensiv Bootcamp (Fas 2). Nuvarande streak är ${currentBootcampStreak} dagar i rad.`;
-    }
+      }
 
-    if (!yesterdayBootcampReport) {
-      bootcampContext += `\n- STATUS IGÅR: KATASTROF! Användaren har INTE fyllt i sin obligatoriska kvällsrapport för bootcampen.`;
-      missingReportInstruction = `\n7. BOOTCAMP-VARNING: Eftersom användaren missade kvällsrapporten igår är dagen just nu UNDERKÄND i bootcampen. Du MÅSTE påpeka detta tydligt (enligt din persona). Beröm INTE gårdagen som en bootcamp-succé. Påminn om att kvällsrapporten är obligatorisk, men nämn att det går att fylla i den i efterhand för att rädda dagen!`;
-    } else {
-      bootcampContext += `\n- Uppmärksamma detta och peppa dem att hålla i under denna tuffa period!`;
+      if (!yesterdayBootcampReport) {
+        bootcampContext += `\n- STATUS IGÅR: KATASTROF! Användaren har INTE fyllt i sin obligatoriska kvällsrapport för bootcampen.`;
+        missingReportInstruction = `\n7. BOOTCAMP-VARNING: Eftersom användaren missade kvällsrapporten igår är dagen just nu UNDERKÄND i bootcampen. Du MÅSTE påpeka detta tydligt (enligt din persona). Beröm INTE gårdagen som en bootcamp-succé. Påminn om att kvällsrapporten är obligatorisk, men nämn att det går att fylla i den i efterhand för att rädda dagen!`;
+      } else {
+        bootcampContext += `\n- Uppmärksamma detta och peppa dem att hålla i under denna tuffa period!`;
+      }
     }
   }
 
