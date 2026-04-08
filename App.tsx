@@ -943,6 +943,20 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
     const updatedProfile = { ...profileData };
     
+    // Check if goal parameters changed to reset the timeline start date
+    const goalChanged = 
+        updatedProfile.desiredWeightChangeKg !== userProfile.desiredWeightChangeKg ||
+        updatedProfile.desiredFatMassChangeKg !== userProfile.desiredFatMassChangeKg ||
+        updatedProfile.desiredMuscleMassChangeKg !== userProfile.desiredMuscleMassChangeKg ||
+        updatedProfile.goalCompletionDate !== userProfile.goalCompletionDate;
+
+    if (goalChanged || !updatedProfile.goalStartDate) {
+        updatedProfile.goalStartDate = new Date().toISOString().split('T')[0];
+        updatedProfile.goalStartWeight = updatedProfile.currentWeightKg;
+        updatedProfile.goalStartFatMassKg = updatedProfile.bodyFatMassKg;
+        updatedProfile.goalStartMuscleMassKg = updatedProfile.skeletalMuscleMassKg;
+    }
+
     // Upload image to Firebase Storage if it's a new base64 image
     if (newPhotoDataUrl && newPhotoDataUrl.startsWith('data:image')) {
         try {

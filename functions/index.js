@@ -849,16 +849,22 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
         }
 
         // 2. Skapa checkout-sessionen och länka till kund-ID:t
-        const session = await stripe.checkout.sessions.create({
+        const mode = data.mode || 'subscription';
+        const sessionConfig = {
             payment_method_types: ['card'],
-            mode: 'subscription',
+            mode: mode,
             customer: customerId, // <-- Här använder vi kundens ID istället för att skapa ny varje gång
             line_items: [{ price: priceId, quantity: 1 }],
-            metadata: { firebaseUid: userId },
+            metadata: { 
+                firebaseUid: userId,
+                ...(data.cohortId ? { cohortId: data.cohortId } : {})
+            },
             allow_promotion_codes: true,
             success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/cancel`,
-        });
+        };
+
+        const session = await stripe.checkout.sessions.create(sessionConfig);
         
         return { sessionId: session.id, url: session.url };
     } catch (error) {
@@ -1056,37 +1062,72 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object;
             const firebaseUid = session.metadata ? session.metadata.firebaseUid : null;
+            const cohortId = session.metadata ? session.metadata.cohortId : null;
 
             if (firebaseUid) {
-                await db.collection('users').doc(firebaseUid).set({
-                    subscriptionStatus: 'active',
-                    status: 'approved',
-                    stripeCustomerId: session.customer,
-                    subscriptionId: session.subscription,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
+                if (cohortId) {
+                    // It's a bootcamp payment
+                    await db.collection('bootcampCohorts').doc(cohortId).collection('participants').doc(firebaseUid).set({
+                        userId: firebaseUid,
+                        status: 'fas1',
+                        joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        bootcampOnboardingCompleted: false
+                    });
+                    
+                    // Update user profile to indicate they are in a course
+                    await db.collection('users').doc(firebaseUid).set({
+                        isCourseActive: true,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
 
-                // Hämta användarens namn för notisen
-                const userDoc = await db.collection('users').doc(firebaseUid).get();
-                const userName = userDoc.exists ? (userDoc.data().displayName || userDoc.data().email || "En användare") : "En användare";
-
-                // Skicka push-notis till coacher/admins
-                const payload = {
-                    notification: {
-                        title: "Ny prenumerant! 🚀",
-                        body: `${userName} har precis startat sitt medlemskap!`,
-                        icon: "/icons/icon-192x192.png",
-                        badge: "/icons/badge-96x96.png",
-                        data: { url: "/" }
+                    // Send notification to coaches
+                    const userDoc = await db.collection('users').doc(firebaseUid).get();
+                    const userName = userDoc.exists ? (userDoc.data().displayName || userDoc.data().email || "En användare") : "En användare";
+                    const payload = {
+                        notification: {
+                            title: "Ny Bootcamp-deltagare! 🪖",
+                            body: `${userName} har precis anmält sig till Bootcampen!`,
+                            icon: "/icons/icon-192x192.png",
+                            badge: "/icons/badge-96x96.png",
+                            data: { url: "/" }
+                        }
+                    };
+                    const coachIds = await getCoachAndAdminIds();
+                    if (coachIds.length > 0) {
+                        const notificationPromises = coachIds.map((id) => sendNotificationToUser(id, payload, "newEvents"));
+                        await Promise.all(notificationPromises);
                     }
-                };
+                } else {
+                    // It's a regular subscription
+                    await db.collection('users').doc(firebaseUid).set({
+                        subscriptionStatus: 'active',
+                        status: 'approved',
+                        stripeCustomerId: session.customer,
+                        subscriptionId: session.subscription,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
 
-                const coachIds = await getCoachAndAdminIds();
-                if (coachIds.length > 0) {
-                    const notificationPromises = coachIds.map((id) => sendNotificationToUser(id, payload, "newEvents"));
-                    await Promise.all(notificationPromises);
+                    // Hämta användarens namn för notisen
+                    const userDoc = await db.collection('users').doc(firebaseUid).get();
+                    const userName = userDoc.exists ? (userDoc.data().displayName || userDoc.data().email || "En användare") : "En användare";
+
+                    // Skicka push-notis till coacher/admins
+                    const payload = {
+                        notification: {
+                            title: "Ny prenumerant! 🚀",
+                            body: `${userName} har precis startat sitt medlemskap!`,
+                            icon: "/icons/icon-192x192.png",
+                            badge: "/icons/badge-96x96.png",
+                            data: { url: "/" }
+                        }
+                    };
+
+                    const coachIds = await getCoachAndAdminIds();
+                    if (coachIds.length > 0) {
+                        const notificationPromises = coachIds.map((id) => sendNotificationToUser(id, payload, "newEvents"));
+                        await Promise.all(notificationPromises);
+                    }
                 }
-
             } else {
                 logger.warn("No firebaseUid in session metadata for checkout.session.completed", { sessionId: session.id });
             }

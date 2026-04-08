@@ -14,6 +14,14 @@ export interface TimelineMilestone {
 export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: WeightLogEntry[] = []): {
   milestones: TimelineMilestone[];
   paceFeedback: { type: 'warning' | 'info' | 'error'; text: string } | null;
+  metrics: {
+      currentPacePerWeek: number;
+      requiredPacePerWeek: number;
+      projectedFinalWeight: number;
+      isHealthyPace: boolean;
+      isOffTrack: boolean;
+      daysRemaining: number;
+  } | null;
 } => {
     const { desiredFatMassChangeKg, desiredMuscleMassChangeKg, currentWeightKg, goalCompletionDate, measurementMethod, desiredWeightChangeKg, goalStartDate } = profile;
 
@@ -39,7 +47,7 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
     }
     
     if (goalChange === undefined || goalChange === null || goalChange === 0 || !currentWeightKg) {
-      return { milestones: [], paceFeedback: null };
+      return { milestones: [], paceFeedback: null, metrics: null };
     }
     
     // FIX: Use persisted goalStartDate. If none, use today (don't infer from logs, forcing a reset visual)
@@ -68,22 +76,52 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
 
     let endDate: Date;
     let paceFeedback: { type: 'warning' | 'info' | 'error', text: string } | null = null;
+    
+    let metrics = null;
 
     if (goalCompletionDate) {
         endDate = new Date(goalCompletionDate + 'T00:00:00'); // Ensure it's interpreted as local time
         endDate.setHours(0,0,0,0);
 
         if (endDate <= startDate) {
-            return { milestones: [], paceFeedback: { type: 'error', text: "Måldatum måste vara i framtiden." } };
+            return { milestones: [], paceFeedback: { type: 'error', text: "Måldatum måste vara i framtiden." }, metrics: null };
         }
         
         const totalDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
         const totalWeeks = totalDays > 0 ? totalDays / 7 : 0;
         const weeklyChange = totalWeeks > 0 ? goalChange / totalWeeks : 0;
+        
+        // Calculate dynamic metrics
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const daysElapsed = Math.max(0, (today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysRemaining = Math.max(0, (endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const weightChangedSoFar = currentWeightKg - startWeightForCalculation;
+        const weightRemaining = (startWeightForCalculation + goalChange) - currentWeightKg;
+        
+        const currentPacePerWeek = daysElapsed > 0 ? weightChangedSoFar / (daysElapsed / 7) : 0;
+        const requiredPacePerWeek = daysRemaining > 0 ? weightRemaining / (daysRemaining / 7) : 0;
+        const projectedFinalWeight = currentWeightKg + (currentPacePerWeek * (daysRemaining / 7));
+        
+        let isHealthyPace = true;
+        let isOffTrack = false;
 
         if (goalChange < 0) { // It's a loss goal
             const weeklyLossKg = Math.abs(weeklyChange);
             const weeklyLossPercentage = (weeklyLossKg / startWeightForCalculation) * 100;
+            
+            const requiredLossKg = Math.abs(requiredPacePerWeek);
+            const requiredLossPercentage = (requiredLossKg / currentWeightKg) * 100;
+            
+            if (requiredLossPercentage > 1.2) {
+                isHealthyPace = false;
+            }
+            
+            // If required loss is significantly higher than planned loss, user is off track
+            if (requiredLossKg > weeklyLossKg + 0.2) {
+                isOffTrack = true;
+            }
+
             if (weeklyLossPercentage > 1.2) {
                 paceFeedback = { type: 'warning', text: "⚠️ Detta är en mycket snabb takt (>1.2% av kroppsvikten per vecka). Överväg en mer hållbar plan." };
             } else if (weeklyLossPercentage > 0.8) {
@@ -91,6 +129,15 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
             }
         } else if (goalChange > 0 && goalTypeLabel === 'Muskelmassa') { // It's a muscle gain goal
              const weeklyGainKg = Math.abs(weeklyChange);
+             const requiredGainKg = Math.abs(requiredPacePerWeek);
+             
+             if (requiredGainKg > 0.6) {
+                 isHealthyPace = false;
+             }
+             if (requiredGainKg > weeklyGainKg + 0.1) {
+                 isOffTrack = true;
+             }
+             
             if (weeklyGainKg > 0.6) {
                 paceFeedback = { type: 'error', text: `Orealistisk takt: ${weeklyGainKg.toFixed(2)} kg/vecka. En så snabb viktökning kommer sannolikt bestå mestadels av fett. En hållbar plan för ${goalChange} kg muskler är ca 3-6 månader.` };
             } else if (weeklyGainKg > 0.4) {
@@ -99,6 +146,16 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
                 paceFeedback = { type: 'info', text: `✅ Optimal takt: ${weeklyGainKg.toFixed(2)} kg/vecka. Detta är en hållbar takt för muskelökning.` };
             }
         }
+        
+        metrics = {
+            currentPacePerWeek,
+            requiredPacePerWeek,
+            projectedFinalWeight,
+            isHealthyPace,
+            isOffTrack,
+            daysRemaining
+        };
+        
     } else {
         // NEW LOGIC: Calculate date if not provided
         const caloriesPerKg = 7000;
@@ -132,7 +189,7 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
 
     const totalDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
     if (totalDays <= 0) {
-        return { milestones: [], paceFeedback };
+        return { milestones: [], paceFeedback, metrics };
     }
     const totalWeeks = totalDays / 7;
     const weeklyChange = goalChange / totalWeeks;
@@ -189,5 +246,5 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
         };
     }
 
-    return { milestones, paceFeedback };
+    return { milestones, paceFeedback, metrics };
 };

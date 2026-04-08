@@ -226,7 +226,11 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         skeletalMuscleMassKg: data.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg,
         bodyFatMassKg: data.bodyFatMassKg ?? userProfile.bodyFatMassKg,
         measurementMethod: isUsingInBody ? 'inbody' : 'scale',
-        goalCompletionDate: targetDate.toISOString().split('T')[0]
+        goalCompletionDate: targetDate.toISOString().split('T')[0],
+        goalStartDate: new Date().toISOString().split('T')[0],
+        goalStartWeight: data.weightKg,
+        goalStartFatMassKg: data.bodyFatMassKg ?? userProfile.bodyFatMassKg,
+        goalStartMuscleMassKg: data.skeletalMuscleMassKg ?? userProfile.skeletalMuscleMassKg
       };
       
       setTempProfile(updatedProfile);

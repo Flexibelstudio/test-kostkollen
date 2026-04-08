@@ -11,6 +11,7 @@ import LogWeightModal from './LogWeightModal';
 import { WeightLogEntry } from '../types';
 import ProteinInfoModal from './ProteinInfoModal';
 import { InformationCircleIcon } from './icons';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 interface BootcampLandingViewProps {
   onBack: () => void;
@@ -38,62 +39,44 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
     return () => unsubscribe();
   }, []);
 
-  const handleJoinSolo = async () => {
+  const handlePaymentAndJoin = async (cohortIdOrCode: string, isSolo: boolean = false) => {
     if (!auth.currentUser) return;
     setIsJoining(true);
     try {
-      const result = await joinSoloBootcamp(auth.currentUser.uid);
-      if (result.success) {
-        setToast({ message: result.message, type: 'success' });
-        await onJoinSuccess(userProfile, goals);
-      } else {
-        setToast({ message: result.message, type: 'error' });
-      }
-    } catch (error) {
-      console.error("Error joining solo bootcamp:", error);
-      setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
-    } finally {
-      setIsJoining(false);
+        const functions = getFunctions();
+        const createSession = httpsCallable(functions, 'createCheckoutSession');
+        
+        const result = await createSession({ 
+            returnUrl: window.location.origin,
+            mode: 'payment',
+            cohortId: isSolo ? 'solo_group' : cohortIdOrCode
+        });
+        
+        const url = (result.data as any).url;
+        if (url) {
+            window.location.href = url;
+        } else {
+            throw new Error("No URL returned from Stripe");
+        }
+    } catch (error: any) {
+        console.error("Error initiating payment:", error);
+        setToast({ message: error.message || 'Kunde inte starta betalningen. Försök igen.', type: 'error' });
+        setIsJoining(false);
     }
+  };
+
+  const handleJoinSolo = async () => {
+    await handlePaymentAndJoin('solo_group', true);
   };
 
   const handleJoinWithCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim() || !auth.currentUser) return;
-    setIsJoining(true);
-    try {
-      const result = await joinCohort(auth.currentUser.uid, inviteCode);
-      if (result.success) {
-        setToast({ message: result.message, type: 'success' });
-        await onJoinSuccess(userProfile, goals);
-      } else {
-        setToast({ message: result.message, type: 'error' });
-      }
-    } catch (error) {
-      console.error("Error joining bootcamp with code:", error);
-      setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
-    } finally {
-      setIsJoining(false);
-    }
+    await handlePaymentAndJoin(inviteCode.trim().toUpperCase());
   };
 
   const handleJoinPublicCohort = async (cohort: BootcampCohort) => {
-    if (!auth.currentUser) return;
-    setIsJoining(true);
-    try {
-      const result = await joinCohort(auth.currentUser.uid, cohort.inviteCode);
-      if (result.success) {
-        setToast({ message: result.message, type: 'success' });
-        await onJoinSuccess(userProfile, goals);
-      } else {
-        setToast({ message: result.message, type: 'error' });
-      }
-    } catch (error) {
-      console.error("Error joining public bootcamp:", error);
-      setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
-    } finally {
-      setIsJoining(false);
-    }
+    await handlePaymentAndJoin(cohort.id);
   };
 
   const handleCloseModals = () => {

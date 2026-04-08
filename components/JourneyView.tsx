@@ -302,6 +302,42 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       }
   };
 
+  const handleAdjustGoal = async (type: 'pace' | 'date' | 'auto_adjust') => {
+      if (!timeline.metrics) return;
+      
+      const updatedProfile = { ...userProfile };
+      
+      if (type === 'pace') {
+          // Keep date, just acknowledge the tougher pace
+          setToastNotification({ message: 'Måldatum behållet. Kämpa på!', type: 'success' });
+      } else if (type === 'date') {
+          // Move date forward based on current pace
+          if (timeline.metrics.currentPacePerWeek !== 0) {
+              const weightRemaining = (userProfile.goalStartWeight || userProfile.currentWeightKg || 0) + (userProfile.desiredWeightChangeKg || 0) - (userProfile.currentWeightKg || 0);
+              const weeksNeeded = Math.abs(weightRemaining / timeline.metrics.currentPacePerWeek);
+              const newDate = new Date();
+              newDate.setDate(newDate.getDate() + Math.ceil(weeksNeeded * 7));
+              updatedProfile.goalCompletionDate = newDate.toISOString().split('T')[0];
+              await onSaveProfileAndGoals(updatedProfile, goals);
+              setToastNotification({ message: 'Måldatum framflyttat baserat på din nuvarande takt.', type: 'success' });
+          }
+      } else if (type === 'auto_adjust') {
+          // Adjust target weight to be healthy (e.g. max 1% per week)
+          const maxSafePace = (userProfile.currentWeightKg || 80) * 0.01; // 1% of body weight
+          const weeksRemaining = timeline.metrics.daysRemaining / 7;
+          const safeWeightChange = maxSafePace * weeksRemaining;
+          
+          // If it's a loss goal
+          if ((userProfile.desiredWeightChangeKg || 0) < 0) {
+              const newTargetWeight = (userProfile.currentWeightKg || 0) - safeWeightChange;
+              const newTotalChange = newTargetWeight - (userProfile.goalStartWeight || userProfile.currentWeightKg || 0);
+              updatedProfile.desiredWeightChangeKg = newTotalChange;
+              await onSaveProfileAndGoals(updatedProfile, goals);
+              setToastNotification({ message: 'Målet har justerats till en hälsosam nivå.', type: 'success' });
+          }
+      }
+  };
+
   const coachName = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
 
   return (
@@ -416,9 +452,12 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                             <GoalTimeline 
                                 milestones={timeline.milestones} 
                                 paceFeedback={timeline.paceFeedback} 
+                                metrics={timeline.metrics}
                                 weightLogs={filteredWeightLogs} 
                                 goalType={userProfile.goalType} 
                                 currentAppDate={new Date()}
+                                isBootcampActive={userProfile.isCourseActive}
+                                onAdjustGoal={handleAdjustGoal}
                             />
                             
                             <ProfileAndGoalEditor 
