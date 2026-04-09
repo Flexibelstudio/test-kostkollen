@@ -263,16 +263,21 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
   }
 
   const handleActivateCourse = (courseId: CourseInfo['id'], hasStarted: boolean) => {
-    if (!hasStarted) {
-      // Check if any other course is already started
-      const isPvStarted = !!userProgress['lektion1']?.unlockedAt;
-      const isMkStarted = !!userProgress['m-lektion1']?.unlockedAt;
-      const isBootcampStarted = !!activeBootcamp;
-      
-      if (isPvStarted || isMkStarted || isBootcampStarted) {
+    const isPvStarted = !!userProgress['lektion1']?.unlockedAt;
+    const isMkStarted = !!userProgress['m-lektion1']?.unlockedAt;
+    const isBootcampStarted = !!activeBootcamp;
+
+    if (courseId !== 'praktisk-viktkontroll' && isPvStarted) {
         alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
         return;
-      }
+    }
+    if (courseId !== 'maxa-klimakteriet' && isMkStarted) {
+        alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
+        return;
+    }
+    if (courseId !== 'bootcamp' && isBootcampStarted) {
+        alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
+        return;
     }
 
     if (courseId === 'bootcamp') {

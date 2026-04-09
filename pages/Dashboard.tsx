@@ -842,7 +842,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             {/* Bootcamp Progress Report */}
             {activeBootcamp && (() => {
-                const rankInfo = getBootcampRankInfo(activeBootcamp.longestStreak || 0, activeBootcamp.currentStreak || 0, activeBootcamp.status);
+                const rankInfo = getBootcampRankInfo(Math.max(activeBootcamp.longestStreak || 0, userProfile.highestBootcampStreak || 0), activeBootcamp.currentStreak || 0, activeBootcamp.status);
                 return (
                 <div className="bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden">
                     <div className="flex items-center justify-between mb-2">
