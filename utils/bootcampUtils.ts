@@ -11,11 +11,11 @@ export const getBootcampRankInfo = (longestStreak: number, currentStreak: number
     ];
 
     // Om man är i Fas 2 är man alltid minst Sergeant
-    const effectiveLongestStreak = status === 'fas2' ? Math.max(14, longestStreak) : longestStreak;
+    const effectiveCurrentStreak = status === 'fas2' ? Math.max(14, currentStreak) : currentStreak;
 
     let currentRankIndex = 0;
     for (let i = ranks.length - 1; i >= 0; i--) {
-        if (effectiveLongestStreak >= ranks[i].req) {
+        if (effectiveCurrentStreak >= ranks[i].req) {
             currentRankIndex = i;
             break;
         }
