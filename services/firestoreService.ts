@@ -307,7 +307,7 @@ export async function fetchInitialAppData(userId: string) {
     let highestBootcampStreak = userDocData.highestBootcampStreak;
 
     // --- SYNC HIGHEST BOOTCAMP STREAK ---
-    if (highestBootcampStreak === undefined) {
+    if (highestBootcampStreak === undefined || highestBootcampStreak === 0) {
       try {
         const participantsQuery = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
         const participantsSnap = await getDocsSafe(participantsQuery);
@@ -1615,7 +1615,7 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
       }
 
       // Fallback for highestBootcampStreak if missing
-      if (highestBootcampStreak === undefined) {
+      if (highestBootcampStreak === undefined || highestBootcampStreak === 0) {
         const participantsQuery = query(collectionGroup(db, 'participants'), where('userId', '==', buddy.uid));
         const participantsSnap = await getDocsSafe(participantsQuery);
         let maxStreak = 0;

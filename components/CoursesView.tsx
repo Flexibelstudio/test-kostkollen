@@ -263,21 +263,23 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
   }
 
   const handleActivateCourse = (courseId: CourseInfo['id'], hasStarted: boolean) => {
-    const isPvStarted = !!userProgress['lektion1']?.unlockedAt;
-    const isMkStarted = !!userProgress['m-lektion1']?.unlockedAt;
-    const isBootcampStarted = !!activeBootcamp;
+    if (!hasStarted) {
+      const isPvStarted = !!userProgress['lektion1']?.unlockedAt;
+      const isMkStarted = !!userProgress['m-lektion1']?.unlockedAt;
+      const isBootcampStarted = !!activeBootcamp;
 
-    if (courseId !== 'praktisk-viktkontroll' && isPvStarted) {
-        alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
-        return;
-    }
-    if (courseId !== 'maxa-klimakteriet' && isMkStarted) {
-        alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
-        return;
-    }
-    if (courseId !== 'bootcamp' && isBootcampStarted) {
-        alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
-        return;
+      if (courseId !== 'praktisk-viktkontroll' && isPvStarted) {
+          alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
+          return;
+      }
+      if (courseId !== 'maxa-klimakteriet' && isMkStarted) {
+          alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
+          return;
+      }
+      if (courseId !== 'bootcamp' && isBootcampStarted) {
+          alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
+          return;
+      }
     }
 
     if (courseId === 'bootcamp') {

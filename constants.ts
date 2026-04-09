@@ -70,6 +70,7 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
   },
   preferredWeighInDay: 'måndag',
   coachStyle: 'balanced', // Default coach style
+  highestBootcampStreak: 0,
 };
 
 export const COACH_PERSONAS = {
