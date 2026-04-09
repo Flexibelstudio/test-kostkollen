@@ -440,7 +440,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                 <div className="h-8 flex items-center gap-1 text-primary mb-1 whitespace-nowrap shrink-0">
                   <ShieldCheckIcon className="w-5 h-5 shrink-0" />
                   <span className="font-bold text-xl leading-none whitespace-nowrap shrink-0 text-green-400">
-                    {getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).currentRank}
+                    {getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).currentRank}
                   </span>
                 </div>
                 <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Rang</span>
@@ -451,7 +451,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                 <div className="h-8 flex items-center gap-1 text-neutral-300 mb-1 whitespace-nowrap">
                   <CalendarIcon className="w-6 h-6 shrink-0" />
                   <span className="font-bold text-2xl leading-none">
-                    {getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).nextRank ? getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).daysToNext : 0}
+                    {getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).nextRank ? getBootcampRankInfo(participant.longestStreak || 0, participant.currentStreak || 0, participant.status).daysToNext : 0}
                   </span>
                 </div>
                 <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Dagar Kvar</span>
