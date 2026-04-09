@@ -177,6 +177,36 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {/* Private Invite Code */}
+        <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light md:col-span-2">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
+              <KeyIcon className="w-5 h-5" />
+            </div>
+            <h2 className="text-lg font-bold text-neutral-dark">Har du en inbjudningskod?</h2>
+          </div>
+          <p className="text-sm text-neutral-500 mb-4">
+            Om du har fått en kod till en privat trupp (t.ex. via ditt företag), fyll i den här.
+          </p>
+          <form onSubmit={handleJoinWithCode} className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              placeholder="T.ex. BÖRJE-APRIL"
+              className="flex-1 p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent uppercase"
+              required
+            />
+            <button
+              type="submit"
+              disabled={isJoining || !inviteCode.trim()}
+              className="px-8 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              Betala & Gå med
+            </button>
+          </form>
+        </div>
+
         {/* Public Cohorts */}
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
           <div className="flex items-center gap-3 mb-6">
@@ -241,36 +271,6 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Private Invite Code */}
-      <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light max-w-2xl mx-auto">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
-            <KeyIcon className="w-5 h-5" />
-          </div>
-          <h2 className="text-lg font-bold text-neutral-dark">Har du en inbjudningskod?</h2>
-        </div>
-        <p className="text-sm text-neutral-500 mb-4">
-          Om du har fått en kod till en privat trupp (t.ex. via ditt företag), fyll i den här.
-        </p>
-        <form onSubmit={handleJoinWithCode} className="flex flex-col gap-3">
-          <input
-            type="text"
-            value={inviteCode}
-            onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-            placeholder="T.ex. BÖRJE-APRIL"
-            className="w-full p-3 rounded-xl border border-neutral-light focus:ring-2 focus:ring-primary focus:border-transparent uppercase"
-            required
-          />
-          <button
-            type="submit"
-            disabled={isJoining || !inviteCode.trim()}
-            className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50"
-          >
-            Betala & Gå med
-          </button>
-        </form>
       </div>
 
       {showProteinInfoModal && (
