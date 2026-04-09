@@ -344,6 +344,7 @@ export async function fetchInitialAppData(userId: string) {
       desiredFatMassChangeKg: userDocData.desiredFatMassChangeKg ?? undefined,
       desiredMuscleMassChangeKg: userDocData.desiredMuscleMassChangeKg ?? undefined,
       goalCompletionDate: userDocData.goalCompletionDate ?? undefined,
+      goalStartDate: userDocData.goalStartDate ?? undefined,
       isSearchable: userDocData.isSearchable,
       goalStartWeight: userDocData.goalStartWeight ?? undefined,
       goalStartMuscleMassKg: userDocData.goalStartMuscleMassKg ?? undefined,
