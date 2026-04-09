@@ -379,7 +379,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             if (updatedValue > 0) updatedProfile.desiredWeightChangeKg = 0;
             if (updatedValue < -12) {
                 updatedProfile.desiredWeightChangeKg = -12;
-                alert("Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.");
+                setToast({ message: "Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.", type: 'error' });
             }
         }
 
@@ -387,7 +387,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             if (updatedValue > 0) updatedProfile.desiredFatMassChangeKg = 0;
             if (updatedValue < -12) {
                 updatedProfile.desiredFatMassChangeKg = -12;
-                alert("Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.");
+                setToast({ message: "Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.", type: 'error' });
             }
         }
 
@@ -465,7 +465,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           if (newValue > 0) newValue = 0;
           if (newValue < -12) {
               newValue = -12;
-              alert("Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.");
+              setToast({ message: "Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.", type: 'error' });
           }
       }
 
@@ -473,7 +473,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           if (newValue > 0) newValue = 0;
           if (newValue < -12) {
               newValue = -12;
-              alert("Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.");
+              setToast({ message: "Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.", type: 'error' });
           }
       }
 

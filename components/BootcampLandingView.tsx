@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, UsersIcon, UserIcon, KeyIcon, CheckCircleIcon } from './icons';
+import { Loader2 } from 'lucide-react';
 import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
 import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort, getBootcampStepGoal } from '../services/bootcampService';
 import { saveWeightLog } from '../services/firestoreService';
@@ -200,9 +201,10 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
             <button
               type="submit"
               disabled={isJoining || !inviteCode.trim()}
-              className="px-8 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50 whitespace-nowrap"
+              className="px-8 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-2"
             >
-              Betala & Gå med
+              {isJoining ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+              {isJoining ? 'Laddar...' : 'Betala & Gå med'}
             </button>
           </form>
         </div>
@@ -235,9 +237,10 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
                   <button
                     onClick={() => handleJoinPublicCohort(cohort)}
                     disabled={isJoining}
-                    className="px-6 py-2 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50 whitespace-nowrap"
+                    className="px-6 py-2 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-2"
                   >
-                    Betala & Gå med
+                    {isJoining ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                    {isJoining ? 'Laddar...' : 'Betala & Gå med'}
                   </button>
                 </div>
               ))}
@@ -266,8 +269,8 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
               disabled={isJoining}
               className="w-full py-4 bg-neutral-darker text-white font-bold rounded-xl hover:bg-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              <ShieldCheckIcon className="w-5 h-5" />
-              Betala & Starta Solo
+              {isJoining ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheckIcon className="w-5 h-5" />}
+              {isJoining ? 'Laddar...' : 'Betala & Starta Solo'}
             </button>
           </div>
         </div>
