@@ -766,7 +766,8 @@ export async function deleteTimelineEvent(eventId: string): Promise<void> {
 
 export async function addTimelineEvent(
   userId: string,
-  eventData: Omit<TimelineEvent, 'id' | 'userId' | 'userName' | 'userPhotoURL' | 'gender' | 'relatedDocPath' | 'reactions' | 'comments'> & { relatedDocId: string }
+  eventData: Omit<TimelineEvent, 'id' | 'userId' | 'userName' | 'userPhotoURL' | 'gender' | 'relatedDocPath' | 'reactions' | 'comments'> & { relatedDocId: string },
+  overrideProgressAtPost?: number
 ) {
   if (!db) return;
   const userDocRef = doc(db, 'users', userId);
@@ -843,7 +844,7 @@ export async function addTimelineEvent(
       console.warn("Could not fetch weight logs for progress calculation", e);
     }
     
-    progressAtPost = calculateProgressPercentage(
+    progressAtPost = overrideProgressAtPost !== undefined ? overrideProgressAtPost : calculateProgressPercentage(
       userData.measurementMethod,
       userData.goalStartWeight, currentWeight, userData.desiredWeightChangeKg,
       userData.goalStartFatMassKg, currentFatMass, userData.desiredFatMassChangeKg,
@@ -1092,7 +1093,7 @@ export async function checkAndUnlockAchievements(
 
 /* ===== Weight ===== */
 
-export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEntry, 'id'>) {
+export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEntry, 'id'>, isInitialForGoal: boolean = false) {
   if (!db) return `wl_${Date.now()}`;
   const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
   const userDocRef = doc(db, 'users', userId);
@@ -1161,7 +1162,7 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
       description: descriptionParts.join('\n'),
       icon: '⚖️',
       relatedDocId: newLogId
-    });
+    }, isInitialForGoal ? 0 : undefined);
 
   } catch (err) {
     console.error("Failed to add weight log to timeline:", err);

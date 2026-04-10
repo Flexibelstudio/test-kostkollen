@@ -1273,7 +1273,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
   const handleBootcampInitialWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
     if (!currentUser) return;
     try {
-        const newId = await saveWeightLog(currentUser.uid, data);
+        const newId = await saveWeightLog(currentUser.uid, data, true);
         const newEntry: WeightLogEntry = { ...data, id: newId };
         setWeightLogs(prev => [...prev, newEntry].sort((a, b) => a.loggedAt - b.loggedAt));
         
