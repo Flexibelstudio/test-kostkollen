@@ -1075,13 +1075,17 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
                 if (cohortId) {
                     // It's a bootcamp payment
                     let originalStartDate = null;
-                    if (cohortId === 'solo_group') {
-                        const today = new Date();
-                        originalStartDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                    } else {
-                        const cohortDoc = await db.collection('bootcampCohorts').doc(cohortId).get();
-                        if (cohortDoc.exists) {
-                            originalStartDate = cohortDoc.data().startDate;
+                    const cohortDoc = await db.collection('bootcampCohorts').doc(cohortId).get();
+                    if (cohortDoc.exists && cohortDoc.data().startDate) {
+                        originalStartDate = cohortDoc.data().startDate;
+                    } else if (cohortId === 'solo_group') {
+                        // Fallback to 'solo' if 'solo_group' doesn't have a startDate yet
+                        const soloDoc = await db.collection('bootcampCohorts').doc('solo').get();
+                        if (soloDoc.exists && soloDoc.data().startDate) {
+                            originalStartDate = soloDoc.data().startDate;
+                        } else {
+                            const today = new Date();
+                            originalStartDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
                         }
                     }
 
@@ -1224,10 +1228,22 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
             activeBootcamps.push({ id: doc.id, ...doc.data() });
         });
 
-        // Se till att 'solo' alltid finns med om den har ett startdatum, även om status inte är 'active'
+        // Se till att 'solo' och 'solo_group' alltid finns med om de har ett startdatum, även om status inte är 'active'
         const soloDoc = await db.collection("bootcampCohorts").doc("solo").get();
         if (soloDoc.exists && !activeBootcamps.find(b => b.id === 'solo')) {
             activeBootcamps.push({ id: 'solo', ...soloDoc.data() });
+        }
+        
+        const soloGroupDoc = await db.collection("bootcampCohorts").doc("solo_group").get();
+        if (!activeBootcamps.find(b => b.id === 'solo_group')) {
+            let soloGroupData = soloGroupDoc.exists ? soloGroupDoc.data() : {};
+            if (!soloGroupData.startDate && soloDoc.exists && soloDoc.data().startDate) {
+                soloGroupData.startDate = soloDoc.data().startDate;
+            }
+            // Only add if we have a startDate
+            if (soloGroupData.startDate) {
+                activeBootcamps.push({ id: 'solo_group', ...soloGroupData });
+            }
         }
 
         if (activeBootcamps.length === 0) {
@@ -1267,9 +1283,14 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
             }
 
             // Hitta bootcamps som matchar groupId ('all' eller specifikt ID)
-            const targetBootcamps = groupId === 'all' 
-                ? activeBootcamps 
-                : activeBootcamps.filter(b => b.id === groupId);
+            let targetBootcamps = [];
+            if (groupId === 'all') {
+                targetBootcamps = activeBootcamps;
+            } else if (groupId === 'solo' || groupId === 'solo_group') {
+                targetBootcamps = activeBootcamps.filter(b => b.id === 'solo' || b.id === 'solo_group');
+            } else {
+                targetBootcamps = activeBootcamps.filter(b => b.id === groupId);
+            }
 
             let postUpdated = false;
 
@@ -1305,7 +1326,7 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
                 let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); 
                 
                 // Looop-logik för Solo (12 veckor = 84 dagar)
-                if (bootcamp.id === 'solo') {
+                if (bootcamp.id === 'solo' || bootcamp.id === 'solo_group') {
                     diffDays = diffDays % 84;
                 }
 
@@ -1333,7 +1354,7 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
                     let userPhotoURL = '/coach-borje.png';
                     let icon = '🪖';
 
-                    if (bootcamp.id === 'solo') {
+                    if (bootcamp.id === 'solo' || bootcamp.id === 'solo_group') {
                         title = 'delade ett meddelande till Solo-gruppen';
                     } else if (bootcamp.id === 'all') {
                         title = 'delade ett meddelande till alla';
@@ -1369,9 +1390,9 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
             if (postUpdated) {
                 batch.update(postDoc.ref, {
                     publishedLog: publishedLog,
-                    // Vi ändrar inte status till "published" om det är 'all' eller 'solo' eftersom det kan behöva köras igen.
-                    // Men för att hålla databasen ren kan vi sätta status = published om groupId inte är 'all' och inte 'solo'.
-                    ...(groupId !== 'all' && groupId !== 'solo' ? { status: "published" } : {})
+                    // Vi ändrar inte status till "published" om det är 'all' eller 'solo'/'solo_group' eftersom det kan behöva köras igen.
+                    // Men för att hålla databasen ren kan vi sätta status = published om groupId inte är 'all' och inte 'solo'/'solo_group'.
+                    ...(groupId !== 'all' && groupId !== 'solo' && groupId !== 'solo_group' ? { status: "published" } : {})
                 });
             }
         }
