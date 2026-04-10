@@ -5,6 +5,7 @@ import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutr
 import { calculateGoalTimeline } from '../utils/timelineUtils';
 import BmrTdeeInfoModal from './BmrTdeeInfoModal';
 import GoalTimeline from './JourneyGoalTimeline';
+import ProteinInfoModal from './ProteinInfoModal';
 import { InformationCircleIcon, CheckCircleIcon, CheckIcon, PencilIcon } from './icons';
 
 const activityLevelOptions: { value: ActivityLevel; emoji: string; label: string; description: string; example: string }[] = [
@@ -96,6 +97,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
     const [profile, setProfile] = useState(initialProfile);
     const [showSavedMessage, setShowSavedMessage] = useState(false);
     const [showBmrTdeeInfoModal, setShowBmrTdeeInfoModal] = useState<boolean>(false);
+    const [showProteinInfoModal, setShowProteinInfoModal] = useState<boolean>(false);
     
     // Manual goals state
     const [isManualGoalMode, setIsManualGoalMode] = useState(false);
@@ -564,7 +566,17 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                          </div>
                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm text-neutral-dark">
                             <div><strong>{Math.round(initialGoals.calorieGoal)}</strong> kcal</div>
-                            <div><strong>{Math.round(initialGoals.proteinGoal)} g</strong> Protein</div>
+                            <div className="flex items-center">
+                                <strong>{Math.round(initialGoals.proteinGoal)} g</strong>&nbsp;Protein
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowProteinInfoModal(true)}
+                                    className="ml-1 text-neutral-400 hover:text-primary transition-colors"
+                                    aria-label="Information om proteinmål"
+                                >
+                                    <InformationCircleIcon className="w-4 h-4" />
+                                </button>
+                            </div>
                             <div><strong>{Math.round(initialGoals.carbohydrateGoal)} g</strong> Kolh.</div>
                             <div><strong>{Math.round(initialGoals.fatGoal)} g</strong> Fett</div>
                          </div>
@@ -581,6 +593,14 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
             {showBmrTdeeInfoModal && (
                 <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowBmrTdeeInfoModal(false)}>
                     <BmrTdeeInfoModal onClose={() => setShowBmrTdeeInfoModal(false)} />
+                </div>
+            )}
+
+            {showProteinInfoModal && (
+                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+                    <div onClick={e => e.stopPropagation()}>
+                        <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+                    </div>
                 </div>
             )}
         </section>

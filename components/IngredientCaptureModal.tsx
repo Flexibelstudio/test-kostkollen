@@ -51,7 +51,7 @@ const IngredientCaptureModal: React.FC<IngredientCaptureModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[65] p-4 animate-fade-in" onClick={onClose}>
+      <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={onClose}>
         <div className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg max-h-[90vh] flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <div className="flex items-center">

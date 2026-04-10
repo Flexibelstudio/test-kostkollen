@@ -20,7 +20,7 @@ const RecipeChoiceModal: React.FC<RecipeChoiceModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-fade-in"
+      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

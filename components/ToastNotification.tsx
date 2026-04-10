@@ -25,7 +25,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({ message, type, on
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const baseClasses = "fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center px-6 py-4 rounded-lg shadow-soft-xl text-white text-base font-medium z-[100]";
+  const baseClasses = "fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center px-6 py-4 rounded-lg shadow-soft-xl text-white text-base font-medium z-[9999]";
   const typeClasses = type === 'success' 
     ? "bg-primary border-primary-darker" 
     : type === 'error'

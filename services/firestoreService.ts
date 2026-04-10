@@ -27,7 +27,8 @@ import {
     runTransaction,
     arrayUnion,
     startAfter,
-    QuerySnapshot
+    QuerySnapshot,
+    collectionGroup
 } from "@firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import type { 
@@ -53,7 +54,9 @@ import type {
     TimelineEvent,
     TimelineComment,
     Reactions,
-    PostCategory
+    PostCategory,
+    Achievement,
+    SavedRecipe
 } from '../types';
 import { DEFAULT_GOALS, DEFAULT_USER_PROFILE } from '../constants';
 import { courseLessons, menopauseCourseLessons } from '../courseData.ts';
@@ -301,6 +304,30 @@ export async function fetchInitialAppData(userId: string) {
       userDocData.weeklyBank.bankedCalories = healedValue;
     }
 
+    let highestBootcampStreak = userDocData.highestBootcampStreak;
+
+    // --- SYNC HIGHEST BOOTCAMP STREAK ---
+    if (highestBootcampStreak === undefined || highestBootcampStreak === 0) {
+      try {
+        const participantsQuery = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
+        const participantsSnap = await getDocsSafe(participantsQuery);
+        let maxStreak = 0;
+        participantsSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.longestStreak && data.longestStreak > maxStreak) {
+            maxStreak = data.longestStreak;
+          }
+        });
+        if (maxStreak > 0) {
+          highestBootcampStreak = maxStreak;
+          // Update the user document asynchronously
+          updateDoc(userDocRef, { highestBootcampStreak: maxStreak }).catch(e => console.error("Failed to sync highestBootcampStreak", e));
+        }
+      } catch (e) {
+        console.error("Failed to fetch bootcamp participants for sync", e);
+      }
+    }
+
     const profile: UserProfileData = {
       name: userDocData.displayName,
       photoURL: userDocData.photoURL ?? undefined,
@@ -317,6 +344,7 @@ export async function fetchInitialAppData(userId: string) {
       desiredFatMassChangeKg: userDocData.desiredFatMassChangeKg ?? undefined,
       desiredMuscleMassChangeKg: userDocData.desiredMuscleMassChangeKg ?? undefined,
       goalCompletionDate: userDocData.goalCompletionDate ?? undefined,
+      goalStartDate: userDocData.goalStartDate ?? undefined,
       isSearchable: userDocData.isSearchable,
       goalStartWeight: userDocData.goalStartWeight ?? undefined,
       goalStartMuscleMassKg: userDocData.goalStartMuscleMassKg ?? undefined,
@@ -325,9 +353,10 @@ export async function fetchInitialAppData(userId: string) {
       completedGoals: userDocData.completedGoals ?? [],
       notificationSettings: userDocData.notificationSettings,
       preferredWeighInDay: userDocData.preferredWeighInDay,
-      coachStyle: userDocData.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
+      coachStyle: ((userDocData.coachStyle as string) === 'tough' ? 'hard' : userDocData.coachStyle) || DEFAULT_USER_PROFILE.coachStyle,
       subscriptionStatus: userDocData.subscriptionStatus,
       currentPeriodEnd: userDocData.currentPeriodEnd,
+      highestBootcampStreak: highestBootcampStreak,
     };
     
     const commonMeals = commonMealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as CommonMeal[];
@@ -452,19 +481,88 @@ const enrichTimelineEvents = async (snapshot: QuerySnapshot): Promise<{ events: 
 
 /* ===== Timeline ===== */
 
+export async function getActiveBootcampForUser(userId: string): Promise<string | null> {
+    if (!db) return null;
+    try {
+        const q = query(collectionGroup(db, 'participants'), where('userId', '==', userId));
+        const snapshot = await getDocsSafe(q);
+        if (!snapshot.empty) {
+            const participantData = snapshot.docs[0].data() as any;
+            if (participantData.status === 'fas1' || participantData.status === 'fas2') {
+                return participantData.cohortId || snapshot.docs[0].ref.parent.parent?.id || null;
+            }
+        }
+    } catch (e) {
+        console.error("Failed to fetch active bootcamp for user", e);
+    }
+    return null;
+}
+
 // 1. Listen for NEW events (Real-time)
+export function listenToBootcampTimeline(
+  cohortId: string,
+  onUpdate: (events: TimelineEvent[]) => void
+) {
+    if (!db) return () => {};
+
+    const q = query(
+        collection(db, 'communityTimeline'),
+        where('bootcampId', '==', cohortId),
+        orderBy('timestamp', 'desc'),
+        limit(20)
+    );
+
+    return onSnapshot(q, async (snapshot) => {
+        const { events } = await enrichTimelineEvents(snapshot);
+        onUpdate(events);
+    }, (error) => {
+        console.error("Error listening to bootcamp timeline:", error);
+    });
+}
+
+export async function fetchBootcampTimeline(
+  cohortId: string,
+  lastEvent: TimelineEvent | null = null
+): Promise<TimelineEvent[]> {
+    if (!db) return [];
+
+    let q = query(
+        collection(db, 'communityTimeline'),
+        where('bootcampId', '==', cohortId),
+        orderBy('timestamp', 'desc'),
+        limit(20)
+    );
+
+    if (lastEvent) {
+        const lastDocRef = doc(db, 'communityTimeline', lastEvent.id);
+        const lastDocSnap = await getDocSafe(lastDocRef);
+        if (lastDocSnap.exists()) {
+            q = query(q, startAfter(lastDocSnap));
+        }
+    }
+
+    const snapshot = await getDocs(q);
+    const { events } = await enrichTimelineEvents(snapshot);
+    return events;
+}
+
 export function listenToCommunityTimeline(
   userId: string, 
   callback: (data: { events: TimelineEvent[], lastDoc: any }) => void,
-  limitCount: number = 20
+  limitCount: number = 20,
+  bootcampId?: string | null
 ) {
   if (!db) {
     callback({ events: [], lastDoc: null });
     return () => {};
   }
+  
+  const visibleToArray = [userId, 'GLOBAL'];
+  if (bootcampId) visibleToArray.push(bootcampId);
+
   const q = query(
     collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains-any', [userId, 'GLOBAL']),
+    where('visibleTo', 'array-contains-any', visibleToArray),
     orderBy('timestamp', 'desc'),
     limit(limitCount)
   );
@@ -480,16 +578,20 @@ export function listenToCommunityTimeline(
 }
 
 // 2. Fetch OLDER events (Pagination)
-export async function fetchCommunityTimeline(
+export async function _fetchCommunityTimelinePaginated(
   currentUserId: string, 
   lastSnapshot: any = null, 
-  limitCount: number = 10
+  limitCount: number = 10,
+  bootcampId?: string | null
 ): Promise<{ events: TimelineEvent[], lastDoc: any }> {
   if (!db) return { events: [], lastDoc: null };
   
+  const visibleToArray = [currentUserId, 'GLOBAL'];
+  if (bootcampId) visibleToArray.push(bootcampId);
+
   let q = query(
     collection(db, 'communityTimeline'),
-    where('visibleTo', 'array-contains-any', [currentUserId, 'GLOBAL']),
+    where('visibleTo', 'array-contains-any', visibleToArray),
     orderBy('timestamp', 'desc'),
     limit(limitCount)
   );
@@ -510,14 +612,25 @@ export async function fetchCommunityTimeline(
   }
 }
 
+export async function fetchCommunityTimeline(
+  currentUserId: string, 
+  lastSnapshot: any = null, 
+  limitCount: number = 10,
+  bootcampId?: string | null
+): Promise<TimelineEvent[]> {
+    const { events } = await _fetchCommunityTimelinePaginated(currentUserId, lastSnapshot, limitCount, bootcampId);
+    return events;
+}
+
 export async function createUserPost(
   userId: string,
   text: string,
   category: PostCategory,
   imageBase64?: string,
-  isGlobal?: boolean,
+  visibility: 'global' | 'friends' | 'bootcamp' | 'bootcamp_and_friends' = 'friends',
   overrideName?: string,
-  overridePhotoURL?: string
+  overridePhotoURL?: string,
+  bootcampId?: string | null
 ) {
     if (!db) return { id: `post_${Date.now()}`, type: 'user_post', timestamp: Date.now(), title: 'Mock Post', description: text, icon: '📝', userId, userName: overrideName || 'Mock', userPhotoURL: overridePhotoURL || null, gender: 'female', visibleTo: [], reactions: {}, comments: [], relatedDocPath: '', category, imageUrl: imageBase64 } as any;
     const userDocRef = doc(db, 'users', userId);
@@ -526,9 +639,21 @@ export async function createUserPost(
     const userData = userDocSnap.data() as FirestoreUserDocument;
 
     let visibleTo: string[] = [];
-    if (isGlobal) {
+    let isGlobal = false;
+    
+    if (visibility === 'global') {
         visibleTo = ['GLOBAL'];
+        isGlobal = true;
+    } else if (visibility === 'bootcamp_and_friends') {
+        const buddies = await fetchBuddies(userId);
+        const buddyUids = buddies.map(b => b.uid);
+        visibleTo = [userId, ...buddyUids];
+        if (bootcampId) visibleTo.push(bootcampId);
+    } else if (visibility === 'bootcamp') {
+        if (bootcampId) visibleTo = [bootcampId];
+        else visibleTo = [userId]; // Fallback
     } else {
+        // friends
         const buddies = await fetchBuddies(userId);
         const buddyUids = buddies.map(b => b.uid);
         visibleTo = [userId, ...buddyUids];
@@ -537,12 +662,79 @@ export async function createUserPost(
     const eventId = `post_${userId}_${Date.now()}`;
     const timelineDocRef = doc(db, "communityTimeline", eventId);
 
+    // Calculate goal text and progress
+    let goalTextAtPost = 'Mål: Bibehålla';
+    let progressAtPost = 0;
+    
+    if (userData.measurementMethod === 'scale' && userData.desiredWeightChangeKg) {
+        goalTextAtPost = `Mål: ${userData.desiredWeightChangeKg > 0 ? '+' : ''}${userData.desiredWeightChangeKg} kg`;
+    } else {
+        if (userData.desiredFatMassChangeKg) goalTextAtPost = `Mål: ${userData.desiredFatMassChangeKg} kg fett`;
+        else if (userData.desiredMuscleMassChangeKg) goalTextAtPost = `Mål: +${userData.desiredMuscleMassChangeKg} kg muskler`;
+    }
+    
+    // Calculate progress
+    const isScaleGoal = userData.measurementMethod === 'scale';
+    const isFatLossGoal = !isScaleGoal && userData.desiredFatMassChangeKg && userData.desiredFatMassChangeKg < 0;
+    const isMuscleGainGoal = !isScaleGoal && userData.desiredMuscleMassChangeKg && userData.desiredMuscleMassChangeKg > 0;
+    
+    let start, current, goalChange;
+    if (isFatLossGoal) {
+        start = userData.goalStartFatMassKg || userData.goalStartWeight;
+        current = userData.bodyFatMassKg || userData.currentWeightKg;
+        goalChange = userData.desiredFatMassChangeKg;
+    } else if (isMuscleGainGoal) {
+        start = userData.goalStartMuscleMassKg || userData.goalStartWeight;
+        current = userData.skeletalMuscleMassKg || userData.currentWeightKg;
+        goalChange = userData.desiredMuscleMassChangeKg;
+    } else {
+        start = userData.goalStartWeight;
+        current = userData.currentWeightKg;
+        goalChange = userData.desiredWeightChangeKg;
+    }
+    
+    if (userData.mainGoalCompleted) {
+        progressAtPost = 100;
+    } else if (start != null && current != null && goalChange) {
+        const totalChangeNeeded = Math.abs(goalChange);
+        let changeAchieved = goalChange > 0 ? current - start : start - current;
+        changeAchieved = Math.max(0, changeAchieved);
+        if (totalChangeNeeded < 0.01) progressAtPost = 100;
+        else progressAtPost = Math.max(0, Math.min((changeAchieved / totalChangeNeeded) * 100, 100));
+    }
+
+    // Fetch active bootcamp for bootcamp streak
+    let bootcampStreakAtPost: number | undefined = undefined;
+    let highestBootcampStreak: number | undefined = userData.highestBootcampStreak;
+    try {
+        const { getUserActiveBootcamp } = await import('./bootcampService');
+        const activeBootcamp = await getUserActiveBootcamp(userId);
+        if (activeBootcamp) {
+            bootcampStreakAtPost = activeBootcamp.currentStreak || 0;
+            if (!highestBootcampStreak || activeBootcamp.longestStreak > highestBootcampStreak) {
+                highestBootcampStreak = activeBootcamp.longestStreak;
+            }
+        }
+    } catch (e) {
+        console.error("Failed to fetch bootcamp streak for post", e);
+    }
+
+    const isBootcampPost = visibility === 'bootcamp' || visibility === 'bootcamp_and_friends';
+    const isCoachPost = overrideName !== undefined;
+    
+    let title = 'skapade ett inlägg';
+    if (isGlobal) {
+        title = 'delade ett meddelande till alla';
+    } else if (isCoachPost && isBootcampPost) {
+        title = 'delade ett meddelande till truppen';
+    }
+
     const postEvent: Omit<TimelineEvent, 'id'> = {
         type: 'user_post',
         timestamp: Date.now(),
-        title: isGlobal ? 'delade ett meddelande till alla' : 'skapade ett inlägg',
+        title: title,
         description: text,
-        icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
+        icon: (isGlobal || isCoachPost) ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
         userId: userId,
         userName: overrideName || userData.displayName,
         userPhotoURL: overridePhotoURL !== undefined ? overridePhotoURL : (userData.photoURL ?? null),
@@ -553,7 +745,13 @@ export async function createUserPost(
         relatedDocPath: `users/${userId}/posts/${eventId}`,
         category: category,
         imageUrl: imageBase64, // Note: Saving base64 directly to Firestore doc. Keep images small (<500kb).
-        isGlobal: isGlobal
+        isGlobal: isGlobal,
+        streakAtPost: userData.currentStreak || 0,
+        bootcampStreakAtPost: bootcampStreakAtPost,
+        highestBootcampStreak: highestBootcampStreak,
+        goalTextAtPost: goalTextAtPost,
+        progressAtPost: progressAtPost,
+        bootcampId: isBootcampPost && bootcampId ? bootcampId : undefined
     };
 
     await setDoc(timelineDocRef, cleanFirestoreData(postEvent));
@@ -568,7 +766,8 @@ export async function deleteTimelineEvent(eventId: string): Promise<void> {
 
 export async function addTimelineEvent(
   userId: string,
-  eventData: Omit<TimelineEvent, 'id' | 'userId' | 'userName' | 'userPhotoURL' | 'gender' | 'relatedDocPath' | 'reactions' | 'comments'> & { relatedDocId: string }
+  eventData: Omit<TimelineEvent, 'id' | 'userId' | 'userName' | 'userPhotoURL' | 'gender' | 'relatedDocPath' | 'reactions' | 'comments'> & { relatedDocId: string },
+  overrideProgressAtPost?: number
 ) {
   if (!db) return;
   const userDocRef = doc(db, 'users', userId);
@@ -583,6 +782,90 @@ export async function addTimelineEvent(
   const buddyUids = buddies.map(b => b.uid);
   const visibleTo = [userId, ...buddyUids];
 
+  // Fetch bootcamp info if applicable
+  let bootcampStreakAtPost: number | undefined;
+  let highestBootcampStreak: number | undefined = userData.highestBootcampStreak;
+  let bootcampId: string | undefined;
+  try {
+    const { getUserActiveBootcamp } = await import('./bootcampService');
+    const activeBootcamp = await getUserActiveBootcamp(userId);
+    if (activeBootcamp) {
+      bootcampStreakAtPost = activeBootcamp.currentStreak;
+      bootcampId = activeBootcamp.cohortId;
+      if (!highestBootcampStreak || activeBootcamp.longestStreak > highestBootcampStreak) {
+        highestBootcampStreak = activeBootcamp.longestStreak;
+      }
+    }
+  } catch (e) {
+    console.warn("Could not fetch bootcamp info for timeline event", e);
+  }
+
+  if (bootcampId) {
+    let shouldIncludeInBootcamp = false;
+    if (eventData.type === 'weight') {
+      shouldIncludeInBootcamp = true;
+    } else if (eventData.type === 'achievement' && eventData.relatedDocId.startsWith('bootcamp_')) {
+      shouldIncludeInBootcamp = true;
+    }
+
+    if (shouldIncludeInBootcamp) {
+      visibleTo.push(bootcampId);
+    } else {
+      bootcampId = undefined;
+    }
+  }
+
+  // Calculate goal text and progress
+  let goalTextAtPost: string | undefined;
+  let progressAtPost: number | undefined;
+  try {
+    const { calculateProgressPercentage, getGoalShortDescription } = await import('../utils/progressUtils');
+    goalTextAtPost = getGoalShortDescription(
+      userData.measurementMethod,
+      userData.desiredWeightChangeKg,
+      userData.desiredFatMassChangeKg,
+      userData.desiredMuscleMassChangeKg
+    );
+    
+    let goalSummary = "Ej satt";
+    if (userData.goalType === 'maintain') goalSummary = "Bibehålla";
+    else if (userData.goalType === 'lose_fat') goalSummary = `${userData.desiredFatMassChangeKg || userData.desiredWeightChangeKg || ''} kg fett`;
+    else if (userData.goalType === 'gain_muscle') goalSummary = `${userData.desiredMuscleMassChangeKg || userData.desiredWeightChangeKg || ''} kg muskler`;
+
+    if (goalTextAtPost === 'Mål: Bibehålla' && goalSummary) {
+      goalTextAtPost = goalSummary;
+    }
+    
+    // Calculate progress using the correct property names from FirestoreUserDocument
+    let currentWeight = userData.currentWeightKg;
+    let currentFatMass = userData.bodyFatMassKg;
+    let currentMuscleMass = userData.skeletalMuscleMassKg;
+    
+    try {
+      const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
+      const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
+      const latestLogSnap = await getDocsSafe(latestLogQuery);
+      if (!latestLogSnap.empty) {
+        const latestLog = latestLogSnap.docs[0].data() as WeightLogEntry;
+        currentWeight = latestLog.weightKg ?? currentWeight;
+        currentFatMass = latestLog.bodyFatMassKg ?? currentFatMass;
+        currentMuscleMass = latestLog.skeletalMuscleMassKg ?? currentMuscleMass;
+      }
+    } catch (e) {
+      console.warn("Could not fetch weight logs for progress calculation", e);
+    }
+    
+    progressAtPost = overrideProgressAtPost !== undefined ? overrideProgressAtPost : calculateProgressPercentage(
+      userData.measurementMethod,
+      userData.goalStartWeight, currentWeight, userData.desiredWeightChangeKg,
+      userData.goalStartFatMassKg, currentFatMass, userData.desiredFatMassChangeKg,
+      userData.goalStartMuscleMassKg, currentMuscleMass, userData.desiredMuscleMassChangeKg,
+      false // mainGoalCompleted is not easily available here
+    );
+  } catch (e) {
+    console.warn("Could not calculate goal info for timeline event", e);
+  }
+
   const uniqueEventId = `users--${userId}--${eventData.type}--${eventData.relatedDocId}`;
   const timelineDocRef = doc(db, "communityTimeline", uniqueEventId);
   
@@ -596,6 +879,12 @@ export async function addTimelineEvent(
     reactions: {},
     comments: [],
     relatedDocPath: `users/${userId}/${eventData.type}/${eventData.relatedDocId}`,
+    streakAtPost: userData.currentStreak || 0,
+    bootcampStreakAtPost: bootcampStreakAtPost,
+    highestBootcampStreak: highestBootcampStreak,
+    bootcampId: bootcampId,
+    goalTextAtPost: goalTextAtPost,
+    progressAtPost: progressAtPost
   };
   delete (fullEvent as any).relatedDocId;
 
@@ -650,6 +939,29 @@ export async function updateCommonMeal(userId: string, commonMealId: string, upd
   await updateDoc(commonMealRef, cleanFirestoreData(updatedData));
 }
 
+/* ===== Saved Recipes ===== */
+
+export async function addSavedRecipe(userId: string, recipeData: Omit<SavedRecipe, 'id'>) {
+  if (!db) return `recipe_${Date.now()}`;
+  const recipesRef = collection(db, 'users', userId, 'savedRecipes');
+  const docRef = await addDoc(recipesRef, cleanFirestoreData(recipeData));
+  return docRef.id;
+}
+
+export async function deleteSavedRecipe(userId: string, recipeId: string) {
+  if (!db) return;
+  const recipeRef = doc(db, 'users', userId, 'savedRecipes', recipeId);
+  await deleteDoc(recipeRef);
+}
+
+export async function getSavedRecipes(userId: string): Promise<SavedRecipe[]> {
+  if (!db) return [];
+  const recipesRef = collection(db, 'users', userId, 'savedRecipes');
+  const q = query(recipesRef, orderBy('timestamp', 'desc'));
+  const querySnapshot = await getDocsSafe(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as SavedRecipe[];
+}
+
 /* ===== Profile & goals ===== */
 
 export async function saveProfileAndGoals(userId: string, profile: UserProfileData, goals: GoalSettings) {
@@ -657,11 +969,12 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   const userDocRef = doc(db, 'users', userId);
 
   let maybeSummaryStart: string | undefined;
+  let currentDocData: FirestoreUserDocument | undefined;
   try {
     const snap = await getDocSafe(userDocRef);
     if (snap.exists()) {
-      const data = snap.data() as FirestoreUserDocument;
-      if (!data.summaryStartDate) {
+      currentDocData = snap.data() as FirestoreUserDocument;
+      if (!currentDocData.summaryStartDate) {
         maybeSummaryStart = getDateUID_SE();
       }
     }
@@ -669,12 +982,47 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
     console.warn("Could not read userDoc before updating profile/goals.", e);
   }
 
-  const dataToUpdate = {
+  const dataToUpdate: any = {
     ...profile,
     goals: goals,
     displayName: profile.name,
     ...(maybeSummaryStart ? { summaryStartDate: maybeSummaryStart } : {}),
   };
+
+  // Check if goal has changed
+  const goalChanged = currentDocData && (
+    currentDocData.goalType !== profile.goalType ||
+    currentDocData.measurementMethod !== profile.measurementMethod ||
+    currentDocData.desiredWeightChangeKg !== profile.desiredWeightChangeKg ||
+    currentDocData.desiredFatMassChangeKg !== profile.desiredFatMassChangeKg ||
+    currentDocData.desiredMuscleMassChangeKg !== profile.desiredMuscleMassChangeKg
+  );
+
+  if (!currentDocData || goalChanged) {
+    // Set goal start date to today
+    dataToUpdate.goalStartDate = new Date().toISOString().split('T')[0];
+  }
+
+  if (goalChanged) {
+    // Reset goal completion status
+    dataToUpdate.mainGoalCompleted = false;
+
+    // Fetch the latest weight log to set as the new start value
+    try {
+      const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
+      const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
+      const latestLogSnap = await getDocsSafe(latestLogQuery);
+      
+      if (!latestLogSnap.empty) {
+        const latestLog = latestLogSnap.docs[0].data() as WeightLogEntry;
+        if (latestLog.weightKg != null) dataToUpdate.goalStartWeight = latestLog.weightKg;
+        if (latestLog.bodyFatMassKg != null) dataToUpdate.goalStartFatMassKg = latestLog.bodyFatMassKg;
+        if (latestLog.skeletalMuscleMassKg != null) dataToUpdate.goalStartMuscleMassKg = latestLog.skeletalMuscleMassKg;
+      }
+    } catch (e) {
+      console.warn("Could not fetch latest weight log to set goal start values.", e);
+    }
+  }
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
 }
@@ -714,9 +1062,49 @@ export async function unlockAchievement(userId: string, achievementId: string, a
     return true;
 }
 
+export async function checkAndUnlockAchievements(
+    userId: string, 
+    currentStreak: number, 
+    isMainGoalCompleted: boolean, 
+    completedLessonsCount: number, 
+    totalLessonsCount: number,
+    achievementsDef: Achievement[]
+): Promise<Achievement[]> {
+    if (!db) return [];
+    
+    const unlockedNow: Achievement[] = [];
+    
+    // Check Streak Achievements
+    const streakAchs = achievementsDef.filter(a => a.type === 'streak' && a.requiredValue <= currentStreak);
+    for (const ach of streakAchs) {
+        const unlocked = await unlockAchievement(userId, ach.id, ach.name, ach.icon, ach.description);
+        if (unlocked) unlockedNow.push(ach);
+    }
+    
+    // Check Goal Achievement
+    if (isMainGoalCompleted) {
+        const goalAch = achievementsDef.find(a => a.id === 'main_goal_reached');
+        if (goalAch) {
+            const unlocked = await unlockAchievement(userId, goalAch.id, goalAch.name, goalAch.icon, goalAch.description);
+            if (unlocked) unlockedNow.push(goalAch);
+        }
+    }
+    
+    // Check Course Achievement
+    if (totalLessonsCount > 0 && completedLessonsCount >= totalLessonsCount) {
+        const courseAch = achievementsDef.find(a => a.id === 'course_completed');
+        if (courseAch) {
+            const unlocked = await unlockAchievement(userId, courseAch.id, courseAch.name, courseAch.icon, courseAch.description);
+            if (unlocked) unlockedNow.push(courseAch);
+        }
+    }
+    
+    return unlockedNow;
+}
+
 /* ===== Weight ===== */
 
-export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEntry, 'id'>) {
+export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEntry, 'id'>, isInitialForGoal: boolean = false) {
   if (!db) return `wl_${Date.now()}`;
   const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
   const userDocRef = doc(db, 'users', userId);
@@ -737,15 +1125,12 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
 
   // --- Automatic Timeline Event ---
   try {
-    const logsQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(2));
+    const logsQuery = query(weightLogsRef, where('loggedAt', '<', weightLog.loggedAt), orderBy('loggedAt', 'desc'), limit(1));
     const logsSnap = await getDocsSafe(logsQuery);
     
     let previousLog: WeightLogEntry | null = null;
-    for (const doc of logsSnap.docs) {
-      if (doc.id !== newLogId) {
-        previousLog = doc.data() as WeightLogEntry;
-        break;
-      }
+    if (!logsSnap.empty) {
+      previousLog = logsSnap.docs[0].data() as WeightLogEntry;
     }
 
     let weightChange, muscleChange, fatChange;
@@ -756,6 +1141,20 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
       }
       if (weightLog.bodyFatMassKg != null && previousLog.bodyFatMassKg != null) {
         fatChange = weightLog.bodyFatMassKg - previousLog.bodyFatMassKg;
+      }
+    } else {
+      const userSnap = await getDoc(userDocRef);
+      if (userSnap.exists()) {
+        const userProfile = userSnap.data();
+        if (userProfile.goalStartWeight != null) {
+          weightChange = weightLog.weightKg - userProfile.goalStartWeight;
+        }
+        if (weightLog.skeletalMuscleMassKg != null && userProfile.goalStartMuscleMassKg != null) {
+          muscleChange = weightLog.skeletalMuscleMassKg - userProfile.goalStartMuscleMassKg;
+        }
+        if (weightLog.bodyFatMassKg != null && userProfile.goalStartFatMassKg != null) {
+          fatChange = weightLog.bodyFatMassKg - userProfile.goalStartFatMassKg;
+        }
       }
     }
 
@@ -774,7 +1173,7 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
       description: descriptionParts.join('\n'),
       icon: '⚖️',
       relatedDocId: newLogId
-    });
+    }, isInitialForGoal ? 0 : undefined);
 
   } catch (err) {
     console.error("Failed to add weight log to timeline:", err);
@@ -843,6 +1242,24 @@ export async function fetchCourseProgressForUser(userId: string): Promise<Record
   return progress;
 }
 
+export async function cancelCourse(userId: string, courseId: 'praktisk-viktkontroll' | 'maxa-klimakteriet') {
+  if (!db) return;
+  const prefix = courseId === 'praktisk-viktkontroll' ? 'lektion' : 'm-lektion';
+  const progressCollectionRef = collection(db, 'users', userId, 'courseProgress');
+  const snapshot = await getDocsSafe(progressCollectionRef);
+  
+  const batch = writeBatch(db);
+  snapshot.forEach(docSnap => {
+    if (docSnap.id.startsWith(prefix)) {
+      batch.delete(docSnap.ref);
+    }
+  });
+  await batch.commit();
+
+  // Also update user profile to reflect course is no longer active
+  await updateUserDocument(userId, { isCourseActive: false });
+}
+
 export async function saveCourseProgress(userId: string, lessonId: string, progress: UserLessonProgress, role: UserRole, status: 'pending' | 'approved' | 'archived') {
   if (!db) return;
   const courseProgressRef = doc(db, 'users', userId, 'courseProgress', lessonId);
@@ -869,13 +1286,22 @@ export async function saveCourseProgress(userId: string, lessonId: string, progr
 
   if (progress.isCompleted) {
     try {
-        const allLessons = [...courseLessons, ...menopauseCourseLessons];
-        const lesson = allLessons.find(l => l.id === lessonId);
+        let courseName = '';
+        let lesson = courseLessons.find(l => l.id === lessonId);
+        if (lesson) {
+            courseName = 'Praktisk Viktkontroll';
+        } else {
+            lesson = menopauseCourseLessons.find(l => l.id === lessonId);
+            if (lesson) {
+                courseName = 'Maxa Klimakteriet';
+            }
+        }
+
         if (lesson) {
             await addTimelineEvent(userId, {
                 type: 'course',
                 timestamp: Date.now(),
-                title: 'har klarat en lektion!',
+                title: `har klarat en lektion i ${courseName}!`,
                 description: `Avklarad: ${lesson.title}`,
                 icon: '🎓',
                 relatedDocId: lessonId
@@ -919,6 +1345,35 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
     const buddiesSnapshot = await getDocsSafe(buddiesRef);
     const numberOfBuddies = buddiesSnapshot.size;
 
+    let hasLoggedFood7d = false;
+    let metProteinGoal7d = false;
+    let proteinGoalMetPercentage7d = 0;
+
+    if (data.status === 'approved' && data.role === 'member') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoUID = getDateUID_SE(sevenDaysAgo);
+
+      const summariesRef = collection(db, 'users', data.uid, 'pastDaySummaries');
+      const summariesQuery = query(summariesRef, where("date", ">=", sevenDaysAgoUID));
+      const summariesSnap = await getDocsSafe(summariesQuery);
+      
+      if (!summariesSnap.empty) {
+        hasLoggedFood7d = true;
+        let totalConsumed = 0;
+        let totalGoal = 0;
+        let daysMet = 0;
+        summariesSnap.docs.forEach(d => {
+          const s = d.data();
+          totalConsumed += (s.consumedProtein || 0);
+          totalGoal += (s.proteinGoal || 0);
+          if (s.proteinGoalMet) daysMet++;
+        });
+        metProteinGoal7d = totalConsumed >= totalGoal && totalGoal > 0;
+        proteinGoalMetPercentage7d = (daysMet / summariesSnap.size) * 100;
+      }
+    }
+
     return {
       id: data.uid,
       name: data.displayName,
@@ -935,6 +1390,9 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
       ageYears: data.ageYears ?? undefined,
       gender: data.gender,
       numberOfBuddies: numberOfBuddies,
+      hasLoggedFood7d,
+      metProteinGoal7d,
+      proteinGoalMetPercentage7d,
     };
   });
 
@@ -1157,6 +1615,37 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
     const currentMuscleMass = latestLog?.skeletalMuscleMassKg ?? userData.skeletalMuscleMassKg;
     const currentFatMass = latestLog?.bodyFatMassKg ?? userData.bodyFatMassKg;
 
+    let highestBootcampStreak = userData.highestBootcampStreak;
+
+    let bootcampStreak: number | undefined = undefined;
+    let bootcampStatus: string | undefined = undefined;
+    try {
+      const { getUserActiveBootcamp } = await import('./bootcampService');
+      const activeBootcamp = await getUserActiveBootcamp(buddy.uid);
+      if (activeBootcamp) {
+        bootcampStreak = activeBootcamp.currentStreak;
+        bootcampStatus = activeBootcamp.status;
+      }
+
+      // Fallback for highestBootcampStreak if missing
+      if (highestBootcampStreak === undefined || highestBootcampStreak === 0) {
+        const participantsQuery = query(collectionGroup(db, 'participants'), where('userId', '==', buddy.uid));
+        const participantsSnap = await getDocsSafe(participantsQuery);
+        let maxStreak = 0;
+        participantsSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.longestStreak && data.longestStreak > maxStreak) {
+            maxStreak = data.longestStreak;
+          }
+        });
+        if (maxStreak > 0) {
+          highestBootcampStreak = maxStreak;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch bootcamp info for buddy", e);
+    }
+
     let totalWeightChange, muscleMassChange, fatMassChange;
     if (userData.goalStartWeight != null && currentWeight != null) {
       totalWeightChange = currentWeight - userData.goalStartWeight;
@@ -1189,6 +1678,9 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
       desiredFatMassChangeKg: userData.desiredFatMassChangeKg,
       desiredMuscleMassChangeKg: userData.desiredMuscleMassChangeKg,
       achievementInteractions: userData.achievementInteractions || {},
+      bootcampStreak,
+      bootcampStatus,
+      highestBootcampStreak: highestBootcampStreak,
     } as BuddyDetails;
   });
 
@@ -1221,6 +1713,19 @@ export async function searchForBuddies(currentUserId: string): Promise<Peppkompi
 export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string): Promise<void> {
   if (!db) return;
   const requestsRef = collection(db, 'peppkompisRequests');
+  
+  // Check if a pending request already exists
+  const q = query(
+    requestsRef, 
+    where('fromUid', '==', fromUser.uid), 
+    where('toUid', '==', toUserUid),
+    where('status', '==', 'pending')
+  );
+  const snapshot = await getDocs(q);
+  if (!snapshot.empty) {
+    throw new Error('En vänförfrågan har redan skickats till den här användaren.');
+  }
+
   const newRequest: Omit<PeppkompisRequest, 'id'> = {
     fromUid: fromUser.uid,
     fromName: fromUser.name,
@@ -1274,18 +1779,12 @@ export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: s
     if (!eventDoc.exists()) throw "Event does not exist!";
     
     const currentReactions = eventDoc.data() || {};
-    let userPreviousReactionEmoji: string | null = null;
-    Object.keys(currentReactions.reactions || {}).forEach(key => {
-      if (currentReactions.reactions[key]?.[fromUser.uid]) {
-        userPreviousReactionEmoji = key;
-      }
-    });
+    const hasReactedWithThisEmoji = !!currentReactions.reactions?.[emoji]?.[fromUser.uid];
     
     const updates: Record<string, any> = {};
-    if (userPreviousReactionEmoji) {
-      updates[`reactions.${userPreviousReactionEmoji}.${fromUser.uid}`] = deleteField();
-    }
-    if (userPreviousReactionEmoji !== emoji) {
+    if (hasReactedWithThisEmoji) {
+      updates[`reactions.${emoji}.${fromUser.uid}`] = deleteField();
+    } else {
       updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
     }
     
@@ -1300,6 +1799,27 @@ export async function addCommentToTimelineEvent(eventId: string, commentData: Om
   const commentsRef = collection(db, 'communityTimeline', eventId, 'comments');
   const docRef = await addDoc(commentsRef, cleanFirestoreData(commentData));
   return docRef.id;
+}
+
+export async function toggleReactionOnComment(fromUser: { uid: string, name: string }, eventId: string, commentId: string, emoji: string): Promise<void> {
+  if (!db) return;
+  const commentRef = doc(db, 'communityTimeline', eventId, 'comments', commentId);
+  await runTransaction(db, async (transaction) => {
+    const commentDoc = await transaction.get(commentRef);
+    if (!commentDoc.exists()) throw "Comment does not exist!";
+    
+    const currentData = commentDoc.data() || {};
+    const hasReactedWithThisEmoji = !!currentData.reactions?.[emoji]?.[fromUser.uid];
+    
+    const updates: Record<string, any> = {};
+    if (hasReactedWithThisEmoji) {
+      updates[`reactions.${emoji}.${fromUser.uid}`] = deleteField();
+    } else {
+      updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
+    }
+    
+    transaction.update(commentRef, updates);
+  });
 }
 
 export async function toggleLikeOnComment(fromUser: { uid: string, name: string }, event: TimelineEvent, commentId: string): Promise<void> {
@@ -1337,4 +1857,10 @@ export async function cancelSubscription(userId: string) {
     if (!functions) throw new Error("Functions not initialized");
     const cancelSub = httpsCallable(functions, 'cancelSubscription');
     await cancelSub();
+}
+
+export async function undoCancelSubscription(userId: string) {
+    if (!functions) throw new Error("Functions not initialized");
+    const undoCancelSub = httpsCallable(functions, 'undoCancelSubscription');
+    await undoCancelSub();
 }

@@ -15,6 +15,8 @@ interface MealSectionCardProps {
   isOpen: boolean;       // Controlled from parent
   onOpen: () => void;    // Controlled from parent
   onClose: () => void;   // Controlled from parent
+  recommendedCalories?: number;
+  isBootcamp?: boolean;
 }
 
 const MealSectionCard: React.FC<MealSectionCardProps> = ({
@@ -27,7 +29,9 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
   isEditable,
   isOpen,
   onOpen,
-  onClose
+  onClose,
+  recommendedCalories,
+  isBootcamp = false
 }) => {
   // Calculate totals for this specific meal section
   const totals = useMemo(() => meals.reduce((acc, meal) => {
@@ -81,7 +85,10 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
                     </div>
                     <div>
                         <h3 className="text-2xl font-bold text-neutral-dark">{title}</h3>
-                        <p className="text-sm text-neutral font-medium">{Math.round(totals.calories)} kcal totalt</p>
+                        <p className="text-sm text-neutral font-medium">
+                            {Math.round(totals.calories)} kcal totalt
+                            {recommendedCalories && ` / ~${recommendedCalories} kcal`}
+                        </p>
                     </div>
                 </div>
                 <button 
@@ -150,7 +157,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
       <div 
         onClick={handleCardClick}
         className={`
-            bg-white rounded-2xl p-4 border border-neutral-light shadow-sm 
+            ${isBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} rounded-2xl p-4 border shadow-sm 
             transition-all duration-300 ease-out flex flex-col justify-between h-32
             ${isEmpty 
                 ? 'opacity-100 hover:border-primary/40 cursor-pointer group' 
@@ -171,7 +178,9 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
                  <span className={`block text-xl font-extrabold leading-none transition-colors ${totals.calories > 0 ? 'text-neutral-dark' : 'text-neutral-200 group-hover:text-neutral-300'}`}>
                     {Math.round(totals.calories)}
                  </span>
-                 <span className={`text-[10px] font-bold uppercase tracking-wide transition-colors ${totals.calories > 0 ? 'text-neutral-400' : 'text-neutral-200 group-hover:text-neutral-300'}`}>kcal</span>
+                 <span className={`text-[10px] font-bold uppercase tracking-wide transition-colors ${totals.calories > 0 ? 'text-neutral-400' : 'text-neutral-200 group-hover:text-neutral-300'}`}>
+                    kcal {recommendedCalories && `/ ~${recommendedCalories}`}
+                 </span>
             </div>
         </div>
 

@@ -16,6 +16,7 @@ interface CommonMealsListProps {
   onUpdateCommonMeal: (commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) => void;
   onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled?: boolean;
+  isBootcamp?: boolean;
 }
 
 // Helper to match a Lucide icon and color theme based on the meal name
@@ -111,7 +112,8 @@ const CommonMealCard: React.FC<{
   onUpdate: (id: string, data: { name: string; nutritionalInfo: NutritionalInfo }) => void;
   onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled: boolean;
-}> = ({ meal, onLog, onDelete, onUpdate, onShowRating, disabled }) => {
+  isBootcamp?: boolean;
+}> = ({ meal, onLog, onDelete, onUpdate, onShowRating, disabled, isBootcamp }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -170,6 +172,12 @@ const CommonMealCard: React.FC<{
             className={inputClass}
           />
         </div>
+        {meal.nutritionalInfo.foodItem && (
+          <div className="bg-neutral-light/30 p-2 rounded-lg border border-neutral-light">
+            <label className="block text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-0.5">Ursprungligt innehåll</label>
+            <p className="text-xs text-neutral-dark italic break-words">{meal.nutritionalInfo.foodItem}</p>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-xs font-medium text-neutral">Kcal</label>
@@ -209,7 +217,7 @@ const CommonMealCard: React.FC<{
   const { icon, bg, text } = getMealIcon(meal.name);
 
   return (
-    <div className={`relative group bg-white rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`relative group ${isBootcamp ? 'bg-white dark:!bg-[#2A3B2C] dark:border-[#4A5B4C]' : 'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
       {/* Menu Trigger */}
       <div className="absolute top-2 right-2 z-20">
         <button 
@@ -264,7 +272,7 @@ const CommonMealCard: React.FC<{
   );
 };
 
-export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false }) => {
+export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false, isBootcamp = false }) => {
   const [mealIdToConfirmDelete, setMealIdToConfirmDelete] = useState<string | null>(null);
 
   const handleDeleteRequest = (mealId: string) => {
@@ -290,7 +298,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
 
   return (
     <>
-      <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
+      <div className={`${isBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="text-xl">📌</span>
@@ -323,6 +331,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
                 onUpdate={onUpdateCommonMeal}
                 onShowRating={onShowRating}
                 disabled={disabled}
+                isBootcamp={isBootcamp}
               />
             ))}
           </div>

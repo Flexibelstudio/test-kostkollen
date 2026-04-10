@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { CameraIcon, XMarkIcon } from './icons.tsx'; 
 import { playAudio } from '../services/audioService.ts'; // Import the new audio service
 
@@ -8,9 +9,10 @@ interface CameraModalProps {
   onImageCapture: (imageDataUrl: string) => void;
   onCameraError: (errorMessage: string) => void;
   instructionText?: string;
+  hideTip?: boolean;
 }
 
-const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture, onCameraError, instructionText }) => {
+const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture, onCameraError, instructionText, hideTip }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCameraLoading, setIsCameraLoading] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -178,9 +180,9 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
     return null;
   }
 
-  return (
+  return createPortal(
     <div 
-        className="fixed inset-0 bg-neutral-dark bg-opacity-75 flex items-center justify-center z-[75] p-4 animate-fade-in"
+        className="fixed inset-0 bg-neutral-dark bg-opacity-75 flex items-center justify-center z-[120] p-4 animate-fade-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby="camera-modal-title"
@@ -200,7 +202,7 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
           </button>
         </div>
 
-        <div className="relative w-full aspect-[4/3] bg-neutral-darker rounded-lg shadow-md mb-4 overflow-hidden">
+        <div className="relative w-full aspect-[3/4] sm:aspect-[9/16] max-h-[70vh] bg-neutral-darker rounded-lg shadow-md mb-4 overflow-hidden">
             <video
                 ref={videoRef}
                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${(isCameraLoading || !!cameraError) ? 'opacity-0' : 'opacity-100'}`}
@@ -215,9 +217,11 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
                   <p className="text-white text-base font-semibold bg-black/50 px-3 py-1 rounded-md text-center">
                       {instructionText || 'Placera maten i rutan och ta en bild'}
                   </p>
-                  <p className="text-white text-xs font-medium bg-black/50 px-3 py-1 rounded-md text-center">
-                      💡 Tips: Ha gärna med bestick i bilden så AI:n lättare kan bedöma portionsstorleken.
-                  </p>
+                  {!hideTip && (
+                    <p className="text-white text-xs font-medium bg-black/50 px-3 py-1 rounded-md text-center">
+                        💡 Tips: Ha gärna med bestick i bilden så AI:n lättare kan bedöma portionsstorleken.
+                    </p>
+                  )}
               </div>
             )}
             {isCameraLoading && (
@@ -253,7 +257,8 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
             </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

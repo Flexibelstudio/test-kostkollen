@@ -37,7 +37,7 @@ import {
   fetchWaterLog,
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   listenForFriendRequests,
-  fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate,
+  fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate, listenToCommunityTimeline,
   setPastDaySummary, savePushSubscription, unlockAchievement
 } from './services/firestoreService.ts';
 
@@ -71,10 +71,13 @@ import WaterSplashEffect from './components/WaterSplashEffect';
 import MorningReportModal from './components/MorningReportModal.tsx';
 import GamificationModal from './components/GamificationModal.tsx';
 import SubscriptionModal from './components/SubscriptionModal.tsx';
+import { BootcampFinaleModal } from './components/BootcampFinaleModal.tsx';
 
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
+import { uploadImageToStorage, base64ToBlob } from './utils/storageUtils';
+import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports, getUnseenBootcampFinale, markBootcampFinaleAsSeen } from './services/bootcampService.ts';
 import {
   InformationCircleIcon, AICoachIcon,
   PencilIcon,
@@ -160,7 +163,7 @@ const AIFeedbackModal: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in"
+      className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -243,7 +246,7 @@ const MotivationModal: React.FC<{
 }> = ({ show, onClose, daySummary }) => {
     if (!show) return null;
     return (
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={onClose}>
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-white p-6 rounded-xl shadow-soft-xl w-full max-w-md animate-scale-in text-center" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-2xl font-bold text-neutral-dark mb-3">Ny Dag!</h2>
                 <p>Idag är en ny chans!</p>
@@ -262,7 +265,7 @@ const UseStreakSaverModal: React.FC<{
 }> = ({ show, onClose, onConfirm, daySummary }) => {
     if (!show) return null;
     return (
-        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fade-in" onClick={onClose}>
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={onClose}>
              <div className="bg-white p-6 rounded-xl shadow-soft-xl w-full max-w-md animate-scale-in text-center" onClick={(e) => e.stopPropagation()}>
                 <LifebuoyIcon className="w-16 h-16 text-secondary mx-auto mb-4" />
                 <h2 className="text-2xl font-bold text-neutral-dark mb-3">Rädda streak?</h2>
@@ -304,11 +307,14 @@ export const App = () => {
     isDataLoading,
     isInitialDataLoaded,
     resetUserData,
+    refreshUserData,
   } = useUserContext();
 
   // Local UI State
   const [viewingDate, setViewingDate] = useState<Date>(() => new Date()); 
   const [viewMode, setViewMode] = useState<ViewMode>('main');
+  const [openBootcampDirectly, setOpenBootcampDirectly] = useState(false);
+  const [isBootcampViewActive, setIsBootcampViewActive] = useState(false);
   const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'admin'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -330,9 +336,19 @@ export const App = () => {
       }
   }, [isDarkMode]);
 
+  useEffect(() => {
+    const handleOpenLogWeightModal = () => {
+      setShowLogWeightModal(true);
+    };
+    window.addEventListener('open-log-weight-modal', handleOpenLogWeightModal);
+    return () => window.removeEventListener('open-log-weight-modal', handleOpenLogWeightModal);
+  }, []);
+
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const [splashEffect, setSplashEffect] = useState<{ x: number, y: number, count: number, id: number } | null>(null);
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
+  const [unseenFinale, setUnseenFinale] = useState<any>(null);
+  const [showFinaleModal, setShowFinaleModal] = useState(false);
   
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState<boolean>(false);
@@ -347,7 +363,10 @@ export const App = () => {
   const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; description: string} | null>(null);
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
-  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[] } | null>(null);
+  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[], yesterdayBootcampReport?: any } | null>(null);
+  const [activeBootcamp, setActiveBootcamp] = useState<any | null>(null);
+  const [isBootcampLoading, setIsBootcampLoading] = useState(true);
+  const [recentBootcampReports, setRecentBootcampReports] = useState<any[]>([]);
   const [isSummarizingYesterday, setIsSummarizingYesterday] = useState(false);
   const [hasRunCatchUp, setHasRunCatchUp] = useState(false);
 
@@ -393,6 +412,7 @@ export const App = () => {
   const [communityInitialSubTab, setCommunityInitialSubTab] = useState<'buddies' | 'search' | 'requests'>('buddies');
   const [highlightEventId, setHighlightEventId] = useState<string | null>(null);
   const [initialChatId, setInitialChatId] = useState<string | null>(null);
+  const [initialPostText, setInitialPostText] = useState<string | null>(null);
   const [lastCommunityViewTimestamp, setLastCommunityViewTimestamp] = useState<number | null>(null);
   const previousViewModeRef = useRef<ViewMode>(viewMode);
   const lastSeenMessageTimestamps = useRef<Record<string, number>>({});
@@ -692,12 +712,7 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         if (!currentUser) return;
         setIsLoadingCommunityData(true);
         try {
-            const [timelineResult, details] = await Promise.all([
-                fetchCommunityTimeline(currentUser.uid),
-                fetchBuddyDetailsList(currentUser.uid),
-            ]);
-            // FIX: Removed redundant filtering. The Firestore query already filters by 'visibleTo'.
-            setTimelineEvents(timelineResult.events);
+            const details = await fetchBuddyDetailsList(currentUser.uid);
             setBuddyDetails(details);
         } catch (error) {
             console.error("Failed to load community data:", error);
@@ -705,13 +720,56 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         } finally {
             setIsLoadingCommunityData(false);
         }
-    }, [currentUser, setToastNotification]); // Added setToastNotification to deps
+    }, [currentUser, setToastNotification]);
 
     useEffect(() => {
-        if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
+        if (currentUser && isInitialDataLoaded && userStatus === 'approved' && !isBootcampLoading) {
             loadCommunityData();
         }
-    }, [currentUser, isInitialDataLoaded, userStatus, loadCommunityData]);
+    }, [currentUser, isInitialDataLoaded, userStatus, loadCommunityData, isBootcampLoading]);
+
+    const previousTimelineEventsRef = useRef<TimelineEvent[]>([]);
+
+    useEffect(() => {
+        if (!currentUser || userStatus !== 'approved') return;
+        
+        const unsubscribe = listenToCommunityTimeline(
+            currentUser.uid,
+            ({ events }) => {
+                setTimelineEvents(events);
+                
+                // Check for new events to show a toast
+                if (previousTimelineEventsRef.current.length > 0 && events.length > 0) {
+                    const newestEvent = events[0];
+                    const previousNewestEvent = previousTimelineEventsRef.current[0];
+                    
+                    if (newestEvent.id !== previousNewestEvent?.id && 
+                        newestEvent.userId !== currentUser.uid && 
+                        newestEvent.timestamp > (previousNewestEvent?.timestamp || 0)) {
+                        
+                        // Only show toast if we are not currently looking at the community feed
+                        if (previousViewModeRef.current !== 'community') {
+                            setToastNotification({
+                                message: `Nytt inlägg från ${newestEvent.userName || 'någon'} i communityt!`,
+                                type: 'info',
+                                onClick: () => {
+                                    setHighlightEventId(newestEvent.id);
+                                    setCommunityInitialTab('flode');
+                                    setViewMode('community');
+                                }
+                            });
+                            playAudio('logSuccess', 0.8);
+                        }
+                    }
+                }
+                previousTimelineEventsRef.current = events;
+            },
+            20,
+            activeBootcamp?.cohortId
+        );
+        
+        return () => unsubscribe();
+    }, [currentUser, userStatus, activeBootcamp?.cohortId, setToastNotification]);
 
     useEffect(() => {
         const previousViewMode = previousViewModeRef.current;
@@ -733,6 +791,48 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
   }, [isInitialDataLoaded, currentUser]);
 
+  useEffect(() => {
+      if (currentUser) {
+          const unsubscribe = subscribeToUserActiveBootcamp(currentUser.uid, (bootcamp) => {
+              setActiveBootcamp(bootcamp);
+              setIsBootcampLoading(false);
+              
+              if (bootcamp && bootcamp.longestStreak > 0) {
+                  setUserProfile(prev => {
+                      if (!prev.highestBootcampStreak || bootcamp.longestStreak > prev.highestBootcampStreak) {
+                          return { ...prev, highestBootcampStreak: bootcamp.longestStreak };
+                      }
+                      return prev;
+                  });
+              }
+          });
+          
+          // Also check for unseen finale
+          getUnseenBootcampFinale(currentUser.uid).then(finale => {
+              if (finale) {
+                  setUnseenFinale(finale);
+                  setShowFinaleModal(true);
+              }
+          });
+          
+          return () => unsubscribe();
+      } else {
+          setActiveBootcamp(null);
+          setIsBootcampLoading(false);
+      }
+  }, [currentUser]);
+
+  useEffect(() => {
+      if (currentUser && activeBootcamp) {
+          const unsubscribe = subscribeToUserEveningReports(activeBootcamp.cohortId, currentUser.uid, (reports) => {
+              setRecentBootcampReports(reports);
+          }, activeBootcamp.fas1StartDate);
+          return () => unsubscribe();
+      } else {
+          setRecentBootcampReports([]);
+      }
+  }, [currentUser, activeBootcamp]);
+
   // --- NEW EFFECT: Ensure Morning Report is shown if not seen today ---
   useEffect(() => {
       if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding || !hasRunCatchUp) return;
@@ -752,11 +852,15 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       if (summary) {
            // Use the streak stored in the summary as the truth, fallback to currentStreak if missing
            const displayStreak = (typeof summary.streakForThisDay === 'number') ? summary.streakForThisDay : streakData.currentStreak;
-           fetchMealLogsForDate(currentUser.uid, yesterdayUID).then(meals => {
-               setMorningReportData({ summary, currentStreak: displayStreak, yesterdayMeals: meals });
+           
+           Promise.all([
+             fetchMealLogsForDate(currentUser.uid, yesterdayUID),
+             activeBootcamp ? getEveningReportForDate(activeBootcamp.cohortId, currentUser.uid, yesterdayUID) : Promise.resolve(null)
+           ]).then(([meals, bootcampReport]) => {
+               setMorningReportData({ summary, currentStreak: displayStreak, yesterdayMeals: meals, yesterdayBootcampReport: bootcampReport });
            });
       }
-  }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday]);
+  }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, hasRunCatchUp, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday, activeBootcamp]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -773,7 +877,10 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       if (highlightParam) {
         setHighlightEventId(highlightParam);
       }
-      window.history.replaceState({}, '', window.location.pathname);
+      // Fördröj städningen av URL:en så att en eventuell Service Worker-omladdning inte tappar bort parametern
+      setTimeout(() => {
+        window.history.replaceState({}, '', window.location.pathname);
+      }, 5000);
     } else if (viewParam === 'chat') {
       setViewMode('community');
       setCommunityInitialTab('chatt');
@@ -781,10 +888,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       if (chatIdParam) {
         setInitialChatId(chatIdParam);
       }
-      window.history.replaceState({}, '', window.location.pathname);
+      // Fördröj städningen av URL:en
+      setTimeout(() => {
+        window.history.replaceState({}, '', window.location.pathname);
+      }, 5000);
     }
     
-    if (params.get('payment_success') === 'true' && userStatus === 'approved') {
+    if ((params.get('payment_success') === 'true' || window.location.pathname.endsWith('/success')) && userStatus === 'approved') {
         setToastNotification({ message: "Betalning bekräftad! Välkommen in!", type: 'success' });
         
         // --- SKICKA KÖP TILL META PIXEL ---
@@ -793,9 +903,14 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         }
         // ----------------------------------
 
+        setOpenBootcampDirectly(true);
+        setViewMode('coursesView');
+
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
-        window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
+        newUrl.searchParams.delete('session_id');
+        const newPath = newUrl.pathname.endsWith('/success') ? '/' : newUrl.pathname;
+        window.history.replaceState({}, '', newPath + newUrl.search);
     }
   }, [userStatus, setToastNotification]);
 
@@ -834,7 +949,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
   const handleSaveProfileAndGoals = async (profileData: UserProfileData, newGoals: GoalSettings, newPhotoDataUrl?: string | null) => {
     if (!currentUser) return;
-    setAppStatus(AppStatus.SAVING);
     
     // Aktivera laddningsläget direkt om vi är i onboarding för att modalens knapp ska reagera
     if (isProfileModalOnboarding) {
@@ -842,7 +956,37 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     }
 
     const updatedProfile = { ...profileData };
-    if (newPhotoDataUrl) {
+    
+    // Check if goal parameters changed to reset the timeline start date
+    const goalChanged = 
+        updatedProfile.desiredWeightChangeKg !== userProfile.desiredWeightChangeKg ||
+        updatedProfile.desiredFatMassChangeKg !== userProfile.desiredFatMassChangeKg ||
+        updatedProfile.desiredMuscleMassChangeKg !== userProfile.desiredMuscleMassChangeKg ||
+        updatedProfile.goalCompletionDate !== userProfile.goalCompletionDate;
+
+    if (goalChanged || !updatedProfile.goalStartDate) {
+        updatedProfile.goalStartDate = new Date().toISOString().split('T')[0];
+        updatedProfile.goalStartWeight = updatedProfile.currentWeightKg;
+        updatedProfile.goalStartFatMassKg = updatedProfile.bodyFatMassKg;
+        updatedProfile.goalStartMuscleMassKg = updatedProfile.skeletalMuscleMassKg;
+    }
+
+    // Upload image to Firebase Storage if it's a new base64 image
+    if (newPhotoDataUrl && newPhotoDataUrl.startsWith('data:image')) {
+        try {
+            const blob = await base64ToBlob(newPhotoDataUrl);
+            const fileName = `profile_${Date.now()}.jpg`;
+            const path = `profile_images/${currentUser.uid}/${fileName}`;
+            const downloadUrl = await uploadImageToStorage(blob, path);
+            updatedProfile.photoURL = downloadUrl;
+        } catch (uploadError) {
+            console.error("Error uploading profile image to storage:", uploadError);
+            setToastNotification({ message: 'Kunde inte ladda upp profilbilden till servern.', type: 'error' });
+            setAIFeedbackLoading(false);
+            return;
+        }
+    } else if (newPhotoDataUrl) {
+        // Fallback if it's already a URL or something else
         updatedProfile.photoURL = newPhotoDataUrl;
     }
 
@@ -871,16 +1015,13 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
                 setAiFeedbackError("Kunde inte generera feedback just nu, men din profil är sparad.");
             } finally {
                 setAIFeedbackLoading(false);
-                setAppStatus(AppStatus.IDLE);
             }
         } else {
             setShowUserProfileModal(false);
             setToastNotification({ message: "Profil sparad!", type: 'success' });
-            setAppStatus(AppStatus.IDLE);
         }
     } catch (error: any) {
        handleFirestoreError(error, 'spara profil');
-       setAppStatus(AppStatus.IDLE);
        setAIFeedbackLoading(false);
     }
   };
@@ -1007,6 +1148,22 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
             setUserCourseProgress(prev => ({ ...prev, [firstLessonId]: newProg }));
             setToastNotification({ message: 'Kursen är nu aktiverad!', type: 'success' });
             playAudio('levelUp');
+            
+            // Create a timeline event for starting the course
+            try {
+                const { addTimelineEvent } = await import('./services/firestoreService');
+                await addTimelineEvent(currentUser.uid, {
+                    type: 'course',
+                    timestamp: Date.now(),
+                    title: `har påbörjat kursen ${course.title}!`,
+                    description: 'Nu börjar resan mot ny kunskap.',
+                    icon: '🚀',
+                    relatedDocId: courseId
+                });
+            } catch (e) {
+                console.error("Failed to create course start timeline event", e);
+            }
+            
         } catch (e) {
             console.error("Failed to activate course", e);
         }
@@ -1069,10 +1226,31 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       const currentProgress = userCourseProgress[lessonId] || {};
       const updatedProgress = { ...currentProgress, isCompleted: true };
       
-      setUserCourseProgress(prev => ({
-          ...prev,
-          [lessonId]: updatedProgress as any
-      }));
+      setUserCourseProgress(prev => {
+          const newState = {
+              ...prev,
+              [lessonId]: updatedProgress as any
+          };
+          
+          // Check for course completion achievement
+          const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
+          const totalLessons = lessonsForOverview.length;
+          const completedLessons = lessonsForOverview.filter(l => newState[l.id]?.isCompleted).length;
+          
+          if (totalLessons > 0 && completedLessons === totalLessons) {
+              const ach = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'course_completed');
+              if (ach && !unlockedAchievements[ach.id]) {
+                  unlockAchievement(currentUser.uid, ach.id, ach.name, ach.icon, ach.description).then(unlocked => {
+                      if (unlocked) {
+                          setToastNotification({ message: `Bragd upplåst: ${ach.name}!`, type: 'success' });
+                          setUnlockedAchievements(prevAch => ({ ...prevAch, [ach.id]: new Date().toISOString() }));
+                      }
+                  });
+              }
+          }
+          
+          return newState;
+      });
       
       try {
           await saveCourseProgress(currentUser.uid, lessonId, updatedProgress as any, userRole || 'member', userStatus || 'approved');
@@ -1101,9 +1279,28 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
       setDayToPotentiallySave(null);
   };
 
+  const handleBootcampInitialWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
+    if (!currentUser) return;
+    try {
+        const newId = await saveWeightLog(currentUser.uid, data, true);
+        const newEntry: WeightLogEntry = { ...data, id: newId };
+        setWeightLogs(prev => [...prev, newEntry].sort((a, b) => a.loggedAt - b.loggedAt));
+        
+        setUserProfile(prev => ({
+            ...prev,
+            currentWeightKg: data.weightKg,
+            skeletalMuscleMassKg: data.skeletalMuscleMassKg ?? prev.skeletalMuscleMassKg,
+            bodyFatMassKg: data.bodyFatMassKg ?? prev.bodyFatMassKg
+        }));
+    } catch (error) {
+        console.error("Error saving initial bootcamp weight log:", error);
+        setToastNotification({ message: "Ett fel uppstod när mätningen skulle sparas.", type: 'error' });
+        throw error;
+    }
+  };
+
   const handleSaveWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
     if (!currentUser) return;
-    setAppStatus(AppStatus.SAVING); 
     try {
         const newId = await saveWeightLog(currentUser.uid, data);
         const newEntry: WeightLogEntry = { ...data, id: newId };
@@ -1184,8 +1381,6 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
 
     } catch (error) {
         setToastNotification({ message: "Kunde inte spara mätningen.", type: 'error' });
-    } finally {
-        setAppStatus(AppStatus.IDLE);
     }
   };
 
@@ -1361,12 +1556,19 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
         // Level Check
         const newLevel = LEVEL_DEFINITIONS.find(l => l.requiredStreak === finalNewStreak);
-        if (newLevel) {
+        if (newLevel && newLevel.id !== 'level0') {
             setShowLevelUpModal(newLevel);
-            if (highestLevelId !== newLevel.id) {
+            
+            const currentHighestLevelIndex = LEVEL_DEFINITIONS.findIndex(l => l.id === highestLevelId);
+            const newLevelIndex = LEVEL_DEFINITIONS.findIndex(l => l.id === newLevel.id);
+            
+            if (newLevelIndex > currentHighestLevelIndex) {
                 setHighestLevelId(newLevel.id);
                 userUpdates.highestLevelId = newLevel.id;
             }
+        } else if (newLevel && newLevel.id === 'level0' && !highestLevelId) {
+            setHighestLevelId(newLevel.id);
+            userUpdates.highestLevelId = newLevel.id;
         }
 
         if (bankedAmount > 0) {
@@ -1395,8 +1597,6 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         pastDaysSummaryRef.current = newSummaries;
         
         if (!options.silent) {
-            // Trigger morning report with the NEW calculated streak
-            setMorningReportData({ summary, currentStreak: finalNewStreak, yesterdayMeals: mealsToProcess });
             playAudio('levelUp'); 
         }
 
@@ -1415,61 +1615,53 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
     } finally {
         setIsSummarizingYesterday(false);
     }
-}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification]);
+}, [currentUser?.uid, userRole, userStatus, goals, userProfile, summaryStartDate, hasCompletedOnboarding, setPastDaysSummary, setStreakData, setWeeklyBank, setToastNotification, activeBootcamp]);
 
     const isCatchingUp = useRef(false);
     useEffect(() => {
         const catchUp = async () => {
             if (isCatchingUp.current) return;
-            // VI HAR TAGIT BORT !isSummarizingYesterday PÅ RADEN UNDER:
             if (currentUser && isInitialDataLoaded && userStatus === 'approved' && hasCompletedOnboarding) {
                 isCatchingUp.current = true;
                 try {
                     const today = new Date();
                     const yesterdayUID = dayKeySE(new Date(today.getTime() - 86400000));
                     
-                    const hasSummaryForYesterday = !!pastDaysSummaryRef.current[yesterdayUID];
+                    const deepHealDone = localStorage.getItem(`deepHealDone_${currentUser.uid}`) === 'true';
+                    const daysToProcess = [];
                     
-                    if (!hasSummaryForYesterday) {
-                        // We need to process yesterday (and potentially earlier days)
-                        let startDateToProcess = null;
+                    let currentCheckDate = new Date(today.getTime() - 30 * 86400000); // Check up to 30 days back
+                    if (summaryStartDate && new Date(summaryStartDate) > currentCheckDate) {
+                        currentCheckDate = new Date(summaryStartDate);
+                    }
+
+                    while (currentCheckDate < today) {
+                        const checkUID = dayKeySE(currentCheckDate);
+                        const summary = pastDaysSummaryRef.current[checkUID];
                         
-                        const summaryDates = Object.keys(pastDaysSummaryRef.current).sort();
-                        if (summaryDates.length > 0) {
-                            startDateToProcess = summaryDates[summaryDates.length - 1];
-                        } else if (summaryStartDate) {
-                            // Start from the day before summaryStartDate so we process summaryStartDate
-                            startDateToProcess = dayKeySE(new Date(new Date(summaryStartDate + "T12:00:00").getTime() - 86400000));
-                        } else if (streakDataRef.current.lastDateStreakChecked && streakDataRef.current.lastDateStreakChecked < yesterdayUID) {
-                            startDateToProcess = streakDataRef.current.lastDateStreakChecked;
+                        let needsProcessing = !summary;
+                        
+                        // Deep heal: check days with 0 calories to see if they actually have meals
+                        if (!deepHealDone && summary && summary.consumedCalories === 0) {
+                            needsProcessing = true;
                         }
                         
-                        if (startDateToProcess && startDateToProcess < yesterdayUID) {
-                            let currentCheckDate = new Date(startDateToProcess + "T12:00:00"); 
-                            currentCheckDate.setDate(currentCheckDate.getDate() + 1);
-                            
-                            let currentCheckUID = dayKeySE(currentCheckDate);
-                            
-                            // Limit catch-up to avoid performance issues (max 30 days)
-                            let safetyCounter = 0;
-                            const daysToProcess = [];
-                            
-                            while (currentCheckUID <= yesterdayUID && safetyCounter < 30) {
-                                const isFinalDay = currentCheckUID === yesterdayUID;
-                                const processNow = new Date(currentCheckDate.getTime() + 86400000);
-                                
-                                daysToProcess.push({
-                                    uid: currentCheckUID,
-                                    processNow,
-                                    isFinalDay
-                                });
-                                
-                                currentCheckDate.setDate(currentCheckDate.getDate() + 1);
-                                currentCheckUID = dayKeySE(currentCheckDate);
-                                safetyCounter++;
-                            }
+                        if (needsProcessing) {
+                            daysToProcess.push({
+                                uid: checkUID,
+                                processNow: new Date(currentCheckDate.getTime() + 86400000),
+                                isFinalDay: checkUID === yesterdayUID
+                            });
+                        }
+                        currentCheckDate.setDate(currentCheckDate.getDate() + 1);
+                    }
 
-                            const prefetchPromises = daysToProcess.map(async (day) => {
+                    if (daysToProcess.length > 0) {
+                        console.log("Catching up / Healing days:", daysToProcess.map(d => d.uid));
+                        // Process in batches of 5 to avoid overloading
+                        for (let i = 0; i < daysToProcess.length; i += 5) {
+                            const batch = daysToProcess.slice(i, i + 5);
+                            const prefetchPromises = batch.map(async (day) => {
                                 const [meals, water] = await Promise.all([
                                     fetchMealLogsForDate(currentUser.uid, day.uid),
                                     fetchWaterLog(currentUser.uid, day.uid)
@@ -1480,25 +1672,85 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                             const prefetchedData = await Promise.all(prefetchPromises);
 
                             for (const dayData of prefetchedData) {
-                                await ensureYesterdayProcessed(currentUser.uid, dayData.processNow, { silent: !dayData.isFinalDay }, dayData.meals, dayData.water);
+                                const summary = pastDaysSummaryRef.current[dayData.uid];
+                                const hasActualData = dayData.meals.length > 0 || dayData.water > 0;
+                                
+                                // Process if it was missing, or if we found actual data during deep heal
+                                if (!summary || hasActualData) {
+                                    await ensureYesterdayProcessed(currentUser.uid, dayData.processNow, { silent: !dayData.isFinalDay }, dayData.meals, dayData.water);
+                                }
                             }
-                        } else {
-                            // Fallback for new users or missing data
-                            await ensureYesterdayProcessed(currentUser.uid, today);
                         }
                     }
                     
-                    // After catchUp is done (or if it wasn't needed), ensure the weekly bank is reset if it's a new week
+                    if (!deepHealDone) {
+                        localStorage.setItem(`deepHealDone_${currentUser.uid}`, 'true');
+                    }
+
+                    // --- GLOBAL STREAK RECALCULATION ---
+                    // Now that all summaries are accurate, ensure the streak chain is mathematically perfect
+                    const summaries = pastDaysSummaryRef.current;
+                    const dates = Object.keys(summaries).sort();
+                    if (dates.length > 0) {
+                        let runningStreak = 0;
+                        let highestStreakReached = 0;
+                        const updates: Record<string, PastDaySummary> = {};
+
+                        for (const date of dates) {
+                            const summary = summaries[date];
+                            if (summary.consumedCalories > 0) {
+                                runningStreak += 1;
+                            } else {
+                                runningStreak = 0;
+                            }
+
+                            if (summary.streakForThisDay !== runningStreak) {
+                                updates[date] = { ...summary, streakForThisDay: runningStreak };
+                            }
+                            highestStreakReached = Math.max(highestStreakReached, runningStreak);
+                        }
+
+                        if (Object.keys(updates).length > 0) {
+                            console.log("Fixing broken streak links:", Object.keys(updates));
+                            const newSummaries = { ...summaries, ...updates };
+                            setPastDaysSummary(newSummaries);
+                            pastDaysSummaryRef.current = newSummaries;
+
+                            // Update Firestore sequentially to ensure order
+                            for (const [date, updatedSummary] of Object.entries(updates)) {
+                                await setPastDaySummary(currentUser.uid, date, updatedSummary);
+                            }
+                        }
+
+                        // Ensure current streak matches the recalculated truth for yesterday
+                        const actualYesterdayStreak = updates[yesterdayUID] ? updates[yesterdayUID].streakForThisDay : (summaries[yesterdayUID]?.streakForThisDay || 0);
+                        
+                        if (streakDataRef.current.currentStreak !== actualYesterdayStreak) {
+                            const newStreakData = { currentStreak: actualYesterdayStreak, lastDateStreakChecked: yesterdayUID };
+                            setStreakData(newStreakData);
+                            streakDataRef.current = newStreakData;
+                            await updateUserDocument(currentUser.uid, { currentStreak: actualYesterdayStreak, lastDateStreakChecked: yesterdayUID });
+                        }
+
+                        // Safely update highest streak if we found a new high
+                        setHighestStreak(prev => {
+                            const newHighest = Math.max(prev, highestStreakReached);
+                            if (newHighest > prev) {
+                                updateUserDocument(currentUser.uid, { highestStreak: newHighest }).catch(console.error);
+                            }
+                            return newHighest;
+                        });
+                    }
+
                     await ensureWeeklyBankReset();
                 } finally {
                     isCatchingUp.current = false;
-                    setHasRunCatchUp(true); // <--- LÄGG TILL DENNA
+                    setHasRunCatchUp(true);
                 }
             }
         };
 
         catchUp();
-    // TA BORT isSummarizingYesterday FRÅN LISTAN NEDANFÖR:
     }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, ensureYesterdayProcessed, ensureWeeklyBankReset, summaryStartDate]);
 
   
@@ -1636,12 +1888,18 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
   const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
   const currentLesson = lessonsForOverview.find(l => l.id === currentLessonId);
 
-  const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Din Coach';
+  const coachName = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle].label : 'Din Coach';
+
+  const todayStr = dayKeySE(new Date());
+  const isBootcampStarted = activeBootcamp ? todayStr >= activeBootcamp.fas1StartDate : false;
+  const effectiveActiveBootcamp = isBootcampStarted ? activeBootcamp : null;
+
+  const shouldShowGreenBackground = effectiveActiveBootcamp && (viewMode === 'main' || (viewMode === 'coursesView' && isBootcampViewActive));
 
   return (
     <>
-      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
-       <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-30">
+      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} ${shouldShowGreenBackground ? 'bg-[#D0E5D4] dark:bg-[#1A2B1C]' : 'bg-neutral-light dark:bg-neutral-darker'} bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
+       <header className={`w-full ${shouldShowGreenBackground ? 'bg-white dark:bg-[#2A3B2C] border-b-2 border-[#4A5B4C]' : 'bg-white dark:bg-neutral-darker'} text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30`}>
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
@@ -1770,6 +2028,17 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 isAICoachOpen={showAICoachModal}
                 isProfileOpen={showUserProfileModal}
                 isMorningReportOpen={!!morningReportData}
+                activeBootcamp={effectiveActiveBootcamp}
+                hasCompletedTodaysReport={recentBootcampReports.some(report => report.date === dayKeySE(new Date()))}
+                onOpenBootcamp={() => {
+                    setOpenBootcampDirectly(true);
+                    setViewMode('coursesView');
+                }}
+                onShareRecipe={(recipeText) => {
+                    setCommunityInitialTab('flode');
+                    setInitialPostText(recipeText);
+                    setViewMode('community');
+                }}
             />
          )}
          {viewMode === 'journey' && (
@@ -1799,13 +2068,24 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 isAICoachOpen={showAICoachModal}
                 isProfileOpen={showUserProfileModal}
                 isMorningReportOpen={!!morningReportData}
+                activeBootcamp={effectiveActiveBootcamp}
             />
          )}
          {viewMode === 'coursesView' && (
             <CoursesView
                 userProfile={userProfile}
+                goals={goals}
                 userProgress={userCourseProgress}
+                weightLogs={weightLogs}
+                weeklyBank={weeklyBank}
                 onNavigateToCourse={handleNavigateToCourse}
+                onSaveProfileAndGoals={handleSaveProfileAndGoals}
+                onSaveWeightLog={handleBootcampInitialWeightLog}
+                onCourseAborted={refreshUserData}
+                ensureYesterdayProcessed={ensureYesterdayProcessed}
+                activeBootcamp={activeBootcamp}
+                initialOpenBootcamp={openBootcampDirectly}
+                onBootcampStateChange={setIsBootcampViewActive}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (
@@ -1847,10 +2127,12 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
               initialSubTab={communityInitialSubTab}
               highlightEventId={highlightEventId}
               initialChatId={initialChatId}
+              initialPostText={initialPostText}
               timelineEvents={timelineEvents}
               setTimelineEvents={setTimelineEvents}
               buddyDetails={buddyDetails}
               isLoading={isLoadingCommunityData}
+              activeBootcamp={effectiveActiveBootcamp}
               onDataChanged={loadCommunityData}
               lastViewTimestamp={lastCommunityViewTimestamp}
               currentStreak={streakData.currentStreak}
@@ -1867,15 +2149,15 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             setMorningReportData(null);
             const todayUID = dayKeySE(new Date());
             localStorage.setItem('lastSeenMorningReport', todayUID);
-        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} yesterdayMeals={morningReportData.yesterdayMeals} />}
-        {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
-        {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} /></div></div>}
-        {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
+        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} yesterdayMeals={morningReportData.yesterdayMeals} yesterdayBootcampReport={morningReportData.yesterdayBootcampReport} activeBootcamp={effectiveActiveBootcamp} pastDaysSummary={Object.values(pastDaysSummary)} weightLogs={weightLogs} />}
+        {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
+        {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} isBootcampActive={!!effectiveActiveBootcamp} /></div></div>}
+        {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
         {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />}
         {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
         {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
-        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
-        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} /></div>}
+        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
+        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} activeBootcamp={effectiveActiveBootcamp} weightLogs={weightLogs} /></div>}
         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
         {/* Pass userCourseProgress to AI Coach Modal */}
         <AICoachModal 
@@ -1887,9 +2169,11 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 allWeightLogs: weightLogs, 
                 last30DaysSummaries: Object.values(pastDaysSummary), 
                 mentalWellbeingLogs, 
-                goalTimeline: calculateGoalTimeline(userProfile), 
+                goalTimeline: calculateGoalTimeline(userProfile, weightLogs), 
                 currentStreak: streakData.currentStreak,
-                userCourseProgress // Added
+                userCourseProgress,
+                activeBootcamp: effectiveActiveBootcamp,
+                recentBootcampReports
             }} 
             initialContext={coachInitialContext} 
         />
@@ -1908,6 +2192,26 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 onClose={() => setShowSubscriptionModal(false)} 
                 status={userProfile.subscriptionStatus || 'active'} 
                 currentPeriodEnd={userProfile.currentPeriodEnd}
+                onCancelSuccess={() => {
+                    setUserProfile(prev => ({ ...prev, subscriptionStatus: 'canceling' }));
+                }}
+                onUndoCancelSuccess={() => {
+                    setUserProfile(prev => ({ ...prev, subscriptionStatus: 'active' }));
+                }}
+            />
+        )}
+        {showFinaleModal && unseenFinale && currentUser && (
+            <BootcampFinaleModal
+                participant={unseenFinale}
+                onClose={() => {
+                    setShowFinaleModal(false);
+                    markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                }}
+                onGoToCourse={() => {
+                    setShowFinaleModal(false);
+                    markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                    setViewMode('coursesView');
+                }}
             />
         )}
 

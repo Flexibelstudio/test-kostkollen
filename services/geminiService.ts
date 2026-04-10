@@ -16,6 +16,10 @@ export interface AIDataForMorningBriefing {
   summary: PastDaySummary;
   currentStreak: number;
   yesterdayMeals?: any[];
+  yesterdayBootcampReport?: any;
+  activeBootcamp?: any;
+  pastDaysSummary?: PastDaySummary[];
+  weightLogs?: WeightLogEntry[];
 }
 
 export const generateGrowthEngineMessage = async (context: string, userNames: string[]): Promise<string> => {
@@ -86,14 +90,149 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text.`;
   }
 };
 
+export const generateBorjePost = async (brief: string): Promise<string> => {
+  const prompt = `Du är General Börje, en tuff men rättvis militär hälsocoach i appen Kostloggen.
+Din persona: Du är rak på sak, använder militär jargong (truppen, givakt, framåt marsch, pannben), men bryr dig genuint om dina rekryter. Du daltar inte.
+
+VIKTIGT: General Börjes Bootcamp har INGA lektioner. Prata ALDRIG om lektioner, moduler eller kursmaterial. Bootcampen bygger enbart på dagliga kvällsrapporter, invägningar, faser och disciplin.
+
+Din uppgift är att skriva ett inlägg till truppen (communityt) baserat på följande instruktion/brief från en administratör:
+"${brief}"
+
+Instruktioner:
+1. Skriv ett engagerande inlägg på SVENSKA som General Börje.
+2. Inlägget ska låta som att det kommer direkt från General Börje.
+3. Håll det lagom långt (ca 3-6 meningar).
+4. Avsluta gärna med en uppmaning eller fråga till truppen.
+
+Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text. Börja INTE med /general.`;
+
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: GEMINI_MODEL_NAME_TEXT,
+      contents: prompt,
+      config: {
+        temperature: 0.8,
+      },
+    });
+    
+    const text = response.text;
+    if (!text || text.trim().length === 0) {
+        throw new Error("Empty response from AI");
+    }
+    return text.trim();
+  } catch (error) {
+    console.error("Error generating Borje post:", error);
+    throw new Error("Kunde inte generera inlägg just nu.");
+  }
+};
+
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
-  const { userProfile, summary, currentStreak } = data;
+  const { userProfile, summary, currentStreak, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs } = data;
   const style = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[style];
+  const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
   const name = userProfile.name || 'du';
+
+  let bootcampContext = '';
+  let missingReportInstruction = '';
+
+  if (activeBootcamp) {
+    const currentBootcampStreak = activeBootcamp.currentStreak || 0;
+    
+    // Check if the bootcamp starts today or in the future
+    const startDateStr = activeBootcamp.startDate || activeBootcamp.fas1StartDate;
+    const isWaitroom = startDateStr && new Date(startDateStr).getTime() > Date.now();
+    const isStartingToday = startDateStr && new Date(startDateStr).toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
+
+    if (isWaitroom) {
+      bootcampContext = `
+PÅGÅENDE BOOTCAMP:
+- Användaren är anmäld till en Bootcamp, men den har INTE STARTAT ÄN (startar ${startDateStr}).
+- Användaren befinner sig i "Väntrummet".
+- VIKTIGT: Nämn INTE några bootcamp-krav, kvällsrapporter eller misslyckanden. Peppa bara inför starten!`;
+      missingReportInstruction = '';
+    } else if (isStartingToday) {
+      bootcampContext = `
+PÅGÅENDE BOOTCAMP:
+- BOOTCAMPEN STARTAR IDAG! (${startDateStr}).
+- VIKTIGT: Ignorera helt vad användaren gjorde igår (de var i väntrummet). Var extremt peppande och taggad på att Bootcampen drar igång IDAG!`;
+      missingReportInstruction = '';
+    } else {
+      if (activeBootcamp.status === 'fas1') {
+        bootcampContext = `
+PÅGÅENDE BOOTCAMP (FAS 1):
+- Användaren har klarat ${currentBootcampStreak} av 14 dagar i rad i Fas 1 av en intensiv Bootcamp.`;
+      } else {
+        const daysElapsed = Math.floor((Date.now() - new Date(activeBootcamp.originalStartDate || activeBootcamp.fas1StartDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24));
+        bootcampContext = `
+PÅGÅENDE BOOTCAMP (FAS 2):
+- Användaren är på dag ${daysElapsed} av 84 i en intensiv Bootcamp (Fas 2). Nuvarande streak är ${currentBootcampStreak} dagar i rad.`;
+      }
+
+      if (!yesterdayBootcampReport) {
+        bootcampContext += `\n- STATUS IGÅR: KATASTROF! Användaren har INTE fyllt i sin obligatoriska kvällsrapport för bootcampen.`;
+        missingReportInstruction = `\n7. BOOTCAMP-VARNING: Eftersom användaren missade kvällsrapporten igår är dagen just nu UNDERKÄND i bootcampen. Du MÅSTE påpeka detta tydligt (enligt din persona). Beröm INTE gårdagen som en bootcamp-succé. Påminn om att kvällsrapporten är obligatorisk, men nämn att det går att fylla i den i efterhand för att rädda dagen!`;
+      } else {
+        bootcampContext += `\n- Uppmärksamma detta och peppa dem att hålla i under denna tuffa period!`;
+      }
+    }
+  }
+
+  // Calculate 7-day summary
+  let recentContext = '';
+  if (pastDaysSummary && pastDaysSummary.length > 0) {
+    const last7Days = pastDaysSummary.slice(-7);
+    const totalConsumed = last7Days.reduce((sum, day) => sum + day.consumedCalories, 0);
+    const totalGoal = last7Days.reduce((sum, day) => sum + day.calorieGoal, 0);
+    const avgConsumed = totalConsumed / last7Days.length;
+    const avgGoal = totalGoal / last7Days.length;
+    
+    // Check if user has been good (consumed <= goal + small buffer)
+    const hasBeenGood = avgConsumed <= avgGoal + 50;
+
+    // Check weight changes
+    let weightChangeStr = '';
+    let weightChange = 0;
+    if (weightLogs && weightLogs.length >= 2) {
+      const sortedLogs = [...weightLogs].sort((a, b) => b.loggedAt - a.loggedAt);
+      const latestLog = sortedLogs[0];
+      const previousLog = sortedLogs[1];
+      weightChange = latestLog.weightKg - previousLog.weightKg;
+      
+      if (weightChange < 0) {
+        weightChangeStr = `Gått ner ${Math.abs(weightChange).toFixed(1)} kg sedan förra mätningen.`;
+      } else if (weightChange > 0) {
+        weightChangeStr = `Gått upp ${weightChange.toFixed(1)} kg sedan förra mätningen.`;
+      } else {
+        weightChangeStr = `Stått still i vikt sedan förra mätningen.`;
+      }
+    }
+
+    recentContext = `
+SENASTE 7 DAGARNA:
+- Snittkalorier: ${avgConsumed.toFixed(0)} kcal (Mål: ${avgGoal.toFixed(0)} kcal)
+- Har skött kosten: ${hasBeenGood ? 'JA' : 'NEJ'}
+${weightChangeStr ? `- Viktutveckling: ${weightChangeStr}` : ''}
+`;
+
+    if (hasBeenGood && weightChange >= 0 && weightChangeStr) {
+      recentContext += `\nVIKTIG COACHING: Användaren har skött kosten perfekt de senaste 7 dagarna, men vågen står still eller går upp. Förklara att detta är normalt (vätska, stress, muskler) och peppa dem att inte ge upp. Om de stått stilla länge, föreslå att justera aktivitetsnivån eller sänka kaloriintaget något.`;
+    } else if (!hasBeenGood && weightChange >= 0 && weightChangeStr) {
+      recentContext += `\nVIKTIG COACHING: Användaren har INTE skött kosten de senaste 7 dagarna och vågen står still eller går upp. Ge ärlig (men peppig/tuff) feedback. "Du får ut det du stoppar in. Dags att steppa upp."`;
+    } else if (hasBeenGood && weightChange < 0 && weightChangeStr) {
+      recentContext += `\nVIKTIG COACHING: Användaren har skött kosten och gått ner i vikt! Ge massivt beröm och bekräfta att metoden fungerar.`;
+    }
+  }
 
   const prompt = `Du är ${persona.label}, ${persona.roleTitle}.
 Tonläge och instruktioner: ${persona.promptTone}
+
+**NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):**
+Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
+- Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
+- Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 
 DEFINITIONER:
 - Streak: Att logga mat. Hålls levande oavsett kalorimängd. Det är beviset på vanan att vara konsekvent.
@@ -106,14 +245,27 @@ SITUATION IGÅR:
 - Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
 - Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
 - Streak-status: ${currentStreak > 0 ? `AKTIV (${currentStreak} dagar i rad). Användaren loggade igår!` : 'BRUTEN (0 dagar). Användaren loggade inte igår.'}
+${yesterdayBootcampReport ? `
+BOOTCAMP-RAPPORT IGÅR:
+- Grön dag: ${yesterdayBootcampReport.isGreenDay ? 'JA' : 'NEJ'}
+- Mående: ${yesterdayBootcampReport.mood}/10
+- Tränat styrka: ${yesterdayBootcampReport.strengthTrained ? 'JA' : 'NEJ'}
+- Steg: ${yesterdayBootcampReport.steps || 'Ej angivet'}
+- Sömn: ${yesterdayBootcampReport.sleep ? yesterdayBootcampReport.sleep + ' timmar' : 'Ej angivet'}
+- Kommentar till Generalen: "${yesterdayBootcampReport.comment || 'Ingen'}"
+` : ''}
+${bootcampContext}
+${recentContext}
 
 INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
 2. VIKTIGT: Om 'Mål uppfyllt' är NEJ men 'Streak-status' är AKTIV: Beröm användaren tydligt för att hen ändå loggade och höll sin streak vid liv (det är det viktigaste beteendet!). Döm inte det missade målet, utan peppa mjukt att sikta på det idag istället.
 3. Om både mål och streak är positiva, ge stort beröm enligt din persona.
 4. Om streak är bruten, var uppmuntrande kring nystart idag.
-5. Avsluta med en kort uppmaning för idag.
-6. Svara på SVENSKA.`;
+5. Om användaren har skrivit en "Kommentar till Generalen", återkoppla på den!
+6. Om det finns data för mående, steg och sömn från bootcamp-rapporten, ge kort, peppande eller stöttande feedback på dessa (t.ex. om sömnen var kort, peppa till vila. Om stegen var många, beröm!).
+7. Avsluta med en kort uppmaning för idag.
+8. Svara på SVENSKA.${missingReportInstruction}`;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
@@ -136,7 +288,7 @@ INSTRUKTIONER:
 };
 
 export const getMorningBriefingAudio = async (text: string, style: CoachStyle): Promise<string | null> => {
-  const persona = COACH_PERSONAS[style];
+  const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
   
   try {
     const response = await ai.models.generateContent({
@@ -303,7 +455,7 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
   const { userProfile, userGoals, userName, mentalWellbeing, isOnboarding } = data;
   
   const style = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[style];
+  const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
     
   const wellbeingDataString = `
 - Stressnivå: ${mentalWellbeing.stressLevel || 'Ej angivet'} (1=hög, 5=låg)
@@ -331,6 +483,13 @@ export const getAIFeedback = async (data: AIDataForFeedback): Promise<string> =>
   const fullPrompt = `Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.se.
 Din persona: ${persona.promptTone}
 Ge feedback på SVENSKA.
+
+**NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):**
+Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
+- Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
+- Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 
 **Användarens Status:**
 - Namn: ${userName || 'Användare'}
@@ -417,7 +576,7 @@ Om användarens fråga är för vag eller inte receptliknande (t.ex. 'hej'), sva
 Prioritera vanliga, rimligt hälsosamma recept om inte användaren anger annat.
 Se till att alla mängder och enheter i ingredienser är tydliga och på svenska där det är lämpligt.
 Se till att instruktionerna är tydliga och lätta att följa.
-Näringsinformationen är en UPPSKATTNING för HELA receptet. foodItem i totalNutritionalInfo ska vara samma som receptets titel.
+Näringsinformationen är en UPPSKATTNING per PORTION. foodItem i totalNutritionalInfo ska vara samma som receptets titel.
 Om någon del av näringsinformationen inte rimligen kan uppskattas, ange värdet 0 för den specifika näringsämnet, men försök uppskatta alla.
 Användarens fråga: "${recipeQuery}"`;
 
@@ -494,7 +653,7 @@ export const getRecipesFromIngredientsImage = async (base64ImageDatas: string[])
 5.  Om inga ingredienser kan identifieras, returnera tomma arrayer.
 6.  Svara i JSON-format. JSON-objektet på toppnivå ska ha två nycklar: 'identifiedIngredients' (en array av strängar) och 'recipeSuggestions' (en array av receptobjekt, var och en som matchar RecipeSuggestion-strukturen).
 7.  För receptingredienser, lista endast varor som antingen är direkt identifierade eller mycket vanliga skafferivaror om det är absolut nödvändigt för receptet.
-8.  Se till att 'foodItem' i totalNutritionalInfo for varje recept alltid är receptets titel.
+8.  Se till att 'foodItem' i totalNutritionalInfo for varje recept alltid är receptets titel. Näringsinformationen ska vara en UPPSKATTNING per PORTION.
 
 JSON-struktur för varje recept i 'recipeSuggestions':
 {
@@ -570,7 +729,7 @@ export const getAICoachResponseStream = async (
   chatHistory: Content[],
   context: AIDataForJourneyAnalysis
 ) => {
-  const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = context;
+  const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak, goalTimeline } = context;
 
   const formattedWeightLogsForAI = allWeightLogs.map(log => ({
     date: new Date(log.loggedAt).toISOString().split('T')[0],
@@ -589,7 +748,7 @@ export const getAICoachResponseStream = async (
   })).slice(0, 30);
 
   const style = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[style];
+  const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
 
   const systemInstruction = `Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.
 Din persona är: ${persona.promptTone}.
@@ -600,6 +759,16 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 1.  **Fatta dig extremt kortfattat.** Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
 2.  Anpassa din ton efter din persona (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
 3.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
+4.  **NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):** Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
+    - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
+    - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+    - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+    - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+
+**ANVÄNDARENS AKTUELLA KONTEXT:**
+${context.activeBootcamp ? `- Användaren deltar just nu i General Börjes Bootcamp (Fas: ${context.activeBootcamp.status}, Streak: ${context.activeBootcamp.currentStreak} dagar). VIKTIGT: Bootcampen har INGA lektioner. Prata aldrig om lektioner i samband med bootcampen.` : ''}
+${context.recentBootcampReports && context.recentBootcampReports.length > 0 ? `- Senaste kvällsrapport (Bootcamp): Mående ${context.recentBootcampReports[0].mood}/10, Styrketräning: ${context.recentBootcampReports[0].strengthTrained ? 'Ja' : 'Nej'}, Grön dag: ${context.recentBootcampReports[0].isGreenDay ? 'Ja' : 'Nej'}.` : ''}
+${context.userCourseProgress ? `- Användaren har tillgång till kurser (separat från bootcampen). Uppmuntra dem att läsa lektioner i kurserna om de har frågor om kost eller träning.` : ''}
 
 **REGLER FOR GRAF-SVAR:**
 1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.
@@ -648,6 +817,7 @@ Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VI
 **TILLGÄNGLIG DATA (ANVÄND ENLIGT REGLERNA OVAN):**
 - **Profil:** ${JSON.stringify(userProfile)}
 - **Aktuella Mål (VIKTIGT: Använd dessa mål för kalorier och protein):** ${JSON.stringify(goals)}
+- **Måltidslinje & Milstolpar:** ${JSON.stringify(goalTimeline)}
 - **Streak:** ${currentStreak} dagar
 - **Viktloggar (ENDAST för vikt, muskler, fett):** ${JSON.stringify(formattedWeightLogsForAI)}
 - **Dagliga Summeringar (ENDAST för protein, kalorier, etc.):** ${JSON.stringify(formattedDailySummariesForAI)}
@@ -750,7 +920,7 @@ const getUserLevelInfo = (streak: number): { currentLevel: Level } => {
 };
 
 export const getDetailedJourneyAnalysis = async (data: AIDataForJourneyAnalysis): Promise<AIStructuredFeedbackResponse> => {
-    const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak } = data;
+    const { userProfile, goals, allWeightLogs, last30DaysSummaries, mentalWellbeingLogs, currentStreak, goalTimeline } = data;
 
     // --- PLATEAU DETECTION ---
     let plateauPromptPart = "";
@@ -907,13 +1077,21 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     const kursFeedbackPrompt = `Användaren har tillgång till kurserna 'Praktisk Viktkontroll' och 'Maxa Klimakteriet'. Koppla dina insikter till relevanta koncept från 'Praktisk Viktkontroll'. Om användaren t.ex. har en platå, kan du referera till Lektion 7 ('Bryt en platå'). Om de är inkonsekventa, nämn Lektion 4 ('Hantera utmaningar').`;
 
     const style = userProfile.coachStyle || 'balanced';
-    const persona = COACH_PERSONAS[style];
+    const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
 
     const prompt = `
 Du är ${persona.label}, ${persona.roleTitle} i appen Kostloggen.
 Ditt tonläge: ${persona.promptTone}
 
 Du är en INTE en extern coach, du ÄR ${persona.label}. Skriv återkopplingen som att det är du som vägleder användaren. Undvik formuleringar som "prata med din coach" - du ÄR coachen.
+
+**NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):**
+Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
+- Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
+- Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+
 ${plateauPromptPart}
 Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med följande exakta struktur:
 {
@@ -972,6 +1150,7 @@ Användarens data:
 ${bodyCompositionDataPrompt}
 - Senaste välbefinnande: ${mentalWellbeingDataString}
 - Summering av näring i analysperioden: ${nutritionalSummaryForPrompt}
+- Måltidslinje & Milstolpar: ${JSON.stringify(goalTimeline)}
 - Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna (senaste 30d)
 - Streak: ${currentStreak} dagar
 - Nivå: ${nivå}

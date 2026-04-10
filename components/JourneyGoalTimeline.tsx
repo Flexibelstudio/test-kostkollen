@@ -6,10 +6,20 @@ import { CheckCircleIcon, XCircleIcon } from './icons';
 const GoalTimeline: React.FC<{ 
     milestones: TimelineMilestone[],
     paceFeedback: { type: string, text: string } | null,
+    metrics?: {
+        currentPacePerWeek: number;
+        requiredPacePerWeek: number;
+        projectedFinalWeight: number;
+        isHealthyPace: boolean;
+        isOffTrack: boolean;
+        daysRemaining: number;
+    } | null,
     weightLogs: WeightLogEntry[],
     goalType: GoalType,
-    currentAppDate: Date
-}> = ({ milestones, paceFeedback, weightLogs, goalType, currentAppDate }) => {
+    currentAppDate: Date,
+    isBootcampActive?: boolean,
+    onAdjustGoal?: (type: 'pace' | 'date' | 'auto_adjust') => void
+}> = ({ milestones, paceFeedback, metrics, weightLogs, goalType, currentAppDate, isBootcampActive, onAdjustGoal }) => {
     const getStatusForMilestone = (milestone: TimelineMilestone): 'on_track' | 'off_track' | 'neutral' => {
         const milestoneDate = new Date(milestone.isoDate);
         if (milestoneDate > currentAppDate) return 'neutral';
@@ -46,6 +56,55 @@ const GoalTimeline: React.FC<{
                     'bg-blue-50 text-blue-800 border border-blue-100'
                 }`}>
                 {paceFeedback.text}
+                </div>
+            )}
+
+            {metrics && metrics.isOffTrack && onAdjustGoal && (
+                <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                    <h4 className="font-bold text-orange-800 mb-2">Du ligger efter din plan</h4>
+                    
+                    {isBootcampActive ? (
+                        <div>
+                            <p className="text-sm text-orange-700 mb-3">
+                                Med din nuvarande takt beräknas du landa på <strong>{metrics.projectedFinalWeight.toFixed(1)} kg</strong> vid bootcampens slut.
+                            </p>
+                            {!metrics.isHealthyPace && (
+                                <div className="mb-3">
+                                    <p className="text-sm text-red-600 font-medium mb-2">
+                                        Att nå ditt ursprungliga mål kräver nu ett ohälsosamt tempo ({Math.abs(metrics.requiredPacePerWeek).toFixed(1)} kg/vecka).
+                                    </p>
+                                    <button 
+                                        onClick={() => onAdjustGoal('auto_adjust')}
+                                        className="w-full py-2 bg-orange-600 text-white text-sm font-bold rounded-lg hover:bg-orange-700 transition-colors"
+                                    >
+                                        Justera till ett hälsosamt mål
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <p className="text-sm text-orange-700 mb-3">
+                                För att nå ditt mål i tid krävs nu en takt på <strong>{Math.abs(metrics.requiredPacePerWeek).toFixed(1)} kg/vecka</strong>.
+                            </p>
+                            <div className="flex flex-col gap-2">
+                                {metrics.isHealthyPace && (
+                                    <button 
+                                        onClick={() => onAdjustGoal('pace')}
+                                        className="w-full py-2 bg-white border border-orange-300 text-orange-800 text-sm font-bold rounded-lg hover:bg-orange-100 transition-colors"
+                                    >
+                                        Behåll måldatum (kräver tuffare tempo)
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => onAdjustGoal('date')}
+                                    className="w-full py-2 bg-orange-600 text-white text-sm font-bold rounded-lg hover:bg-orange-700 transition-colors"
+                                >
+                                    Flytta fram måldatum (behåll hållbart tempo)
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

@@ -15,13 +15,18 @@
     "@zxing/browser": "^0.1.5",
     "@zxing/library": "^0.21.0",
     "async-mutex": "^0.5.0",
+    "date-fns": "^4.1.0",
     "emoji-picker-react": "^4.18.0",
     "firebase": "^12.2.1",
+    "framer-motion": "^12.38.0",
     "lucide-react": "^0.400.0",
     "react": "^19.1.1",
+    "react-big-calendar": "^1.19.4",
+    "react-confetti": "^6.4.0",
     "react-dom": "^19.1.1",
     "react-hot-toast": "^2.6.0",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "react-use": "^17.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

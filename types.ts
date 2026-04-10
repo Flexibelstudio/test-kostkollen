@@ -198,6 +198,7 @@ export interface NotificationSettings {
 
 export interface UserProfileData {
   name?: string;
+  hasCompletedBootcamp?: boolean;
   currentWeightKg?: number;
   heightCm?: number;
   ageYears?: number;
@@ -227,6 +228,7 @@ export interface UserProfileData {
   isCourseActive?: boolean;
   courseInterest?: boolean;
   coachStyle: CoachStyle; // New field for coaching style
+  highestBootcampStreak?: number; // New field for lifetime bootcamp streak
   
   // Subscription fields
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
@@ -358,6 +360,13 @@ export interface UserCourseProgress {
 
 // --- AI & External Service Types ---
 
+export interface SavedRecipe {
+  id: string;
+  timestamp: number;
+  recipe: RecipeSuggestion;
+  category?: string;
+}
+
 export interface RecipeSuggestion {
   title: string;
   description: string;
@@ -415,6 +424,8 @@ export interface AIDataForJourneyAnalysis {
   mentalWellbeingLogs?: MentalWellbeingLog[];
   currentStreak: number;
   userCourseProgress?: UserCourseProgress;
+  activeBootcamp?: BootcampParticipant | null;
+  recentBootcampReports?: EveningReport[];
 }
 
 export interface AIDataForCoachSummary {
@@ -458,6 +469,51 @@ export interface InBodyScanData {
   timestamp?: number;
 }
 
+// --- Bootcamp Types ---
+
+export interface BootcampCohort {
+  id: string;
+  name: string; // e.g., "Generalens April-trupp"
+  inviteCode: string; // e.g., "BÖRJE-APRIL"
+  startDate: string; // YYYY-MM-DD
+  chatGroupId: string; // ID of the official chat group
+  status: 'upcoming' | 'active' | 'completed';
+  isPublic: boolean; // If true, visible in the app for anyone to join
+  createdAt: number;
+  createdBy: string; // Coach ID
+}
+
+export interface EveningReport {
+  date: string; // YYYY-MM-DD
+  steps: number;
+  mood: number; // 1-10
+  strengthTrained: boolean;
+  sleep?: number; // Hours of sleep
+  proteinMet?: boolean;
+  waterMet?: boolean;
+  loggedAllMeals?: boolean;
+  comment: string;
+  isGreenDay: boolean; // Calculated based on rules
+  createdAt: number;
+}
+
+export interface BootcampParticipant {
+  userId: string;
+  cohortId: string;
+  status: 'fas1' | 'fas2' | 'completed' | 'dropped' | 'expired';
+  currentStreak: number;
+  longestStreak: number;
+  fas1StartDate: string; // Resets if they fail in Fas 1
+  fas2StartDate?: string;
+  originalStartDate?: string; // The absolute start date for the 12-week limit
+  needsCoachAttention: boolean;
+  attentionReason?: string;
+  joinedAt: number;
+  endedAt?: number; // Timestamp when they completed or dropped
+  finaleSeen?: boolean;
+  bootcampOnboardingCompleted?: boolean;
+}
+
 // --- Coach & Admin Types ---
 
 export interface CoachViewMember {
@@ -471,6 +527,8 @@ export interface CoachViewMember {
   lastLogDate?: string;
   currentStreak: number;
   goalSummary: string;
+  hasLoggedFood7d?: boolean;
+  metProteinGoal7d?: boolean;
   proteinGoalMetPercentage7d?: number;
   goalAdherence?: "good" | "average" | "poor" | "inactive";
   courseProgressSummary?: {
@@ -579,6 +637,7 @@ export interface BuddyDetails extends Peppkompis {
   currentStreak?: number;
   unlockedAchievements: { [id: string]: string };
   role?: UserRole;
+  highestBootcampStreak?: number;
 
   // For progress bar
   goalStartWeight?: number;
@@ -603,6 +662,10 @@ export interface BuddyDetails extends Peppkompis {
 
   // For interactions
   achievementInteractions?: { [achievementId: string]: { reactions: Reactions } };
+
+  // For bootcamp
+  bootcampStreak?: number;
+  bootcampStatus?: string;
 }
 
 export type TimelineEventType =
@@ -616,7 +679,33 @@ export type TimelineEventType =
   | "goal_set"
   | "user_post"; // Added user_post
 
-export type PostCategory = 'general' | 'food' | 'workout' | 'question' | 'pepp';
+export type PostCategory = 'general' | 'food' | 'workout' | 'question' | 'pepp' | 'fakta' | 'cta';
+
+export interface PostTemplate {
+  id: string;
+  title: string;
+  content: string;
+  category: PostCategory;
+  targetGroups: string[]; // e.g., ['all'], ['bootcamp'], ['solo'], or specific group IDs
+  createdAt: number;
+  createdBy: string;
+}
+
+export interface ScheduledPost {
+  id: string;
+  templateId?: string;
+  groupId: string; // 'all' for all bootcamps, or specific bootcamp ID
+  excludedGroups?: string[]; // Array of bootcamp IDs where this post should NOT be shown
+  content: string;
+  category: PostCategory;
+  scheduledFor?: number; // Timestamp for when it should be published (legacy)
+  programWeek?: number; // 1-12
+  programDay?: number; // 1-7 (1 = Måndag, 7 = Söndag)
+  publishTime?: string; // e.g. "08:00"
+  status: 'pending' | 'published';
+  createdAt: number;
+  createdBy: string;
+}
 
 export interface Reactions {
   [emoji: string]: {
@@ -632,9 +721,44 @@ export interface TimelineComment {
   authorPhotoURL?: string;
   text: string;
   timestamp: number;
+  imageUrl?: string;
   likes?: {
     [uid: string]: string; // key is UID, value is user's name
   };
+  reactions?: Reactions;
+}
+
+export interface BootcampComment {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  authorPhotoURL?: string;
+  authorGender?: Gender;
+  text: string;
+  timestamp: number;
+  imageUrl?: string;
+  likes: { [uid: string]: string };
+  reactions?: Reactions;
+}
+
+export interface BootcampPost {
+  id: string;
+  cohortId: string;
+  authorUid: string;
+  authorName: string;
+  authorPhotoURL?: string;
+  authorGender?: Gender;
+  text: string;
+  imageUrl?: string;
+  timestamp: number;
+  isOfficial?: boolean; // If true, posted by General Börje
+  likes: { [uid: string]: string };
+  reactions?: Reactions;
+  comments: BootcampComment[];
+  streakAtPost?: number;
+  bootcampStreakAtPost?: number;
+  goalTextAtPost?: string;
+  progressAtPost?: number;
 }
 
 export interface TimelineEvent {
@@ -662,4 +786,12 @@ export interface TimelineEvent {
   gender: Gender;
   visibleTo?: string[];
   isGlobal?: boolean;
+  
+  // Historical context for posts
+  streakAtPost?: number;
+  bootcampStreakAtPost?: number;
+  highestBootcampStreak?: number; // Lifetime highest streak at the time of the post
+  goalTextAtPost?: string;
+  progressAtPost?: number;
+  bootcampId?: string;
 }

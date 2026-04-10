@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { PastDaySummary, UserProfileData, LoggedMeal } from '../types';
+import { PastDaySummary, UserProfileData, LoggedMeal, WeightLogEntry } from '../types';
 import { CheckCircleIcon, XCircleIcon, TrophyIcon, SparklesIcon } from './icons';
 import { getMorningBriefingText, getMorningBriefingAudio } from '../services/geminiService';
 import { COACH_PERSONAS } from '../constants';
-import { Volume2, VolumeX, PiggyBank, Flame, Loader2 } from 'lucide-react';
+import { Volume2, VolumeX, PiggyBank, Flame, Loader2, Target } from 'lucide-react';
 
 interface MorningReportModalProps {
   show: boolean;
@@ -12,6 +12,10 @@ interface MorningReportModalProps {
   currentStreak: number;
   userProfile: UserProfileData;
   yesterdayMeals?: LoggedMeal[];
+  yesterdayBootcampReport?: any;
+  activeBootcamp?: any;
+  pastDaysSummary?: PastDaySummary[];
+  weightLogs?: WeightLogEntry[];
 }
 
 // Helper to decode raw PCM data from Gemini (16-bit, 24kHz, Mono)
@@ -41,7 +45,7 @@ const decodePCM = (base64: string, ctx: AudioContext): AudioBuffer => {
   return buffer;
 };
 
-const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile, yesterdayMeals }) => {
+const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile, yesterdayMeals, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs }) => {
   const [briefingText, setBriefingText] = useState<string | null>(null);
   const [isLoadingBriefing, setIsLoadingBriefing] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -54,7 +58,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
     if (show) {
       const fetchBriefing = async () => {
         setIsLoadingBriefing(true);
-        const text = await getMorningBriefingText({ userProfile, summary, currentStreak, yesterdayMeals });
+        const text = await getMorningBriefingText({ userProfile, summary, currentStreak, yesterdayMeals, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs });
         setBriefingText(text);
         setIsLoadingBriefing(false);
       };
@@ -64,7 +68,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
         stopAudio();
         cachedAudioBufferRef.current = null;
     }
-  }, [show, summary, currentStreak, userProfile]);
+  }, [show, summary, currentStreak, userProfile, yesterdayMeals, yesterdayBootcampReport, activeBootcamp]);
 
   const stopAudio = () => {
       if (audioSourceRef.current) {
@@ -131,7 +135,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
   const dateString = dateObj.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const coachStyle = userProfile.coachStyle || 'balanced';
-  const persona = COACH_PERSONAS[coachStyle];
+  const persona = COACH_PERSONAS[coachStyle] || COACH_PERSONAS['balanced'];
   
   let CoachEmoji;
   let avatarColorClass;
@@ -145,6 +149,33 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
   } else {
       CoachEmoji = COACH_PERSONAS.balanced.emoji;
       avatarColorClass = 'text-blue-600 bg-blue-100';
+  }
+
+  let bootcampProgressCard = null;
+  if (activeBootcamp && activeBootcamp.status === 'fas1') {
+    // In Phase 1, the progress is determined by the current streak (number of consecutive green days)
+    const currentBootcampStreak = activeBootcamp.currentStreak || 0;
+    const progressPercent = Math.min(100, Math.round((currentBootcampStreak / 14) * 100));
+    
+    bootcampProgressCard = (
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-neutral-light flex items-center gap-4 animate-scale-in">
+          <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shadow-sm flex-shrink-0">
+              <Target className="w-7 h-7" />
+          </div>
+          <div className="flex-1">
+              <div className="flex justify-between items-end mb-1">
+                  <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0">Bootcamp Fas 1</p>
+                  <span className="text-xs font-bold text-blue-600">{progressPercent}%</span>
+              </div>
+              <p className="text-xl font-extrabold text-neutral-dark leading-none mb-2">
+                  Dag {currentBootcampStreak} <span className="text-sm font-medium text-neutral">av 14</span>
+              </p>
+              <div className="w-full bg-neutral-light rounded-full h-2">
+                  <div className="bg-blue-500 h-2 rounded-full transition-all duration-1000" style={{ width: `${progressPercent}%` }}></div>
+              </div>
+          </div>
+      </div>
+    );
   }
 
   return (
@@ -206,6 +237,8 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
                     </div>
                  </div>
              )}
+
+             {bootcampProgressCard}
         </div>
 
         <hr className="border-neutral-light/60 mb-6" />

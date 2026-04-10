@@ -21,7 +21,7 @@ import {
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
-import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon } from '../components/icons';
+import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon, BookmarkIcon, ShieldCheckIcon } from '../components/icons';
 import { PiggyBank, Coffee, Sandwich, CookingPot, Apple, Flame } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
@@ -48,6 +48,7 @@ import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
 // Modaler
 import CameraModal from '../components/CameraModal';
 import TextEntryModal from '../components/TextEntryModal';
+import ProteinInfoModal from '../components/ProteinInfoModal';
 import RecipeChoiceModal from '../components/RecipeChoiceModal';
 import RecipeModal from '../components/RecipeModal';
 import IngredientCaptureModal from '../components/IngredientCaptureModal';
@@ -58,9 +59,11 @@ import ImageAnalysisResultModal from '../components/ImageAnalysisResultModal';
 import SaveCommonMealModal from '../components/SaveCommonMealModal';
 import NutritionLabelResultModal from '../components/NutritionLabelResultModal';
 import FoodRatingModal from '../components/FoodRatingModal';
+import MyRecipesModal from '../components/MyRecipesModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import MealTypeSelector from '../components/MealTypeSelector';
 import MealSectionCard from '../components/MealSectionCard';
+import MealStructureGuide from '../components/MealStructureGuide';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import CoinFallEffect from '../components/CoinFallEffect';
 import CommonMealsList from '../components/CommonMealsList';
@@ -200,7 +203,13 @@ interface DashboardProps {
     isAICoachOpen: boolean;
     isProfileOpen: boolean;
     isMorningReportOpen: boolean;
+    activeBootcamp: any | null;
+    hasCompletedTodaysReport?: boolean;
+    onShareRecipe?: (recipeText: string) => void;
+    onOpenBootcamp?: () => void;
 }
+
+import { getBootcampRankInfo } from '../utils/bootcampUtils';
 
 const Dashboard: React.FC<DashboardProps> = ({ 
     checklistState,
@@ -217,7 +226,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     isSummarizingYesterday,
     isAICoachOpen,
     isProfileOpen,
-    isMorningReportOpen
+    isMorningReportOpen,
+    activeBootcamp,
+    hasCompletedTodaysReport,
+    onShareRecipe,
+    onOpenBootcamp
 }) => {
     const {
         currentUser,
@@ -242,13 +255,16 @@ const Dashboard: React.FC<DashboardProps> = ({
     } = useUserContext();
 
     const [isSaving, setIsSaving] = useState(false);
-    const [appStatus, setAppStatus] = useState<'idle' | 'analyzing' | 'searching' | 'saving' | 'error'>('idle');
+    const [appStatus, setAppStatus] = useState<'idle' | 'analyzing' | 'searching' | 'searching_recipe' | 'saving' | 'error'>('idle');
     
     // Modal states
     const [showCameraModal, setShowCameraModal] = useState(false);
     const [showTextEntryModal, setShowTextEntryModal] = useState(false);
     const [showRecipeChoiceModal, setShowRecipeChoiceModal] = useState(false);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
+    const [showMyRecipesModal, setShowMyRecipesModal] = useState(false);
+    const [isRecipeSaved, setIsRecipeSaved] = useState(false);
+    const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(new Set());
     const [showIngredientCaptureModal, setShowIngredientCaptureModal] = useState(false);
     const [showIngredientRecipeResultsModal, setShowIngredientRecipeResultsModal] = useState(false);
     const [showBarcodeScannerModal, setShowBarcodeScannerModal] = useState(false);
@@ -282,6 +298,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
     const [showBonusCoin, setShowBonusCoin] = useState(false);
     const [activeMealSection, setActiveMealSection] = useState<MealType | null>(null); // Lifted state for open section
+    const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
 
     const bankRef = useRef<HTMLDivElement>(null);
     const waterLoggerRef = useRef<HTMLDivElement>(null);
@@ -464,25 +481,69 @@ const Dashboard: React.FC<DashboardProps> = ({
             } catch(e) {
                 console.error("Failed to update past day summary", e);
             }
-        }
 
-        if (viewingUID < currentUID) {
+            // --- RIPPLE EFFECT: Recalculate streaks for all subsequent days up to yesterday ---
             const yesterday = new Date(currentDate);
             yesterday.setDate(yesterday.getDate() - 1);
-            const isYesterday = viewingUID === getDateUID(yesterday);
+            const yesterdayUID = getDateUID(yesterday);
 
-            if (isYesterday) {
-                setStreakData(prev => ({ ...prev, currentStreak: newStreak }));
-                const userUpdates: any = { currentStreak: newStreak };
-                if (newStreak > highestStreak) {
-                    userUpdates.highestStreak = newStreak;
-                    setHighestStreak(newStreak);
+            let currentRippleDate = new Date(viewingDate);
+            currentRippleDate.setDate(currentRippleDate.getDate() + 1);
+            let currentRippleUID = getDateUID(currentRippleDate);
+            let runningStreak = newStreak;
+            
+            const updatedSummaries: Record<string, PastDaySummary> = {};
+            let highestStreakReached = Math.max(highestStreak, newStreak);
+
+            while (currentRippleUID <= yesterdayUID) {
+                const summaryToUpdate = pastDaysSummary[currentRippleUID];
+                if (summaryToUpdate) {
+                    if (summaryToUpdate.consumedCalories > 0) {
+                        runningStreak += 1;
+                    } else {
+                        runningStreak = 0;
+                    }
+                    
+                    if (summaryToUpdate.streakForThisDay !== runningStreak) {
+                        const updatedSummary = { ...summaryToUpdate, streakForThisDay: runningStreak };
+                        updatedSummaries[currentRippleUID] = updatedSummary;
+                        highestStreakReached = Math.max(highestStreakReached, runningStreak);
+                        
+                        try {
+                            await setPastDaySummaryFirestore(currentUser.uid, currentRippleUID, updatedSummary);
+                        } catch(e) {
+                            console.error(`Failed to update past day summary for ${currentRippleUID}`, e);
+                        }
+                    }
+                } else {
+                    runningStreak = 0;
                 }
-                try {
-                    await updateUserDocument(currentUser.uid, userUpdates);
-                } catch(e) {
-                    console.error("Failed to update user currentStreak", e);
-                }
+                
+                currentRippleDate.setDate(currentRippleDate.getDate() + 1);
+                currentRippleUID = getDateUID(currentRippleDate);
+            }
+
+            if (Object.keys(updatedSummaries).length > 0) {
+                setPastDaysSummary(prev => ({ ...prev, ...updatedSummaries }));
+            }
+
+            // Update user's current streak to whatever the streak was on yesterday
+            const finalYesterdayStreak = updatedSummaries[yesterdayUID]?.streakForThisDay 
+                ?? (yesterdayUID === viewingUID ? newStreak : pastDaysSummary[yesterdayUID]?.streakForThisDay) 
+                ?? 0;
+
+            setStreakData(prev => ({ ...prev, currentStreak: finalYesterdayStreak }));
+            
+            const userUpdates: any = { currentStreak: finalYesterdayStreak };
+            if (highestStreakReached > highestStreak) {
+                userUpdates.highestStreak = highestStreakReached;
+                setHighestStreak(highestStreakReached);
+            }
+            
+            try {
+                await updateUserDocument(currentUser.uid, userUpdates);
+            } catch(e) {
+                console.error("Failed to update user currentStreak", e);
             }
         }
     };
@@ -730,18 +791,113 @@ const Dashboard: React.FC<DashboardProps> = ({
         setCameraMode('mealAnalysis'); 
         openModalWithType(setShowCameraModal);
     };
-    const handleFindRecipe = () => openModalWithType(setShowRecipeChoiceModal); 
+    const handleFindRecipe = () => {
+        setSearchedRecipe(null);
+        openModalWithType(setShowRecipeChoiceModal); 
+    };
+    const handleMyRecipes = () => openModalWithType(setShowMyRecipesModal);
 
-    const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
-    const coachPersona = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle] : COACH_PERSONAS['balanced'];
+    const handleSaveRecipe = async (recipe: RecipeSuggestion) => {
+        if (!currentUser) return;
+        try {
+            const { addSavedRecipe } = await import('../services/firestoreService');
+            await addSavedRecipe(currentUser.uid, {
+                timestamp: Date.now(),
+                recipe
+            });
+            setIsRecipeSaved(true);
+            setSavedRecipeIds(prev => new Set(prev).add(recipe.title));
+            setToastNotification({ message: 'Receptet har sparats i din receptbank!', type: 'success' });
+        } catch (error) {
+            console.error("Error saving recipe:", error);
+            setToastNotification({ message: 'Kunde inte spara receptet.', type: 'error' });
+        }
+    };
+
+    const coachPersona = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle] : COACH_PERSONAS['balanced'];
+    const coachName = coachPersona.label;
+
+    const currentHour = new Date().getHours();
+    const showEveningReportCTA = activeBootcamp && currentHour >= 18 && !hasCompletedTodaysReport;
+
+    let ctaText = "Dags för kvällsrapport!";
+    if (userProfile.coachStyle === 'hard') {
+        ctaText = "Dags för kvällsrapport, soldat!";
+    } else if (userProfile.coachStyle === 'soft') {
+        ctaText = "Dags för kvällsrapport, vännen!";
+    }
 
     return (
         <div className="flex flex-col gap-3 pb-0 relative">
+            {/* Bootcamp CTA */}
+            {showEveningReportCTA && (
+                <button 
+                    onClick={onOpenBootcamp}
+                    className="w-full bg-primary hover:bg-primary-darker text-white font-bold py-4 px-6 rounded-2xl shadow-lg flex items-center justify-between transition-transform active:scale-95"
+                >
+                    <span>{ctaText}</span>
+                    <ArrowRightIcon className="w-5 h-5" />
+                </button>
+            )}
+
+            {/* Bootcamp Progress Report */}
+            {activeBootcamp && (() => {
+                const rankInfo = getBootcampRankInfo(Math.max(activeBootcamp.longestStreak || 0, userProfile.highestBootcampStreak || 0), activeBootcamp.currentStreak || 0, activeBootcamp.status);
+                return (
+                <div className="bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-[#3A4B3C] flex items-center justify-center text-white">
+                                <ShieldCheckIcon className="w-5 h-5" />
+                            </div>
+                            <h3 className="text-lg font-bold text-neutral-dark dark:text-white">Bootcamp Lägesrapport</h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold px-2 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 rounded-full">
+                                {activeBootcamp.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
+                            </span>
+                            <span className="text-xs font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                                {rankInfo.currentRank}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-4">
+                        <div>
+                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">Streak</p>
+                            <p className="text-xl font-extrabold text-neutral-dark dark:text-white flex items-center gap-1">
+                                {activeBootcamp.currentStreak} <Flame className="w-5 h-5 text-orange-500" />
+                            </p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">
+                                {rankInfo.nextRank ? `Nästa: ${rankInfo.nextRank}` : 'Högsta graden nådd!'}
+                            </p>
+                            <p className="text-sm font-bold text-neutral-dark dark:text-white">
+                                {rankInfo.nextRank ? `${rankInfo.daysToNext} dagar kvar` : 'Bra jobbat!'}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="w-full bg-neutral-light dark:bg-[#1A2B1C] rounded-full h-2 mt-2 overflow-hidden">
+                        <div 
+                            className="bg-green-500 h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${rankInfo.progress}%` }}
+                        ></div>
+                    </div>
+                </div>
+                );
+            })()}
+
             {/* Top Date & Progress Card */}
-            <div className="bg-white rounded-3xl shadow-soft-xl py-6 border border-neutral-light relative overflow-hidden">
+            <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'}`}>
+                {activeBootcamp && (
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#4A5B4C] text-white text-[10px] font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
+                        <TrophyIcon className="w-3 h-3 text-yellow-400" />
+                        Bootcamp Aktiv
+                    </div>
+                )}
                 <div className="flex flex-col items-center">
                     {/* Date Nav */}
-                    <div className="flex items-center justify-center gap-4 mb-6 w-full px-6">
+                    <div className={`flex items-center justify-center gap-4 mb-6 w-full px-6 ${activeBootcamp ? 'mt-2' : ''}`}>
                         <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
                         <div className="text-center">
                             <h2 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">{formattedViewingDate}</h2>
@@ -773,7 +929,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 trackColor="text-neutral-light"
                                 centerContent={
                                     <div className="text-center">
-                                        <span className="text-sm font-medium text-neutral-dark mb-1 block">Återstående</span>
+                                        <span className="text-sm font-medium text-neutral-dark mb-1 block">
+                                            {isNetOverBudget ? 'Överskridit' : 'Återstående'}
+                                        </span>
                                         <span className="text-4xl font-bold block text-neutral-dark leading-none tracking-tight">
                                             {isNetOverBudget
                                                 ? netCaloriesOver.toFixed(0)
@@ -798,7 +956,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {/* Macros Integrated */}
                     <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full px-4 sm:px-6">
                         {/* Kolhydrater */}
-                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
                             <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Kolhydrater</p>
                             <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.carbohydrates)}/{goals.carbohydrateGoal}g
@@ -808,8 +966,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         {/* Protein */}
-                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
-                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Protein</p>
+                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
+                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider flex items-center justify-center">
+                                Protein
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowProteinInfoModal(true)}
+                                    className="ml-1 text-neutral-400 hover:text-primary transition-colors"
+                                    aria-label="Information om proteinmål"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                      <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </p>
                             <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.protein)}/{goals.proteinGoal}g
                             </p>
@@ -818,7 +988,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         {/* Fett */}
-                        <div className="bg-neutral-50 rounded-2xl p-3 sm:p-4 border border-neutral-light text-center">
+                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
                             <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Fett</p>
                             <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.fat)}/{goals.fatGoal}g
@@ -845,11 +1015,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 onLogWater={(amount) => handleLogWater(amount)}
                                 onResetWater={handleResetWater}
                                 disabled={!isEditableView}
+                                isBootcamp={!!activeBootcamp}
                             />
                         </div>
                         <div className="flex flex-col gap-3">
                             {/* Streak Card */}
-                            <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
                                 <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
                                     <Flame className="w-6 h-6" />
                                 </div>
@@ -863,7 +1034,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
 
                             {/* Goal Progress Card */}
-                            <div className="bg-white p-4 rounded-2xl shadow-soft-lg border border-neutral-light flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300">
+                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
                                 <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10 shrink-0">
                                     <TrophyIcon className="w-6 h-6" />
                                 </div>
@@ -925,6 +1096,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         }}
                         isSummarizingYesterday={isSummarizingYesterday}
                         bankedCalories={weeklyBank.bankedCalories}
+                        isBootcamp={!!activeBootcamp}
                     />
                 </div>
 
@@ -941,10 +1113,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                             setShowFoodRatingModal(true);
                         }}
                         disabled={!isEditableView}
+                        isBootcamp={!!activeBootcamp}
                     />
 
                     {/* Meal Sections (Matlogg) */}
-                    <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
+                    <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
                         <div className="flex items-center justify-between mb-3">
                             <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
                         </div>
@@ -960,6 +1133,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isOpen={activeMealSection === 'breakfast'}
                                 onOpen={() => setActiveMealSection('breakfast')}
                                 onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.25)}
+                                isBootcamp={!!activeBootcamp}
                             />
                             <MealSectionCard 
                                 title="Lunch" 
@@ -972,6 +1147,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isOpen={activeMealSection === 'lunch'}
                                 onOpen={() => setActiveMealSection('lunch')}
                                 onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.35)}
+                                isBootcamp={!!activeBootcamp}
                             />
                             <MealSectionCard 
                                 title="Middag" 
@@ -984,6 +1161,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isOpen={activeMealSection === 'dinner'}
                                 onOpen={() => setActiveMealSection('dinner')}
                                 onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.30)}
+                                isBootcamp={!!activeBootcamp}
                             />
                             <MealSectionCard 
                                 title="Mellanmål" 
@@ -996,6 +1175,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isOpen={activeMealSection === 'snack'}
                                 onOpen={() => setActiveMealSection('snack')}
                                 onClose={() => setActiveMealSection(null)}
+                                recommendedCalories={Math.round(goals.calorieGoal * 0.10)}
+                                isBootcamp={!!activeBootcamp}
                             />
                         </div>
                     </div>
@@ -1040,6 +1221,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <button onClick={handleFindRecipe} className="flex items-center gap-3">
                                 <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Hitta recept</span>
                                 <div className="w-12 h-12 bg-purple-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-purple-600 transition-colors"><RecipeIcon className="w-6 h-6" /></div>
+                            </button>
+                            <button onClick={handleMyRecipes} className="flex items-center gap-3">
+                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Mina recept</span>
+                                <div className="w-12 h-12 bg-pink-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-pink-600 transition-colors"><BookmarkIcon className="w-6 h-6" /></div>
                             </button>
                         </div>
                     )}
@@ -1187,7 +1372,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
             {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => setShowTextEntryModal(false)} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
             {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => setShowRecipeChoiceModal(false)} onChooseSearch={() => { setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
-            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => setShowRecipeModal(false)} onSearch={async (q) => { setAppStatus('searching'); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} />}
+            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => { setShowRecipeModal(false); setIsRecipeSaved(false); }} onSearch={async (q) => { setAppStatus('searching_recipe'); setIsRecipeSaved(false); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching_recipe'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} onSaveRecipe={handleSaveRecipe} isSaved={isRecipeSaved} onShareRecipe={onShareRecipe} />}
+            {showMyRecipesModal && <MyRecipesModal show={showMyRecipesModal} onClose={() => setShowMyRecipesModal(false)} onShareRecipe={onShareRecipe} onLogRecipe={handleAddMealToLog} />}
             {showIngredientCaptureModal && (
                 <IngredientCaptureModal 
                     show={showIngredientCaptureModal} 
@@ -1203,7 +1389,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} 
                 />
             )}
-            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} />}
+            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} onSaveRecipe={handleSaveRecipe} savedRecipeIds={savedRecipeIds} />}
             {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setCameraMode('nutritionLabel'); setShowCameraModal(true); }} />}
             {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
             {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
@@ -1219,7 +1405,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                 />
             )}
             
-            {appStatus !== 'idle' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
+            {showProteinInfoModal && (
+                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+                    <div onClick={e => e.stopPropagation()}>
+                        <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+                    </div>
+                </div>
+            )}
+
+            {appStatus !== 'idle' && appStatus !== 'searching_recipe' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
         </div>
     );
 };

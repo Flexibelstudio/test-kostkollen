@@ -104,29 +104,6 @@ async function sendNotificationToUser(userId, payload, notificationType) {
 
 // ---- Notis-funktioner ----
 
-exports.onNewUserRegistered = functions.auth.user().onCreate(async (user) => {
-    const { email, displayName } = user;
-    const name = displayName || email || "En ny användare";
-
-    logger.log(`New user registered: ${name} (${email})`);
-
-    const payload = {
-      notification: {
-        title: "Ny Medlem! 🎉",
-        body: `${name} har registrerat sig och väntar på godkännande.`,
-        icon: "/icons/icon-192x192.png",
-        badge: "/icons/badge-96x96.png",
-        data: { url: "/" }
-      }
-    };
-
-    const coachIds = await getCoachAndAdminIds();
-    if (coachIds.length === 0) return;
-
-    const notificationPromises = coachIds.map((id) => sendNotificationToUser(id, payload, "newEvents"));
-    await Promise.all(notificationPromises);
-});
-
 exports.onFriendRequestCreated = functions.firestore
   .document("peppkompisRequests/{requestId}")
   .onCreate(async (snapshot) => {
@@ -151,20 +128,58 @@ exports.onTimelineEventCreated = functions.firestore
     const event = snapshot.data();
     if (!event) return;
 
-    const buddiesRef = db.collection("users").doc(event.userId).collection("buddies");
-    const buddiesSnapshot = await buddiesRef.get();
-    if (buddiesSnapshot.empty) return;
-
     const eventId = snapshot.id;
+    const isSystemOrCoach = event.userId === 'system' || event.isGlobal || (event.visibleTo && event.visibleTo.includes('GLOBAL'));
+    
     const payload = {
       notification: {
-        title: "Ny händelse i flödet!",
+        title: isSystemOrCoach ? `Nytt meddelande från ${event.userName}!` : "Ny händelse i flödet!",
         body: `${event.userName} ${event.title}`,
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
         data: { url: `/?view=community&highlight=${eventId}` }
       }
     };
+
+    if (isSystemOrCoach) {
+      let targetUserIds = new Set();
+      
+      if (event.isGlobal || (event.visibleTo && event.visibleTo.includes('GLOBAL'))) {
+        // Send to all users
+        const usersSnapshot = await db.collection("users").get();
+        usersSnapshot.forEach(doc => targetUserIds.add(doc.id));
+      } else if (event.bootcampId) {
+        // Send to bootcamp participants
+        const participantsSnapshot = await db.collection("bootcampCohorts").doc(event.bootcampId).collection("participants").get();
+        participantsSnapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.userId && (data.status === 'fas1' || data.status === 'fas2')) {
+            targetUserIds.add(data.userId);
+          }
+        });
+      } else if (event.visibleTo && event.visibleTo.length > 0) {
+        // Send to specific visibleTo users (if they are user IDs)
+        event.visibleTo.forEach(id => {
+            if (id !== 'GLOBAL' && id !== event.userId) {
+                targetUserIds.add(id);
+            }
+        });
+      }
+
+      // Remove the author from targets
+      targetUserIds.delete(event.userId);
+
+      const notificationPromises = Array.from(targetUserIds).map(uid => 
+        sendNotificationToUser(uid, payload, "newEvents")
+      );
+      await Promise.all(notificationPromises);
+      return;
+    }
+
+    // Normal user post - send to buddies
+    const buddiesRef = db.collection("users").doc(event.userId).collection("buddies");
+    const buddiesSnapshot = await buddiesRef.get();
+    if (buddiesSnapshot.empty) return;
 
     const notificationPromises = buddiesSnapshot.docs.map((doc) => {
       const buddy = doc.data();
@@ -247,6 +262,92 @@ exports.onUserStreakUpdated = functions.firestore
         const existingDoc = await timelineDocRef.get();
         if (existingDoc.exists) return null;
 
+        // Calculate goal text and progress
+        let goalTextAtPost = 'Mål: Bibehålla';
+        let progressAtPost = 0;
+        
+        if (after.measurementMethod === 'scale' && after.desiredWeightChangeKg) {
+            goalTextAtPost = `Mål: ${after.desiredWeightChangeKg > 0 ? '+' : ''}${after.desiredWeightChangeKg} kg`;
+        } else if (after.measurementMethod === 'inbody') {
+            if (after.desiredFatMassChangeKg) goalTextAtPost = `Mål: ${after.desiredFatMassChangeKg} kg fett`;
+            else if (after.desiredMuscleMassChangeKg) goalTextAtPost = `Mål: +${after.desiredMuscleMassChangeKg} kg muskler`;
+        }
+
+        let goalSummary = "Ej satt";
+        if (after.goalType === 'maintain') goalSummary = "Bibehålla";
+        else if (after.goalType === 'lose_fat') goalSummary = `${after.desiredFatMassChangeKg || after.desiredWeightChangeKg || ''} kg fett`;
+        else if (after.goalType === 'gain_muscle') goalSummary = `${after.desiredMuscleMassChangeKg || after.desiredWeightChangeKg || ''} kg muskler`;
+
+        if (goalTextAtPost === 'Mål: Bibehålla' && goalSummary) {
+          goalTextAtPost = goalSummary;
+        }
+
+        let currentWeight = after.currentWeightKg;
+        let currentFatMass = after.bodyFatMassKg;
+        let currentMuscleMass = after.skeletalMuscleMassKg;
+        
+        try {
+          const latestLogSnap = await db.collection('users').doc(userId).collection('weightLogs')
+            .orderBy('loggedAt', 'desc').limit(1).get();
+          if (!latestLogSnap.empty) {
+            const latestLog = latestLogSnap.docs[0].data();
+            currentWeight = latestLog.weightKg ?? currentWeight;
+            currentFatMass = latestLog.bodyFatMassKg ?? currentFatMass;
+            currentMuscleMass = latestLog.skeletalMuscleMassKg ?? currentMuscleMass;
+          }
+        } catch (e) {
+          logger.warn("Could not fetch weight logs for progress calculation", e);
+        }
+
+        // Calculate progress
+        const isScaleGoal = after.measurementMethod === 'scale';
+        const isFatLossGoal = !isScaleGoal && after.desiredFatMassChangeKg && after.desiredFatMassChangeKg < 0;
+        const isMuscleGainGoal = !isScaleGoal && after.desiredMuscleMassChangeKg && after.desiredMuscleMassChangeKg > 0;
+        
+        let start, current, goalChange;
+        if (isFatLossGoal) {
+            start = after.goalStartFatMassKg || after.goalStartWeight;
+            current = currentFatMass || after.currentWeightKg;
+            goalChange = after.desiredFatMassChangeKg;
+        } else if (isMuscleGainGoal) {
+            start = after.goalStartMuscleMassKg || after.goalStartWeight;
+            current = currentMuscleMass || after.currentWeightKg;
+            goalChange = after.desiredMuscleMassChangeKg;
+        } else {
+            start = after.goalStartWeight;
+            current = currentWeight;
+            goalChange = after.desiredWeightChangeKg;
+        }
+        
+        if (start != null && current != null && goalChange) {
+            const totalChangeNeeded = Math.abs(goalChange);
+            let changeAchieved = goalChange > 0 ? current - start : start - current;
+            changeAchieved = Math.max(0, changeAchieved);
+            if (totalChangeNeeded < 0.01) {
+                progressAtPost = 100;
+            } else {
+                const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
+                progressAtPost = Math.max(0, Math.min(progressRaw, 100));
+            }
+        }
+
+        // Fetch bootcamp info
+        let bootcampStreakAtPost = undefined;
+        let bootcampId = undefined;
+        try {
+          const bootcampSnap = await db.collectionGroup('participants').where('userId', '==', userId).get();
+          if (!bootcampSnap.empty) {
+            // Find the active one
+            const activeParticipant = bootcampSnap.docs.map(d => d.data()).find(p => p.status === 'fas1' || p.status === 'fas2');
+            if (activeParticipant) {
+              bootcampStreakAtPost = activeParticipant.currentStreak || 0;
+              bootcampId = activeParticipant.cohortId;
+            }
+          }
+        } catch (e) {
+          logger.warn("Could not fetch bootcamp info for timeline event", e);
+        }
+
         const eventData = {
           type: 'streak',
           timestamp: Date.now(),
@@ -261,6 +362,10 @@ exports.onUserStreakUpdated = functions.firestore
           reactions: {},
           comments: [],
           relatedDocPath: `users/${userId}`,
+          streakAtPost: newStreak,
+          bootcampStreakAtPost: bootcampStreakAtPost,
+          goalTextAtPost: goalTextAtPost,
+          progressAtPost: progressAtPost
         };
 
         await timelineDocRef.set(eventData);
@@ -504,12 +609,27 @@ exports.scheduledNotificationChecker = functions.pubsub
         }
 
         // 5. Vägning (kl 8)
-        const preferredDay = (user.preferredWeighInDay || "måndag").toLowerCase();
+        // Check if user is in an active bootcamp
+        let isBootcampActive = false;
+        try {
+          const bootcampSnap = await db.collectionGroup('participants').where('userId', '==', userId).get();
+          if (!bootcampSnap.empty) {
+            const activeParticipant = bootcampSnap.docs.map(d => d.data()).find(p => p.status === 'fas1' || p.status === 'fas2');
+            if (activeParticipant) {
+              isBootcampActive = true;
+            }
+          }
+        } catch (e) {
+          logger.warn("Could not fetch bootcamp info for notification", e);
+        }
+
+        const preferredDay = isBootcampActive ? "söndag" : (user.preferredWeighInDay || "måndag").toLowerCase();
+        
         if (localHour === 8 && dayOfWeek === preferredDay && user.lastWeighInReminderSent !== todayDateString) {
           const payload = {
             notification: {
-              title: "⚖️ Dags för vägning!",
-              body: `Idag är din planerade vägdag (${user.preferredWeighInDay}). Kom ihåg att logga din vikt!`,
+              title: isBootcampActive ? "🎖️ General Börje: Upp på vågen!" : "⚖️ Dags för vägning!",
+              body: isBootcampActive ? "Det är söndag, soldat! Dags för veckans invägning. Inga ursäkter!" : `Idag är din planerade vägdag (${user.preferredWeighInDay || "måndag"}). Kom ihåg att logga din vikt!`,
               icon: "/icons/icon-192x192.png", badge: "/icons/badge-96x96.png", data: {url: "/?view=journey"},
             }
           };
@@ -554,13 +674,18 @@ const getDateUID = (date, timezone) => {
     return `${get("year")}-${get("month")}-${get("day")}`;
 };
 
-const wasCalorieGoalMetForSummary = (consumed, goal, goalType) => {
+const wasCalorieGoalMetForSummary = (consumed, goal, goalType, bankedCalories = 0) => {
     if (goal <= 0 || consumed <= 0) return false;
     switch (goalType) {
-        case "lose_fat": return consumed <= goal;
-        case "maintain": return Math.abs(consumed - goal) <= goal * 0.10;
-        case "gain_muscle": return consumed >= goal;
-        default: return Math.abs(consumed - goal) <= goal * 0.10;
+        case "lose_fat": 
+        case "maintain":
+            // Får ligga max 20% under målet, och får använda sparpott för att gå över
+            return consumed >= (goal * 0.8) && consumed <= (goal + bankedCalories);
+        case "gain_muscle": 
+            // Måste nå minst TDEE (mål - 300). Ingen strikt övre gräns.
+            return consumed >= (goal - 300);
+        default: 
+            return consumed >= (goal * 0.8) && consumed <= (goal + bankedCalories);
     }
 };
 
@@ -612,14 +737,29 @@ exports.manualSummarizeYesterday = functions
             }, {calories: 0});
 
             const minSafeCalories = Math.max(user.goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+            const bankedCalories = user.weeklyBank?.bankedCalories || 0;
             const wasDaySuccessful = dailyLogForDate.length > 0 &&
                 totalNutrients.calories >= minSafeCalories &&
-                wasCalorieGoalMetForSummary(totalNutrients.calories, user.goals.calorieGoal, user.goalType);
+                wasCalorieGoalMetForSummary(totalNutrients.calories, user.goals.calorieGoal, user.goalType, bankedCalories);
 
-            const newStreak = wasDaySuccessful ? (user.currentStreak || 0) + 1 : 0;
+            // Streak logic aligned with frontend: just needs activity (logs)
+            const hasActivity = dailyLogForDate.length > 0;
+            const newStreak = hasActivity ? (user.currentStreak || 0) + 1 : 0;
             const newHighestStreak = Math.max(user.highestStreak || 0, newStreak);
-            const bankedAmountThisDay = wasDaySuccessful && totalNutrients.calories < user.goals.calorieGoal ?
-                user.goals.calorieGoal - totalNutrients.calories : 0;
+            
+            // Banked amount logic
+            let bankedAmountThisDay = 0;
+            let usedFromBank = 0;
+            if (user.goalType === 'lose_fat' || user.goalType === 'maintain') {
+                if (totalNutrients.calories >= minSafeCalories && totalNutrients.calories < user.goals.calorieGoal) {
+                    bankedAmountThisDay = user.goals.calorieGoal - totalNutrients.calories;
+                } else if (totalNutrients.calories > user.goals.calorieGoal) {
+                    const excess = totalNutrients.calories - user.goals.calorieGoal;
+                    if (bankedCalories >= excess) {
+                        usedFromBank = excess;
+                    }
+                }
+            }
 
             const summaryData = {
                 date: yesterdayDateUID,
@@ -637,7 +777,7 @@ exports.manualSummarizeYesterday = functions
                     currentStreak: newStreak, 
                     highestStreak: newHighestStreak, 
                     lastDateStreakChecked: yesterdayDateUID, 
-                    "weeklyBank.bankedCalories": admin.firestore.FieldValue.increment(bankedAmountThisDay)
+                    "weeklyBank.bankedCalories": admin.firestore.FieldValue.increment(bankedAmountThisDay - usedFromBank)
                 }, 
                 type: "update"
             });
@@ -663,46 +803,79 @@ exports.manualSummarizeYesterday = functions
 // NYTT: STRIPE INTEGRATION
 // ==========================================
 
-exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
+// ==========================================
+// NYTT: STRIPE INTEGRATION
+// ==========================================
+
+exports.createCheckoutSession = functions.runWith({ secrets: ["STRIPE_BOOTCAMP_PRICE"] }).https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Användaren är inte inloggad.');
     }
 
-    // Hämta priceId från .env ELLER molnet ELLER frontend
-    const priceId = process.env.STRIPE_PRICE_ID || data.priceId || getSafeConfig('stripe', 'price');
+    const mode = data.mode || 'subscription';
     const origin = data.returnUrl || 'https://app.kostloggen.se';
 
+    // Hämta rätt priceId beroende på om det är prenumeration eller engångsbetalning (Bootcamp)
+    let priceId = data.priceId;
     if (!priceId) {
-        console.error("Price ID is missing in both .env and functions.config()");
+        if (mode === 'payment') {
+            priceId = process.env.STRIPE_BOOTCAMP_PRICE || process.env.STRIPE_BOOTCAMP_PRICE_ID || getSafeConfig('stripe', 'bootcamp_price');
+        } else {
+            priceId = process.env.STRIPE_PRICE_ID || getSafeConfig('stripe', 'price');
+        }
+    }
+
+    if (!priceId) {
+        console.error(`Price ID is missing for mode: ${mode}`);
         throw new functions.https.HttpsError('internal', "Kunde inte hitta ett pris för produkten.");
     }
 
     try {
-        // --- FIX FÖR ACCOUNTS V2: Skapa kunden först för att stödja Sandbox-miljön ---
-        const userEmail = context.auth.token.email || data.email;
+        const userEmail = context.auth.token.email;
+        const userId = context.auth.uid;
         
-        logger.log("Skapar Stripe-kund för att förbereda Checkout:", userEmail);
-        
-        const customer = await stripe.customers.create({
+        // 1. Kolla om kunden redan finns i Stripe baserat på e-post
+        const existingCustomers = await stripe.customers.list({
             email: userEmail,
-            metadata: { firebaseUid: context.auth.uid }
+            limit: 1
         });
 
-        // Skapa sessionen kopplad till den nyskapade kunden
-        const session = await stripe.checkout.sessions.create({
-            customer: customer.id, // KRITISKT för Accounts V2
+        let customerId;
+
+        if (existingCustomers.data.length > 0) {
+            // Använd befintlig kund
+            customerId = existingCustomers.data[0].id;
+            console.log(`Hittade befintlig Stripe-kund för ${userEmail}: ${customerId}`);
+        } else {
+            // Skapa ny kund om ingen hittades
+            const newCustomer = await stripe.customers.create({
+                email: userEmail,
+                metadata: { firebaseUid: userId }
+            });
+            customerId = newCustomer.id;
+            console.log(`Skapade ny Stripe-kund för ${userEmail}: ${customerId}`);
+        }
+
+        // 2. Skapa checkout-sessionen och länka till kund-ID:t
+        const sessionConfig = {
             payment_method_types: ['card'],
-            mode: 'subscription',
+            mode: mode,
+            customer: customerId, // <-- Här använder vi kundens ID istället för att skapa ny varje gång
             line_items: [{ price: priceId, quantity: 1 }],
-            metadata: { firebaseUid: context.auth.uid },
+            metadata: { 
+                firebaseUid: userId,
+                ...(data.cohortId ? { cohortId: data.cohortId } : {})
+            },
             allow_promotion_codes: true,
             success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/cancel`,
-        });
+        };
+
+        const session = await stripe.checkout.sessions.create(sessionConfig);
         
         return { sessionId: session.id, url: session.url };
     } catch (error) {
-        console.error("Stripe fel i createCheckoutSession:", error);
+        console.error("Stripe fel:", error);
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
@@ -710,27 +883,77 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
 exports.cancelSubscription = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inte inloggad.');
 
+    // Starta Stripe direkt här inne med din vanliga nyckel-hämtning!
+    const stripeSecret = process.env.STRIPE_SECRET_KEY || getSafeConfig('stripe', 'secret');
+    const stripe = require("stripe")(stripeSecret);
+
     const userId = context.auth.uid;
+    
     try {
         const userSnapshot = await db.collection('users').doc(userId).get();
         const userData = userSnapshot.data();
 
         if (!userData || !userData.subscriptionId) {
-             throw new functions.https.HttpsError('failed-precondition', 'Ingen prenumeration.');
+             throw new functions.https.HttpsError('failed-precondition', 'Ingen prenumeration hittades.');
         }
 
         const subscription = await stripe.subscriptions.update(userData.subscriptionId, { cancel_at_period_end: true });
 
-        await db.collection('users').doc(userId).update({
+        // Säkerhetskudde för datumet så vi slipper "Invalid time value"
+        let periodEndIso = null;
+        if (subscription && subscription.current_period_end) {
+            periodEndIso = new Date(subscription.current_period_end * 1000).toISOString();
+        } else if (userData.currentPeriodEnd) {
+            periodEndIso = userData.currentPeriodEnd; 
+        }
+
+        const updateData = {
             subscriptionStatus: 'canceling',
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (periodEndIso) {
+            updateData.currentPeriodEnd = periodEndIso;
+        }
+
+        await db.collection('users').doc(userId).update(updateData);
+
+        return { success: true };
+    } catch (error) {
+        logger.error("Cancel Subscription Error:", error);
+        throw new functions.https.HttpsError('aborted', error.message || 'Kunde inte avsluta prenumerationen.');
+    }
+});
+
+exports.undoCancelSubscription = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inte inloggad.');
+
+    // Starta Stripe direkt här inne med din vanliga nyckel-hämtning!
+    const stripeSecret = process.env.STRIPE_SECRET_KEY || getSafeConfig('stripe', 'secret');
+    const stripe = require("stripe")(stripeSecret);
+
+    const userId = context.auth.uid;
+    
+    try {
+        const userSnapshot = await db.collection('users').doc(userId).get();
+        const userData = userSnapshot.data();
+
+        if (!userData || !userData.subscriptionId) {
+             throw new functions.https.HttpsError('failed-precondition', 'Ingen prenumeration hittades.');
+        }
+
+        const subscription = await stripe.subscriptions.update(userData.subscriptionId, { cancel_at_period_end: false });
+
+        await db.collection('users').doc(userId).update({
+            subscriptionStatus: 'active',
+            currentPeriodEnd: admin.firestore.FieldValue.delete(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
         return { success: true };
     } catch (error) {
-        logger.error("Cancel Subscription Error:", error);
-        throw new functions.https.HttpsError('internal', 'Kunde inte avsluta prenumerationen.');
+        logger.error("Undo Cancel Subscription Error:", error);
+        throw new functions.https.HttpsError('aborted', error.message || 'Kunde inte ångra uppsägningen.');
     }
 });
 
@@ -845,15 +1068,93 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     try {
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object;
-            const firebaseUid = session.metadata.firebaseUid;
+            const firebaseUid = session.metadata ? session.metadata.firebaseUid : null;
+            const cohortId = session.metadata ? session.metadata.cohortId : null;
 
-            await db.collection('users').doc(firebaseUid).update({
-                subscriptionStatus: 'active',
-                status: 'approved',
-                stripeCustomerId: session.customer,
-                subscriptionId: session.subscription,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+            if (firebaseUid) {
+                if (cohortId) {
+                    // It's a bootcamp payment
+                    let originalStartDate = null;
+                    if (cohortId === 'solo_group') {
+                        const today = new Date();
+                        originalStartDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    } else {
+                        const cohortDoc = await db.collection('bootcampCohorts').doc(cohortId).get();
+                        if (cohortDoc.exists) {
+                            originalStartDate = cohortDoc.data().startDate;
+                        }
+                    }
+
+                    await db.collection('bootcampCohorts').doc(cohortId).collection('participants').doc(firebaseUid).set({
+                        userId: firebaseUid,
+                        cohortId: cohortId,
+                        status: 'fas1',
+                        joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        bootcampOnboardingCompleted: false,
+                        originalStartDate: originalStartDate,
+                        fas1StartDate: originalStartDate,
+                        currentStreak: 0,
+                        longestStreak: 0,
+                        needsCoachAttention: false
+                    });
+                    
+                    // Update user profile to indicate they are in a course
+                    await db.collection('users').doc(firebaseUid).set({
+                        isCourseActive: true,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+
+                    // Send notification to coaches
+                    const userDoc = await db.collection('users').doc(firebaseUid).get();
+                    const userName = userDoc.exists ? (userDoc.data().displayName || userDoc.data().email || "En användare") : "En användare";
+                    const payload = {
+                        notification: {
+                            title: "Ny Bootcamp-deltagare! 🪖",
+                            body: `${userName} har precis anmält sig till Bootcampen!`,
+                            icon: "/icons/icon-192x192.png",
+                            badge: "/icons/badge-96x96.png",
+                            data: { url: "/" }
+                        }
+                    };
+                    const coachIds = await getCoachAndAdminIds();
+                    if (coachIds.length > 0) {
+                        const notificationPromises = coachIds.map((id) => sendNotificationToUser(id, payload, "newEvents"));
+                        await Promise.all(notificationPromises);
+                    }
+                } else {
+                    // It's a regular subscription
+                    await db.collection('users').doc(firebaseUid).set({
+                        subscriptionStatus: 'active',
+                        status: 'approved',
+                        stripeCustomerId: session.customer,
+                        subscriptionId: session.subscription,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+
+                    // Hämta användarens namn för notisen
+                    const userDoc = await db.collection('users').doc(firebaseUid).get();
+                    const userName = userDoc.exists ? (userDoc.data().displayName || userDoc.data().email || "En användare") : "En användare";
+
+                    // Skicka push-notis till coacher/admins
+                    const payload = {
+                        notification: {
+                            title: "Ny prenumerant! 🚀",
+                            body: `${userName} har precis startat sitt medlemskap!`,
+                            icon: "/icons/icon-192x192.png",
+                            badge: "/icons/badge-96x96.png",
+                            data: { url: "/" }
+                        }
+                    };
+
+                    const coachIds = await getCoachAndAdminIds();
+                    if (coachIds.length > 0) {
+                        const notificationPromises = coachIds.map((id) => sendNotificationToUser(id, payload, "newEvents"));
+                        await Promise.all(notificationPromises);
+                    }
+                }
+            } else {
+                logger.warn("No firebaseUid in session metadata for checkout.session.completed", { sessionId: session.id });
+            }
         } 
         else if (event.type === 'customer.subscription.updated') {
              const subscription = event.data.object;
@@ -909,4 +1210,183 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
     }
 
     res.json({received: true});
+});
+
+// ---- Schemalagd funktion för att publicera inlägg ----
+exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').onRun(async (context) => {
+    logger.log("Running publishScheduledPosts cron job");
+    
+    try {
+        // 1. Hämta alla aktiva bootcamps från rätt collection
+        const bootcampsSnapshot = await db.collection("bootcampCohorts").where("status", "==", "active").get();
+        const activeBootcamps = [];
+        bootcampsSnapshot.forEach(doc => {
+            activeBootcamps.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Se till att 'solo' alltid finns med om den har ett startdatum, även om status inte är 'active'
+        const soloDoc = await db.collection("bootcampCohorts").doc("solo").get();
+        if (soloDoc.exists && !activeBootcamps.find(b => b.id === 'solo')) {
+            activeBootcamps.push({ id: 'solo', ...soloDoc.data() });
+        }
+
+        if (activeBootcamps.length === 0) {
+            logger.log("No active bootcamps found. Exiting.");
+            return null;
+        }
+
+        // 2. Hämta alla schemalagda inlägg som väntar på att publiceras
+        const scheduledPostsSnapshot = await db.collection("scheduledPosts")
+            .where("status", "in", ["pending", "scheduled"])
+            .get();
+
+        if (scheduledPostsSnapshot.empty) {
+            logger.log("No pending scheduled posts found. Exiting.");
+            return null;
+        }
+
+        // Hämta nuvarande tid i Stockholm (Sverige)
+        const now = new Date();
+        const stockholmTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+        const currentHour = stockholmTime.getHours();
+        const currentMinute = stockholmTime.getMinutes();
+        const currentTimeString = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+        
+        const todayString = `${stockholmTime.getFullYear()}-${String(stockholmTime.getMonth() + 1).padStart(2, '0')}-${String(stockholmTime.getDate()).padStart(2, '0')}`;
+
+        const batch = db.batch();
+        let publishedCount = 0;
+
+        for (const postDoc of scheduledPostsSnapshot.docs) {
+            const postData = postDoc.data();
+            const { groupId, programWeek, programDay, publishTime = "08:00", publishedLog = {} } = postData;
+
+            // Kolla om tiden är inne (eller passerad för dagen)
+            if (currentTimeString < publishTime) {
+                continue; // Inte dags än
+            }
+
+            // Hitta bootcamps som matchar groupId ('all' eller specifikt ID)
+            const targetBootcamps = groupId === 'all' 
+                ? activeBootcamps 
+                : activeBootcamps.filter(b => b.id === groupId);
+
+            let postUpdated = false;
+
+            for (const bootcamp of targetBootcamps) {
+                // Har vi redan publicerat detta inlägg till denna bootcamp idag?
+                if (publishedLog[bootcamp.id] === todayString) {
+                    continue;
+                }
+
+                // Beräkna vilken vecka och dag bootcampen är på just nu
+                if (!bootcamp.startDate) continue;
+                
+                // Hantera startDate som kan vara en string (YYYY-MM-DD) eller en Firestore Timestamp
+                let startStockholmString;
+                if (typeof bootcamp.startDate === 'string') {
+                    startStockholmString = bootcamp.startDate.split('T')[0];
+                } else if (bootcamp.startDate && typeof bootcamp.startDate.toDate === 'function') {
+                    const d = bootcamp.startDate.toDate();
+                    const st = new Date(d.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+                    startStockholmString = `${st.getFullYear()}-${String(st.getMonth() + 1).padStart(2, '0')}-${String(st.getDate()).padStart(2, '0')}`;
+                } else {
+                    continue;
+                }
+
+                const startDate = new Date(startStockholmString);
+                const today = new Date(todayString);
+
+                // Om startdatumet är i framtiden, hoppa över
+                if (today < startDate) continue;
+
+                const diffTime = Math.abs(today - startDate);
+                // Använd Math.round för att undvika problem med sommartid/vintertid (där ett dygn kan vara 23 eller 25 timmar)
+                let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); 
+                
+                // Looop-logik för Solo (12 veckor = 84 dagar)
+                if (bootcamp.id === 'solo') {
+                    diffDays = diffDays % 84;
+                }
+
+                // Beräkna vecka (1-12) och dag (1-7)
+                // diffDays = 0 -> Vecka 1, Dag 1
+                // diffDays = 6 -> Vecka 1, Dag 7
+                // diffDays = 7 -> Vecka 2, Dag 1
+                const currentWeek = Math.floor(diffDays / 7) + 1;
+                const currentDay = (diffDays % 7) + 1;
+
+                // Kolla om inlägget ska publiceras idag för denna bootcamp
+                if (currentWeek === programWeek && currentDay === programDay) {
+                    
+                    // Kolla om det är exkluderat
+                    if (postData.excludedGroups && postData.excludedGroups.includes(bootcamp.id)) {
+                        continue;
+                    }
+
+                    // Skapa inlägget i communityTimeline istället så det syns i appens flöde
+                    const eventId = `post_system_${bootcamp.id}_${Date.now()}`;
+                    const newPostRef = db.collection("communityTimeline").doc(eventId);
+                    
+                    let title = 'delade ett meddelande till truppen';
+                    let userName = 'General Börje';
+                    let userPhotoURL = '/coach-borje.png';
+                    let icon = '🪖';
+
+                    if (bootcamp.id === 'solo') {
+                        title = 'delade ett meddelande till Solo-gruppen';
+                    } else if (bootcamp.id === 'all') {
+                        title = 'delade ett meddelande till alla';
+                    }
+
+                    batch.set(newPostRef, {
+                        type: 'user_post',
+                        timestamp: Date.now(),
+                        title: title,
+                        description: postData.content,
+                        icon: icon,
+                        userId: 'system',
+                        userName: userName,
+                        userPhotoURL: userPhotoURL,
+                        gender: 'female',
+                        visibleTo: bootcamp.id === 'all' ? ['GLOBAL'] : [bootcamp.id],
+                        reactions: {},
+                        comments: [],
+                        relatedDocPath: `bootcampCohorts/${bootcamp.id}/posts/${eventId}`,
+                        category: postData.category || "general",
+                        isGlobal: bootcamp.id === 'all',
+                        isOfficial: true,
+                        bootcampId: bootcamp.id === 'all' ? null : bootcamp.id
+                    });
+
+                    // Uppdatera loggen så vi inte publicerar igen idag
+                    publishedLog[bootcamp.id] = todayString;
+                    postUpdated = true;
+                    publishedCount++;
+                }
+            }
+
+            if (postUpdated) {
+                batch.update(postDoc.ref, {
+                    publishedLog: publishedLog,
+                    // Vi ändrar inte status till "published" om det är 'all' eller 'solo' eftersom det kan behöva köras igen.
+                    // Men för att hålla databasen ren kan vi sätta status = published om groupId inte är 'all' och inte 'solo'.
+                    ...(groupId !== 'all' && groupId !== 'solo' ? { status: "published" } : {})
+                });
+            }
+        }
+
+        if (publishedCount > 0) {
+            await batch.commit();
+            logger.log(`Successfully published ${publishedCount} scheduled posts.`);
+        } else {
+            logger.log("No scheduled posts matched the current date/time for active bootcamps.");
+        }
+
+        return null;
+
+    } catch (error) {
+        logger.error("Error in publishScheduledPosts:", error);
+        return null;
+    }
 });

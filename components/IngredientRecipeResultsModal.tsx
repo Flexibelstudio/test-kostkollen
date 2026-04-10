@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
-import { XMarkIcon, SparklesIcon, FireIcon, ProteinIcon, LeafIcon, CheckIcon as LogIcon, InformationCircleIcon } from './icons';
+import { XMarkIcon, SparklesIcon, FireIcon, ProteinIcon, LeafIcon, CheckIcon as LogIcon, InformationCircleIcon, ShareIcon } from './icons';
 import { playAudio } from '../services/audioService';
 import MealTypeSelector from './MealTypeSelector';
 
@@ -15,6 +15,8 @@ interface IngredientRecipeResultsModalProps {
   error: string | null;
   isLoggingDisabled?: boolean;
   defaultMealType?: MealType | null;
+  onSaveRecipe?: (recipe: RecipeSuggestion) => void;
+  savedRecipeIds?: Set<string>;
 }
 
 const parseServings = (servingsStr: string | undefined): number => {
@@ -37,6 +39,8 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
   error,
   isLoggingDisabled = false,
   defaultMealType = null,
+  onSaveRecipe,
+  savedRecipeIds = new Set(),
 }) => {
   const [portionsToLog, setPortionsToLog] = useState<{ [recipeTitle: string]: string }>({});
   const [selectedMealTypes, setSelectedMealTypes] = useState<{ [recipeTitle: string]: MealType | null }>({});
@@ -89,6 +93,34 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
     };
     onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealTypes[recipe.title] as MealType });
     onClose(); // Close modal immediately after logging
+  };
+
+  const handleShareRecipe = async (recipe: RecipeSuggestion) => {
+    playAudio('uiClick');
+
+    const ingredientsText = recipe.ingredients.map(ing => `- ${ing.item}`).join('\n');
+    const instructionsText = recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
+    
+    const shareText = `Recept: ${recipe.title}\n\n${recipe.description}\n\nFörberedelsetid: ${recipe.prepTime}\nTillagningstid: ${recipe.cookTime}\nPortioner: ${recipe.servings}\n\nIngredienser:\n${ingredientsText}\n\nInstruktioner:\n${instructionsText}\n${recipe.chefTip ? `\nKockens tips: ${recipe.chefTip}\n` : '\n'}Delat från Kostloggen.se`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Recept: ${recipe.title}`,
+          text: shareText,
+        });
+      } catch (err) {
+        console.error('Error sharing recipe:', err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        alert('Receptet har kopierats till urklipp!');
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+        alert('Kunde inte kopiera receptet.');
+      }
+    }
   };
   
   // FIX: Changed 'icon' type from JSX.Element to React.ReactNode to resolve namespace error.
@@ -219,13 +251,36 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                             </div>
                         </div>
 
-                        <button
-                          onClick={() => handleLog(recipe)}
-                          disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0 || !selectedMealTypes[recipe.title]}
-                          className="w-full mt-2 px-4 py-2 text-sm font-medium text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
-                        >
-                          <LogIcon className="w-4 h-4 mr-2" /> Logga Recept
-                        </button>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => handleLog(recipe)}
+                            disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0 || !selectedMealTypes[recipe.title]}
+                            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
+                          >
+                            <LogIcon className="w-4 h-4 mr-2" /> Logga Recept
+                          </button>
+                          <button
+                            onClick={() => handleShareRecipe(recipe)}
+                            className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
+                            title="Dela receptet"
+                          >
+                            <ShareIcon className="w-4 h-4" />
+                          </button>
+                          {onSaveRecipe && (
+                            <button
+                              onClick={() => onSaveRecipe(recipe)}
+                              disabled={savedRecipeIds.has(recipe.title)}
+                              className={`px-4 py-2 text-sm font-medium rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center ${savedRecipeIds.has(recipe.title) ? 'bg-green-500 text-white' : 'bg-primary text-white hover:bg-primary-darker'}`}
+                              title={savedRecipeIds.has(recipe.title) ? "Receptet är sparat" : "Spara recept"}
+                            >
+                              {savedRecipeIds.has(recipe.title) ? (
+                                <span className="text-lg">✅</span>
+                              ) : (
+                                <span className="text-lg">📌</span>
+                              )}
+                            </button>
+                          )}
+                        </div>
                         {isLoggingDisabled && (
                             <p className="text-xs text-orange-500 text-center mt-1">Loggning är endast tillgänglig för idag.</p>
                         )}

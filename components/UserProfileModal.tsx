@@ -5,6 +5,8 @@ import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS 
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
 import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
+import ToastNotification from './ToastNotification';
+import ProteinInfoModal from './ProteinInfoModal';
 
 
 export const Avatar: React.FC<{
@@ -60,6 +62,8 @@ interface UserProfileModalProps {
   aiFeedbackMessage?: AIStructuredFeedbackResponse | string | null;
   aiFeedbackError?: string | null;
   onSubscribeToPush: () => Promise<boolean>;
+  isBootcampOnboarding?: boolean;
+  isBootcampActive?: boolean;
 }
 
 const resizeImage = (file: File, maxSize: number): Promise<string> => {
@@ -169,14 +173,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   aiFeedbackMessage = null,
   aiFeedbackError = null,
   onSubscribeToPush,
+  isBootcampOnboarding = false,
+  isBootcampActive = false,
 }) => {
 
     const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
     const [isSubscribing, setIsSubscribing] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
     
     // Get Persona Details based on profile
     const coachStyle = initialProfile.coachStyle || 'balanced';
-    const persona = COACH_PERSONAS[coachStyle];
+    const persona = COACH_PERSONAS[coachStyle] || COACH_PERSONAS['balanced'];
     
     // Theme colors based on coach style
     let coachTheme = { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', iconBg: 'bg-blue-100', iconText: 'text-blue-600' };
@@ -244,38 +252,39 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   ];
 
   const getInitialProfileForState = useCallback(() => {
-    // For onboarding, clear some fields to ensure a fresh start
+    // For onboarding, we want to use any pre-filled data (like weight from Bootcamp onboarding)
+    // but ensure we have sensible defaults for other fields.
     if (isOnboarding) {
       return {
         name: initialProfile?.name || undefined,
         photoURL: initialProfile?.photoURL || undefined,
-        currentWeightKg: undefined,
-        heightCm: undefined,
-        ageYears: undefined,
+        currentWeightKg: initialProfile?.currentWeightKg || undefined,
+        heightCm: initialProfile?.heightCm || undefined,
+        ageYears: initialProfile?.ageYears || undefined,
         gender: initialProfile?.gender || DEFAULT_USER_PROFILE.gender,
         activityLevel: initialProfile?.activityLevel || DEFAULT_USER_PROFILE.activityLevel,
-        goalType: deriveEffectiveGoalType({}),
-        measurementMethod: 'inbody',
-        desiredWeightChangeKg: undefined,
-        skeletalMuscleMassKg: undefined,
-        bodyFatMassKg: undefined,
-        desiredFatMassChangeKg: undefined,
-        desiredMuscleMassChangeKg: undefined,
-        goalCompletionDate: undefined,
+        goalType: initialProfile?.goalType || deriveEffectiveGoalType({}),
+        measurementMethod: initialProfile?.measurementMethod || 'inbody',
+        desiredWeightChangeKg: initialProfile?.desiredWeightChangeKg || undefined,
+        skeletalMuscleMassKg: initialProfile?.skeletalMuscleMassKg || undefined,
+        bodyFatMassKg: initialProfile?.bodyFatMassKg || undefined,
+        desiredFatMassChangeKg: initialProfile?.desiredFatMassChangeKg || undefined,
+        desiredMuscleMassChangeKg: initialProfile?.desiredMuscleMassChangeKg || undefined,
+        goalCompletionDate: initialProfile?.goalCompletionDate || undefined,
         isCourseActive: false,
         courseInterest: false,
         isSearchable: true, // Default to searchable for new users
         notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
-        coachStyle: initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle,
+        coachStyle: isBootcampOnboarding ? 'hard' : (initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle),
       } as UserProfileData;
     }
     // For editing, use the complete existing profile but ensure defaults for new fields
     return {
         ...DEFAULT_USER_PROFILE,
         ...(initialProfile || {}),
-        coachStyle: initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle
+        coachStyle: (isBootcampActive || isBootcampOnboarding) ? 'hard' : (initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle)
     } as UserProfileData;
-  }, [isOnboarding, initialProfile]);
+  }, [isOnboarding, initialProfile, isBootcampOnboarding, isBootcampActive]);
 
   const [profile, setProfile] = useState<UserProfileData>(getInitialProfileForState());
   const [newPhotoDataUrl, setNewPhotoDataUrl] = useState<string | null>(null);
@@ -366,6 +375,22 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             updatedProfile.desiredMuscleMassChangeKg = 0;
         }
 
+        if (isBootcampOnboarding && name === 'desiredWeightChangeKg' && typeof updatedValue === 'number') {
+            if (updatedValue > 0) updatedProfile.desiredWeightChangeKg = 0;
+            if (updatedValue < -12) {
+                updatedProfile.desiredWeightChangeKg = -12;
+                setToast({ message: "Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.", type: 'error' });
+            }
+        }
+
+        if (isBootcampOnboarding && name === 'desiredFatMassChangeKg' && typeof updatedValue === 'number') {
+            if (updatedValue > 0) updatedProfile.desiredFatMassChangeKg = 0;
+            if (updatedValue < -12) {
+                updatedProfile.desiredFatMassChangeKg = -12;
+                setToast({ message: "Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.", type: 'error' });
+            }
+        }
+
         // Enforce one goal at a time for 'inbody'
         if (name === 'desiredFatMassChangeKg' && value !== '' && parseFloat(value) !== 0) {
             updatedProfile.desiredMuscleMassChangeKg = null;
@@ -436,6 +461,22 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           newValue = 0;
       }
 
+      if (isBootcampOnboarding && field === 'desiredWeightChangeKg') {
+          if (newValue > 0) newValue = 0;
+          if (newValue < -12) {
+              newValue = -12;
+              setToast({ message: "Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.", type: 'error' });
+          }
+      }
+
+      if (isBootcampOnboarding && field === 'desiredFatMassChangeKg') {
+          if (newValue > 0) newValue = 0;
+          if (newValue < -12) {
+              newValue = -12;
+              setToast({ message: "Generalen tillåter max -12 kg som mål under en 12-veckors bootcamp.", type: 'error' });
+          }
+      }
+
       const updatedProfile = { ...prev, [field]: newValue };
 
       // Enforce one goal at a time for 'inbody'
@@ -499,7 +540,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     ? (
         !!profile.name?.trim() &&
         !!profile.gender &&
-        !!profile.coachStyle &&
+        (isBootcampOnboarding || !!profile.coachStyle) &&
         (profile.currentWeightKg || 0) > 0 && 
         (profile.heightCm || 0) > 0 && 
         (profile.ageYears || 0) > 0
@@ -524,7 +565,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             )}
           </div>
           <h2 id="user-profile-modal-title" className="text-2xl sm:text-3xl font-bold text-neutral-dark">
-            {isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
+            {isBootcampOnboarding ? 'Starta Bootcamp' :
+             isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
              isOnboarding && onboardingStep === 'feedback' ? `Coach: ${persona.label}, ${persona.roleTitle}` :
              'Redigera Profil'}
           </h2>
@@ -539,10 +581,27 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </button>
       </div>
 
-      {isOnboarding && onboardingStep === 'form' && (
+      {toast && (
+        <ToastNotification
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {isOnboarding && onboardingStep === 'form' && !isBootcampOnboarding && (
         <p className="text-lg text-neutral-dark mb-6 bg-primary-100/70 p-4 rounded-md border border-primary-200">
           Välkommen, vänligen fyll i formuläret nedan så börjar vi din resa.
         </p>
+      )}
+      
+      {isBootcampOnboarding && (
+        <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl mb-6">
+          <p className="text-sm text-orange-800 font-medium">
+            <strong>Viktigt:</strong> När du startar bootcampen sätts ditt mål automatiskt till "Gå ner i vikt". 
+            Dina kalorier och makros kommer att räknas om baserat på dina nya värden.
+          </p>
+        </div>
       )}
 
       {isOnboarding && onboardingStep === 'feedback' ? (
@@ -592,53 +651,67 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
       ) : (
         <form onSubmit={handleSaveProfileAndGoals} className="space-y-6">
-            <section aria-labelledby="profile-picture-heading">
-                <h3 id="profile-picture-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Profilbild</h3>
-                <div className="flex items-center gap-5">
-                    <Avatar photoURL={newPhotoDataUrl || profile.photoURL} gender={profile.gender} size={80} />
-                    <div>
-                        <label htmlFor="photoUpload" className="cursor-pointer px-4 py-2 bg-neutral-light hover:bg-gray-300 text-neutral-dark font-medium rounded-md shadow-sm interactive-transition">
-                            Välj ny bild...
-                        </label>
-                        <input type="file" id="photoUpload" className="hidden" accept="image/png, image/jpeg" onChange={handleImageSelect} />
-                        <p className="text-xs text-neutral mt-2">Stora bilder skalas ned automatiskt.</p>
-                    </div>
-                </div>
-            </section>
-
-            <section aria-labelledby="profile-details-heading">
-                <h3 id="profile-details-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Personliga detaljer</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
-                    <div>
-                        <label htmlFor="name" className="block text-base font-medium text-neutral-dark">Ditt namn *</label>
-                        <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleProfileChange} className={inputClass} placeholder="T.ex. ditt förnamn" required />
-                    </div>
-                    {isOnboarding && (
+            {!isBootcampOnboarding && (
+                <section aria-labelledby="profile-picture-heading">
+                    <h3 id="profile-picture-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Profilbild</h3>
+                    <div className="flex items-center gap-5">
+                        <Avatar photoURL={newPhotoDataUrl || profile.photoURL} gender={profile.gender} size={80} />
                         <div>
-                            <label htmlFor="currentWeightKg" className="block text-base font-medium text-neutral-dark">Nuvarande vikt (kg) *</label>
-                            <input type="number" name="currentWeightKg" id="currentWeightKg" value={profile.currentWeightKg == null ? '' : profile.currentWeightKg} onChange={handleProfileChange} className={inputClass} min="1" step="0.1" placeholder="T.ex. 70" required />
+                            <label htmlFor="photoUpload" className="cursor-pointer px-4 py-2 bg-neutral-light hover:bg-gray-300 text-neutral-dark font-medium rounded-md shadow-sm interactive-transition">
+                                Välj ny bild...
+                            </label>
+                            <input type="file" id="photoUpload" className="hidden" accept="image/png, image/jpeg" onChange={handleImageSelect} />
+                            <p className="text-xs text-neutral mt-2">Stora bilder skalas ned automatiskt.</p>
                         </div>
-                    )}
-                    <div>
-                        <label htmlFor="heightCm" className="block text-base font-medium text-neutral-dark">Längd (cm) *</label>
-                        <input type="number" name="heightCm" id="heightCm" value={profile.heightCm == null ? '' : profile.heightCm} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 170" required />
                     </div>
-                    <div>
-                        <label htmlFor="ageYears" className="block text-base font-medium text-neutral-dark">Ålder (år) *</label>
-                        <input type="number" name="ageYears" id="ageYears" value={profile.ageYears == null ? '' : profile.ageYears} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 30" required />
+                </section>
+            )}
+
+            {!isBootcampOnboarding && (
+                <section aria-labelledby="profile-details-heading">
+                    <h3 id="profile-details-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Personliga detaljer</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+                        <div>
+                            <label htmlFor="name" className="block text-base font-medium text-neutral-dark">Ditt namn *</label>
+                            <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleProfileChange} className={inputClass} placeholder="T.ex. ditt förnamn" required />
+                        </div>
+                        {isOnboarding && (
+                            <div>
+                                <label htmlFor="currentWeightKg" className="block text-base font-medium text-neutral-dark">Nuvarande vikt (kg) *</label>
+                                <input type="number" name="currentWeightKg" id="currentWeightKg" value={profile.currentWeightKg == null ? '' : profile.currentWeightKg} onChange={handleProfileChange} className={inputClass} min="1" step="0.1" placeholder="T.ex. 70" required />
+                            </div>
+                        )}
+                        <div>
+                            <label htmlFor="heightCm" className="block text-base font-medium text-neutral-dark">Längd (cm) *</label>
+                            <input type="number" name="heightCm" id="heightCm" value={profile.heightCm == null ? '' : profile.heightCm} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 170" required />
+                        </div>
+                        <div>
+                            <label htmlFor="ageYears" className="block text-base font-medium text-neutral-dark">Ålder (år) *</label>
+                            <input type="number" name="ageYears" id="ageYears" value={profile.ageYears == null ? '' : profile.ageYears} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 30" required />
+                        </div>
+                        <div>
+                            <label htmlFor="gender" className="block text-base font-medium text-neutral-dark">Kön *</label>
+                            <select name="gender" id="gender" value={profile.gender} onChange={handleProfileChange} className={selectClass} required>
+                                <option value="female">Kvinna</option>
+                                <option value="male">Man</option>
+                            </select>
+                        </div>
                     </div>
-                    <div>
-                        <label htmlFor="gender" className="block text-base font-medium text-neutral-dark">Kön *</label>
-                        <select name="gender" id="gender" value={profile.gender} onChange={handleProfileChange} className={selectClass} required>
-                            <option value="female">Kvinna</option>
-                            <option value="male">Man</option>
-                        </select>
-                    </div>
-                </div>
-            </section>
+                </section>
+            )}
             
             <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
                 <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
+                
+                {(isBootcampOnboarding || isBootcampActive) && (
+                    <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start text-orange-800">
+                        <InformationCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm">
+                            Du deltar just nu i en bootcamp och har därför Börje som din dedikerade coach. Det går inte att byta coach under pågående bootcamp.
+                        </p>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
                         const p = COACH_PERSONAS[style];
@@ -657,17 +730,24 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         }
 
                         const isSelected = profile.coachStyle === style;
+                        const isDisabled = isBootcampOnboarding || isBootcampActive;
 
                         return (
                             <button
                                 type="button"
                                 key={style}
-                                onClick={() => setProfile(prev => ({ ...prev, coachStyle: style }))}
+                                onClick={() => {
+                                    if (isDisabled) {
+                                        setToast({ message: "Du kan inte byta coach under en pågående bootcamp.", type: 'error' });
+                                        return;
+                                    }
+                                    setProfile(prev => ({ ...prev, coachStyle: style }));
+                                }}
                                 className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center ${
                                     isSelected
                                         ? `${colorClasses} shadow-md`
                                         : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300 text-neutral-dark'
-                                }`}
+                                } ${isDisabled && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
                                     {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover rounded-xl" /> : p.emoji}
@@ -711,73 +791,93 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         </div>
                     </section>
                     
-                    <section aria-labelledby="measurement-method-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                        <h4 id="measurement-method-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Hur mäter du dig?</h4>
-                        <p className="text-sm text-neutral mb-4">
-                            Välj InBody om du har tillgång till en våg som mäter muskel- och fettmassa. Välj Vanlig våg om du använder en vanlig personvåg.
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
-                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
-                            >
-                                InBody / Avancerad våg
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
-                                className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'}`}
-                            >
-                                Vanlig våg
-                            </button>
-                        </div>
-                    </section>
+                    {!isBootcampOnboarding && (
+                        <section aria-labelledby="measurement-method-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                            <h4 id="measurement-method-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Hur mäter du dig?</h4>
+                            <p className="text-sm text-neutral mb-4">
+                                Välj InBody om du har tillgång till en våg som mäter muskel- och fettmassa. Välj Vanlig våg om du använder en vanlig personvåg.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => !isBootcampActive && setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
+                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isBootcampActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={isBootcampActive}
+                                >
+                                    InBody / Avancerad våg
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => !isBootcampActive && setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
+                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isBootcampActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={isBootcampActive}
+                                >
+                                    Vanlig våg
+                                </button>
+                            </div>
+                        </section>
+                    )}
 
                     <section aria-labelledby="body-composition-goals-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
                         <h4 id="body-composition-goals-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Önskad förändring i kroppssammansättning</h4>
-                        <p className="text-sm text-neutral mb-4">
-                            Ange hur du önskar förändra din vikt/massa. Detta hjälper oss att skräddarsy dina rekommendationer.
-                        </p>
+                        
+                        {isBootcampActive && (
+                            <div className="mb-4 p-3 bg-neutral-light rounded-md border border-neutral-200 flex items-start gap-2">
+                                <InformationCircleIcon className="w-5 h-5 text-neutral mt-0.5 flex-shrink-0" />
+                                <p className="text-sm text-neutral-dark">
+                                    <strong>Målet är låst under din Bootcamp.</strong> För att behålla fokus kan du inte ändra ditt primära mål eller målvikt just nu. Du kan dock fortfarande justera ditt kalori- och proteinintag samt aktivitetsnivå nedan.
+                                </p>
+                            </div>
+                        )}
+
+                        {!isBootcampActive && (
+                            <p className="text-sm text-neutral mb-4">
+                                Ange hur du önskar förändra din vikt/massa. Detta hjälper oss att skräddarsy dina rekommendationer.
+                            </p>
+                        )}
                         
                         {profile.measurementMethod === 'scale' ? (
                              <div className="animate-fade-in">
                                 <label htmlFor="desiredWeightChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad viktförändring (kg)</label>
                                 <div className="flex items-center space-x-2">
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad viktförändring">-</button>
-                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad viktförändring">+</button>
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad viktförändring" disabled={isBootcampActive}>-</button>
+                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampActive} />
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad viktförändring" disabled={isBootcampActive}>+</button>
                                 </div>
-                                <p className="text-xs text-neutral mt-1">Negativt för minskning (t.ex. -5), positivt för ökning.</p>
+                                <p className="text-xs text-neutral mt-1">Negativt för minskning (t.ex. -5){!isBootcampOnboarding && ', positivt för ökning'}.</p>
                             </div>
                         ) : (
                             <div className="space-y-5 animate-fade-in">
                                 <div>
                                     <label htmlFor="desiredFatMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad fettmassaförändring (kg)</label>
                                     <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad fettmassaförändring">-</button>
-                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" placeholder="0.0"/>
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad fettmassaförändring">+</button>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad fettmassaförändring" disabled={isBootcampActive}>-</button>
+                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampActive} />
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad fettmassaförändring" disabled={isBootcampActive}>+</button>
                                     </div>
                                     <p className="text-xs text-neutral mt-1">Sätt ett mål för antingen fett eller muskler.</p>
                                 </div>
-                                <div>
-                                    <label htmlFor="desiredMuscleMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad muskelmassaförändring (kg)</label>
-                                    <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad muskelmassaförändring">-</button>
-                                        <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" min="0" placeholder="0.0"/>
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad muskelmassaförändring">+</button>
+                                {!isBootcampOnboarding && (
+                                    <div>
+                                        <label htmlFor="desiredMuscleMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad muskelmassaförändring (kg)</label>
+                                        <div className="flex items-center space-x-2">
+                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad muskelmassaförändring" disabled={isBootcampActive}>-</button>
+                                            <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" min="0" placeholder="0.0" disabled={isBootcampActive} />
+                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad muskelmassaförändring" disabled={isBootcampActive}>+</button>
+                                        </div>
+                                        <p className="text-xs text-neutral mt-1">Sätt ett mål för antingen fett eller muskler.</p>
                                     </div>
-                                    <p className="text-xs text-neutral mt-1">Sätt ett mål för antingen fett eller muskler.</p>
-                                </div>
+                                )}
                             </div>
                         )}
 
-                        <div className="mt-5">
-                            <label htmlFor="goalCompletionDate" className="block text-base font-medium text-neutral-dark mb-1.5">Måldatum</label>
-                            <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} />
-                            <p className="text-xs text-neutral mt-1">När vill du ha uppnått detta mål?</p>
-                        </div>
+                        {!isBootcampOnboarding && (
+                            <div className="mt-5">
+                                <label htmlFor="goalCompletionDate" className="block text-base font-medium text-neutral-dark mb-1.5">Måldatum</label>
+                                <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} disabled={isBootcampActive} />
+                                <p className="text-xs text-neutral mt-1">När vill du ha uppnått detta mål?</p>
+                            </div>
+                        )}
                         <div className="mt-3 p-3 bg-primary-100/60 rounded-md border border-primary-200">
                             <p className="text-base font-medium text-neutral-dark">
                                 Baserat på dina val blir ditt primära mål: <strong className="text-primary">{goalTypeDisplayMap[profile.goalType]}</strong>
@@ -785,23 +885,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         </div>
                     </section>
                     
-                    <section aria-labelledby="inbody-values-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                        <h4 id="inbody-values-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Faktisk kroppssammansättning (valfritt)</h4>
-                        <p className="text-sm text-neutral-dark mb-3 flex items-center">
-                            <InformationCircleIcon className="w-5 h-5 mr-1.5 text-secondary flex-shrink-0" />
-                            Om du har gjort en InBody-mätning eller liknande kan du fylla i dina värden här. Detta används inte direkt för rekommendationer men kan vara bra att spara.
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
-                            <div>
-                                <label htmlFor="skeletalMuscleMassKg" className="block text-base font-medium text-neutral-dark">Skelettmuskelmassa (kg)</label>
-                                <input type="number" name="skeletalMuscleMassKg" id="skeletalMuscleMassKg" value={profile.skeletalMuscleMassKg == null ? '' : profile.skeletalMuscleMassKg} onChange={handleProfileChange} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
+                    {!isBootcampOnboarding && (
+                        <section aria-labelledby="inbody-values-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                            <h4 id="inbody-values-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Faktisk kroppssammansättning (valfritt)</h4>
+                            <p className="text-sm text-neutral-dark mb-3 flex items-center">
+                                <InformationCircleIcon className="w-5 h-5 mr-1.5 text-secondary flex-shrink-0" />
+                                Om du har gjort en InBody-mätning eller liknande kan du fylla i dina värden här. Detta används inte direkt för rekommendationer men kan vara bra att spara.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+                                <div>
+                                    <label htmlFor="skeletalMuscleMassKg" className="block text-base font-medium text-neutral-dark">Skelettmuskelmassa (kg)</label>
+                                    <input type="number" name="skeletalMuscleMassKg" id="skeletalMuscleMassKg" value={profile.skeletalMuscleMassKg == null ? '' : profile.skeletalMuscleMassKg} onChange={handleProfileChange} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
+                                </div>
+                                <div>
+                                    <label htmlFor="bodyFatMassKg" className="block text-base font-medium text-neutral-dark">Kroppsfettmassa (kg)</label>
+                                    <input type="number" name="bodyFatMassKg" id="bodyFatMassKg" value={profile.bodyFatMassKg == null ? '' : profile.bodyFatMassKg} onChange={handleProfileChange} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
+                                </div>
                             </div>
-                            <div>
-                                <label htmlFor="bodyFatMassKg" className="block text-base font-medium text-neutral-dark">Kroppsfettmassa (kg)</label>
-                                <input type="number" name="bodyFatMassKg" id="bodyFatMassKg" value={profile.bodyFatMassKg == null ? '' : profile.bodyFatMassKg} onChange={handleProfileChange} className={inputClass} min="0" step="0.1" placeholder="Valfritt" />
-                            </div>
-                        </div>
-                    </section>
+                        </section>
+                    )}
                     
                     <section aria-labelledby="recommendations-heading" className="mt-6 pt-6 border-t border-neutral-light/70">
                         <h3 id="recommendations-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Dina dagliga mål</h3>
@@ -817,7 +919,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             />
                         </div>
 
-                        {recommendations ? (
+                        {(recommendations || isManualGoalMode) ? (
                             <div className={`p-4 rounded-lg space-y-4 border ${isManualGoalMode ? 'bg-white border-neutral-light' : 'bg-primary-100/60 border-primary-200/80'}`}>
                                 <p className="text-neutral-dark">
                                     {isManualGoalMode 
@@ -835,7 +937,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         <input 
                                             type="number" 
                                             name="calorieGoal"
-                                            value={isManualGoalMode ? manualGoals.calorieGoal : Math.round(recommendations.recommendedCalories)}
+                                            value={isManualGoalMode ? manualGoals.calorieGoal : Math.round(recommendations?.recommendedCalories || 0)}
                                             onChange={handleManualGoalChange}
                                             disabled={!isManualGoalMode}
                                             className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
@@ -847,11 +949,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     <div>
                                         <label className="block text-sm font-medium text-neutral-dark flex items-center mb-1">
                                             <span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Protein">💪</span> Protein (g)
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setShowProteinInfoModal(true)}
+                                                className="ml-1.5 text-neutral-400 hover:text-primary transition-colors"
+                                                aria-label="Information om proteinmål"
+                                            >
+                                                <InformationCircleIcon className="w-4 h-4" />
+                                            </button>
                                         </label>
                                         <input 
                                             type="number" 
                                             name="proteinGoal"
-                                            value={isManualGoalMode ? manualGoals.proteinGoal : Math.round(recommendations.recommendedProteinGrams)}
+                                            value={isManualGoalMode ? manualGoals.proteinGoal : Math.round(recommendations?.recommendedProteinGrams || 0)}
                                             onChange={handleManualGoalChange}
                                             disabled={!isManualGoalMode}
                                             className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
@@ -866,7 +976,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         <input 
                                             type="number" 
                                             name="carbohydrateGoal"
-                                            value={isManualGoalMode ? manualGoals.carbohydrateGoal : Math.round(recommendations.recommendedCarbsGrams)}
+                                            value={isManualGoalMode ? manualGoals.carbohydrateGoal : Math.round(recommendations?.recommendedCarbsGrams || 0)}
                                             onChange={handleManualGoalChange}
                                             disabled={!isManualGoalMode}
                                             className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
@@ -881,7 +991,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         <input 
                                             type="number" 
                                             name="fatGoal"
-                                            value={isManualGoalMode ? manualGoals.fatGoal : Math.round(recommendations.recommendedFatGrams)}
+                                            value={isManualGoalMode ? manualGoals.fatGoal : Math.round(recommendations?.recommendedFatGrams || 0)}
                                             onChange={handleManualGoalChange}
                                             disabled={!isManualGoalMode}
                                             className={isManualGoalMode ? inputClass : "block w-full px-3 py-2 bg-transparent border-0 font-bold text-lg text-neutral-dark focus:ring-0 p-0"}
@@ -967,14 +1077,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         checked={profile.notificationSettings?.weighInReminder ?? true}
                                         onChange={() => handleNotificationSettingChange('weighInReminder')}
                                     />
-                                    <div className="pl-4 pr-1 py-2">
-                                        <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark mb-1">Föredragen dag för vägning</label>
-                                        <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
-                                            {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
-                                                <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                    {!isBootcampOnboarding && !isBootcampActive && (
+                                        <div className="pl-4 pr-1 py-2">
+                                            <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark mb-1">Föredragen dag för vägning</label>
+                                            <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
+                                                {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
+                                                    <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                     <ToggleSwitch 
                                         id="inactivityReminder"
                                         label="Inaktivitetspåminnelse"
@@ -1084,17 +1196,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     {aiFeedbackLoading ? (
                         <div className="flex items-center justify-center">
                             <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
-                            <span>{isOnboarding ? 'Analyserar...' : 'Sparar...'}</span>
+                            <span>{isBootcampOnboarding ? 'Sparar...' : (isOnboarding ? 'Analyserar...' : 'Sparar...')}</span>
                         </div>
                     ) : (
                         <>
                             <CheckIcon className="w-5 h-5 inline mr-2" />
-                            <span>{isOnboarding ? 'Fortsätt till sista steget' : 'Spara profil'}</span>
+                            <span>{isBootcampOnboarding ? 'Spara och starta Bootcamp' : (isOnboarding ? 'Fortsätt till sista steget' : 'Spara profil')}</span>
                         </>
                     )}
                 </button>
             </div>
         </form>
+      )}
+
+      {showProteinInfoModal && (
+        <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+            <div onClick={e => e.stopPropagation()}>
+                <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+            </div>
+        </div>
       )}
     </div>
   );

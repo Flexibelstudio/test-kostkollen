@@ -25,6 +25,7 @@ interface WeeklyActivityChartProps {
   goalType?: string;
   isSummarizingYesterday?: boolean;
   bankedCalories?: number; // Tillagt för att kunna räkna ut färg live
+  isBootcamp?: boolean;
 }
 
 const getLocalISODateString = (date: Date): string => {
@@ -44,7 +45,8 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   onNextWeek,
   onToday,
   isSummarizingYesterday = false,
-  bankedCalories = 0
+  bankedCalories = 0,
+  isBootcamp = false
 }) => {
   const referenceDate = new Date(viewingDate);
   referenceDate.setHours(0, 0, 0, 0);
@@ -78,7 +80,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   const weekNumber = getISOWeekNumber(monday);
 
   return (
-    <div className="bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
+    <div className={`${isBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
       <div className="flex justify-center items-center mb-6 relative">
         <div className="flex items-center gap-4">
             <button 

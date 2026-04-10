@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useMemo, FC, useCallback, useRef } from 'react';
 import type { User } from '@firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory, UserRole, Chat } from '../types';
 import { 
     searchForBuddies,
@@ -12,7 +14,9 @@ import {
     togglePeppOnTimelineEvent,
     addCommentToTimelineEvent,
     toggleLikeOnComment,
+    toggleReactionOnComment,
     fetchCommunityTimeline,
+    _fetchCommunityTimelinePaginated,
     listenToCommunityTimeline,
     createUserPost,
     cancelFriendRequest,
@@ -22,14 +26,18 @@ import { subscribeToUserChats, sendMessage } from '../services/chatService';
 import { 
     HeartIcon, 
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
-    ShareIcon, PencilIcon, CameraIcon
+    ShareIcon, PencilIcon, CameraIcon, SmileIcon
 } from './icons';
-import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw } from 'lucide-react';
+import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon } from 'lucide-react';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 import Lightbox from './Lightbox';
 import { ChatRoomsView } from './ChatRoomsView';
+import CameraModal from './CameraModal';
 import { COACH_PERSONAS } from '../constants';
+import { uploadImageToStorage, base64ToBlob } from '../utils/storageUtils';
+import { getBootcampRankInfo } from '../utils/bootcampUtils';
 
 // --- HELPER FUNCTIONS ---
 
@@ -67,80 +75,7 @@ export const resizeImage = (file: File, maxSize: number): Promise<string> => {
     });
 };
 
-const calculateProgressPercentage = (
-    method: 'scale' | 'inbody' | undefined,
-    startWeight?: number, currentWeight?: number, desiredWeightChange?: number,
-    startFat?: number, currentFat?: number, desiredFatChange?: number,
-    startMuscle?: number, currentMuscle?: number, desiredMuscleChange?: number,
-    isGoalCompleted?: boolean
-): number => {
-    if (isGoalCompleted) return 100;
-
-    let start, current, goalChange;
-
-    const isScaleGoal = method === 'scale';
-    const isFatLossGoal = !isScaleGoal && desiredFatChange && desiredFatChange < 0;
-    const isMuscleGainGoal = !isScaleGoal && desiredMuscleChange && desiredMuscleChange > 0;
-
-    if (isFatLossGoal) {
-        if (currentFat != null && startFat != null) {
-            start = startFat;
-            current = currentFat;
-            goalChange = desiredFatChange;
-        } else {
-            start = startWeight;
-            current = currentWeight;
-            goalChange = desiredFatChange;
-        }
-    } else if (isMuscleGainGoal) {
-        if (currentMuscle != null && startMuscle != null) {
-            start = startMuscle;
-            current = currentMuscle;
-            goalChange = desiredMuscleChange;
-        } else {
-            start = startWeight;
-            current = currentWeight;
-            goalChange = desiredMuscleChange;
-        }
-    } else {
-        start = startWeight;
-        current = currentWeight;
-        goalChange = desiredWeightChange;
-    }
-    
-    if (start == null || current == null || !goalChange) return 0;
-    
-    const totalChangeNeeded = Math.abs(goalChange);
-    let changeAchieved;
-    
-    if (goalChange > 0) { 
-        changeAchieved = current - start;
-    } else { 
-        changeAchieved = start - current;
-    }
-    
-    changeAchieved = Math.max(0, changeAchieved);
-
-    if (totalChangeNeeded < 0.01) return 100;
-
-    const progressRaw = (changeAchieved / totalChangeNeeded) * 100;
-    return Math.max(0, Math.min(progressRaw, 100));
-};
-
-const getGoalShortDescription = (
-    method: 'scale' | 'inbody' | undefined,
-    desiredWeightChange?: number,
-    desiredFatChange?: number,
-    desiredMuscleChange?: number
-): string => {
-    if (method === 'scale' && desiredWeightChange) {
-        return `Mål: ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange} kg`;
-    } else {
-        if (desiredFatChange) return `Mål: ${desiredFatChange} kg fett`;
-        if (desiredMuscleChange) return `Mål: +${desiredMuscleChange} kg muskler`;
-    }
-    return 'Mål: Bibehålla';
-};
+import { calculateProgressPercentage, getGoalShortDescription } from '../utils/progressUtils';
 
 
 // --- SUB-COMPONENTS ---
@@ -152,14 +87,25 @@ export const CreatePostWidget: FC<{
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     userRole?: UserRole;
     isCoachDashboard?: boolean;
-}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole, isCoachDashboard }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [text, setText] = useState('');
+    activeBootcamp?: any;
+    initialText?: string | null;
+}> = ({ currentUser, userProfile, onPostCreated, setToastNotification, userRole, isCoachDashboard, activeBootcamp, initialText }) => {
+    const [isExpanded, setIsExpanded] = useState(!!initialText);
+    const [text, setText] = useState(initialText || '');
     const [image, setImage] = useState<string | null>(null);
     const [category, setCategory] = useState<PostCategory>('general');
+    const [visibility, setVisibility] = useState<'global' | 'friends' | 'bootcamp' | 'bootcamp_and_friends'>('friends');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showCameraModal, setShowCameraModal] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (initialText) {
+            setText(initialText);
+            setIsExpanded(true);
+        }
+    }, [initialText]);
 
     const isCoach = userRole === 'coach' && isCoachDashboard;
     const displayPhotoURL = isCoach ? '/favicon.png' : userProfile.photoURL;
@@ -184,16 +130,51 @@ export const CreatePostWidget: FC<{
         playAudio('uiClick');
 
         try {
-            const isGlobal = isCoach;
-            const newPost = await createUserPost(currentUser.uid, text, category, image || undefined, isGlobal, isCoach ? displayName : undefined, isCoach ? displayPhotoURL : undefined);
+            let finalImageUrl = image || undefined;
+            
+            // If image is a base64 string (from resizeImage or CameraModal), upload it to Storage
+            if (image && image.startsWith('data:image')) {
+                try {
+                    const blob = await base64ToBlob(image);
+                    const fileName = `post_${Date.now()}.jpg`;
+                    const path = `timeline_images/${currentUser.uid}/${fileName}`;
+                    finalImageUrl = await uploadImageToStorage(blob, path);
+                } catch (uploadError) {
+                    console.error("Error uploading image to storage:", uploadError);
+                    setToastNotification({ message: 'Kunde inte ladda upp bilden till servern.', type: 'error' });
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
+            const isGlobal = isCoach || visibility === 'global';
+            const isBootcampPost = visibility === 'bootcamp' || visibility === 'bootcamp_and_friends';
+            
+            let title = 'skapade ett inlägg';
+            if (isGlobal) {
+                title = 'delade ett meddelande till alla';
+            } else if (isCoach && isBootcampPost) {
+                title = 'delade ett meddelande till truppen';
+            }
+
+            const newPost = await createUserPost(
+                currentUser.uid, 
+                text, 
+                category, 
+                finalImageUrl, 
+                isCoach ? 'global' : visibility, 
+                isCoach ? displayName : undefined, 
+                isCoach ? displayPhotoURL : undefined,
+                activeBootcamp?.cohortId
+            );
             
             const optimisticEvent: TimelineEvent = {
                 id: newPost.id,
                 type: 'user_post',
                 timestamp: Date.now(),
-                title: isGlobal ? 'delade ett meddelande till alla' : 'skapade ett inlägg',
+                title: title,
                 description: text,
-                icon: isGlobal ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
+                icon: (isGlobal || isCoach) ? '📢' : category === 'pepp' ? '💖' : category === 'workout' ? '💪' : category === 'food' ? '🥗' : category === 'question' ? '❓' : '📝',
                 userId: currentUser.uid,
                 userName: displayName,
                 userPhotoURL: displayPhotoURL,
@@ -204,7 +185,12 @@ export const CreatePostWidget: FC<{
                 category: category,
                 imageUrl: image || undefined,
                 visibleTo: newPost.visibleTo,
-                isGlobal: isGlobal
+                isGlobal: isGlobal,
+                streakAtPost: newPost.streakAtPost,
+                bootcampStreakAtPost: newPost.bootcampStreakAtPost,
+                goalTextAtPost: newPost.goalTextAtPost,
+                progressAtPost: newPost.progressAtPost,
+                bootcampId: newPost.bootcampId
             };
             
             onPostCreated(optimisticEvent);
@@ -279,6 +265,21 @@ export const CreatePostWidget: FC<{
                             </button>
                         </div>
                     )}
+                    
+                    {activeBootcamp && !isCoach && (
+                        <div className="mt-3 flex items-center gap-2 text-sm">
+                            <span className="text-neutral-500 font-medium">Synligt för:</span>
+                            <select
+                                value={visibility}
+                                onChange={(e) => setVisibility(e.target.value as any)}
+                                className="bg-neutral-50 border border-neutral-200 text-neutral-dark rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            >
+                                <option value="friends">Mina kompisar</option>
+                                <option value="bootcamp">Bara bootcamp</option>
+                                <option value="bootcamp_and_friends">Båda (Bootcamp & Kompisar)</option>
+                            </select>
+                        </div>
+                    )}
                 </div>
             </div>
             
@@ -303,7 +304,7 @@ export const CreatePostWidget: FC<{
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
                     <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
                     
-                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ta bild">
+                    <button onClick={() => setShowCameraModal(true)} className="p-2 text-neutral hover:text-primary hover:bg-primary-50 rounded-full transition-colors" title="Ta bild">
                         <CameraIcon className="w-5 h-5" />
                     </button>
 
@@ -321,6 +322,19 @@ export const CreatePostWidget: FC<{
                     </button>
                 </div>
             </div>
+
+            <CameraModal 
+                show={showCameraModal} 
+                onClose={() => setShowCameraModal(false)} 
+                onImageCapture={(imageDataUrl) => { 
+                    setImage('data:image/jpeg;base64,' + imageDataUrl); 
+                    setIsExpanded(true); 
+                    setShowCameraModal(false); 
+                }} 
+                onCameraError={(err) => setToastNotification({message: err, type: 'error'})} 
+                instructionText="Ta en bild att dela"
+                hideTip={true}
+            />
         </div>
     );
 };
@@ -352,14 +366,36 @@ const BuddyCard: FC<{
     return (
         <div className="bg-white dark:bg-neutral-darker p-4 rounded-xl shadow-soft-lg border border-neutral-light/70 space-y-3 relative">
              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                     <Avatar photoURL={buddy.photoURL} gender={buddy.gender} size={48} />
-                    <div>
-                        <h3 className="text-xl font-bold text-neutral-dark">{buddy.name}</h3>
-                        <p className="text-xs text-neutral flex items-center gap-2 mt-0.5">
-                            <span className="font-medium text-orange-500">🔥 {buddy.currentStreak} dagar</span>
-                            <span className="text-neutral-300">|</span>
-                            <span className="truncate max-w-[150px]">{goalDescription}</span>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-xl font-bold text-neutral-dark truncate">{buddy.name}</h3>
+                        <p className="text-xs text-neutral flex items-center gap-2 mt-0.5 min-w-0">
+                            {buddy.currentStreak !== undefined && buddy.currentStreak >= 0 && (
+                                <span className="font-medium text-orange-500 whitespace-nowrap">🔥 {buddy.currentStreak}</span>
+                            )}
+                            {buddy.currentStreak !== undefined && buddy.currentStreak >= 0 && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! >= 0 && (
+                                <span className="text-neutral-300 shrink-0">|</span>
+                            )}
+                            {(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! >= 0 && (
+                                <span className="font-medium text-yellow-600 flex items-center gap-1 whitespace-nowrap">
+                                    🎖️ {buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak}
+                                    {getBootcampRankInfo(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak!, 0, 'fas1').currentRank && (
+                                        <>
+                                            <span className="text-neutral-300 shrink-0">|</span>
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                                                {getBootcampRankInfo(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak!, 0, 'fas1').currentRank}
+                                            </span>
+                                        </>
+                                    )}
+                                </span>
+                            )}
+                            {((buddy.currentStreak !== undefined && buddy.currentStreak >= 0) || ((buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! >= 0)) && goalDescription && (
+                                <span className="text-neutral-300 shrink-0">|</span>
+                            )}
+                            {goalDescription && (
+                                <span className="truncate min-w-0">{goalDescription}</span>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -431,30 +467,99 @@ const renderWeightDescription = (description: string) => {
     );
 };
 
-const TimelineEventCard: FC<{
+export const TimelineEventCard: FC<{
     event: TimelineEvent;
     currentUser: User;
     userProfile: UserProfileData;
     onTogglePepp: (event: TimelineEvent, emoji: string) => void;
-    onAddComment: (event: TimelineEvent, text: string) => Promise<void>;
+    onAddComment: (event: TimelineEvent, text: string, imageBase64?: string) => Promise<void>;
     onToggleLike: (event: TimelineEvent, commentId: string) => void;
+    onToggleCommentReaction: (event: TimelineEvent, commentId: string, emoji: string) => void;
     onDelete: (eventId: string) => void;
     onImageClick: (src: string, alt: string) => void;
     onShare?: (event: TimelineEvent) => void;
     lastViewTimestamp: number | null;
     buddyDetails: BuddyDetails[]; // Passed for stats lookup
     currentStreak: number; // Current user's streak
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak }) => {
+    activeBootcamp?: any;
+    setToastNotification?: (toast: { message: string; type: 'success' | 'error' } | null) => void;
+    onAddFriend?: (userId: string, userName: string) => void;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend }) => {
     const [newComment, setNewComment] = useState('');
+    const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [showReactionMenu, setShowReactionMenu] = useState(false);
+    const [activeCommentReactionId, setActiveCommentReactionId] = useState<string | null>(null);
+    const [activeCommentEmojiPickerId, setActiveCommentEmojiPickerId] = useState<string | null>(null);
+    const [showCameraModal, setShowCameraModal] = useState(false);
+    const emojiPickerRef = useRef<HTMLDivElement>(null);
+    const reactionMenuRef = useRef<HTMLDivElement>(null);
+    const commentReactionMenuRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+                setShowEmojiPicker(false);
+            }
+            if (reactionMenuRef.current && !reactionMenuRef.current.contains(e.target as Node)) {
+                setShowReactionMenu(false);
+            }
+            if (commentReactionMenuRef.current && !commentReactionMenuRef.current.contains(e.target as Node)) {
+                setActiveCommentReactionId(null);
+                setActiveCommentEmojiPickerId(null);
+            }
+        };
+        if (showEmojiPicker || showReactionMenu || activeCommentReactionId || activeCommentEmojiPickerId) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showEmojiPicker, showReactionMenu, activeCommentReactionId, activeCommentEmojiPickerId]);
 
     const handleCommentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newComment.trim() || isSubmitting) return;
+        if ((!newComment.trim() && !commentImage) || isSubmitting) return;
         setIsSubmitting(true);
-        await onAddComment(event, newComment);
-        setNewComment('');
-        setIsSubmitting(false);
+        
+        try {
+            let finalImageUrl = commentImage || undefined;
+            
+            if (commentImage && commentImage.startsWith('data:image')) {
+                try {
+                    const blob = await base64ToBlob(commentImage);
+                    const fileName = `comment_${Date.now()}.jpg`;
+                    const path = `comment_images/${currentUser.uid}/${fileName}`;
+                    finalImageUrl = await uploadImageToStorage(blob, path);
+                } catch (uploadError) {
+                    console.error("Error uploading comment image to storage:", uploadError);
+                    if (setToastNotification) setToastNotification({ message: 'Kunde inte ladda upp bilden till servern.', type: 'error' });
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
+            await onAddComment(event, newComment, finalImageUrl);
+            setNewComment('');
+            setCommentImage(null);
+        } catch (error) {
+            console.error("Error submitting comment:", error);
+            if (setToastNotification) setToastNotification({ message: 'Kunde inte skicka kommentar.', type: 'error' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            try {
+                const resized = await resizeImage(file, 1024);
+                setCommentImage(resized);
+            } catch (error) {
+                console.error("Error resizing image:", error);
+            }
+        }
     };
 
     const handleDelete = async () => {
@@ -463,64 +568,33 @@ const TimelineEventCard: FC<{
         }
     };
     
-    const reactions = ['👍', '💪', '🔥', '🎉', '❤️'];
     const isNewEvent = lastViewTimestamp !== null && event.timestamp > lastViewTimestamp && event.userId !== currentUser.uid;
 
     // --- COMPACT STATS LOGIC ---
     const isCurrentUser = event.userId === currentUser.uid;
     
-    const stats = useMemo(() => {
-        let s = { streak: 0, progress: 0, goalText: '' };
-        
-        if (isCurrentUser) {
-            s.streak = currentStreak;
-            s.progress = calculateProgressPercentage(
-                userProfile.measurementMethod,
-                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                userProfile.mainGoalCompleted
-            );
-            s.goalText = getGoalShortDescription(userProfile.measurementMethod, userProfile.desiredWeightChangeKg, userProfile.desiredFatMassChangeKg, userProfile.desiredMuscleMassChangeKg);
-        } else {
-            const buddy = buddyDetails.find(b => b.uid === event.userId);
-            if (buddy) {
-                s.streak = buddy.currentStreak || 0;
-                s.progress = calculateProgressPercentage(
-                    buddy.measurementMethod,
-                    buddy.goalStartWeight, buddy.currentWeight, buddy.desiredWeightChangeKg,
-                    buddy.goalStartFatMassKg, buddy.currentFatMass, buddy.desiredFatMassChangeKg,
-                    buddy.goalStartMuscleMassKg, buddy.currentMuscleMass, buddy.desiredMuscleMassChangeKg,
-                    buddy.mainGoalCompleted
-                );
-                s.goalText = getGoalShortDescription(buddy.measurementMethod, buddy.desiredWeightChangeKg, buddy.desiredFatMassChangeKg, buddy.desiredMuscleMassChangeKg);
-            } else {
-                return null; // Not a buddy, don't show stats
-            }
-        }
-        return s;
-    }, [isCurrentUser, currentStreak, userProfile, buddyDetails, event.userId]);
-
+    // Check if the post was made by a coach persona
+    const isCoachPersona = event.userName && 
+        Object.values(COACH_PERSONAS).some(coach => coach.label === event.userName);
+    const isBorje = event.userName === 'Börje' || event.userName === 'General Börje';
 
     const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
-    
-    // Check if the post was made by a coach persona
-    const isCoachPersona = isGlobalPost && event.userName && 
-        Object.values(COACH_PERSONAS).some(coach => coach.label === event.userName);
 
-    const displayName = isGlobalPost 
-        ? (isCoachPersona ? event.userName : 'Kostloggen') 
-        : (isCurrentUser ? 'Du' : event.userName);
+    const displayName = isBorje || isCoachPersona 
+        ? event.userName 
+        : (isGlobalPost ? 'Kostloggen' : (isCurrentUser ? 'Du' : event.userName));
         
-    const displayPhotoURL = isGlobalPost 
-        ? (isCoachPersona ? event.userPhotoURL : '/favicon.png') 
-        : event.userPhotoURL;
+    const displayPhotoURL = isBorje || isCoachPersona 
+        ? event.userPhotoURL 
+        : (isGlobalPost ? '/favicon.png' : event.userPhotoURL);
 
     return (
-    <div id={`event-${event.id}`} className={`p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
+    <div id={`event-${event.id}`} className={`group relative p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
         isNewEvent 
             ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-            : isGlobalPost
+            : isBorje
+                ? 'bg-red-50/50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+            : (isGlobalPost || isCoachPersona)
                 ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                 : 'bg-white dark:bg-neutral-darker border-neutral-light'
     }`}>
@@ -528,30 +602,95 @@ const TimelineEventCard: FC<{
             <Avatar photoURL={displayPhotoURL} gender={event.gender} size={42} />
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
-                    <div className="flex flex-col">
+                    <div className="flex flex-col min-w-0 flex-1">
                         <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
                             <span className="font-bold">{displayName}</span>
-                            {isGlobalPost && (
+                            {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
+                                <button 
+                                    onClick={() => onAddFriend(event.userId, event.userName)}
+                                    className="ml-1 text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
+                                >
+                                    + Lägg till kompis
+                                </button>
+                            )}
+                            {isGlobalPost && !event.bootcampId && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                     Officiellt
+                                </span>
+                            )}
+                            {event.bootcampId && event.type === 'user_post' && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                    🎖️ General Börjes Bootcamp
                                 </span>
                             )}
                             {event.type === 'user_post' ? '' : ` ${event.title}`}
                         </p>
                         
                         {/* --- COMPACT STATS ROW --- */}
-                        {stats && !isGlobalPost && (
-                            <div className="mt-1 mb-2 w-full max-w-[200px]">
-                                <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-0.5">
-                                    <span className="flex items-center gap-0.5 text-orange-600"><span className="text-xs">🔥</span> {stats.streak}</span>
-                                    <span className="text-neutral-300">|</span>
-                                    <span className="truncate">{stats.goalText}</span>
+                        {!isGlobalPost && !isCoachPersona && (() => {
+                            // Fallback to current user profile or buddy details if event doesn't have the highest streak
+                            let effectiveHighestStreak = event.highestBootcampStreak;
+                            if (effectiveHighestStreak === undefined) {
+                                if (event.userId === currentUser.uid) {
+                                    effectiveHighestStreak = userProfile.highestBootcampStreak;
+                                } else {
+                                    const buddy = buddyDetails.find(b => b.uid === event.userId);
+                                    if (buddy) {
+                                        effectiveHighestStreak = buddy.highestBootcampStreak;
+                                    }
+                                }
+                            }
+
+                            const hasBootcampStreak = event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost >= 0;
+                            const hasHighestStreak = effectiveHighestStreak !== undefined && effectiveHighestStreak >= 0;
+                            
+                            if (!(
+                                (event.streakAtPost !== undefined && event.streakAtPost >= 0) || 
+                                hasBootcampStreak || 
+                                hasHighestStreak ||
+                                event.goalTextAtPost || 
+                                (event.progressAtPost !== undefined && event.progressAtPost > 0)
+                            )) {
+                                return null;
+                            }
+
+                            const rankName = hasHighestStreak ? getBootcampRankInfo(effectiveHighestStreak!, 0, 'fas1').currentRank : '';
+
+                            return (
+                                <div className="mt-1 mb-2 w-full min-w-0">
+                                    <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-1 min-w-0">
+                                        {event.streakAtPost !== undefined && event.streakAtPost >= 0 && (
+                                            <span className="flex items-center gap-0.5 text-orange-600 whitespace-nowrap shrink-0"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
+                                        )}
+                                        {hasBootcampStreak && (
+                                            <>
+                                                {event.streakAtPost !== undefined && event.streakAtPost >= 0 && <span className="text-neutral-300 shrink-0">|</span>}
+                                                <span className="flex items-center gap-0.5 text-yellow-600 whitespace-nowrap shrink-0"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
+                                            </>
+                                        )}
+                                        {hasHighestStreak && rankName && (
+                                            <>
+                                                {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak) && <span className="text-neutral-300 shrink-0">|</span>}
+                                                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full whitespace-nowrap shrink-0">
+                                                    {rankName}
+                                                </span>
+                                            </>
+                                        )}
+                                        {event.goalTextAtPost && (
+                                            <>
+                                                {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak || (hasHighestStreak && rankName)) && <span className="text-neutral-300 shrink-0">|</span>}
+                                                <span className="truncate min-w-0">{event.goalTextAtPost}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    {event.progressAtPost !== undefined && event.progressAtPost > 0 && (
+                                        <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
+                                            <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
-                                    <div className="h-full bg-primary" style={{width: `${stats.progress}%`}} />
-                                </div>
-                            </div>
-                        )}
+                            );
+                        })()}
                         {/* ------------------------- */}
                     </div>
 
@@ -612,37 +751,113 @@ const TimelineEventCard: FC<{
             </div>
         </div>
 
-        {/* Action Bar */}
-        <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-neutral-light/50 ml-[50px]">
-            {reactions.map(emoji => {
-                const usersWhoReacted = (event.reactions || {})[emoji] || {};
-                const count = Object.keys(usersWhoReacted).length;
-                const hasReacted = !!usersWhoReacted[currentUser.uid];
+        {/* Reactions and Action Bar */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-3 ml-[50px]">
+            {/* Add Reaction Button */}
+            <div className="relative" ref={reactionMenuRef}>
+                <button 
+                    onClick={(e) => {
+                        e.preventDefault();
+                        setShowReactionMenu(!showReactionMenu);
+                    }}
+                    className="flex items-center justify-center w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 transition-colors border border-transparent hover:border-neutral-300 dark:hover:border-neutral-600"
+                    title="Reagera"
+                >
+                    <SmileIcon className="w-4 h-4" />
+                    <span className="absolute -top-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
+                        <PlusIcon className="w-2.5 h-2.5 text-neutral-500" />
+                    </span>
+                </button>
+                
+                {/* Reaction Menu Dropdown */}
+                {showReactionMenu && (
+                    <div className="absolute bottom-full left-0 mb-2 z-20 animate-fade-in" ref={emojiPickerRef}>
+                        <div className="flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5">
+                            {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                                <button 
+                                    key={emoji}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        onTogglePepp(event, emoji);
+                                        setShowReactionMenu(false);
+                                    }} 
+                                    className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!event.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
+                                    title={emoji}
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                            <button 
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    setShowEmojiPicker(!showEmojiPicker);
+                                }} 
+                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
+                                title="Fler emojis"
+                            >
+                                <PlusIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-full left-0 mb-2 z-50">
+                                <EmojiPicker 
+                                    onEmojiClick={(emojiData) => {
+                                        onTogglePepp(event, emojiData.emoji);
+                                        setShowEmojiPicker(false);
+                                        setShowReactionMenu(false);
+                                    }}
+                                    autoFocusSearch={false}
+                                    theme={Theme.LIGHT}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
 
+            {/* Existing Reactions */}
+            {Object.entries(event.reactions || {}).map(([emoji, users]) => {
+                const count = Object.keys(users).length;
+                if (count === 0) return null;
+                const hasReacted = !!users[currentUser.uid];
+                
                 return (
                     <button 
                         key={emoji} 
-                        onClick={() => onTogglePepp(event, emoji)} 
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all active:scale-95 border
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onTogglePepp(event, emoji);
+                        }} 
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all active:scale-95 border
                             ${hasReacted 
                                 ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
-                                : 'bg-transparent border-transparent hover:bg-neutral-light dark:hover:bg-neutral-dark text-neutral-500 dark:text-neutral-400 hover:text-neutral-dark dark:hover:text-white'
+                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
                             }`}
                     >
-                        <span className={`text-lg transition-transform ${hasReacted ? 'scale-110' : ''}`}>{emoji}</span>
-                        {count > 0 && <span className="font-semibold text-xs">{count}</span>}
+                        <span>{emoji}</span>
+                        <span className="font-semibold">{count}</span>
                     </button>
                 )
             })}
         </div>
         
         {/* Comments Section */}
-        {((event.comments && event.comments.length > 0) || newComment) && (
+        {((event.comments && event.comments.length > 0) || newComment || commentImage) && (
              <div className="space-y-3 mt-4 ml-[50px]">
                 {(event.comments || []).map(comment => {
-                    const likes = comment.likes || {};
-                    const likeCount = Object.keys(likes).length;
-                    const userHasLiked = !!likes[currentUser.uid];
+                    const reactions = comment.reactions || {};
+                    const reactionCounts: { [emoji: string]: number } = {};
+                    let userReactionEmoji: string | null = null;
+                    
+                    Object.keys(reactions).forEach(emoji => {
+                        reactionCounts[emoji] = Object.keys(reactions[emoji]).length;
+                        if (reactions[emoji][currentUser.uid]) {
+                            userReactionEmoji = emoji;
+                        }
+                    });
+                    
+                    const hasReactions = Object.keys(reactionCounts).length > 0;
                     const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
 
                     return (
@@ -650,23 +865,117 @@ const TimelineEventCard: FC<{
                             <Avatar photoURL={comment.authorPhotoURL} size={28} />
                             <div className="flex-1">
                                 <div 
-                                    onDoubleClick={() => onToggleLike(event, comment.id)} 
+                                    onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
                                     className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
                                 >
-                                    <p className="font-bold text-neutral-dark text-xs mb-0.5">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
-                                    <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                        <p className="font-bold text-neutral-dark text-xs">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
+                                        {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
+                                            <button 
+                                                onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
+                                                className="text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
+                                            >
+                                                + Lägg till kompis
+                                            </button>
+                                        )}
+                                    </div>
+                                    {comment.text && <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>}
+                                    {comment.imageUrl && (
+                                        <div className="mt-2 rounded-lg overflow-hidden max-w-xs">
+                                            <img src={comment.imageUrl} alt="Kommentar bild" className="w-full h-auto object-cover cursor-pointer" onClick={() => onImageClick(comment.imageUrl!, 'Kommentar bild')} />
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="flex items-center gap-3 mt-1 ml-1">
+                                <div className="flex items-center gap-3 mt-1 ml-1 relative">
                                     <span className="text-[10px] text-neutral-400">
                                         {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
                                     </span>
-                                    <button 
-                                        onClick={() => onToggleLike(event, comment.id)}
-                                        className={`text-xs font-semibold flex items-center gap-1 transition-colors ${userHasLiked ? 'text-red-500' : 'text-neutral-400 hover:text-red-500'}`}
-                                    >
-                                        {userHasLiked ? 'Gillat' : 'Gilla'}
-                                        {likeCount > 0 && <span className="bg-white dark:bg-neutral-darker px-1.5 rounded-full shadow-sm border border-neutral-light text-[10px]">{likeCount} ❤️</span>}
-                                    </button>
+                                    
+                                    <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
+                                                setActiveCommentEmojiPickerId(null);
+                                            }}
+                                            className={`relative flex items-center justify-center w-6 h-6 rounded-full transition-colors border border-transparent ${userReactionEmoji ? 'bg-primary-50 text-primary border-primary-200 dark:bg-primary-900/20 dark:border-primary-800' : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600'}`}
+                                            title="Reagera"
+                                        >
+                                            <SmileIcon className="w-3.5 h-3.5" />
+                                            <span className="absolute -top-0.5 -right-0.5 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
+                                                <PlusIcon className="w-2 h-2 text-neutral-500" />
+                                            </span>
+                                        </button>
+                                        
+                                        {activeCommentReactionId === comment.id && (
+                                            <div className="absolute bottom-full left-0 mb-2 flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5 z-20 animate-fade-in">
+                                                {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                                                    <button 
+                                                        key={emoji}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            onToggleCommentReaction(event, comment.id, emoji);
+                                                            setActiveCommentReactionId(null);
+                                                        }} 
+                                                        className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!comment.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
+                                                        title={emoji}
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+                                                <div className="relative">
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            setActiveCommentEmojiPickerId(activeCommentEmojiPickerId === comment.id ? null : comment.id);
+                                                        }} 
+                                                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
+                                                        title="Fler emojis"
+                                                    >
+                                                        <PlusIcon className="w-4 h-4" />
+                                                    </button>
+                                                    {activeCommentEmojiPickerId === comment.id && (
+                                                        <div className="absolute bottom-full right-0 mb-2 z-50">
+                                                            <EmojiPicker 
+                                                                onEmojiClick={(emojiData) => {
+                                                                    onToggleCommentReaction(event, comment.id, emojiData.emoji);
+                                                                    setActiveCommentReactionId(null);
+                                                                    setActiveCommentEmojiPickerId(null);
+                                                                }}
+                                                                autoFocusSearch={false}
+                                                                theme={Theme.LIGHT}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {hasReactions && (
+                                        <div className="flex items-center gap-1">
+                                            {Object.entries(reactionCounts).map(([emoji, count]) => {
+                                                const hasReacted = !!comment.reactions?.[emoji]?.[currentUser.uid];
+                                                return (
+                                                    <button 
+                                                        key={emoji} 
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            onToggleCommentReaction(event, comment.id, emoji);
+                                                        }}
+                                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all active:scale-95 border shadow-sm
+                                                            ${hasReacted 
+                                                                ? 'bg-primary-50 border-primary text-primary-darker' 
+                                                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
+                                                            }`}
+                                                    >
+                                                        <span>{emoji}</span>
+                                                        <span className="font-semibold">{count}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -675,24 +984,75 @@ const TimelineEventCard: FC<{
             </div>
         )}
 
-        <form onSubmit={handleCommentSubmit} className="flex items-center gap-3 mt-4 ml-[50px]">
+        <form onSubmit={handleCommentSubmit} className="flex items-start gap-3 mt-4 ml-[50px]">
                 <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
-                <div className="flex-1 relative">
-                    <input
-                        value={newComment}
-                        onChange={e => setNewComment(e.target.value)}
-                        className="w-full pl-4 pr-10 py-2 text-sm bg-[#ffffff] text-[#000000] rounded-full border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
-                        placeholder="Skriv en kommentar..."
-                    />
-                    <button 
-                        type="submit" 
-                        disabled={isSubmitting || !newComment.trim()} 
-                        className={`absolute right-1 top-1 p-1.5 rounded-full transition-all ${newComment.trim() ? 'text-primary hover:bg-primary-50' : 'text-neutral-300'}`}
-                    >
-                        <Send className="w-4 h-4" />
-                    </button>
+                <div className="flex-1">
+                    <div className="relative flex items-center">
+                        <input
+                            value={newComment}
+                            onChange={e => setNewComment(e.target.value)}
+                            className="w-full pl-4 pr-20 py-2 text-sm bg-[#ffffff] text-[#000000] rounded-full border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
+                            placeholder="Skriv en kommentar..."
+                        />
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={() => setShowCameraModal(true)}
+                                className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                                title="Ta bild"
+                            >
+                                <CameraIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                                title="Ladda upp bild"
+                            >
+                                <ImageIcon className="w-4 h-4" />
+                            </button>
+                            <button 
+                                type="submit" 
+                                disabled={isSubmitting || (!newComment.trim() && !commentImage)} 
+                                className={`p-1.5 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary hover:bg-primary-50' : 'text-neutral-300'}`}
+                            >
+                                <Send className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleImageUpload} 
+                            accept="image/*" 
+                            className="hidden" 
+                        />
+                    </div>
+                    {commentImage && (
+                        <div className="mt-2 relative inline-block">
+                            <img src={commentImage} alt="Preview" className="h-20 w-auto rounded-lg object-cover border border-neutral-light" />
+                            <button 
+                                type="button" 
+                                onClick={() => setCommentImage(null)}
+                                className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-md text-neutral-400 hover:text-red-500"
+                            >
+                                <XMarkIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
                 </div>
         </form>
+
+        <CameraModal 
+            show={showCameraModal} 
+            onClose={() => setShowCameraModal(false)} 
+            onImageCapture={(imageDataUrl) => { 
+                setCommentImage('data:image/jpeg;base64,' + imageDataUrl); 
+                setShowCameraModal(false); 
+            }} 
+            onCameraError={(err) => console.error(err)} 
+            instructionText="Ta en bild att dela i kommentar"
+            hideTip={true}
+        />
     </div>
     );
 };
@@ -798,15 +1158,6 @@ const FriendManagementView: FC<{
         );
     }, [searchQuery, allSearchableUsers, buddyDetails]);
     
-    const filteredBuddyDetails = useMemo(() => {
-        const query = buddySearchQuery.trim().toLowerCase();
-        if (!query) return buddyDetails;
-        return buddyDetails.filter(buddy => 
-            buddy.name.toLowerCase().includes(query) || 
-            (buddy.email && buddy.email.toLowerCase().includes(query))
-        );
-    }, [buddySearchQuery, buddyDetails]);
-
     const handleSendRequest = async (toUser: Peppkompis) => {
         const currentUserPeppkompis: Peppkompis = {
             uid: currentUser.uid,
@@ -824,6 +1175,15 @@ const FriendManagementView: FC<{
             setToastNotification({ message: (error as Error).message || 'Kunde inte skicka förfrågan.', type: 'error' });
         }
     };
+
+    const filteredBuddyDetails = useMemo(() => {
+        const query = buddySearchQuery.trim().toLowerCase();
+        if (!query) return buddyDetails;
+        return buddyDetails.filter(buddy => 
+            buddy.name.toLowerCase().includes(query) || 
+            (buddy.email && buddy.email.toLowerCase().includes(query))
+        );
+    }, [buddySearchQuery, buddyDetails]);
 
     const handleRequestAction = async (request: PeppkompisRequest, status: 'accepted' | 'declined') => {
         try {
@@ -1137,7 +1497,6 @@ const ShareModal: FC<{
 // --- MAIN COMPONENT ---
 
 export const CommunityView: React.FC<{ 
-  key: number;
   currentUser: User;
   userProfile: UserProfileData;
   achievements: Achievement[];
@@ -1148,10 +1507,12 @@ export const CommunityView: React.FC<{
   initialSubTab?: 'buddies' | 'search' | 'requests';
   highlightEventId?: string | null;
   initialChatId?: string | null;
+  initialPostText?: string | null;
   timelineEvents: TimelineEvent[];
   setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
   buddyDetails: BuddyDetails[];
   isLoading: boolean;
+  activeBootcamp?: any;
   onDataChanged: () => void;
   lastViewTimestamp: number | null;
   currentStreak: number;
@@ -1167,16 +1528,19 @@ export const CommunityView: React.FC<{
   initialSubTab = 'buddies',
   highlightEventId = null,
   initialChatId = null,
+  initialPostText = null,
   timelineEvents,
   setTimelineEvents,
   buddyDetails,
   isLoading,
+  activeBootcamp,
   onDataChanged,
   lastViewTimestamp,
   currentStreak,
   userRole
 }) => {
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
+  const [feedFilter, setFeedFilter] = useState<'all' | 'bootcamp'>('all');
   const [effectiveLastViewTimestamp, setEffectiveLastViewTimestamp] = useState(lastViewTimestamp);
   
   const previousTabRef = useRef(activeTab);
@@ -1202,11 +1566,10 @@ export const CommunityView: React.FC<{
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  // Sync prop to state when it changes (e.g. initial load finishes in App.tsx)
-  // But only if we don't have events yet, to avoid overwriting newer realtime updates
+  // Sync prop to state when it changes (e.g. initial load finishes in App.tsx or new realtime events arrive)
   useEffect(() => {
-      if (Array.isArray(timelineEvents) && timelineEvents.length > 0) {
-          setRealtimeEvents(prev => (prev.length === 0 ? timelineEvents : prev));
+      if (Array.isArray(timelineEvents)) {
+          setRealtimeEvents(timelineEvents);
       }
   }, [timelineEvents]);
 
@@ -1217,43 +1580,70 @@ export const CommunityView: React.FC<{
       
       const all = [...rt, ...hist];
       const seen = new Set();
-      return all.filter(e => {
+      let filtered = all.filter(e => {
           if (seen.has(e.id)) return false;
           seen.add(e.id);
           return true;
       }).sort((a,b) => b.timestamp - a.timestamp);
-  }, [realtimeEvents, historicalEvents]);
 
-  // Initial Real-time Listener
+      if (feedFilter === 'bootcamp' && activeBootcamp) {
+          filtered = filtered.filter(e => e.bootcampId === activeBootcamp.cohortId || (e.visibleTo && e.visibleTo.includes('bootcamp')) || (e.visibleTo && e.visibleTo.includes('bootcamp_and_friends')));
+      }
+
+      return filtered;
+  }, [realtimeEvents, historicalEvents, feedFilter, activeBootcamp]);
+
+  // Scroll to highlighted event
   useEffect(() => {
-      let unsubscribe: () => void;
-      
-      const setupListener = async () => {
-          if (activeTab === 'flode' && currentUser) {
-              unsubscribe = listenToCommunityTimeline(currentUser.uid, ({ events, lastDoc: newLastDoc }) => {
-                  setRealtimeEvents(events || []); 
-                  if (historicalEvents.length === 0) {
-                      setLastDoc(newLastDoc);
-                      setHasMore(events.length >= 20); 
-                  }
-              });
-          }
-      };
-      
-      setupListener();
-      return () => {
-          if (unsubscribe) unsubscribe();
-      };
-  }, [currentUser.uid, activeTab]);
+      if (highlightEventId && activeTab === 'flode') {
+          // Give the DOM a moment to render the events
+          setTimeout(() => {
+              const element = document.getElementById(`event-${highlightEventId}`);
+              if (element) {
+                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  // Add a temporary highlight class
+                  element.classList.add('ring-4', 'ring-primary', 'ring-opacity-50', 'transition-all', 'duration-1000');
+                  setTimeout(() => {
+                      element.classList.remove('ring-4', 'ring-primary', 'ring-opacity-50');
+                  }, 2000);
+              }
+          }, 300);
+      }
+  }, [highlightEventId, activeTab, visibleEvents.length]);
+
+  // Initial Real-time Listener is now handled by App.tsx
+  // We just rely on the timelineEvents prop updating.
+  useEffect(() => {
+      if (Array.isArray(timelineEvents) && timelineEvents.length > 0 && historicalEvents.length === 0) {
+          // We don't have lastDoc here directly from App.tsx listener, 
+          // but we can assume hasMore is true initially if we got 20 events.
+          // For pagination to work perfectly, App.tsx would need to pass lastDoc.
+          // For now, we'll just let the user scroll and if they hit the bottom, 
+          // loadMoreEvents will fetch from the last event's timestamp.
+          setHasMore(timelineEvents.length >= 20);
+      }
+  }, [timelineEvents, historicalEvents.length]);
 
   const loadMoreEvents = async () => {
-      if (isLoadingMore || !lastDoc) return;
+      if (isLoadingMore || !hasMore) return;
       setIsLoadingMore(true);
       try {
-          const { events, lastDoc: newLastDoc } = await fetchCommunityTimeline(currentUser.uid, lastDoc, 10);
-          setHistoricalEvents(prev => [...prev, ...events]);
-          setLastDoc(newLastDoc);
-          setHasMore(events.length === 10);
+          // Use the last event in visibleEvents as the starting point for pagination
+          const lastEvent = visibleEvents[visibleEvents.length - 1];
+          // We need a document snapshot for true pagination, but we can approximate with timestamp
+          // Actually, _fetchCommunityTimelinePaginated takes a snapshot. 
+          // Since we don't have it, we might need to fetch it or change the pagination logic.
+          // For now, let's keep the existing lastDoc logic if it was set, otherwise we can't paginate easily without it.
+          // To fix this properly, App.tsx should pass down lastDoc, or we just fetch the next batch using the last event's timestamp.
+          
+          // Let's fetch the document snapshot for the last event
+          if (lastEvent) {
+              const lastEventDoc = await getDoc(doc(db, 'communityTimeline', lastEvent.id));
+              
+              const { events, lastDoc: newLastDoc } = await _fetchCommunityTimelinePaginated(currentUser.uid, lastEventDoc, 10, activeBootcamp?.cohortId);
+              setHistoricalEvents(prev => [...prev, ...events]);
+              setHasMore(events.length === 10);
+          }
       } catch (e) {
           setToastNotification({ message: 'Kunde inte ladda fler händelser.', type: 'error' });
       } finally {
@@ -1269,20 +1659,14 @@ export const CommunityView: React.FC<{
         const updateEventList = (list: TimelineEvent[]) => list.map(e => {
             if (e.id === event.id) {
                 const newReactions: Reactions = JSON.parse(JSON.stringify(e.reactions || {}));
-                let previousReactionEmoji: string | null = null;
-                for (const emojiKey in newReactions) {
-                    if (newReactions[emojiKey]?.[fromUser.uid]) {
-                        previousReactionEmoji = emojiKey;
-                        break;
+                const hasReactedWithThisEmoji = !!newReactions[newEmoji]?.[fromUser.uid];
+                
+                if (hasReactedWithThisEmoji) {
+                    delete newReactions[newEmoji][fromUser.uid];
+                    if (Object.keys(newReactions[newEmoji]).length === 0) {
+                        delete newReactions[newEmoji];
                     }
-                }
-                if (previousReactionEmoji) {
-                    delete newReactions[previousReactionEmoji][fromUser.uid];
-                    if (Object.keys(newReactions[previousReactionEmoji]).length === 0) {
-                        delete newReactions[previousReactionEmoji];
-                    }
-                }
-                if (previousReactionEmoji !== newEmoji) {
+                } else {
                     if (!newReactions[newEmoji]) newReactions[newEmoji] = {};
                     newReactions[newEmoji][fromUser.uid] = fromUser.name;
                 }
@@ -1302,6 +1686,47 @@ export const CommunityView: React.FC<{
         }
     };
     
+    const handleToggleCommentReaction = async (event: TimelineEvent, commentId: string, emoji: string) => {
+        playAudio('uiClick');
+        const fromUser = { uid: currentUser.uid, name: userProfile.name || 'Användare' };
+        
+        // Optimistic update
+        const updateEventList = (list: TimelineEvent[]) => list.map(e => {
+            if (e.id === event.id) {
+                return {
+                    ...e,
+                    comments: (e.comments || []).map(c => {
+                        if (c.id === commentId) {
+                            const newReactions = { ...(c.reactions || {}) };
+                            const hasReactedWithThisEmoji = !!newReactions[emoji]?.[currentUser.uid];
+                            
+                            if (hasReactedWithThisEmoji) {
+                                delete newReactions[emoji][currentUser.uid];
+                                if (Object.keys(newReactions[emoji]).length === 0) {
+                                    delete newReactions[emoji];
+                                }
+                            } else {
+                                if (!newReactions[emoji]) newReactions[emoji] = {};
+                                newReactions[emoji][currentUser.uid] = fromUser.name;
+                            }
+
+                            return { ...c, reactions: newReactions };
+                        }
+                        return c;
+                    })
+                };
+            }
+            return e;
+        });
+
+        setRealtimeEvents(prev => updateEventList(prev));
+        setHistoricalEvents(prev => updateEventList(prev));
+        
+        try { await toggleReactionOnComment(fromUser, event.id, commentId, emoji); } catch (error) {
+            setToastNotification({ message: 'Kunde inte reagera på kommentar.', type: 'error' });
+        }
+    };
+
     const handleToggleLike = async (event: TimelineEvent, commentId: string) => {
         playAudio('uiClick', 0.5);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
@@ -1330,8 +1755,8 @@ export const CommunityView: React.FC<{
         }
     };
     
-    const handleAddComment = async (event: TimelineEvent, text: string) => {
-        if (!text.trim()) return;
+    const handleAddComment = async (event: TimelineEvent, text: string, imageBase64?: string) => {
+        if (!text.trim() && !imageBase64) return;
         playAudio('uiClick');
         const clientTimestamp = Date.now();
         const optimisticComment: TimelineComment = { 
@@ -1341,7 +1766,9 @@ export const CommunityView: React.FC<{
             authorPhotoURL: userProfile.photoURL, 
             text: text.trim(), 
             timestamp: clientTimestamp, 
-            likes: {} 
+            imageUrl: imageBase64,
+            likes: {},
+            reactions: {}
         };
         
         const updateEventList = (list: TimelineEvent[]) => list.map(e => 
@@ -1358,7 +1785,9 @@ export const CommunityView: React.FC<{
                 authorPhotoURL: optimisticComment.authorPhotoURL, 
                 text: optimisticComment.text, 
                 timestamp: optimisticComment.timestamp,
+                imageUrl: optimisticComment.imageUrl,
                 likes: optimisticComment.likes,
+                reactions: optimisticComment.reactions
             };
             await addCommentToTimelineEvent(event.id, commentDataForFirestore);
         } catch (error) {
@@ -1414,12 +1843,30 @@ export const CommunityView: React.FC<{
             <main className={`flex-grow bg-transparent ${activeTab === 'chatt' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
                 {activeTab === 'flode' && (
                     <div className="p-2 sm:p-4 max-w-2xl mx-auto w-full">
+                        {activeBootcamp && (
+                            <div className="flex bg-neutral-100 p-1 rounded-xl mb-4">
+                                <button
+                                    onClick={() => setFeedFilter('all')}
+                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-colors ${feedFilter === 'all' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+                                >
+                                    Alla inlägg
+                                </button>
+                                <button
+                                    onClick={() => setFeedFilter('bootcamp')}
+                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-colors ${feedFilter === 'bootcamp' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+                                >
+                                    Bootcamp-gruppen
+                                </button>
+                            </div>
+                        )}
                         <CreatePostWidget 
                             currentUser={currentUser} 
                             userProfile={userProfile} 
                             onPostCreated={(post) => setTimelineEvents(prev => [post, ...prev])}
                             setToastNotification={setToastNotification} 
                             userRole={userRole}
+                            activeBootcamp={activeBootcamp}
+                            initialText={initialPostText}
                         />
                         {visibleEvents.length > 0 ? (
                             <>
@@ -1433,12 +1880,14 @@ export const CommunityView: React.FC<{
                                             onTogglePepp={handleTogglePepp}
                                             onAddComment={handleAddComment}
                                             onToggleLike={handleToggleLike}
+                                            onToggleCommentReaction={handleToggleCommentReaction}
                                             onDelete={handleDeleteEvent}
                                             onImageClick={(src, alt) => setLightboxImage({ src, alt })}
                                             onShare={(event) => setShareEvent(event)}
                                             lastViewTimestamp={effectiveLastViewTimestamp}
                                             buddyDetails={buddyDetails}
                                             currentStreak={currentStreak}
+                                            onAddFriend={(userId, userName) => handleSendRequest({ uid: userId, name: userName, email: '', photoURL: '', gender: 'other' })}
                                         />
                                     ))}
                                 </div>

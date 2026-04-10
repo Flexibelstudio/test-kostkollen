@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, Reactions, AIDataForJourneyAnalysis, StreakSaver } from '../types';
+import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, Reactions, AIDataForJourneyAnalysis, StreakSaver, BootcampParticipant } from '../types';
 import { PencilIcon, TrophyIcon, SparklesIcon, PlusIcon, ScaleIcon, ExclamationTriangleIcon } from './icons';
 import { Dumbbell, PieChart, Target } from 'lucide-react';
 import { calculateGoalTimeline } from '../utils/timelineUtils.ts';
@@ -35,6 +35,7 @@ interface JourneyViewProps {
   isAICoachOpen: boolean;
   isProfileOpen: boolean;
   isMorningReportOpen: boolean;
+  activeBootcamp?: BootcampParticipant | null;
 }
 type Tab = 'goals' | 'achievements';
 
@@ -44,7 +45,8 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       onOpenLogWeightModal, playAudio, 
       initialTab, minSafeCalories,
       setToastNotification, achievements, unlockedAchievements, achievementInteractions,
-      setShowAICoachModal, isAICoachOpen, isProfileOpen, isMorningReportOpen
+      setShowAICoachModal, isAICoachOpen, isProfileOpen, isMorningReportOpen,
+      activeBootcamp
   } = props;
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -67,9 +69,14 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
   }, [weightLogs, userProfile.goalStartDate]);
   
   const timeline = useMemo(() => {
+      // Create an effective profile that backfills goalStartDate from the first log if missing
+      const effectiveProfile = {
+          ...userProfile,
+          goalStartDate: userProfile.goalStartDate || (weightLogs.length > 0 ? new Date(weightLogs[0].loggedAt).toISOString().split('T')[0] : undefined)
+      };
       // Calculate timeline using the filtered logs (relevant to current goal)
-      return calculateGoalTimeline(userProfile, filteredWeightLogs);
-  }, [userProfile, filteredWeightLogs]);
+      return calculateGoalTimeline(effectiveProfile, filteredWeightLogs);
+  }, [userProfile, filteredWeightLogs, weightLogs]);
   
   // Find latest measurements
   const latestWeightValue = useMemo(() => [...filteredWeightLogs].reverse().find(l => l.weightKg != null)?.weightKg ?? userProfile.currentWeightKg, [filteredWeightLogs, userProfile.currentWeightKg]);
@@ -295,7 +302,46 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       }
   };
 
-  const coachName = userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
+  const handleAdjustGoal = async (type: 'pace' | 'date' | 'auto_adjust') => {
+      if (!timeline.metrics) return;
+      
+      const updatedProfile = { ...userProfile };
+      
+      if (type === 'pace') {
+          // Keep date, just acknowledge the tougher pace
+          setToastNotification({ message: 'Måldatum behållet. Kämpa på!', type: 'success' });
+      } else if (type === 'date') {
+          // Move date forward based on planned pace
+          let paceToUse = Math.abs(timeline.metrics.plannedPacePerWeek);
+          if (paceToUse === 0 || isNaN(paceToUse)) {
+              paceToUse = 0.5; // Default healthy pace
+          }
+          
+          const weightRemaining = (userProfile.goalStartWeight || userProfile.currentWeightKg || 0) + (userProfile.desiredWeightChangeKg || 0) - (userProfile.currentWeightKg || 0);
+          const weeksNeeded = Math.abs(weightRemaining / paceToUse);
+          const newDate = new Date();
+          newDate.setDate(newDate.getDate() + Math.ceil(weeksNeeded * 7));
+          updatedProfile.goalCompletionDate = newDate.toISOString().split('T')[0];
+          await onSaveProfileAndGoals(updatedProfile, goals);
+          setToastNotification({ message: 'Måldatum framflyttat för att behålla en hållbar takt.', type: 'success' });
+      } else if (type === 'auto_adjust') {
+          // Adjust target weight to be healthy (e.g. max 1% per week)
+          const maxSafePace = (userProfile.currentWeightKg || 80) * 0.01; // 1% of body weight
+          const weeksRemaining = timeline.metrics.daysRemaining / 7;
+          const safeWeightChange = maxSafePace * weeksRemaining;
+          
+          // If it's a loss goal
+          if ((userProfile.desiredWeightChangeKg || 0) < 0) {
+              const newTargetWeight = (userProfile.currentWeightKg || 0) - safeWeightChange;
+              const newTotalChange = newTargetWeight - (userProfile.goalStartWeight || userProfile.currentWeightKg || 0);
+              updatedProfile.desiredWeightChangeKg = newTotalChange;
+              await onSaveProfileAndGoals(updatedProfile, goals);
+              setToastNotification({ message: 'Målet har justerats till en hälsosam nivå.', type: 'success' });
+          }
+      }
+  };
+
+  const coachName = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle].label : 'Coachen';
 
   return (
     <>
@@ -409,9 +455,12 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                             <GoalTimeline 
                                 milestones={timeline.milestones} 
                                 paceFeedback={timeline.paceFeedback} 
+                                metrics={timeline.metrics}
                                 weightLogs={filteredWeightLogs} 
                                 goalType={userProfile.goalType} 
                                 currentAppDate={new Date()}
+                                isBootcampActive={userProfile.isCourseActive}
+                                onAdjustGoal={handleAdjustGoal}
                             />
                             
                             <ProfileAndGoalEditor 
@@ -446,22 +495,22 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
       
       {isSpeedDialOpen && (
           <div 
-              className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-[100] animate-fade-in"
+              className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm z-40 animate-fade-in"
               onClick={() => setIsSpeedDialOpen(false)}
           />
       )}
 
       {!isProfileEditing && !isAICoachOpen && !isProfileOpen && !isMorningReportOpen && (
-        <div className="fixed bottom-6 right-6 z-[105] flex flex-col items-end gap-3 pointer-events-none">
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
             {isSpeedDialOpen && (
                 <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                     <button onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
                         <span className="bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">Chatta med {coachName}</span>
                         <div className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white dark:bg-neutral-darker overflow-hidden border-2 border-primary">
-                            {userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
+                            {userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
                                 <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={coachName} className="w-full h-full object-cover" />
                             ) : (
-                                <span className="text-xl">{userProfile.coachStyle ? COACH_PERSONAS[userProfile.coachStyle].emoji : '🤖'}</span>
+                                <span className="text-xl">{userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle].emoji : '🤖'}</span>
                             )}
                         </div>
                     </button>
@@ -483,7 +532,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                 {isSpeedDialOpen ? (
                     <PlusIcon className="w-8 h-8" />
                 ) : (
-                    userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
+                    userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
                         <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={coachName} className="w-full h-full object-cover" />
                     ) : (
                         <PlusIcon className="w-8 h-8" />
@@ -495,18 +544,35 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
 
       {showResetConfirmModal && (
         <div
-            className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[110] animate-fade-in"
+            className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-[120] animate-fade-in"
             onClick={() => setShowResetConfirmModal(false)}
         >
             <div className="bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Sätta ett nytt mål?</h3>
-                <p className="text-neutral mb-6">
-                    Detta kommer att markera ditt nuvarande mål som slutfört och låter dig ställa in ett nytt. Vill du fortsätta?
-                </p>
-                <div className="flex justify-end space-x-3">
-                    <button onClick={() => setShowResetConfirmModal(false)} className="px-5 py-2.5 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-xl active:scale-95 interactive-transition font-medium">Avbryt</button>
-                    <button onClick={handleStartNewGoal} className="px-5 py-2.5 text-white bg-primary hover:bg-primary-darker rounded-xl active:scale-95 interactive-transition font-medium">Ja, sätt nytt mål</button>
-                </div>
+                {activeBootcamp ? (
+                    <>
+                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center">
+                            <img src={COACH_PERSONAS['hard'].imageUrl} alt="General Börje" className="w-8 h-8 rounded-full object-cover mr-2 border border-primary" />
+                            General Börje
+                        </h3>
+                        <p className="text-neutral mb-6">
+                            Ditt mål är låst under pågående bootcamp, soldat! Fokusera på att slutföra uppdraget innan du sätter nya mål.
+                        </p>
+                        <div className="flex justify-end">
+                            <button onClick={() => setShowResetConfirmModal(false)} className="w-full px-5 py-2.5 text-white bg-primary hover:bg-primary-darker rounded-xl active:scale-95 interactive-transition font-medium">Uppfattat!</button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Sätta ett nytt mål?</h3>
+                        <p className="text-neutral mb-6">
+                            Detta kommer att markera ditt nuvarande mål som slutfört och låter dig ställa in ett nytt. Vill du fortsätta?
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button onClick={() => setShowResetConfirmModal(false)} className="px-5 py-2.5 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-xl active:scale-95 interactive-transition font-medium">Avbryt</button>
+                            <button onClick={handleStartNewGoal} className="px-5 py-2.5 text-white bg-primary hover:bg-primary-darker rounded-xl active:scale-95 interactive-transition font-medium">Ja, sätt nytt mål</button>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
       )}
