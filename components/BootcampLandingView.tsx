@@ -5,7 +5,8 @@ import { Loader2 } from 'lucide-react';
 import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
 import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort, getBootcampStepGoal } from '../services/bootcampService';
 import { saveWeightLog } from '../services/firestoreService';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import ToastNotification from './ToastNotification';
 import UserProfileModal from './UserProfileModal';
 import LogWeightModal from './LogWeightModal';
@@ -73,7 +74,25 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
   const handleJoinWithCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim() || !auth.currentUser) return;
-    await handlePaymentAndJoin(inviteCode.trim().toUpperCase());
+    
+    setIsJoining(true);
+    try {
+        const q = query(collection(db, 'bootcampCohorts'), where('inviteCode', '==', inviteCode.trim().toUpperCase()));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+            setToast({ message: 'Ogiltig inbjudningskod.', type: 'error' });
+            setIsJoining(false);
+            return;
+        }
+        
+        const cohortId = snapshot.docs[0].id;
+        await handlePaymentAndJoin(cohortId);
+    } catch (error) {
+        console.error("Error resolving invite code:", error);
+        setToast({ message: 'Ett fel uppstod. Försök igen.', type: 'error' });
+        setIsJoining(false);
+    }
   };
 
   const handleJoinPublicCohort = async (cohort: BootcampCohort) => {
