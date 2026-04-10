@@ -66,12 +66,27 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const hasReportedToday = reports.some(r => r.date === todayStr);
   const yesterdayReport = reports.find(r => r.date === yesterdayStr);
   
-  // Can edit yesterday if yesterday was reported but maybe we want to fix it.
-  // Or maybe we didn't report yesterday at all.
-  // The user can edit yesterday's report all day today.
-  // BUT they cannot edit yesterday if they just started the bootcamp today.
-  const joinedToday = participant.joinedAt ? getDateUID(new Date(participant.joinedAt)) === todayStr : false;
-  const justStartedToday = participant.originalStartDate === todayStr || joinedToday;
+  let joinedToday = false;
+  if (participant.joinedAt) {
+    let joinedDate;
+    if (typeof (participant.joinedAt as any).toDate === 'function') {
+      joinedDate = (participant.joinedAt as any).toDate();
+    } else if (typeof participant.joinedAt === 'number') {
+      // If it's a timestamp in seconds (Firestore sometimes returns this if not fully parsed)
+      // or milliseconds. Let's assume milliseconds if it's large, seconds if small.
+      joinedDate = new Date(participant.joinedAt > 1e11 ? participant.joinedAt : participant.joinedAt * 1000);
+    } else if (typeof participant.joinedAt === 'string') {
+      joinedDate = new Date(participant.joinedAt);
+    } else if ((participant.joinedAt as any).seconds) {
+      joinedDate = new Date((participant.joinedAt as any).seconds * 1000);
+    }
+    
+    if (joinedDate && !isNaN(joinedDate.getTime())) {
+      joinedToday = getDateUID(joinedDate) === todayStr;
+    }
+  }
+
+  const justStartedToday = participant.fas1StartDate === todayStr || joinedToday;
   const canEditYesterday = !justStartedToday && (!yesterdayReport || !yesterdayReport.isGreenDay);
 
   useEffect(() => {
