@@ -364,7 +364,6 @@ exports.onUserStreakUpdated = functions.firestore
           relatedDocPath: `users/${userId}`,
           streakAtPost: newStreak,
           bootcampStreakAtPost: bootcampStreakAtPost,
-          bootcampId: bootcampId,
           goalTextAtPost: goalTextAtPost,
           progressAtPost: progressAtPost
         };

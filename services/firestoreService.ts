@@ -801,7 +801,18 @@ export async function addTimelineEvent(
   }
 
   if (bootcampId) {
-    visibleTo.push(bootcampId);
+    let shouldIncludeInBootcamp = false;
+    if (eventData.type === 'weight') {
+      shouldIncludeInBootcamp = true;
+    } else if (eventData.type === 'achievement' && eventData.relatedDocId.startsWith('bootcamp_')) {
+      shouldIncludeInBootcamp = true;
+    }
+
+    if (shouldIncludeInBootcamp) {
+      visibleTo.push(bootcampId);
+    } else {
+      bootcampId = undefined;
+    }
   }
 
   // Calculate goal text and progress
