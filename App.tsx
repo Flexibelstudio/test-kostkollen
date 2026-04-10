@@ -796,6 +796,15 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
           const unsubscribe = subscribeToUserActiveBootcamp(currentUser.uid, (bootcamp) => {
               setActiveBootcamp(bootcamp);
               setIsBootcampLoading(false);
+              
+              if (bootcamp && bootcamp.longestStreak > 0) {
+                  setUserProfile(prev => {
+                      if (!prev.highestBootcampStreak || bootcamp.longestStreak > prev.highestBootcampStreak) {
+                          return { ...prev, highestBootcampStreak: bootcamp.longestStreak };
+                      }
+                      return prev;
+                  });
+              }
           });
           
           // Also check for unseen finale

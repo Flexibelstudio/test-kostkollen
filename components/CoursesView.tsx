@@ -194,12 +194,14 @@ const CourseCard: React.FC<{
                 </button>
             )}
             {hasStarted && onAbort && !isLocked && (
-                <button
-                    onClick={onAbort}
-                    className={`w-full py-2 text-sm font-semibold rounded-xl transition-colors ${isBootcamp ? 'text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30' : 'text-red-500 hover:text-red-700 hover:bg-red-50'}`}
-                >
-                    Avbryt kursen
-                </button>
+                <div className="mt-4 text-center">
+                    <button
+                        onClick={onAbort}
+                        className={`text-xs underline transition-colors ${isBootcamp ? 'text-neutral-500 hover:text-neutral-400' : 'text-neutral-400 hover:text-neutral-500'}`}
+                    >
+                        Avsluta {isBootcamp ? 'bootcamp' : 'kurs'}
+                    </button>
+                </div>
             )}
         </div>
     </div>
