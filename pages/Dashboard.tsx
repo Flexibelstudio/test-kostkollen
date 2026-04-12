@@ -350,6 +350,15 @@ const Dashboard: React.FC<DashboardProps> = ({
     const isFullyCoveredByBank = isOverBudget && netCaloriesOver === 0;
     const isNetOverBudget = netCaloriesOver > 0;
 
+    let currentGoalMet = false;
+    if (totalNutrients.calories >= minSafeCalories) {
+        if (userProfile?.goalType === 'gain_muscle') {
+            currentGoalMet = totalNutrients.calories >= (goals.calorieGoal - 300);
+        } else {
+            currentGoalMet = totalNutrients.calories <= (goals.calorieGoal + availableBank);
+        }
+    }
+
     let progressColor = "text-primary";
     
     if (totalNutrients.calories < minSafeCalories) {
@@ -1094,7 +1103,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             calorieGoal: goals.calorieGoal,
                             proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
                             waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML,
-                            goalMet: goalMet
+                            goalMet: currentGoalMet
                         }}
                         isSummarizingYesterday={isSummarizingYesterday}
                         bankedCalories={weeklyBank.bankedCalories}
