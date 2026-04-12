@@ -690,7 +690,6 @@ const wasCalorieGoalMetForSummary = (consumed, goal, goalType, bankedCalories = 
 };
 
 const MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL = 0.80;
-const MIN_ABSOLUTE_CALORIES_THRESHOLD = 1200;
 
 exports.manualSummarizeYesterday = functions
   .region("us-central1")
@@ -736,8 +735,9 @@ exports.manualSummarizeYesterday = functions
                 return acc;
             }, {calories: 0});
 
-            const minSafeCalories = Math.max(user.goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
-            const bankedCalories = user.weeklyBank?.bankedCalories || 0;
+            const minSafeCalories = user.goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
+            const isYesterdayMonday = yesterday.getDay() === 1;
+            const bankedCalories = isYesterdayMonday ? 0 : (user.weeklyBank?.bankedCalories || 0);
             const wasDaySuccessful = dailyLogForDate.length > 0 &&
                 totalNutrients.calories >= minSafeCalories &&
                 wasCalorieGoalMetForSummary(totalNutrients.calories, user.goals.calorieGoal, user.goalType, bankedCalories);

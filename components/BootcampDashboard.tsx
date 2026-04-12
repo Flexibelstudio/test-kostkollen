@@ -113,7 +113,6 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         
         // Kcal-kravet: Får inte gå över målet (0 kcal marginal, men sparpott får användas).
         // Får ligga under målet, men max 20% under (för att bygga sparpott utan att svälta).
-        // Måste ha loggat minst 400 kcal för att räknas som en aktiv dag.
         let isCaloriesWithinRange = false;
         if (userProfile.goalType === 'gain_muscle') {
           // För muskelbyggnad: Måste nå minst TDEE (mål - 300). Ingen strikt övre gräns.
@@ -125,7 +124,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           isCaloriesWithinRange = totalCalories >= lowerLimit && totalCalories <= upperLimit;
         }
         
-        setLoggedAllMeals(meals.length > 0 && totalCalories > 400 && isCaloriesWithinRange);
+        setLoggedAllMeals(meals.length > 0 && isCaloriesWithinRange);
         setProteinMet(totalProtein >= goals.proteinGoal);
         setWaterMet(water >= 2000); // 2 liters
 

@@ -27,7 +27,7 @@ import {
 
 import {
   DEFAULT_GOALS, LOCAL_STORAGE_KEYS, DEFAULT_WATER_GOAL_ML,
-  DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD,
+  DEFAULT_USER_PROFILE, LEVEL_DEFINITIONS, MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
   ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS, VAPID_PUBLIC_KEY
 } from './constants.ts';
 
@@ -446,8 +446,7 @@ export const App = () => {
   }, [viewingDate]);
 
   const minSafeCalories = useMemo(() => {
-    const goalBasedMin = (goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
-    return Math.max(goalBasedMin, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+    return (goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
   }, [goals.calorieGoal]);
 
     const loadDataForDate = useCallback(async (userId: string, dateToLoad: Date) => {
@@ -1464,7 +1463,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             fat: acc.fat + meal.nutritionalInfo.fat,
         }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
 
-        const minSafe = Math.max((goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+        const minSafe = (goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
         
         let goalMet = false;
         let usedFromBank = 0;
