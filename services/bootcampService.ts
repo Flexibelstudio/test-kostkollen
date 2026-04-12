@@ -16,8 +16,8 @@ export const createCohort = async (
   if (!db) throw new Error("Firestore not initialized");
 
   const cohortData: Omit<BootcampCohort, 'id'> = {
-    name,
-    inviteCode: inviteCode.toUpperCase(),
+    name: name.trim(),
+    inviteCode: inviteCode.trim().toUpperCase(),
     startDate,
     chatGroupId,
     status: 'upcoming',
@@ -82,7 +82,16 @@ export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) =
 export const updateCohort = async (cohortId: string, updates: Partial<BootcampCohort>): Promise<void> => {
   if (!db) throw new Error("Firestore not initialized");
   const cohortRef = doc(db, 'bootcampCohorts', cohortId);
-  await updateDoc(cohortRef, updates);
+  
+  const finalUpdates = { ...updates };
+  if (finalUpdates.name) {
+    finalUpdates.name = finalUpdates.name.trim();
+  }
+  if (finalUpdates.inviteCode) {
+    finalUpdates.inviteCode = finalUpdates.inviteCode.trim().toUpperCase();
+  }
+
+  await updateDoc(cohortRef, finalUpdates);
 };
 
 export const deleteCohort = async (cohortId: string): Promise<void> => {
