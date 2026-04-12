@@ -4,7 +4,7 @@ import { PastDaysSummaryCollection } from '../types';
 import { Dumbbell } from 'lucide-react';
 import { ArrowLeftIcon, ArrowRightIcon } from './icons';
 import { getISOWeekNumber } from '../utils/dateUtils';
-import { MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD } from '../constants';
+import { MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL } from '../constants';
 
 interface DailyStats {
     calories: number;
@@ -135,7 +135,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 proteinGoalMet = currentViewStats.proteinGoalMet;
                 waterGoalMet = currentViewStats.waterGoalMet;
                 
-                const minSafe = Math.max(calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+                const minSafe = calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
                 const overage = Math.max(0, calories - calorieGoal);
                 
                 // Live check: Nådd mål ELLER räddad av sparpott

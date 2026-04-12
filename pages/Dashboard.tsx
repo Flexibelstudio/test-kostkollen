@@ -14,7 +14,6 @@ import {
 import { 
     DEFAULT_WATER_GOAL_ML,
     MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
-    MIN_ABSOLUTE_CALORIES_THRESHOLD,
     LOCAL_STORAGE_KEYS,
     COACH_PERSONAS
 } from '../constants';
@@ -344,12 +343,21 @@ const Dashboard: React.FC<DashboardProps> = ({
     const calculatedBankUsage = Math.min(rawCaloriesOver, availableBank);
     const netCaloriesOver = Math.max(0, rawCaloriesOver - calculatedBankUsage);
     const remainingBankDisplay = Math.max(0, availableBank - calculatedBankUsage);
-    const minSafeCalories = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+    const minSafeCalories = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
     const caloriesRemaining = Math.max(0, goals.calorieGoal - totalNutrients.calories);
     
     const isOverBudget = rawCaloriesOver > 0;
     const isFullyCoveredByBank = isOverBudget && netCaloriesOver === 0;
     const isNetOverBudget = netCaloriesOver > 0;
+
+    let currentGoalMet = false;
+    if (totalNutrients.calories >= minSafeCalories) {
+        if (userProfile?.goalType === 'gain_muscle') {
+            currentGoalMet = totalNutrients.calories >= (goals.calorieGoal - 300);
+        } else {
+            currentGoalMet = totalNutrients.calories <= (goals.calorieGoal + availableBank);
+        }
+    }
 
     let progressColor = "text-primary";
     
@@ -427,13 +435,15 @@ const Dashboard: React.FC<DashboardProps> = ({
             fat: acc.fat + meal.nutritionalInfo.fat,
         }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
 
-        const minSafe = Math.max(goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, MIN_ABSOLUTE_CALORIES_THRESHOLD);
+        const minSafe = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
         let goalMet = false;
         
         if (totals.calories >= minSafe) {
-                if (userProfile.goalType === 'lose_fat') goalMet = totals.calories <= goals.calorieGoal;
-                else if (userProfile.goalType === 'gain_muscle') goalMet = totals.calories >= (goals.calorieGoal - 300); 
-                else goalMet = Math.abs(totals.calories - goals.calorieGoal) <= (goals.calorieGoal * 0.1);
+            if (userProfile.goalType === 'gain_muscle') {
+                goalMet = totals.calories >= (goals.calorieGoal - 300);
+            } else {
+                goalMet = totals.calories <= (goals.calorieGoal + availableBank);
+            }
         }
 
         // --- STREAK LOGIC: Check previous day to determine new streak ---
@@ -1092,7 +1102,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                             calories: totalNutrients.calories,
                             calorieGoal: goals.calorieGoal,
                             proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
-                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML
+                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML,
+                            goalMet: currentGoalMet
                         }}
                         isSummarizingYesterday={isSummarizingYesterday}
                         bankedCalories={weeklyBank.bankedCalories}
