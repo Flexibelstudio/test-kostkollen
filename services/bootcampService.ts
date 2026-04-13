@@ -16,8 +16,8 @@ export const createCohort = async (
   if (!db) throw new Error("Firestore not initialized");
 
   const cohortData: Omit<BootcampCohort, 'id'> = {
-    name,
-    inviteCode: inviteCode.toUpperCase(),
+    name: name.trim(),
+    inviteCode: inviteCode.trim().toUpperCase(),
     startDate,
     chatGroupId,
     status: 'upcoming',
@@ -58,22 +58,27 @@ export const subscribeToCohorts = (callback: (cohorts: BootcampCohort[]) => void
 export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) => void) => {
   if (!db) return () => {};
   
-  const q = query(collection(db, 'bootcampCohorts'), where('isPublic', '==', true), where('status', '==', 'upcoming'));
+  // Remove status from query to avoid composite index requirements
+  const q = query(collection(db, 'bootcampCohorts'), where('isPublic', '==', true));
   return onSnapshot(q, (snapshot) => {
     const cohorts: BootcampCohort[] = [];
     const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const fiveDaysAgo = new Date(today);
+    fiveDaysAgo.setDate(today.getDate() - 5);
+    const fiveDaysAgoStr = `${fiveDaysAgo.getFullYear()}-${String(fiveDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(fiveDaysAgo.getDate()).padStart(2, '0')}`;
     
     snapshot.forEach(doc => {
       const data = doc.data() as BootcampCohort;
-      // Filter out cohorts that have already started
-      if (data.startDate >= todayStr) {
+      // Filter in memory: must be upcoming or active, and not started more than 5 days ago
+      if ((data.status === 'upcoming' || data.status === 'active') && data.startDate >= fiveDaysAgoStr) {
         cohorts.push({ id: doc.id, ...data });
       }
     });
     // Sort by start date ascending (closest first)
     cohorts.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     callback(cohorts);
+  }, (error) => {
+    console.error("Error fetching public cohorts:", error);
   });
 };
 
@@ -82,7 +87,16 @@ export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) =
 export const updateCohort = async (cohortId: string, updates: Partial<BootcampCohort>): Promise<void> => {
   if (!db) throw new Error("Firestore not initialized");
   const cohortRef = doc(db, 'bootcampCohorts', cohortId);
-  await updateDoc(cohortRef, updates);
+  
+  const finalUpdates = { ...updates };
+  if (finalUpdates.name) {
+    finalUpdates.name = finalUpdates.name.trim();
+  }
+  if (finalUpdates.inviteCode) {
+    finalUpdates.inviteCode = finalUpdates.inviteCode.trim().toUpperCase();
+  }
+
+  await updateDoc(cohortRef, finalUpdates);
 };
 
 export const deleteCohort = async (cohortId: string): Promise<void> => {

@@ -86,7 +86,21 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
             return;
         }
         
-        const cohortId = snapshot.docs[0].id;
+        const cohortDoc = snapshot.docs[0];
+        const cohortData = cohortDoc.data();
+        
+        const today = new Date();
+        const fiveDaysAgo = new Date(today);
+        fiveDaysAgo.setDate(today.getDate() - 5);
+        const fiveDaysAgoStr = `${fiveDaysAgo.getFullYear()}-${String(fiveDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(fiveDaysAgo.getDate()).padStart(2, '0')}`;
+
+        if (cohortData.startDate < fiveDaysAgoStr && cohortDoc.id !== 'solo' && cohortDoc.id !== 'solo_group') {
+            setToast({ message: 'Denna trupp har stängt för sena anmälningar.', type: 'error' });
+            setIsJoining(false);
+            return;
+        }
+        
+        const cohortId = cohortDoc.id;
         await handlePaymentAndJoin(cohortId);
     } catch (error) {
         console.error("Error resolving invite code:", error);
@@ -247,11 +261,19 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
             </div>
           ) : (
             <div className="space-y-4">
-              {publicCohorts.map(cohort => (
+              {publicCohorts.map(cohort => {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const hasStarted = cohort.startDate <= todayStr;
+                
+                return (
                 <div key={cohort.id} className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h3 className="font-bold text-neutral-dark">{cohort.name}</h3>
-                    <p className="text-sm text-neutral-500">Startar: {cohort.startDate}</p>
+                    {hasStarted ? (
+                        <p className="text-sm font-medium text-orange-600">Startade {cohort.startDate} – Sista chansen!</p>
+                    ) : (
+                        <p className="text-sm text-neutral-500">Startar: {cohort.startDate}</p>
+                    )}
                   </div>
                   <button
                     onClick={() => handleJoinPublicCohort(cohort)}
@@ -262,7 +284,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
                     {isJoining ? 'Laddar...' : 'Betala & Gå med'}
                   </button>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </div>

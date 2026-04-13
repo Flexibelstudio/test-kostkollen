@@ -1221,8 +1221,8 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
     logger.log("Running publishScheduledPosts cron job");
     
     try {
-        // 1. Hämta alla aktiva bootcamps från rätt collection
-        const bootcampsSnapshot = await db.collection("bootcampCohorts").where("status", "==", "active").get();
+        // 1. Hämta alla aktiva och kommande bootcamps från rätt collection
+        const bootcampsSnapshot = await db.collection("bootcampCohorts").where("status", "in", ["active", "upcoming"]).get();
         const activeBootcamps = [];
         bootcampsSnapshot.forEach(doc => {
             activeBootcamps.push({ id: doc.id, ...doc.data() });

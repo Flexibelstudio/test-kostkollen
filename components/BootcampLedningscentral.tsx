@@ -73,7 +73,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
 
     setIsSubmitting(true);
     try {
-      const finalInviteCode = newCohortIsPublic ? `PUB-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : newCohortCode;
+      const finalInviteCode = newCohortIsPublic ? `PUB-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : newCohortCode.trim();
 
       // 1. Create the cohort (no chat group)
       await createCohort(
@@ -109,7 +109,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
 
     setIsSubmitting(true);
     try {
-      const finalInviteCode = editCohortIsPublic ? (editingCohort.inviteCode.startsWith('PUB-') ? editingCohort.inviteCode : `PUB-${Math.random().toString(36).substring(2, 8).toUpperCase()}`) : editCohortCode;
+      const finalInviteCode = editCohortIsPublic ? (editingCohort.inviteCode.startsWith('PUB-') ? editingCohort.inviteCode : `PUB-${Math.random().toString(36).substring(2, 8).toUpperCase()}`) : editCohortCode.trim();
 
       await updateCohort(editingCohort.id, {
         name: editCohortName,
