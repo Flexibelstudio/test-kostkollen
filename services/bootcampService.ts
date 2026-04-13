@@ -58,7 +58,8 @@ export const subscribeToCohorts = (callback: (cohorts: BootcampCohort[]) => void
 export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) => void) => {
   if (!db) return () => {};
   
-  const q = query(collection(db, 'bootcampCohorts'), where('isPublic', '==', true), where('status', 'in', ['upcoming', 'active']));
+  // Remove status from query to avoid composite index requirements
+  const q = query(collection(db, 'bootcampCohorts'), where('isPublic', '==', true));
   return onSnapshot(q, (snapshot) => {
     const cohorts: BootcampCohort[] = [];
     const today = new Date();
@@ -68,14 +69,16 @@ export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) =
     
     snapshot.forEach(doc => {
       const data = doc.data() as BootcampCohort;
-      // Filter out cohorts that started more than 5 days ago
-      if (data.startDate >= fiveDaysAgoStr) {
+      // Filter in memory: must be upcoming or active, and not started more than 5 days ago
+      if ((data.status === 'upcoming' || data.status === 'active') && data.startDate >= fiveDaysAgoStr) {
         cohorts.push({ id: doc.id, ...data });
       }
     });
     // Sort by start date ascending (closest first)
     cohorts.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     callback(cohorts);
+  }, (error) => {
+    console.error("Error fetching public cohorts:", error);
   });
 };
 
