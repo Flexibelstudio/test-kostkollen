@@ -58,16 +58,18 @@ export const subscribeToCohorts = (callback: (cohorts: BootcampCohort[]) => void
 export const subscribeToPublicCohorts = (callback: (cohorts: BootcampCohort[]) => void) => {
   if (!db) return () => {};
   
-  const q = query(collection(db, 'bootcampCohorts'), where('isPublic', '==', true), where('status', '==', 'upcoming'));
+  const q = query(collection(db, 'bootcampCohorts'), where('isPublic', '==', true), where('status', 'in', ['upcoming', 'active']));
   return onSnapshot(q, (snapshot) => {
     const cohorts: BootcampCohort[] = [];
     const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const fiveDaysAgo = new Date(today);
+    fiveDaysAgo.setDate(today.getDate() - 5);
+    const fiveDaysAgoStr = `${fiveDaysAgo.getFullYear()}-${String(fiveDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(fiveDaysAgo.getDate()).padStart(2, '0')}`;
     
     snapshot.forEach(doc => {
       const data = doc.data() as BootcampCohort;
-      // Filter out cohorts that have already started
-      if (data.startDate >= todayStr) {
+      // Filter out cohorts that started more than 5 days ago
+      if (data.startDate >= fiveDaysAgoStr) {
         cohorts.push({ id: doc.id, ...data });
       }
     });
