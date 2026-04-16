@@ -178,7 +178,7 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
             <h2 className="text-3xl font-extrabold text-neutral-dark mb-3">Välkommen!</h2>
             <p className="text-neutral font-medium text-base mb-1">{userEmail}</p>
             <p className="text-neutral-dark text-lg mb-8 leading-relaxed">
-            Ditt konto väntar på att aktiveras. För att få tillgång till alla funktioner i Kostloggen behöver du starta din prenumeration.
+            Ditt konto väntar på att aktiveras. För att få tillgång till alla funktioner i Kostloggen behöver du starta din prenumeration. <span className="font-bold text-primary">De första 7 dagarna är helt gratis!</span>
             </p>
             
             <div className="bg-primary-50 border border-primary-100 rounded-2xl p-6 mb-8 text-left relative overflow-hidden">
@@ -207,13 +207,13 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
             ) : (
                 <>
                     <LockClosedIcon className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                    Starta prenumeration (95 kr/mån)
+                    Starta 7 dagar gratis
                 </>
             )}
             </button>
 
             <p className="text-neutral text-xs mb-8">
-            Betalningen hanteras säkert via Stripe. Ingen bindningstid.
+            Därefter 95 kr/mån. Betalningen hanteras säkert via Stripe. Ingen bindningstid.
             </p>
             
             <button
