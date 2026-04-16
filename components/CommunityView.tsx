@@ -374,23 +374,23 @@ const BuddyCard: FC<{
                             {buddy.currentStreak !== undefined && buddy.currentStreak >= 0 && (
                                 <span className="font-medium text-orange-500 whitespace-nowrap">🔥 {buddy.currentStreak}</span>
                             )}
-                            {buddy.currentStreak !== undefined && buddy.currentStreak >= 0 && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! >= 0 && (
+                            {buddy.currentStreak !== undefined && buddy.currentStreak >= 0 && Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0) >= 0 && (
                                 <span className="text-neutral-300 shrink-0">|</span>
                             )}
-                            {(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! >= 0 && (
+                            {Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0) >= 0 && (
                                 <span className="font-medium text-yellow-600 flex items-center gap-1 whitespace-nowrap">
-                                    🎖️ {buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak}
-                                    {getBootcampRankInfo(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak!, 0, 'fas1').currentRank && (
+                                    🎖️ {Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0)}
+                                    {getBootcampRankInfo(Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0), 0, 'fas1').currentRank && (
                                         <>
                                             <span className="text-neutral-300 shrink-0">|</span>
                                             <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
-                                                {getBootcampRankInfo(buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak!, 0, 'fas1').currentRank}
+                                                {getBootcampRankInfo(Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0), 0, 'fas1').currentRank}
                                             </span>
                                         </>
                                     )}
                                 </span>
                             )}
-                            {((buddy.currentStreak !== undefined && buddy.currentStreak >= 0) || ((buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak) !== undefined && (buddy.highestBootcampStreak !== undefined ? buddy.highestBootcampStreak : buddy.bootcampStreak)! >= 0)) && goalDescription && (
+                            {((buddy.currentStreak !== undefined && buddy.currentStreak >= 0) || Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0) >= 0) && goalDescription && (
                                 <span className="text-neutral-300 shrink-0">|</span>
                             )}
                             {goalDescription && (
@@ -630,7 +630,7 @@ export const TimelineEventCard: FC<{
                         {!isGlobalPost && !isCoachPersona && (() => {
                             // Fallback to current user profile or buddy details if event doesn't have the highest streak
                             let effectiveHighestStreak = event.highestBootcampStreak;
-                            if (effectiveHighestStreak === undefined) {
+                            if (effectiveHighestStreak === undefined || effectiveHighestStreak === 0) {
                                 if (event.userId === currentUser.uid) {
                                     effectiveHighestStreak = userProfile.highestBootcampStreak;
                                 } else {
@@ -1107,7 +1107,7 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const inviteText = `Haka på mig och gå ner i vikt med Kostloggen så kan vi peppa varandra! 🌟\n\nAnvänd koden GRATIS30 när du skapar ditt konto så får du 30 dagar helt gratis!\n\nLadda ner appen och lägg till mig som kompis här: https://app.kostloggen.se`;
+    const inviteText = `Haka på mig och gå ner i vikt med Kostloggen så kan vi peppa varandra! 🌟\n\nDu får automatiskt 7 dagar helt gratis när du skapar ditt konto!\n\nLadda ner appen och lägg till mig som kompis här: https://app.kostloggen.se`;
 
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
@@ -1339,9 +1339,9 @@ const FriendManagementView: FC<{
             {(activeTab === 'buddies' || activeTab === 'search') && (
                 <div className="flex-shrink-0 w-full bg-gradient-to-r from-primary to-primary-darker text-white flex items-center justify-between px-4 py-2.5 shadow-sm mt-0">
                     <div className="flex flex-col text-sm">
-                        <span className="font-medium">Ge bort 30 dagar gratis! 🎁</span>
+                        <span className="font-medium">Bjud in en kompis! 🎁</span>
                         <span className="text-primary-50 text-xs mt-0.5">
-                            app.kostloggen.se | Kod: <span className="font-bold bg-white/20 px-1 py-0.5 rounded ml-0.5">GRATIS30</span>
+                            De får automatiskt 7 dagar gratis
                         </span>
                     </div>
                     <button 

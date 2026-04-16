@@ -871,6 +871,13 @@ exports.createCheckoutSession = functions.runWith({ secrets: ["STRIPE_BOOTCAMP_P
             cancel_url: `${origin}/cancel`,
         };
 
+        // Lägg till 7 dagars gratisperiod om det är en prenumeration
+        if (mode === 'subscription') {
+            sessionConfig.subscription_data = {
+                trial_period_days: 7
+            };
+        }
+
         const session = await stripe.checkout.sessions.create(sessionConfig);
         
         return { sessionId: session.id, url: session.url };
