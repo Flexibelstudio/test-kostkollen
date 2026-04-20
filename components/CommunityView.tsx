@@ -986,47 +986,45 @@ export const TimelineEventCard: FC<{
 
         <form onSubmit={handleCommentSubmit} className="flex items-start gap-3 mt-4 ml-[60px]">
                 <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
-                <div className="flex-1">
-                    <div className="relative flex items-center">
-                        <input
-                            value={newComment}
-                            onChange={e => setNewComment(e.target.value)}
-                            className="w-full pl-4 pr-24 py-3 text-base bg-[#ffffff] text-[#000000] rounded-full border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
-                            placeholder="Skriv en kommentar..."
-                        />
-                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={() => setShowCameraModal(true)}
-                                className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
-                                title="Ta bild"
-                            >
-                                <CameraIcon className="w-5 h-5" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
-                                title="Ladda upp bild"
-                            >
-                                <ImageIcon className="w-5 h-5" />
-                            </button>
-                            <button 
-                                type="submit" 
-                                disabled={isSubmitting || (!newComment.trim() && !commentImage)} 
-                                className={`p-2 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary hover:bg-primary-50' : 'text-neutral-300'}`}
-                            >
-                                <Send className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            onChange={handleImageUpload} 
-                            accept="image/*" 
-                            className="hidden" 
-                        />
+                <div className="flex-1 flex flex-col gap-2">
+                    <input
+                        value={newComment}
+                        onChange={e => setNewComment(e.target.value)}
+                        className="w-full px-4 py-3 text-base bg-[#ffffff] text-[#000000] rounded-2xl border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
+                        placeholder="Skriv en kommentar..."
+                    />
+                    <div className="flex justify-end items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setShowCameraModal(true)}
+                            className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                            title="Ta bild"
+                        >
+                            <CameraIcon className="w-5 h-5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                            title="Ladda upp bild"
+                        >
+                            <ImageIcon className="w-5 h-5" />
+                        </button>
+                        <button 
+                            type="submit" 
+                            disabled={isSubmitting || (!newComment.trim() && !commentImage)} 
+                            className={`p-2 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary bg-primary-50' : 'text-neutral-300 bg-neutral-50'}`}
+                        >
+                            <Send className="w-5 h-5" />
+                        </button>
                     </div>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleImageUpload} 
+                        accept="image/*" 
+                        className="hidden" 
+                    />
                     {commentImage && (
                         <div className="mt-2 relative inline-block">
                             <img src={commentImage} alt="Preview" className="h-20 w-auto rounded-lg object-cover border border-neutral-light" />
