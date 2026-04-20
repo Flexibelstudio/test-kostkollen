@@ -436,11 +436,11 @@ const BuddyCard: FC<{
 const renderWeightDescription = (description: string) => {
     const parts = description.split('\n'); 
     return (
-        <div className="space-y-1 mt-2">
+        <div className="space-y-2 mt-2">
             {parts.map(part => {
                 const match = part.match(/(Vikt|Muskler|Fett):\s*([\d,.]+\s*kg)\s*\(([-+±\d,]+)\)/);
                 if (!match) {
-                    return <p key={part} className="text-base text-neutral-dark">{part}</p>;
+                    return <p key={part} className="text-lg text-neutral-dark">{part}</p>;
                 }
                 
                 const label = match[1];
@@ -458,7 +458,7 @@ const renderWeightDescription = (description: string) => {
                 }
 
                 return (
-                    <p key={label} className="text-base text-neutral-dark">
+                    <p key={label} className="text-lg text-neutral-dark">
                         <span className="font-medium">{label}:</span> {value} <span className={`font-bold ${colorClass}`}>({changeStr})</span>
                     </p>
                 );
@@ -599,7 +599,7 @@ export const TimelineEventCard: FC<{
                 : 'bg-white dark:bg-neutral-darker border-neutral-light'
     }`}>
         <div className="flex items-start gap-3">
-            <Avatar photoURL={displayPhotoURL} gender={event.gender} size={42} />
+            <Avatar photoURL={displayPhotoURL} gender={event.gender} size={48} />
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col min-w-0 flex-1">
@@ -658,20 +658,20 @@ export const TimelineEventCard: FC<{
 
                             return (
                                 <div className="mt-1 mb-2 w-full min-w-0">
-                                    <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-medium mb-1 min-w-0">
+                                    <div className="flex items-center gap-2 text-xs text-neutral-500 font-medium mb-1.5 min-w-0">
                                         {event.streakAtPost !== undefined && event.streakAtPost >= 0 && (
-                                            <span className="flex items-center gap-0.5 text-orange-600 whitespace-nowrap shrink-0"><span className="text-xs">🔥</span> {event.streakAtPost}</span>
+                                            <span className="flex items-center gap-0.5 text-orange-600 whitespace-nowrap shrink-0"><span className="text-sm">🔥</span> {event.streakAtPost}</span>
                                         )}
                                         {hasBootcampStreak && (
                                             <>
                                                 {event.streakAtPost !== undefined && event.streakAtPost >= 0 && <span className="text-neutral-300 shrink-0">|</span>}
-                                                <span className="flex items-center gap-0.5 text-yellow-600 whitespace-nowrap shrink-0"><span className="text-xs">🎖️</span> {event.bootcampStreakAtPost}</span>
+                                                <span className="flex items-center gap-0.5 text-yellow-600 whitespace-nowrap shrink-0"><span className="text-sm">🎖️</span> {event.bootcampStreakAtPost}</span>
                                             </>
                                         )}
                                         {hasHighestStreak && rankName && (
                                             <>
                                                 {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak) && <span className="text-neutral-300 shrink-0">|</span>}
-                                                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full whitespace-nowrap shrink-0">
+                                                <span className="text-[11px] font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full whitespace-nowrap shrink-0">
                                                     {rankName}
                                                 </span>
                                             </>
@@ -752,7 +752,7 @@ export const TimelineEventCard: FC<{
         </div>
 
         {/* Reactions and Action Bar */}
-        <div className="flex flex-wrap items-center gap-1.5 mt-3 ml-[50px]">
+        <div className="flex flex-wrap items-center gap-1.5 mt-3 ml-[60px]">
             {/* Add Reaction Button */}
             <div className="relative" ref={reactionMenuRef}>
                 <button 
@@ -760,12 +760,12 @@ export const TimelineEventCard: FC<{
                         e.preventDefault();
                         setShowReactionMenu(!showReactionMenu);
                     }}
-                    className="flex items-center justify-center w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 transition-colors border border-transparent hover:border-neutral-300 dark:hover:border-neutral-600"
+                    className="flex items-center justify-center w-9 h-9 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 transition-colors border border-transparent hover:border-neutral-300 dark:hover:border-neutral-600"
                     title="Reagera"
                 >
-                    <SmileIcon className="w-4 h-4" />
+                    <SmileIcon className="w-5 h-5" />
                     <span className="absolute -top-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
-                        <PlusIcon className="w-2.5 h-2.5 text-neutral-500" />
+                        <PlusIcon className="w-3 h-3 text-neutral-500" />
                     </span>
                 </button>
                 
@@ -829,7 +829,7 @@ export const TimelineEventCard: FC<{
                             onTogglePepp(event, emoji);
                         }} 
                         onMouseDown={(e) => e.preventDefault()}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all active:scale-95 border
+                        className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm transition-all active:scale-95 border
                             ${hasReacted 
                                 ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
                                 : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
@@ -844,7 +844,7 @@ export const TimelineEventCard: FC<{
         
         {/* Comments Section */}
         {((event.comments && event.comments.length > 0) || newComment || commentImage) && (
-             <div className="space-y-3 mt-4 ml-[50px]">
+             <div className="space-y-3 mt-4 ml-[60px]">
                 {(event.comments || []).map(comment => {
                     const reactions = comment.reactions || {};
                     const reactionCounts: { [emoji: string]: number } = {};
@@ -862,7 +862,7 @@ export const TimelineEventCard: FC<{
 
                     return (
                         <div key={comment.id} className="flex items-start gap-2 group">
-                            <Avatar photoURL={comment.authorPhotoURL} size={28} />
+                            <Avatar photoURL={comment.authorPhotoURL} size={36} />
                             <div className="flex-1">
                                 <div 
                                     onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
@@ -898,12 +898,12 @@ export const TimelineEventCard: FC<{
                                                 setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
                                                 setActiveCommentEmojiPickerId(null);
                                             }}
-                                            className={`relative flex items-center justify-center w-6 h-6 rounded-full transition-colors border border-transparent ${userReactionEmoji ? 'bg-primary-50 text-primary border-primary-200 dark:bg-primary-900/20 dark:border-primary-800' : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600'}`}
+                                            className={`relative flex items-center justify-center w-8 h-8 rounded-full transition-colors border border-transparent ${userReactionEmoji ? 'bg-primary-50 text-primary border-primary-200 dark:bg-primary-900/20 dark:border-primary-800' : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600'}`}
                                             title="Reagera"
                                         >
-                                            <SmileIcon className="w-3.5 h-3.5" />
+                                            <SmileIcon className="w-4 h-4" />
                                             <span className="absolute -top-0.5 -right-0.5 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
-                                                <PlusIcon className="w-2 h-2 text-neutral-500" />
+                                                <PlusIcon className="w-2.5 h-2.5 text-neutral-500" />
                                             </span>
                                         </button>
                                         
@@ -984,49 +984,47 @@ export const TimelineEventCard: FC<{
             </div>
         )}
 
-        <form onSubmit={handleCommentSubmit} className="flex items-start gap-3 mt-4 ml-[50px]">
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
-                <div className="flex-1">
-                    <div className="relative flex items-center">
-                        <input
-                            value={newComment}
-                            onChange={e => setNewComment(e.target.value)}
-                            className="w-full pl-4 pr-20 py-2 text-sm bg-[#ffffff] text-[#000000] rounded-full border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
-                            placeholder="Skriv en kommentar..."
-                        />
-                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={() => setShowCameraModal(true)}
-                                className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
-                                title="Ta bild"
-                            >
-                                <CameraIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
-                                title="Ladda upp bild"
-                            >
-                                <ImageIcon className="w-4 h-4" />
-                            </button>
-                            <button 
-                                type="submit" 
-                                disabled={isSubmitting || (!newComment.trim() && !commentImage)} 
-                                className={`p-1.5 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary hover:bg-primary-50' : 'text-neutral-300'}`}
-                            >
-                                <Send className="w-4 h-4" />
-                            </button>
-                        </div>
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            onChange={handleImageUpload} 
-                            accept="image/*" 
-                            className="hidden" 
-                        />
+        <form onSubmit={handleCommentSubmit} className="flex items-start gap-3 mt-4 ml-[60px]">
+                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
+                <div className="flex-1 flex flex-col gap-2">
+                    <input
+                        value={newComment}
+                        onChange={e => setNewComment(e.target.value)}
+                        className="w-full px-4 py-3 text-base bg-[#ffffff] text-[#000000] rounded-2xl border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
+                        placeholder="Skriv en kommentar..."
+                    />
+                    <div className="flex justify-end items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setShowCameraModal(true)}
+                            className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                            title="Ta bild"
+                        >
+                            <CameraIcon className="w-5 h-5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                            title="Ladda upp bild"
+                        >
+                            <ImageIcon className="w-5 h-5" />
+                        </button>
+                        <button 
+                            type="submit" 
+                            disabled={isSubmitting || (!newComment.trim() && !commentImage)} 
+                            className={`p-2 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary bg-primary-50' : 'text-neutral-300 bg-neutral-50'}`}
+                        >
+                            <Send className="w-5 h-5" />
+                        </button>
                     </div>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleImageUpload} 
+                        accept="image/*" 
+                        className="hidden" 
+                    />
                     {commentImage && (
                         <div className="mt-2 relative inline-block">
                             <img src={commentImage} alt="Preview" className="h-20 w-auto rounded-lg object-cover border border-neutral-light" />
