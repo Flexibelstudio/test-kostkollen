@@ -60,6 +60,13 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
         setIsLoadingBriefing(true);
         const text = await getMorningBriefingText({ userProfile, summary, currentStreak, yesterdayMeals, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs });
         setBriefingText(text);
+        
+        // Save to localStorage for AI Coach Modal
+        const d = new Date();
+        const swedishDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+        localStorage.setItem('todaysMorningReportText', text);
+        localStorage.setItem('todaysMorningReportDate', swedishDate);
+        
         setIsLoadingBriefing(false);
       };
       fetchBriefing();

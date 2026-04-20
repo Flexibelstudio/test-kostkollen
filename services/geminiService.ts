@@ -244,7 +244,7 @@ ${fatChangeStr ? `- Fettmassa utveckling: ${fatChangeStr}` : ''}
       recentContext += `\nVIKTIG COACHING: Användaren har skött kosten och minskat sin ${activeMetricLabel}! Ge massivt beröm och bekräfta att metoden fungerar.`;
     }
 
-    if (isFatChangePrioritized && style === 'tough') {
+    if (isFatChangePrioritized && style === 'hard') {
         if (fatChange > 0) {
             recentContext += `\nVIKTIGT FÖR GENERALEN: Användaren har gått UPP i fett (+${fatChange.toFixed(1)} kg). Oavsett vad totalvikten visar, är detta underkänt! Ge svidande kritik på Generalens vis och kräv skärpning.`;
         } else if (fatChange < 0) {

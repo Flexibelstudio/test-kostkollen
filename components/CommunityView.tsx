@@ -1553,6 +1553,23 @@ export const CommunityView: React.FC<{
     setActiveTab(initialTab);
   }, [initialTab]);
 
+    const handleSendRequest = async (toUser: { uid: string, name: string, email: string, photoURL: string, gender: string }) => {
+        const currentUserPeppkompis = {
+            uid: currentUser.uid,
+            name: userProfile.name || "En användare",
+            email: currentUser.email || '',
+            photoURL: userProfile.photoURL,
+            gender: userProfile.gender,
+        };
+        try {
+            await sendFriendRequest(currentUserPeppkompis, toUser.uid);
+            setToastNotification({ message: `Förfrågan skickad till ${toUser.name}!`, type: 'success' });
+        } catch (error) {
+            console.error("Error sending friend request:", error);
+            setToastNotification({ message: "Kunde inte skicka förfrågan.", type: 'error' });
+        }
+    };
+
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
   const [shareEvent, setShareEvent] = useState<TimelineEvent | null>(null);
   
