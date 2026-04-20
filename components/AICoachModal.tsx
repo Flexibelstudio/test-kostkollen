@@ -72,32 +72,15 @@ const AICoachModal: React.FC<AICoachModalProps> = ({
   const personaName = persona.label;
 
   const initialMessage: Message = useMemo(() => {
-    // Check for today's morning report in localStorage
-    const d = new Date();
-    const swedishDate = new Intl.DateTimeFormat("sv-SE", {
-      timeZone: "Europe/Stockholm",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(d);
-
-    const storedDate = localStorage.getItem("todaysMorningReportDate");
-    const storedReport = localStorage.getItem("todaysMorningReportText");
-
     let introText = "";
     const name = analysisContext.userProfile.name || "du";
 
-    if (storedDate === swedishDate && storedReport) {
-      introText = storedReport;
+    if (coachStyle === "hard") {
+      introText = `Givakt ${name}! **${personaName}** här. Inga ursäkter, nu kör vi. Vad behöver du hjälp med?`;
+    } else if (coachStyle === "soft") {
+      introText = `Hej ${name}! **${personaName}** här. Jag hoppas du mår bra idag. Jag finns här för att stötta och peppa dig. Vad funderar du på?`;
     } else {
-      // Fallback to default intro based on persona if no report exists for today
-      if (coachStyle === "hard") {
-        introText = `Givakt ${name}! **${personaName}** här. Inga ursäkter, nu kör vi. Vad behöver du hjälp med?`;
-      } else if (coachStyle === "soft") {
-        introText = `Hej ${name}! **${personaName}** här. Jag hoppas du mår bra idag. Jag finns här för att stötta och peppa dig. Vad funderar du på?`;
-      } else {
-        introText = `Hej ${name}! **${personaName}** här. Jag är redo att analysera dina data och hjälpa dig nå dina mål. Vad vill du veta?`;
-      }
+      introText = `Hej ${name}! **${personaName}** här. Jag är redo att analysera dina data och hjälpa dig nå dina mål. Vad vill du veta?`;
     }
 
     return {
@@ -172,6 +155,29 @@ const AICoachModal: React.FC<AICoachModalProps> = ({
         role: m.sender === "user" ? "user" : "model",
         parts: [{ text: m.text }],
       }));
+
+    if (messageText === "Dagens morgonrapport") {
+      const d = new Date();
+      const swedishDate = new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Europe/Stockholm",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(d);
+      const storedDate = localStorage.getItem("todaysMorningReportDate");
+      const storedReport = localStorage.getItem("todaysMorningReportText");
+      if (storedDate === swedishDate && storedReport) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botMessagePlaceholder.id
+              ? { ...m, text: storedReport, isStreaming: false }
+              : m,
+          ),
+        );
+        setIsLoading(false);
+        return;
+      }
+    }
 
     try {
       const stream = await getAICoachResponseStream(
@@ -256,6 +262,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({
   };
 
   const suggestionChips = [
+    "Dagens morgonrapport",
     "Visa min viktkurva",
     "Hur har min vecka sett ut?",
     "Vad har jag gjort bra?",
