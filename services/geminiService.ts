@@ -190,15 +190,32 @@ PÅGÅENDE BOOTCAMP (FAS 2):
     // Check if user has been good (consumed <= goal + small buffer)
     const hasBeenGood = avgConsumed <= avgGoal + 50;
 
-    // Check weight changes
+    // Check weight and fat changes
     let weightChangeStr = '';
     let weightChange = 0;
+    let fatChangeStr = '';
+    let fatChange = 0;
+    let isFatChangePrioritized = false;
+
     if (weightLogs && weightLogs.length >= 2) {
       const sortedLogs = [...weightLogs].sort((a, b) => b.loggedAt - a.loggedAt);
       const latestLog = sortedLogs[0];
       const previousLog = sortedLogs[1];
       weightChange = latestLog.weightKg - previousLog.weightKg;
       
+      if (latestLog.bodyFatMassKg !== undefined && previousLog.bodyFatMassKg !== undefined) {
+          fatChange = latestLog.bodyFatMassKg - previousLog.bodyFatMassKg;
+          isFatChangePrioritized = true;
+
+          if (fatChange < 0) {
+              fatChangeStr = `tappat ${Math.abs(fatChange).toFixed(1)} kg fett`;
+          } else if (fatChange > 0) {
+              fatChangeStr = `gått upp ${fatChange.toFixed(1)} kg fett`;
+          } else {
+              fatChangeStr = `stått still i fettmassa`;
+          }
+      }
+
       if (weightChange < 0) {
         weightChangeStr = `Gått ner ${Math.abs(weightChange).toFixed(1)} kg sedan förra mätningen.`;
       } else if (weightChange > 0) {
@@ -213,14 +230,26 @@ SENASTE 7 DAGARNA:
 - Snittkalorier: ${avgConsumed.toFixed(0)} kcal (Mål: ${avgGoal.toFixed(0)} kcal)
 - Har skött kosten: ${hasBeenGood ? 'JA' : 'NEJ'}
 ${weightChangeStr ? `- Viktutveckling: ${weightChangeStr}` : ''}
+${fatChangeStr ? `- Fettmassa utveckling: ${fatChangeStr}` : ''}
 `;
 
-    if (hasBeenGood && weightChange >= 0 && weightChangeStr) {
-      recentContext += `\nVIKTIG COACHING: Användaren har skött kosten perfekt de senaste 7 dagarna, men vågen står still eller går upp. Förklara att detta är normalt (vätska, stress, muskler) och peppa dem att inte ge upp. Om de stått stilla länge, föreslå att justera aktivitetsnivån eller sänka kaloriintaget något.`;
-    } else if (!hasBeenGood && weightChange >= 0 && weightChangeStr) {
-      recentContext += `\nVIKTIG COACHING: Användaren har INTE skött kosten de senaste 7 dagarna och vågen står still eller går upp. Ge ärlig (men peppig/tuff) feedback. "Du får ut det du stoppar in. Dags att steppa upp."`;
-    } else if (hasBeenGood && weightChange < 0 && weightChangeStr) {
-      recentContext += `\nVIKTIG COACHING: Användaren har skött kosten och gått ner i vikt! Ge massivt beröm och bekräfta att metoden fungerar.`;
+    const activeMetricSuccess = isFatChangePrioritized ? fatChange < 0 : weightChange < 0;
+    const activeMetricLabel = isFatChangePrioritized ? "fettmassan" : "vågen";
+
+    if (hasBeenGood && !activeMetricSuccess && weightChangeStr) {
+      recentContext += `\nVIKTIG COACHING: Användaren har skött kosten perfekt de senaste 7 dagarna, men ${activeMetricLabel} står still eller går upp. Förklara att detta är normalt (vätska, stress, muskler) och peppa dem att inte ge upp.`;
+    } else if (!hasBeenGood && !activeMetricSuccess && weightChangeStr) {
+      recentContext += `\nVIKTIG COACHING: Användaren har INTE skött kosten de senaste 7 dagarna och ${activeMetricLabel} går upp/står still. Ge ärlig feedback. "Du får ut det du stoppar in."`;
+    } else if (hasBeenGood && activeMetricSuccess && weightChangeStr) {
+      recentContext += `\nVIKTIG COACHING: Användaren har skött kosten och minskat sin ${activeMetricLabel}! Ge massivt beröm och bekräfta att metoden fungerar.`;
+    }
+
+    if (isFatChangePrioritized && style === 'tough') {
+        if (fatChange > 0) {
+            recentContext += `\nVIKTIGT FÖR GENERALEN: Användaren har gått UPP i fett (+${fatChange.toFixed(1)} kg). Oavsett vad totalvikten visar, är detta underkänt! Ge svidande kritik på Generalens vis och kräv skärpning.`;
+        } else if (fatChange < 0) {
+            recentContext += `\nVIKTIGT FÖR GENERALEN: Användaren har gått NER i fett (-${Math.abs(fatChange).toFixed(1)} kg). Beröm detta kraftfullt! Även om totalvikten eventuellt har ökat (t.ex. muskler), så är fettförbränningen det som räknas.`;
+        }
     }
   }
 
