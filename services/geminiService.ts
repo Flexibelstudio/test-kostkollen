@@ -244,7 +244,7 @@ ${fatChangeStr ? `- Fettmassa utveckling: ${fatChangeStr}` : ''}
       recentContext += `\nVIKTIG COACHING: Användaren har skött kosten och minskat sin ${activeMetricLabel}! Ge massivt beröm och bekräfta att metoden fungerar.`;
     }
 
-    if (isFatChangePrioritized && style === 'hard') {
+    if (isFatChangePrioritized && style === 'tough') {
         if (fatChange > 0) {
             recentContext += `\nVIKTIGT FÖR GENERALEN: Användaren har gått UPP i fett (+${fatChange.toFixed(1)} kg). Oavsett vad totalvikten visar, är detta underkänt! Ge svidande kritik på Generalens vis och kräv skärpning.`;
         } else if (fatChange < 0) {
@@ -793,7 +793,6 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
     - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
     - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
     - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
-5.  **MORGONRAPPORT:** Om användarens inmatning är exakt "Dagens morgonrapport", ska du skriva en peppande och framåtblickande morgonhälsning baserad på hur det gick under gårdagen. Uppmärksamma särskilt uppnådda mål för kalorier, protein och vätska samt eventuell streak. Uppmuntra dem därefter inför den nya dagen på ditt karakteristiska sätt.
 
 **ANVÄNDARENS AKTUELLA KONTEXT:**
 ${context.activeBootcamp ? `- Användaren deltar just nu i General Börjes Bootcamp (Fas: ${context.activeBootcamp.status}, Streak: ${context.activeBootcamp.currentStreak} dagar). VIKTIGT: Bootcampen har INGA lektioner. Prata aldrig om lektioner i samband med bootcampen.` : ''}
