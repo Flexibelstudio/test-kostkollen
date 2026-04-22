@@ -866,8 +866,22 @@ export const TimelineEventCard: FC<{
                             <div className="flex-1">
                                 <div 
                                     onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
-                                    className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
+                                    className={`rounded-2xl rounded-tl-none px-3 py-2 pr-8 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
                                 >
+                                    {onDeleteComment && comment.authorUid === currentUser.uid && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                if (window.confirm("Är du säker på att du vill ta bort kommentaren?")) {
+                                                    onDeleteComment(event.id, comment.id);
+                                                }
+                                            }}
+                                            className="absolute top-2.5 right-2 px-1 text-neutral-400 hover:text-red-500 md:opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="Ta bort kommentar"
+                                        >
+                                            <TrashIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
                                     <div className="flex items-center gap-2 mb-0.5">
                                         <p className="font-bold text-neutral-dark text-xs">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
                                         {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
@@ -890,21 +904,6 @@ export const TimelineEventCard: FC<{
                                     <span className="text-[10px] text-neutral-400">
                                         {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
                                     </span>
-                                    
-                                    {onDeleteComment && comment.authorUid === currentUser.uid && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                if (window.confirm("Är du säker på att du vill ta bort kommentaren?")) {
-                                                    onDeleteComment(event.id, comment.id);
-                                                }
-                                            }}
-                                            className="text-[10px] text-neutral-400 hover:text-red-500 transition-colors"
-                                            title="Ta bort kommentar"
-                                        >
-                                            Ta bort
-                                        </button>
-                                    )}
 
                                     <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
                                         <button 
