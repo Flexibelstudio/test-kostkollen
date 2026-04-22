@@ -20,7 +20,8 @@ import {
     listenToCommunityTimeline,
     createUserPost,
     cancelFriendRequest,
-    deleteTimelineEvent
+    deleteTimelineEvent,
+    deleteCommentFromTimelineEvent
 } from '../services/firestoreService';
 import { subscribeToUserChats, sendMessage } from '../services/chatService';
 import { 
@@ -475,6 +476,7 @@ export const TimelineEventCard: FC<{
     onToggleLike: (event: TimelineEvent, commentId: string) => void;
     onToggleCommentReaction: (event: TimelineEvent, commentId: string, emoji: string) => void;
     onDelete: (eventId: string) => void;
+    onDeleteComment?: (eventId: string, commentId: string) => void;
     onImageClick: (src: string, alt: string) => void;
     onShare?: (event: TimelineEvent) => void;
     lastViewTimestamp: number | null;
@@ -483,7 +485,7 @@ export const TimelineEventCard: FC<{
     activeBootcamp?: any;
     setToastNotification?: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     onAddFriend?: (userId: string, userName: string) => void;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend }) => {
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onDeleteComment, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend }) => {
     const [newComment, setNewComment] = useState('');
     const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -889,6 +891,21 @@ export const TimelineEventCard: FC<{
                                         {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
                                     </span>
                                     
+                                    {onDeleteComment && comment.authorUid === currentUser.uid && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                if (window.confirm("Är du säker på att du vill ta bort kommentaren?")) {
+                                                    onDeleteComment(event.id, comment.id);
+                                                }
+                                            }}
+                                            className="text-[10px] text-neutral-400 hover:text-red-500 transition-colors"
+                                            title="Ta bort kommentar"
+                                        >
+                                            Ta bort
+                                        </button>
+                                    )}
+
                                     <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
                                         <button 
                                             onClick={(e) => {
@@ -1750,6 +1767,26 @@ export const CommunityView: React.FC<{
             setToastNotification({ message: 'Kunde inte gilla kommentar.', type: 'error' });
         }
     };
+
+    const handleDeleteComment = async (eventId: string, commentId: string) => {
+        playAudio('uiClick');
+        
+        // Optimistic update
+        const updateEventList = (list: TimelineEvent[]) => list.map(e => 
+            e.id === eventId ? { ...e, comments: (e.comments || []).filter(c => c.id !== commentId) } : e
+        );
+
+        setRealtimeEvents(prev => updateEventList(prev));
+        setHistoricalEvents(prev => updateEventList(prev));
+
+        try {
+            await deleteCommentFromTimelineEvent(eventId, commentId);
+        } catch (error) {
+            console.error("Error deleting comment:", error);
+            setToastNotification({ message: 'Kunde inte ta bort kommentar.', type: 'error' });
+            // Revert is handled by realtime subscription
+        }
+    };
     
     const handleAddComment = async (event: TimelineEvent, text: string, imageBase64?: string) => {
         if (!text.trim() && !imageBase64) return;
@@ -1878,6 +1915,7 @@ export const CommunityView: React.FC<{
                                             onToggleLike={handleToggleLike}
                                             onToggleCommentReaction={handleToggleCommentReaction}
                                             onDelete={handleDeleteEvent}
+                                            onDeleteComment={handleDeleteComment}
                                             onImageClick={(src, alt) => setLightboxImage({ src, alt })}
                                             onShare={(event) => setShareEvent(event)}
                                             lastViewTimestamp={effectiveLastViewTimestamp}

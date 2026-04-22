@@ -1802,6 +1802,12 @@ export async function addCommentToTimelineEvent(eventId: string, commentData: Om
   return docRef.id;
 }
 
+export async function deleteCommentFromTimelineEvent(eventId: string, commentId: string): Promise<void> {
+  if (!db) return;
+  const commentRef = doc(db, 'communityTimeline', eventId, 'comments', commentId);
+  await deleteDoc(commentRef);
+}
+
 export async function toggleReactionOnComment(fromUser: { uid: string, name: string }, eventId: string, commentId: string, emoji: string): Promise<void> {
   if (!db) return;
   const commentRef = doc(db, 'communityTimeline', eventId, 'comments', commentId);
