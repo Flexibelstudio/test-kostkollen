@@ -1774,24 +1774,25 @@ export async function fetchOutgoingFriendRequests(userId: string): Promise<Peppk
 export async function togglePeppOnTimelineEvent(fromUser: { uid: string, name: string }, event: TimelineEvent, emoji: string): Promise<void> {
   if (!db) return;
   const eventRef = doc(db, 'communityTimeline', event.id);
-  await runTransaction(db, async (transaction) => {
-    const eventDoc = await transaction.get(eventRef);
-    if (!eventDoc.exists()) throw "Event does not exist!";
-    
-    const currentReactions = eventDoc.data() || {};
-    const hasReactedWithThisEmoji = !!currentReactions.reactions?.[emoji]?.[fromUser.uid];
-    
-    const updates: Record<string, any> = {};
-    if (hasReactedWithThisEmoji) {
-      updates[`reactions.${emoji}.${fromUser.uid}`] = deleteField();
+  const eventDoc = await getDocSafe(eventRef);
+  
+  const currentReactions = eventDoc.exists() ? eventDoc.data() : {};
+  const hasReactedWithThisEmoji = !!currentReactions.reactions?.[emoji]?.[fromUser.uid];
+  
+  const updates: Record<string, any> = {};
+  if (hasReactedWithThisEmoji) {
+    updates[`reactions.${emoji}.${fromUser.uid}`] = deleteField();
+  } else {
+    updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
+  }
+  
+  if (Object.keys(updates).length > 0) {
+    if (eventDoc.exists()) {
+      await updateDoc(eventRef, updates);
     } else {
-      updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
+      await setDoc(eventRef, { reactions: { [emoji]: { [fromUser.uid]: fromUser.name } } }, { merge: true });
     }
-    
-    if (Object.keys(updates).length > 0) {
-      transaction.update(eventRef, updates);
-    }
-  });
+  }
 }
 
 export async function addCommentToTimelineEvent(eventId: string, commentData: Omit<TimelineComment, 'id'>): Promise<string> {
@@ -1804,39 +1805,41 @@ export async function addCommentToTimelineEvent(eventId: string, commentData: Om
 export async function toggleReactionOnComment(fromUser: { uid: string, name: string }, eventId: string, commentId: string, emoji: string): Promise<void> {
   if (!db) return;
   const commentRef = doc(db, 'communityTimeline', eventId, 'comments', commentId);
-  await runTransaction(db, async (transaction) => {
-    const commentDoc = await transaction.get(commentRef);
-    if (!commentDoc.exists()) throw "Comment does not exist!";
-    
-    const currentData = commentDoc.data() || {};
-    const hasReactedWithThisEmoji = !!currentData.reactions?.[emoji]?.[fromUser.uid];
-    
-    const updates: Record<string, any> = {};
-    if (hasReactedWithThisEmoji) {
-      updates[`reactions.${emoji}.${fromUser.uid}`] = deleteField();
+  const commentDoc = await getDocSafe(commentRef);
+  
+  const currentData = commentDoc.exists() ? commentDoc.data() : {};
+  const hasReactedWithThisEmoji = !!currentData.reactions?.[emoji]?.[fromUser.uid];
+  
+  const updates: Record<string, any> = {};
+  if (hasReactedWithThisEmoji) {
+    updates[`reactions.${emoji}.${fromUser.uid}`] = deleteField();
+  } else {
+    updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
+  }
+  
+  if (Object.keys(updates).length > 0) {
+    if (commentDoc.exists()) {
+      await updateDoc(commentRef, updates);
     } else {
-      updates[`reactions.${emoji}.${fromUser.uid}`] = fromUser.name;
+      await setDoc(commentRef, { reactions: { [emoji]: { [fromUser.uid]: fromUser.name } } }, { merge: true });
     }
-    
-    transaction.update(commentRef, updates);
-  });
+  }
 }
 
 export async function toggleLikeOnComment(fromUser: { uid: string, name: string }, event: TimelineEvent, commentId: string): Promise<void> {
   if (!db) return;
   const likeRef = doc(db, 'communityTimeline', event.id, 'comments', commentId, 'likes', fromUser.uid);
-  await runTransaction(db, async (transaction) => {
-    const likeDoc = await transaction.get(likeRef);
-    if (likeDoc.exists()) {
-      transaction.delete(likeRef);
-    } else {
-      transaction.set(likeRef, {
-        userId: fromUser.uid,
-        userName: fromUser.name,
-        timestamp: serverTimestamp()
-      });
-    }
-  });
+  const likeDoc = await getDocSafe(likeRef);
+  
+  if (likeDoc.exists()) {
+    await deleteDoc(likeRef);
+  } else {
+    await setDoc(likeRef, {
+      userId: fromUser.uid,
+      userName: fromUser.name,
+      timestamp: serverTimestamp()
+    });
+  }
 }
 
 export async function cancelFriendRequest(requestId: string): Promise<void> {

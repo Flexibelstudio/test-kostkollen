@@ -2,9 +2,9 @@
 // Säker PWA-SW: auto-update, rensar gamla caches, cachear bara säkra assets,
 // nätet-först för HTML, bypass på externtrafik (Firebase m.fl.).
 
-const VERSION = '2026-01-08-1';                // <-- bumpa vid nästa release
-const STATIC_CACHE_NAME  = 'kostloggen-static-v33'; // <-- bumpa vid nästa release
-const DYNAMIC_CACHE_NAME = 'kostloggen-dyn-v29';    // <-- bumpa vid nästa release
+const VERSION = '2025-11-25-1';                // <-- bumpa vid nästa release
+const STATIC_CACHE_NAME  = 'kostloggen-static-v22'; // <-- bumpa vid nästa release
+const DYNAMIC_CACHE_NAME = 'kostloggen-dyn-v17';    // <-- bumpa vid nästa release
 const MAX_DYNAMIC_ENTRIES = 80;
 
 // Minimalt precache för offline-fallback (cacha inte massor här)
@@ -68,11 +68,6 @@ self.addEventListener('activate', (event) => {
     const keep = new Set([STATIC_CACHE_NAME, DYNAMIC_CACHE_NAME]);
     const names = await caches.keys();
     await Promise.all(names.map((n) => keep.has(n) ? undefined : caches.delete(n)));
-
-    // (valfritt) navigation preload
-    if ('navigationPreload' in self.registration) {
-      try { await self.registration.navigationPreload.enable(); } catch {}
-    }
 
     await self.clients.claim();
     console.log('[SW] activated', VERSION);
