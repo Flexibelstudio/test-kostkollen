@@ -36,7 +36,7 @@ import Lightbox from './Lightbox';
 import { ChatRoomsView } from './ChatRoomsView';
 import CameraModal from './CameraModal';
 import { COACH_PERSONAS } from '../constants';
-import { uploadImageToStorage, base64ToBlob } from '../utils/storageUtils';
+import { uploadImageToStorage, uploadBase64ToStorage, base64ToBlob } from '../utils/storageUtils';
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
 
 // --- HELPER FUNCTIONS ---
@@ -135,10 +135,9 @@ export const CreatePostWidget: FC<{
             // If image is a base64 string (from resizeImage or CameraModal), upload it to Storage
             if (image && image.startsWith('data:image')) {
                 try {
-                    const blob = await base64ToBlob(image);
                     const fileName = `post_${Date.now()}.jpg`;
                     const path = `timeline_images/${currentUser.uid}/${fileName}`;
-                    finalImageUrl = await uploadImageToStorage(blob, path);
+                    finalImageUrl = await uploadBase64ToStorage(image, path);
                 } catch (uploadError) {
                     console.error("Error uploading image to storage:", uploadError);
                     setToastNotification({ message: 'Kunde inte ladda upp bilden till servern.', type: 'error' });
@@ -527,10 +526,9 @@ export const TimelineEventCard: FC<{
             
             if (commentImage && commentImage.startsWith('data:image')) {
                 try {
-                    const blob = await base64ToBlob(commentImage);
                     const fileName = `comment_${Date.now()}.jpg`;
                     const path = `comment_images/${currentUser.uid}/${fileName}`;
-                    finalImageUrl = await uploadImageToStorage(blob, path);
+                    finalImageUrl = await uploadBase64ToStorage(commentImage, path);
                 } catch (uploadError) {
                     console.error("Error uploading comment image to storage:", uploadError);
                     if (setToastNotification) setToastNotification({ message: 'Kunde inte ladda upp bilden till servern.', type: 'error' });
