@@ -1,4 +1,4 @@
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
 
 export const uploadImageToStorage = async (
@@ -22,6 +22,23 @@ export const uploadImageToStorage = async (
   const downloadURL = await getDownloadURL(snapshot.ref);
   
   return downloadURL;
+};
+
+// Uploads a base64 string directly using native Firebase Storage uploadString
+export const uploadBase64ToStorage = async (
+  base64String: string,
+  path: string
+): Promise<string> => {
+  if (!storage) {
+    throw new Error("Firebase Storage is not initialized.");
+  }
+
+  const storageRef = ref(storage, path);
+  
+  // uploadString with 'data_url' correctly interprets the mime type from the base64 string
+  const snapshot = await uploadString(storageRef, base64String, 'data_url');
+  
+  return await getDownloadURL(snapshot.ref);
 };
 
 // Helper to convert base64 to Blob manually
