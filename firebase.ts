@@ -1,4 +1,3 @@
-
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import {
   getAuth,
@@ -88,7 +87,9 @@ if (useMock) {
     realAuth = getAuth(app);
     db = getFirestore(app); // Prod & staging = separata projekt via netlify.toml
     functions = getFunctions(app, 'us-central1'); // Init functions in same region as backend
-    storage = getStorage(app);
+    
+    // HÄR ÄR ÄNDRINGEN: Vi tvingar in rätt bucket-namn direkt
+    storage = getStorage(app, "flexibel-kostkollen.firebasestorage.app");
   } catch (e) {
     console.error("Firebase init misslyckades:", e);
   }
