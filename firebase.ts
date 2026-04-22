@@ -24,7 +24,8 @@ export const firebaseConfig = {
   apiKey: (import.meta as any).env.VITE_FB_API_KEY,
   authDomain: (import.meta as any).env.VITE_FB_AUTH_DOMAIN,
   projectId: (import.meta as any).env.VITE_FB_PROJECT_ID,
-  storageBucket: (import.meta as any).env.VITE_FB_STORAGE_BUCKET,
+  // Sanitize the storage bucket just in case it was pasted with gs:// or a trailing slash in prod
+  storageBucket: ((import.meta as any).env.VITE_FB_STORAGE_BUCKET || "").replace(/^gs:\/\//, "").replace(/\/$/, ""),
   messagingSenderId: (import.meta as any).env.VITE_FB_MESSAGING_SENDER_ID,
   appId: (import.meta as any).env.VITE_FB_APP_ID,
   ...((import.meta as any).env.VITE_FB_MEASUREMENT_ID
