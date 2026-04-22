@@ -88,8 +88,14 @@ if (useMock) {
     db = getFirestore(app); // Prod & staging = separata projekt via netlify.toml
     functions = getFunctions(app, 'us-central1'); // Init functions in same region as backend
     
-    // HÄR ÄR ÄNDRINGEN: Vi tvingar in rätt bucket-namn direkt
-    storage = getStorage(app, "flexibel-kostkollen.firebasestorage.app");
+    // SMART FIX: Vi kollar om vi är i Produktion eller Staging baserat på Project ID
+    // Om vi är i prod-projektet, tvinga den problematiska hinken. Annars använd config som vanligt.
+    const isProd = firebaseConfig.projectId === "flexibel-kostkollen";
+    const bucketName = isProd 
+      ? "flexibel-kostkollen.firebasestorage.app" 
+      : firebaseConfig.storageBucket;
+
+    storage = getStorage(app, bucketName);
   } catch (e) {
     console.error("Firebase init misslyckades:", e);
   }
