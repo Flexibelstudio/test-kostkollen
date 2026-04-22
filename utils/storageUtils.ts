@@ -11,8 +11,12 @@ export const uploadImageToStorage = async (
 
   const storageRef = ref(storage, path);
   
-  // Upload the file
-  const snapshot = await uploadBytes(storageRef, file);
+  // Upload the file with explicit metadata to avoid 400 errors
+  const metadata = {
+    contentType: file.type || 'image/jpeg',
+  };
+  
+  const snapshot = await uploadBytes(storageRef, file, metadata);
   
   // Get the download URL
   const downloadURL = await getDownloadURL(snapshot.ref);
@@ -20,8 +24,19 @@ export const uploadImageToStorage = async (
   return downloadURL;
 };
 
-// Helper to convert base64 to Blob
+// Helper to convert base64 to Blob manually
 export const base64ToBlob = async (base64: string): Promise<Blob> => {
-  const response = await fetch(base64);
-  return response.blob();
+  const parts = base64.split(';');
+  const mime = parts[0].split(':')[1] || 'image/jpeg';
+  const data = parts[1].split(',')[1];
+  
+  const byteString = atob(data);
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  
+  return new Blob([ab], { type: mime });
 };
