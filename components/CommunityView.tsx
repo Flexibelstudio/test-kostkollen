@@ -20,7 +20,8 @@ import {
     listenToCommunityTimeline,
     createUserPost,
     cancelFriendRequest,
-    deleteTimelineEvent
+    deleteTimelineEvent,
+    deleteCommentFromTimelineEvent
 } from '../services/firestoreService';
 import { subscribeToUserChats, sendMessage } from '../services/chatService';
 import { 
@@ -28,7 +29,7 @@ import {
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
     ShareIcon, PencilIcon, CameraIcon, SmileIcon
 } from './icons';
-import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon } from 'lucide-react';
+import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon, Users as UsersIcon } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
@@ -475,6 +476,7 @@ export const TimelineEventCard: FC<{
     onToggleLike: (event: TimelineEvent, commentId: string) => void;
     onToggleCommentReaction: (event: TimelineEvent, commentId: string, emoji: string) => void;
     onDelete: (eventId: string) => void;
+    onDeleteComment?: (eventId: string, commentId: string) => void;
     onImageClick: (src: string, alt: string) => void;
     onShare?: (event: TimelineEvent) => void;
     lastViewTimestamp: number | null;
@@ -483,7 +485,8 @@ export const TimelineEventCard: FC<{
     activeBootcamp?: any;
     setToastNotification?: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     onAddFriend?: (userId: string, userName: string) => void;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend }) => {
+    sentFriendRequests?: Set<string>;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onDeleteComment, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend, sentFriendRequests = new Set() }) => {
     const [newComment, setNewComment] = useState('');
     const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -604,12 +607,21 @@ export const TimelineEventCard: FC<{
                         <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
                             <span className="font-bold">{displayName}</span>
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
-                                <button 
-                                    onClick={() => onAddFriend(event.userId, event.userName)}
-                                    className="ml-1 text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
-                                >
-                                    + Lägg till kompis
-                                </button>
+                                sentFriendRequests.has(event.userId) ? (
+                                    <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                        <CheckIcon className="w-4 h-4" />
+                                        <span>Skickad</span>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={() => onAddFriend(event.userId, event.userName)}
+                                        className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
+                                        title="Lägg till kompis"
+                                    >
+                                        <UsersIcon className="w-4 h-4" />
+                                        <span>+</span>
+                                    </button>
+                                )
                             )}
                             {isGlobalPost && !event.bootcampId && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
@@ -864,17 +876,40 @@ export const TimelineEventCard: FC<{
                             <div className="flex-1">
                                 <div 
                                     onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
-                                    className={`rounded-2xl rounded-tl-none px-3 py-2 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
+                                    className={`rounded-2xl rounded-tl-none px-3 py-2 pr-8 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
                                 >
-                                    <div className="flex items-center gap-2 mb-0.5">
+                                    {onDeleteComment && comment.authorUid === currentUser.uid && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                if (window.confirm("Är du säker på att du vill ta bort kommentaren?")) {
+                                                    onDeleteComment(event.id, comment.id);
+                                                }
+                                            }}
+                                            className="absolute top-2.5 right-2 px-1 text-neutral-400 hover:text-red-500 md:opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="Ta bort kommentar"
+                                        >
+                                            <TrashIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                                         <p className="font-bold text-neutral-dark text-xs">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
                                         {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
-                                            <button 
-                                                onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
-                                                className="text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
-                                            >
-                                                + Lägg till kompis
-                                            </button>
+                                            sentFriendRequests.has(comment.authorUid) ? (
+                                                <div className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                                    <CheckIcon className="w-4 h-4" />
+                                                    <span>Skickad</span>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
+                                                    className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-white/70 hover:bg-white rounded-full text-[12px] font-bold text-primary shadow-sm transition-colors cursor-pointer"
+                                                    title="Lägg till kompis"
+                                                >
+                                                    <UsersIcon className="w-4 h-4" />
+                                                    <span>+</span>
+                                                </button>
+                                            )
                                         )}
                                     </div>
                                     {comment.text && <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>}
@@ -888,7 +923,7 @@ export const TimelineEventCard: FC<{
                                     <span className="text-[10px] text-neutral-400">
                                         {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
                                     </span>
-                                    
+
                                     <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
                                         <button 
                                             onClick={(e) => {
@@ -1538,6 +1573,7 @@ export const CommunityView: React.FC<{
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
   const [feedFilter, setFeedFilter] = useState<'all' | 'bootcamp'>('all');
   const [effectiveLastViewTimestamp, setEffectiveLastViewTimestamp] = useState(lastViewTimestamp);
+  const [sentFriendRequests, setSentFriendRequests] = useState<Set<string>>(new Set());
   
   const previousTabRef = useRef(activeTab);
   useEffect(() => {
@@ -1750,6 +1786,26 @@ export const CommunityView: React.FC<{
             setToastNotification({ message: 'Kunde inte gilla kommentar.', type: 'error' });
         }
     };
+
+    const handleDeleteComment = async (eventId: string, commentId: string) => {
+        playAudio('uiClick');
+        
+        // Optimistic update
+        const updateEventList = (list: TimelineEvent[]) => list.map(e => 
+            e.id === eventId ? { ...e, comments: (e.comments || []).filter(c => c.id !== commentId) } : e
+        );
+
+        setRealtimeEvents(prev => updateEventList(prev));
+        setHistoricalEvents(prev => updateEventList(prev));
+
+        try {
+            await deleteCommentFromTimelineEvent(eventId, commentId);
+        } catch (error) {
+            console.error("Error deleting comment:", error);
+            setToastNotification({ message: 'Kunde inte ta bort kommentar.', type: 'error' });
+            // Revert is handled by realtime subscription
+        }
+    };
     
     const handleAddComment = async (event: TimelineEvent, text: string, imageBase64?: string) => {
         if (!text.trim() && !imageBase64) return;
@@ -1802,6 +1858,23 @@ export const CommunityView: React.FC<{
         } catch (error) {
             console.error(error);
             setToastNotification({ message: "Kunde inte radera inlägget.", type: 'error' });
+        }
+    };
+    
+    const handleAddFriendToCommunity = async (userId: string, userName: string) => {
+        const currentUserPeppkompis: Peppkompis = {
+            uid: currentUser.uid,
+            name: userProfile.name || "En användare",
+            email: currentUser.email || '',
+            photoURL: userProfile.photoURL,
+            gender: userProfile.gender,
+        };
+        try {
+            await sendFriendRequest(currentUserPeppkompis, userId);
+            setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
+            setSentFriendRequests(prev => new Set(prev).add(userId));
+        } catch (error: any) {
+            setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
         }
     };
     
@@ -1878,12 +1951,14 @@ export const CommunityView: React.FC<{
                                             onToggleLike={handleToggleLike}
                                             onToggleCommentReaction={handleToggleCommentReaction}
                                             onDelete={handleDeleteEvent}
+                                            onDeleteComment={handleDeleteComment}
                                             onImageClick={(src, alt) => setLightboxImage({ src, alt })}
                                             onShare={(event) => setShareEvent(event)}
                                             lastViewTimestamp={effectiveLastViewTimestamp}
                                             buddyDetails={buddyDetails}
                                             currentStreak={currentStreak}
-                                            onAddFriend={(userId, userName) => handleSendRequest({ uid: userId, name: userName, email: '', photoURL: '', gender: 'other' })}
+                                            onAddFriend={handleAddFriendToCommunity}
+                                            sentFriendRequests={sentFriendRequests}
                                         />
                                     ))}
                                 </div>
@@ -1936,6 +2011,8 @@ export const CommunityView: React.FC<{
                             setToastNotification={setToastNotification}
                             buddyDetails={buddyDetails}
                             initialChatId={initialChatId}
+                            sentFriendRequests={sentFriendRequests}
+                            onAddFriend={handleAddFriendToCommunity}
                         />
                     </div>
                 )}

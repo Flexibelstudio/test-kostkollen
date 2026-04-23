@@ -3,7 +3,7 @@ import { User } from 'firebase/auth';
 import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings } from '../types';
 import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleReactionMessage, approveMember, rejectMember, leaveChat } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
-import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon, SmileIcon } from './icons';
+import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon, SmileIcon, CheckIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
 import { searchForBuddies, fetchUsersByUids, sendFriendRequest } from '../services/firestoreService';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
@@ -48,9 +48,11 @@ interface ChatRoomsViewProps {
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     buddyDetails: BuddyDetails[];
     initialChatId?: string | null;
+    sentFriendRequests?: Set<string>;
+    onAddFriend?: (userId: string, userName: string) => void;
 }
 
-export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userProfile, setToastNotification, buddyDetails, initialChatId = null }) => {
+export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userProfile, setToastNotification, buddyDetails, initialChatId = null, sentFriendRequests, onAddFriend }) => {
     const [activeTab, setActiveTab] = useState<'my_chats' | 'discover'>('my_chats');
     const [myChats, setMyChats] = useState<Chat[]>([]);
     const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
@@ -122,6 +124,8 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                 onBack={() => setSelectedChat(null)} 
                 setToastNotification={setToastNotification}
                 buddyDetails={buddyDetails}
+                sentFriendRequests={sentFriendRequests}
+                onAddFriend={onAddFriend}
             />
         );
     }
@@ -197,14 +201,14 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                             <div key={chat.id} className="bg-white p-4 rounded-xl shadow-sm border border-neutral-light flex justify-between items-center">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-neutral-dark">{chat.name}</h3>
+                                        <h3 className="font-bold text-neutral-dark text-[17px]">{chat.name}</h3>
                                         {chat.isSystemGroup && (
                                             <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">OFFICIELL</span>
                                         )}
                                     </div>
-                                    <p className="text-sm text-neutral">{chat.description}</p>
-                                    <p className="text-xs text-neutral mt-1 flex items-center gap-1">
-                                        <UsersIcon className="w-3 h-3" /> {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'} • Skapad av {creatorName}
+                                    <p className="text-[15px] text-neutral">{chat.description}</p>
+                                    <p className="text-sm text-neutral mt-1 flex items-center gap-1">
+                                        <UsersIcon className="w-3.5 h-3.5" /> {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'} • Skapad av {creatorName}
                                     </p>
                                 </div>
                                 {chat.pendingMembers?.includes(currentUser.uid) ? (
@@ -275,7 +279,7 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
                     {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
                      chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
                      chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
-                    <p className={`text-sm truncate ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
+                    <p className={`text-[15px] truncate ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
                         {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : chat.lastMessage.senderName || 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
                     </p>
                 </div>
@@ -297,8 +301,10 @@ export const ChatWindow: React.FC<{
     userRole?: 'member' | 'coach' | 'admin',
     onBack: () => void,
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void,
-    buddyDetails?: BuddyDetails[]
-}> = ({ chat, currentUser, userProfile, userRole, onBack, setToastNotification, buddyDetails = [] }) => {
+    buddyDetails?: BuddyDetails[],
+    sentFriendRequests?: Set<string>,
+    onAddFriend?: (userId: string, userName: string) => void
+}> = ({ chat, currentUser, userProfile, userRole, onBack, setToastNotification, buddyDetails = [], sentFriendRequests = new Set(), onAddFriend }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [showSettings, setShowSettings] = useState(false);
@@ -544,12 +550,16 @@ export const ChatWindow: React.FC<{
         }
     }, [messages, prevScrollHeight]);
 
-    const handleAddFriend = async (userId: string, userName: string) => {
-        try {
-            await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, userId);
-            setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
-        } catch (error: any) {
-            setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
+    const handleAddFriendAction = async (userId: string, userName: string) => {
+        if (onAddFriend) {
+            onAddFriend(userId, userName);
+        } else {
+            try {
+                await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, userId);
+                setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
+            } catch (error: any) {
+                setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
+            }
         }
     };
 
@@ -740,20 +750,21 @@ export const ChatWindow: React.FC<{
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {!isMe && !isBuddy && (
-                                            <button 
-                                                onClick={async () => {
-                                                    try {
-                                                        await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, member.uid);
-                                                        setToastNotification({ message: 'Vänförfrågan skickad!', type: 'success' });
-                                                    } catch (error) {
-                                                        setToastNotification({ message: 'Kunde inte skicka förfrågan.', type: 'error' });
-                                                    }
-                                                }}
-                                                className="p-2 text-primary hover:bg-primary-50 rounded-full transition-colors"
-                                                title="Lägg till som peppkompis"
-                                            >
-                                                <UserPlusIcon className="w-5 h-5" />
-                                            </button>
+                                            sentFriendRequests.has(member.uid) ? (
+                                                <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                                    <CheckIcon className="w-4 h-4" />
+                                                    <span>Skickad</span>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => handleAddFriendAction(member.uid, member.name)}
+                                                    className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
+                                                    title="Lägg till kompis"
+                                                >
+                                                    <UsersIcon className="w-4 h-4" />
+                                                    <span>+</span>
+                                                </button>
+                                            )
                                         )}
                                         {isAdmin && !isMe && (
                                             <button 
@@ -953,7 +964,7 @@ export const ChatWindow: React.FC<{
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2">
-                                    <h2 className="font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
+                                    <h2 className="text-lg font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
                                     {chat.isSystemGroup && (
                                         <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">OFFICIELL</span>
                                     )}
@@ -964,7 +975,7 @@ export const ChatWindow: React.FC<{
                             {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
                              chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
                              chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
-                            <p className="text-xs text-neutral">
+                            <p className="text-sm text-neutral">
                                 {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'}
                                 {creatorName && ` • Skapad av ${creatorName}`}
                             </p>
@@ -1107,22 +1118,31 @@ export const ChatWindow: React.FC<{
                         <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                             {showHeader && !isMe && (
                                 <div className="flex items-center gap-2 mb-1 ml-1">
-                                    <Avatar photoURL={msg.senderPhotoURL} size={20} />
-                                    <span className="text-xs font-medium text-neutral">{msg.senderName}</span>
+                                    <Avatar photoURL={msg.senderPhotoURL} size={24} />
+                                    <span className="text-sm font-bold text-neutral-dark">{msg.senderName}</span>
                                     {msg.senderId !== currentUser.uid && !buddyDetails.some(b => b.uid === msg.senderId) && (
-                                        <button 
-                                            onClick={() => handleAddFriend(msg.senderId, msg.senderName)}
-                                            className="text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
-                                        >
-                                            + Lägg till kompis
-                                        </button>
+                                        sentFriendRequests.has(msg.senderId) ? (
+                                            <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                                <CheckIcon className="w-4 h-4" />
+                                                <span>Skickad</span>
+                                            </div>
+                                        ) : (
+                                            <button 
+                                                onClick={() => handleAddFriendAction(msg.senderId, msg.senderName)}
+                                                className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
+                                                title="Lägg till kompis"
+                                            >
+                                                <UsersIcon className="w-4 h-4" />
+                                                <span>+</span>
+                                            </button>
+                                        )
                                     )}
                                 </div>
                             )}
                             <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : isNewMessage ? 'bg-primary-50 border border-primary-200 text-neutral-dark rounded-bl-sm shadow-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}>
                                 {msg.replyTo && (
                                     <div className={`mb-2 p-2 rounded-lg text-sm border-l-4 ${isMe ? 'bg-black/20 border-white/50 text-white/90' : 'bg-neutral-light/50 border-primary text-neutral-dark'}`}>
-                                        <div className="font-bold text-xs mb-0.5">{msg.replyTo.senderName}</div>
+                                        <div className="font-bold text-sm mb-0.5">{msg.replyTo.senderName}</div>
                                         <div className="truncate opacity-90">{msg.replyTo.text || (msg.replyTo.imageUrl ? 'Bild' : '')}</div>
                                     </div>
                                 )}
@@ -1130,9 +1150,9 @@ export const ChatWindow: React.FC<{
                                     <div className={`mb-2 p-3 rounded-xl border ${isMe ? 'bg-black/20 border-white/20' : 'bg-neutral-light/50 border-neutral-light'} cursor-pointer`} onClick={() => window.location.href = `/?view=community&highlight=${msg.sharedEventPreview!.id}`}>
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-xl">{msg.sharedEventPreview.icon}</span>
-                                            <span className="font-bold text-sm">{msg.sharedEventPreview.title}</span>
+                                            <span className="font-bold text-base">{msg.sharedEventPreview.title}</span>
                                         </div>
-                                        <p className="text-xs opacity-90 line-clamp-2">{msg.sharedEventPreview.description}</p>
+                                        <p className="text-sm opacity-90 line-clamp-2">{msg.sharedEventPreview.description}</p>
                                     </div>
                                 )}
                                 {msg.imageUrl && (
@@ -1141,10 +1161,10 @@ export const ChatWindow: React.FC<{
                                     </div>
                                 )}
                                 {msg.text && (
-                                    <p className={`text-[15px] leading-relaxed break-words ${msg.isDeleted ? 'italic opacity-70' : ''}`}>{msg.text}</p>
+                                    <p className={`text-base leading-relaxed break-words ${msg.isDeleted ? 'italic opacity-70' : ''}`}>{msg.text}</p>
                                 )}
                                 {msg.isEdited && !msg.isDeleted && (
-                                    <span className="text-[10px] opacity-70 ml-2">(redigerad)</span>
+                                    <span className="text-xs opacity-70 ml-2">(redigerad)</span>
                                 )}
                                 
                                 {/* Message Actions */}
@@ -1403,7 +1423,7 @@ export const ChatWindow: React.FC<{
                             value={newMessage}
                             onChange={handleMessageChange}
                             placeholder="Skriv ett meddelande..."
-                            className="w-full bg-transparent border-none focus:ring-0 focus:outline-none appearance-none resize-none max-h-32 py-3 px-4 text-[15px] m-0 block"
+                            className="w-full bg-transparent border-none focus:ring-0 focus:outline-none appearance-none resize-none max-h-32 py-3 px-4 text-base m-0 block"
                             rows={1}
                             onKeyDown={handleKeyDown}
                             style={{ minHeight: '44px' }}
