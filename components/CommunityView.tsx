@@ -608,11 +608,11 @@ export const TimelineEventCard: FC<{
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 <button 
                                     onClick={() => onAddFriend(event.userId, event.userName)}
-                                    className="ml-1 flex items-center flex-shrink-0 gap-1 px-2.5 py-1 bg-primary-50 hover:bg-primary-100 rounded-full text-[11px] font-bold text-primary transition-colors cursor-pointer"
+                                    className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
                                     title="Lägg till kompis"
                                 >
-                                    <UsersIcon className="w-3.5 h-3.5" />
-                                    <span>Lägg till</span>
+                                    <UsersIcon className="w-4 h-4" />
+                                    <span>+</span>
                                 </button>
                             )}
                             {isGlobalPost && !event.bootcampId && (
@@ -889,11 +889,11 @@ export const TimelineEventCard: FC<{
                                         {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
                                             <button 
                                                 onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
-                                                className="flex items-center flex-shrink-0 gap-1 px-2.5 py-1 bg-white/70 hover:bg-white rounded-full text-[11px] font-bold text-primary shadow-sm transition-colors cursor-pointer"
+                                                className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-white/70 hover:bg-white rounded-full text-[12px] font-bold text-primary shadow-sm transition-colors cursor-pointer"
                                                 title="Lägg till kompis"
                                             >
-                                                <UsersIcon className="w-3.5 h-3.5" />
-                                                <span>Lägg till</span>
+                                                <UsersIcon className="w-4 h-4" />
+                                                <span>+</span>
                                             </button>
                                         )}
                                     </div>
