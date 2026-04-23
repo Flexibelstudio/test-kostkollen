@@ -2011,6 +2011,8 @@ export const CommunityView: React.FC<{
                             setToastNotification={setToastNotification}
                             buddyDetails={buddyDetails}
                             initialChatId={initialChatId}
+                            sentFriendRequests={sentFriendRequests}
+                            onAddFriend={handleAddFriendToCommunity}
                         />
                     </div>
                 )}

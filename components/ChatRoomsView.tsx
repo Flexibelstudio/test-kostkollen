@@ -48,9 +48,11 @@ interface ChatRoomsViewProps {
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     buddyDetails: BuddyDetails[];
     initialChatId?: string | null;
+    sentFriendRequests?: Set<string>;
+    onAddFriend?: (userId: string, userName: string) => void;
 }
 
-export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userProfile, setToastNotification, buddyDetails, initialChatId = null }) => {
+export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userProfile, setToastNotification, buddyDetails, initialChatId = null, sentFriendRequests, onAddFriend }) => {
     const [activeTab, setActiveTab] = useState<'my_chats' | 'discover'>('my_chats');
     const [myChats, setMyChats] = useState<Chat[]>([]);
     const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
@@ -122,6 +124,8 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                 onBack={() => setSelectedChat(null)} 
                 setToastNotification={setToastNotification}
                 buddyDetails={buddyDetails}
+                sentFriendRequests={sentFriendRequests}
+                onAddFriend={onAddFriend}
             />
         );
     }
@@ -297,8 +301,10 @@ export const ChatWindow: React.FC<{
     userRole?: 'member' | 'coach' | 'admin',
     onBack: () => void,
     setToastNotification: (toast: { message: string; type: 'success' | 'error' } | null) => void,
-    buddyDetails?: BuddyDetails[]
-}> = ({ chat, currentUser, userProfile, userRole, onBack, setToastNotification, buddyDetails = [] }) => {
+    buddyDetails?: BuddyDetails[],
+    sentFriendRequests?: Set<string>,
+    onAddFriend?: (userId: string, userName: string) => void
+}> = ({ chat, currentUser, userProfile, userRole, onBack, setToastNotification, buddyDetails = [], sentFriendRequests = new Set(), onAddFriend }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [showSettings, setShowSettings] = useState(false);
@@ -325,7 +331,6 @@ export const ChatWindow: React.FC<{
     const [mentionIndex, setMentionIndex] = useState<number>(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
-    const [sentFriendRequests, setSentFriendRequests] = useState<Set<string>>(new Set());
 
     // Capture the last read timestamp when opening the chat to highlight new messages
     const [initialLastReadTimestamp] = useState(() => {
@@ -545,13 +550,16 @@ export const ChatWindow: React.FC<{
         }
     }, [messages, prevScrollHeight]);
 
-    const handleAddFriend = async (userId: string, userName: string) => {
-        try {
-            await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, userId);
-            setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
-            setSentFriendRequests(prev => new Set(prev).add(userId));
-        } catch (error: any) {
-            setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
+    const handleAddFriendAction = async (userId: string, userName: string) => {
+        if (onAddFriend) {
+            onAddFriend(userId, userName);
+        } else {
+            try {
+                await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, userId);
+                setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
+            } catch (error: any) {
+                setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
+            }
         }
     };
 
@@ -742,20 +750,21 @@ export const ChatWindow: React.FC<{
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {!isMe && !isBuddy && (
-                                            <button 
-                                                onClick={async () => {
-                                                    try {
-                                                        await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, member.uid);
-                                                        setToastNotification({ message: 'Vänförfrågan skickad!', type: 'success' });
-                                                    } catch (error) {
-                                                        setToastNotification({ message: 'Kunde inte skicka förfrågan.', type: 'error' });
-                                                    }
-                                                }}
-                                                className="p-2 text-primary hover:bg-primary-50 rounded-full transition-colors"
-                                                title="Lägg till som peppkompis"
-                                            >
-                                                <UserPlusIcon className="w-5 h-5" />
-                                            </button>
+                                            sentFriendRequests.has(member.uid) ? (
+                                                <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                                    <CheckIcon className="w-4 h-4" />
+                                                    <span>Skickad</span>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => handleAddFriendAction(member.uid, member.name)}
+                                                    className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
+                                                    title="Lägg till kompis"
+                                                >
+                                                    <UsersIcon className="w-4 h-4" />
+                                                    <span>+</span>
+                                                </button>
+                                            )
                                         )}
                                         {isAdmin && !isMe && (
                                             <button 
@@ -1119,7 +1128,7 @@ export const ChatWindow: React.FC<{
                                             </div>
                                         ) : (
                                             <button 
-                                                onClick={() => handleAddFriend(msg.senderId, msg.senderName)}
+                                                onClick={() => handleAddFriendAction(msg.senderId, msg.senderName)}
                                                 className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
                                                 title="Lägg till kompis"
                                             >
