@@ -29,7 +29,7 @@ import {
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
     ShareIcon, PencilIcon, CameraIcon, SmileIcon
 } from './icons';
-import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon } from 'lucide-react';
+import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon, Users as UsersIcon } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
@@ -608,9 +608,11 @@ export const TimelineEventCard: FC<{
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 <button 
                                     onClick={() => onAddFriend(event.userId, event.userName)}
-                                    className="ml-1 text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
+                                    className="ml-1 flex items-center flex-shrink-0 gap-1 px-2.5 py-1 bg-primary-50 hover:bg-primary-100 rounded-full text-[11px] font-bold text-primary transition-colors cursor-pointer"
+                                    title="Lägg till kompis"
                                 >
-                                    + Lägg till kompis
+                                    <UsersIcon className="w-3.5 h-3.5" />
+                                    <span>Lägg till</span>
                                 </button>
                             )}
                             {isGlobalPost && !event.bootcampId && (
@@ -882,14 +884,16 @@ export const TimelineEventCard: FC<{
                                             <TrashIcon className="w-3.5 h-3.5" />
                                         </button>
                                     )}
-                                    <div className="flex items-center gap-2 mb-0.5">
+                                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                                         <p className="font-bold text-neutral-dark text-xs">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
                                         {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
                                             <button 
                                                 onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
-                                                className="text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
+                                                className="flex items-center flex-shrink-0 gap-1 px-2.5 py-1 bg-white/70 hover:bg-white rounded-full text-[11px] font-bold text-primary shadow-sm transition-colors cursor-pointer"
+                                                title="Lägg till kompis"
                                             >
-                                                + Lägg till kompis
+                                                <UsersIcon className="w-3.5 h-3.5" />
+                                                <span>Lägg till</span>
                                             </button>
                                         )}
                                     </div>

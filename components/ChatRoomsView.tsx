@@ -1112,9 +1112,11 @@ export const ChatWindow: React.FC<{
                                     {msg.senderId !== currentUser.uid && !buddyDetails.some(b => b.uid === msg.senderId) && (
                                         <button 
                                             onClick={() => handleAddFriend(msg.senderId, msg.senderName)}
-                                            className="text-[10px] font-bold text-primary hover:text-primary-dark transition-colors"
+                                            className="ml-1 flex items-center flex-shrink-0 gap-1 px-2.5 py-1 bg-primary-50 hover:bg-primary-100 rounded-full text-[11px] font-bold text-primary transition-colors cursor-pointer"
+                                            title="Lägg till kompis"
                                         >
-                                            + Lägg till kompis
+                                            <UsersIcon className="w-3 h-3" />
+                                            <span>Lägg till</span>
                                         </button>
                                     )}
                                 </div>
