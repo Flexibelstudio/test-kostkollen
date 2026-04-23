@@ -3,7 +3,7 @@ import { User } from 'firebase/auth';
 import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings } from '../types';
 import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleReactionMessage, approveMember, rejectMember, leaveChat } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
-import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon, SmileIcon } from './icons';
+import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon, SmileIcon, CheckIcon } from './icons';
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
 import { searchForBuddies, fetchUsersByUids, sendFriendRequest } from '../services/firestoreService';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
@@ -325,6 +325,7 @@ export const ChatWindow: React.FC<{
     const [mentionIndex, setMentionIndex] = useState<number>(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
+    const [sentFriendRequests, setSentFriendRequests] = useState<Set<string>>(new Set());
 
     // Capture the last read timestamp when opening the chat to highlight new messages
     const [initialLastReadTimestamp] = useState(() => {
@@ -548,6 +549,7 @@ export const ChatWindow: React.FC<{
         try {
             await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, userId);
             setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
+            setSentFriendRequests(prev => new Set(prev).add(userId));
         } catch (error: any) {
             setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
         }
@@ -1110,14 +1112,21 @@ export const ChatWindow: React.FC<{
                                     <Avatar photoURL={msg.senderPhotoURL} size={24} />
                                     <span className="text-sm font-bold text-neutral-dark">{msg.senderName}</span>
                                     {msg.senderId !== currentUser.uid && !buddyDetails.some(b => b.uid === msg.senderId) && (
-                                        <button 
-                                            onClick={() => handleAddFriend(msg.senderId, msg.senderName)}
-                                            className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
-                                            title="Lägg till kompis"
-                                        >
-                                            <UsersIcon className="w-4 h-4" />
-                                            <span>+</span>
-                                        </button>
+                                        sentFriendRequests.has(msg.senderId) ? (
+                                            <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                                <CheckIcon className="w-4 h-4" />
+                                                <span>Skickad</span>
+                                            </div>
+                                        ) : (
+                                            <button 
+                                                onClick={() => handleAddFriend(msg.senderId, msg.senderName)}
+                                                className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
+                                                title="Lägg till kompis"
+                                            >
+                                                <UsersIcon className="w-4 h-4" />
+                                                <span>+</span>
+                                            </button>
+                                        )
                                     )}
                                 </div>
                             )}

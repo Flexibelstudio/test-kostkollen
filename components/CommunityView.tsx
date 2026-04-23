@@ -485,7 +485,8 @@ export const TimelineEventCard: FC<{
     activeBootcamp?: any;
     setToastNotification?: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     onAddFriend?: (userId: string, userName: string) => void;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onDeleteComment, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend }) => {
+    sentFriendRequests?: Set<string>;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onDeleteComment, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend, sentFriendRequests = new Set() }) => {
     const [newComment, setNewComment] = useState('');
     const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -606,14 +607,21 @@ export const TimelineEventCard: FC<{
                         <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
                             <span className="font-bold">{displayName}</span>
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
-                                <button 
-                                    onClick={() => onAddFriend(event.userId, event.userName)}
-                                    className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
-                                    title="Lägg till kompis"
-                                >
-                                    <UsersIcon className="w-4 h-4" />
-                                    <span>+</span>
-                                </button>
+                                sentFriendRequests.has(event.userId) ? (
+                                    <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                        <CheckIcon className="w-4 h-4" />
+                                        <span>Skickad</span>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={() => onAddFriend(event.userId, event.userName)}
+                                        className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
+                                        title="Lägg till kompis"
+                                    >
+                                        <UsersIcon className="w-4 h-4" />
+                                        <span>+</span>
+                                    </button>
+                                )
                             )}
                             {isGlobalPost && !event.bootcampId && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
@@ -887,14 +895,21 @@ export const TimelineEventCard: FC<{
                                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                                         <p className="font-bold text-neutral-dark text-xs">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
                                         {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
-                                            <button 
-                                                onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
-                                                className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-white/70 hover:bg-white rounded-full text-[12px] font-bold text-primary shadow-sm transition-colors cursor-pointer"
-                                                title="Lägg till kompis"
-                                            >
-                                                <UsersIcon className="w-4 h-4" />
-                                                <span>+</span>
-                                            </button>
+                                            sentFriendRequests.has(comment.authorUid) ? (
+                                                <div className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                                    <CheckIcon className="w-4 h-4" />
+                                                    <span>Skickad</span>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
+                                                    className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-white/70 hover:bg-white rounded-full text-[12px] font-bold text-primary shadow-sm transition-colors cursor-pointer"
+                                                    title="Lägg till kompis"
+                                                >
+                                                    <UsersIcon className="w-4 h-4" />
+                                                    <span>+</span>
+                                                </button>
+                                            )
                                         )}
                                     </div>
                                     {comment.text && <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>}
@@ -1558,6 +1573,7 @@ export const CommunityView: React.FC<{
   const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
   const [feedFilter, setFeedFilter] = useState<'all' | 'bootcamp'>('all');
   const [effectiveLastViewTimestamp, setEffectiveLastViewTimestamp] = useState(lastViewTimestamp);
+  const [sentFriendRequests, setSentFriendRequests] = useState<Set<string>>(new Set());
   
   const previousTabRef = useRef(activeTab);
   useEffect(() => {
@@ -1845,6 +1861,23 @@ export const CommunityView: React.FC<{
         }
     };
     
+    const handleAddFriendToCommunity = async (userId: string, userName: string) => {
+        const currentUserPeppkompis: Peppkompis = {
+            uid: currentUser.uid,
+            name: userProfile.name || "En användare",
+            email: currentUser.email || '',
+            photoURL: userProfile.photoURL,
+            gender: userProfile.gender,
+        };
+        try {
+            await sendFriendRequest(currentUserPeppkompis, userId);
+            setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
+            setSentFriendRequests(prev => new Set(prev).add(userId));
+        } catch (error: any) {
+            setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
+        }
+    };
+    
     const newEventsCount = useMemo(() => {
         if (!effectiveLastViewTimestamp || activeTab === 'flode') return 0;
         let count = 0;
@@ -1924,7 +1957,8 @@ export const CommunityView: React.FC<{
                                             lastViewTimestamp={effectiveLastViewTimestamp}
                                             buddyDetails={buddyDetails}
                                             currentStreak={currentStreak}
-                                            onAddFriend={(userId, userName) => handleSendRequest({ uid: userId, name: userName, email: '', photoURL: '', gender: 'other' })}
+                                            onAddFriend={handleAddFriendToCommunity}
+                                            sentFriendRequests={sentFriendRequests}
                                         />
                                     ))}
                                 </div>
