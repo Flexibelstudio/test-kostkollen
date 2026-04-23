@@ -201,27 +201,34 @@ PÅGÅENDE BOOTCAMP (FAS 2):
       const sortedLogs = [...weightLogs].sort((a, b) => b.loggedAt - a.loggedAt);
       const latestLog = sortedLogs[0];
       const previousLog = sortedLogs[1];
-      weightChange = latestLog.weightKg - previousLog.weightKg;
       
-      if (latestLog.bodyFatMassKg !== undefined && previousLog.bodyFatMassKg !== undefined) {
-          fatChange = latestLog.bodyFatMassKg - previousLog.bodyFatMassKg;
-          isFatChangePrioritized = true;
+      const now = Date.now();
+      const hoursSinceMeasurement = (now - latestLog.loggedAt) / (1000 * 60 * 60);
+      
+      // Only include weight/measurement coaching if the measurement was made recently (e.g. yesterday or today)
+      if (hoursSinceMeasurement <= 36) {
+        weightChange = latestLog.weightKg - previousLog.weightKg;
+        
+        if (latestLog.bodyFatMassKg !== undefined && previousLog.bodyFatMassKg !== undefined) {
+            fatChange = latestLog.bodyFatMassKg - previousLog.bodyFatMassKg;
+            isFatChangePrioritized = true;
 
-          if (fatChange < 0) {
-              fatChangeStr = `tappat ${Math.abs(fatChange).toFixed(1)} kg fett`;
-          } else if (fatChange > 0) {
-              fatChangeStr = `gått upp ${fatChange.toFixed(1)} kg fett`;
-          } else {
-              fatChangeStr = `stått still i fettmassa`;
-          }
-      }
+            if (fatChange < 0) {
+                fatChangeStr = `tappat ${Math.abs(fatChange).toFixed(1)} kg fett sedan förra mätningen`;
+            } else if (fatChange > 0) {
+                fatChangeStr = `gått upp ${fatChange.toFixed(1)} kg fett sedan förra mätningen`;
+            } else {
+                fatChangeStr = `stått still i fettmassa sedan förra mätningen`;
+            }
+        }
 
-      if (weightChange < 0) {
-        weightChangeStr = `Gått ner ${Math.abs(weightChange).toFixed(1)} kg sedan förra mätningen.`;
-      } else if (weightChange > 0) {
-        weightChangeStr = `Gått upp ${weightChange.toFixed(1)} kg sedan förra mätningen.`;
-      } else {
-        weightChangeStr = `Stått still i vikt sedan förra mätningen.`;
+        if (weightChange < 0) {
+          weightChangeStr = `Gått ner ${Math.abs(weightChange).toFixed(1)} kg sedan förra mätningen.`;
+        } else if (weightChange > 0) {
+          weightChangeStr = `Gått upp ${weightChange.toFixed(1)} kg sedan förra mätningen.`;
+        } else {
+          weightChangeStr = `Stått still i vikt sedan förra mätningen.`;
+        }
       }
     }
 
