@@ -197,14 +197,14 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                             <div key={chat.id} className="bg-white p-4 rounded-xl shadow-sm border border-neutral-light flex justify-between items-center">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-neutral-dark">{chat.name}</h3>
+                                        <h3 className="font-bold text-neutral-dark text-[17px]">{chat.name}</h3>
                                         {chat.isSystemGroup && (
                                             <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">OFFICIELL</span>
                                         )}
                                     </div>
-                                    <p className="text-sm text-neutral">{chat.description}</p>
-                                    <p className="text-xs text-neutral mt-1 flex items-center gap-1">
-                                        <UsersIcon className="w-3 h-3" /> {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'} • Skapad av {creatorName}
+                                    <p className="text-[15px] text-neutral">{chat.description}</p>
+                                    <p className="text-sm text-neutral mt-1 flex items-center gap-1">
+                                        <UsersIcon className="w-3.5 h-3.5" /> {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'} • Skapad av {creatorName}
                                     </p>
                                 </div>
                                 {chat.pendingMembers?.includes(currentUser.uid) ? (
@@ -275,7 +275,7 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
                     {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
                      chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
                      chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
-                    <p className={`text-sm truncate ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
+                    <p className={`text-[15px] truncate ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
                         {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : chat.lastMessage.senderName || 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
                     </p>
                 </div>
@@ -953,7 +953,7 @@ export const ChatWindow: React.FC<{
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2">
-                                    <h2 className="font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
+                                    <h2 className="text-lg font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
                                     {chat.isSystemGroup && (
                                         <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">OFFICIELL</span>
                                     )}
@@ -964,7 +964,7 @@ export const ChatWindow: React.FC<{
                             {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
                              chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
                              chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
-                            <p className="text-xs text-neutral">
+                            <p className="text-sm text-neutral">
                                 {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'}
                                 {creatorName && ` • Skapad av ${creatorName}`}
                             </p>
@@ -1107,8 +1107,8 @@ export const ChatWindow: React.FC<{
                         <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                             {showHeader && !isMe && (
                                 <div className="flex items-center gap-2 mb-1 ml-1">
-                                    <Avatar photoURL={msg.senderPhotoURL} size={20} />
-                                    <span className="text-xs font-medium text-neutral">{msg.senderName}</span>
+                                    <Avatar photoURL={msg.senderPhotoURL} size={24} />
+                                    <span className="text-sm font-bold text-neutral-dark">{msg.senderName}</span>
                                     {msg.senderId !== currentUser.uid && !buddyDetails.some(b => b.uid === msg.senderId) && (
                                         <button 
                                             onClick={() => handleAddFriend(msg.senderId, msg.senderName)}
@@ -1124,7 +1124,7 @@ export const ChatWindow: React.FC<{
                             <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : isNewMessage ? 'bg-primary-50 border border-primary-200 text-neutral-dark rounded-bl-sm shadow-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}>
                                 {msg.replyTo && (
                                     <div className={`mb-2 p-2 rounded-lg text-sm border-l-4 ${isMe ? 'bg-black/20 border-white/50 text-white/90' : 'bg-neutral-light/50 border-primary text-neutral-dark'}`}>
-                                        <div className="font-bold text-xs mb-0.5">{msg.replyTo.senderName}</div>
+                                        <div className="font-bold text-sm mb-0.5">{msg.replyTo.senderName}</div>
                                         <div className="truncate opacity-90">{msg.replyTo.text || (msg.replyTo.imageUrl ? 'Bild' : '')}</div>
                                     </div>
                                 )}
@@ -1132,9 +1132,9 @@ export const ChatWindow: React.FC<{
                                     <div className={`mb-2 p-3 rounded-xl border ${isMe ? 'bg-black/20 border-white/20' : 'bg-neutral-light/50 border-neutral-light'} cursor-pointer`} onClick={() => window.location.href = `/?view=community&highlight=${msg.sharedEventPreview!.id}`}>
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-xl">{msg.sharedEventPreview.icon}</span>
-                                            <span className="font-bold text-sm">{msg.sharedEventPreview.title}</span>
+                                            <span className="font-bold text-base">{msg.sharedEventPreview.title}</span>
                                         </div>
-                                        <p className="text-xs opacity-90 line-clamp-2">{msg.sharedEventPreview.description}</p>
+                                        <p className="text-sm opacity-90 line-clamp-2">{msg.sharedEventPreview.description}</p>
                                     </div>
                                 )}
                                 {msg.imageUrl && (
@@ -1143,10 +1143,10 @@ export const ChatWindow: React.FC<{
                                     </div>
                                 )}
                                 {msg.text && (
-                                    <p className={`text-[15px] leading-relaxed break-words ${msg.isDeleted ? 'italic opacity-70' : ''}`}>{msg.text}</p>
+                                    <p className={`text-base leading-relaxed break-words ${msg.isDeleted ? 'italic opacity-70' : ''}`}>{msg.text}</p>
                                 )}
                                 {msg.isEdited && !msg.isDeleted && (
-                                    <span className="text-[10px] opacity-70 ml-2">(redigerad)</span>
+                                    <span className="text-xs opacity-70 ml-2">(redigerad)</span>
                                 )}
                                 
                                 {/* Message Actions */}
@@ -1405,7 +1405,7 @@ export const ChatWindow: React.FC<{
                             value={newMessage}
                             onChange={handleMessageChange}
                             placeholder="Skriv ett meddelande..."
-                            className="w-full bg-transparent border-none focus:ring-0 focus:outline-none appearance-none resize-none max-h-32 py-3 px-4 text-[15px] m-0 block"
+                            className="w-full bg-transparent border-none focus:ring-0 focus:outline-none appearance-none resize-none max-h-32 py-3 px-4 text-base m-0 block"
                             rows={1}
                             onKeyDown={handleKeyDown}
                             style={{ minHeight: '44px' }}
