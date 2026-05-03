@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { TimelineMilestone, WeightLogEntry, GoalType } from '../types';
+import { TimelineMilestone, WeightLogEntry, GoalType, UserProfileData } from '../types';
 import { CheckCircleIcon, XCircleIcon } from './icons';
 
 const GoalTimeline: React.FC<{ 
@@ -18,10 +18,13 @@ const GoalTimeline: React.FC<{
     goalType: GoalType,
     currentAppDate: Date,
     isBootcampActive?: boolean,
+    userProfile?: UserProfileData,
     onAdjustGoal?: (type: 'pace' | 'date' | 'auto_adjust') => void
-}> = ({ milestones, paceFeedback, metrics, weightLogs, goalType, currentAppDate, isBootcampActive, onAdjustGoal }) => {
+}> = ({ milestones, paceFeedback, metrics, weightLogs, goalType, currentAppDate, isBootcampActive, userProfile, onAdjustGoal }) => {
     const getStatusForMilestone = (milestone: TimelineMilestone): 'on_track' | 'off_track' | 'neutral' => {
         const milestoneDate = new Date(milestone.isoDate);
+        milestoneDate.setHours(23, 59, 59, 999); // Include logs from the same day
+        
         if (milestoneDate > currentAppDate) return 'neutral';
 
         const relevantLogs = weightLogs.filter(log => new Date(log.loggedAt) <= milestoneDate);
@@ -29,6 +32,32 @@ const GoalTimeline: React.FC<{
 
         const lastLogBeforeMilestone = relevantLogs[relevantLogs.length - 1];
         
+        // If we have userProfile and targetChangeKg, we can accurately measure the specific metric's delta
+        if (userProfile && milestone.targetChangeKg !== undefined) {
+            let startMetric = userProfile.goalStartWeight;
+            let currentMetric = lastLogBeforeMilestone.weightKg;
+
+            if (goalType === 'lose_fat' && userProfile.measurementMethod === 'inbody') {
+                startMetric = userProfile.goalStartFatMassKg ?? startMetric;
+                currentMetric = lastLogBeforeMilestone.bodyFatMassKg ?? currentMetric;
+            } else if (goalType === 'gain_muscle' && userProfile.measurementMethod === 'inbody') {
+                startMetric = userProfile.goalStartMuscleMassKg ?? startMetric;
+                currentMetric = lastLogBeforeMilestone.skeletalMuscleMassKg ?? currentMetric;
+            }
+
+            if (startMetric !== undefined) {
+                const actualChange = currentMetric - startMetric;
+                if (goalType === 'lose_fat') {
+                    // e.g. target = -0.4, actual = -1.3 -> -1.3 <= -0.4 (TRUE, on track)
+                    return actualChange <= milestone.targetChangeKg ? 'on_track' : 'off_track';
+                } else if (goalType === 'gain_muscle') {
+                    // e.g. target = +0.5, actual = +0.2 -> 0.2 >= 0.5 (FALSE, off track)
+                    return actualChange >= milestone.targetChangeKg ? 'on_track' : 'off_track';
+                }
+            }
+        }
+        
+        // Fallback to absolute weight comparison
         if (goalType === 'lose_fat') {
             return lastLogBeforeMilestone.weightKg <= milestone.targetWeightKg ? 'on_track' : 'off_track';
         } else if (goalType === 'gain_muscle') {

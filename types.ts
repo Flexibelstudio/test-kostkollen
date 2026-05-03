@@ -409,6 +409,7 @@ export interface TimelineMilestone {
   isoDate: string; // ISO date string (YYYY-MM-DD) for comparisons
   targetDescription: string;
   targetWeightKg: number;
+  targetChangeKg?: number; // Added to enable accurate milestone comparison regardless of weight fluctuations
   isFinal: boolean;
 }
 

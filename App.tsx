@@ -958,12 +958,18 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
     
     // Check if goal parameters changed to reset the timeline start date
     const goalChanged = 
-        updatedProfile.desiredWeightChangeKg !== userProfile.desiredWeightChangeKg ||
-        updatedProfile.desiredFatMassChangeKg !== userProfile.desiredFatMassChangeKg ||
-        updatedProfile.desiredMuscleMassChangeKg !== userProfile.desiredMuscleMassChangeKg ||
-        updatedProfile.goalCompletionDate !== userProfile.goalCompletionDate;
+        (updatedProfile.desiredWeightChangeKg != null ? updatedProfile.desiredWeightChangeKg : null) !== (userProfile.desiredWeightChangeKg != null ? userProfile.desiredWeightChangeKg : null) ||
+        (updatedProfile.desiredFatMassChangeKg != null ? updatedProfile.desiredFatMassChangeKg : null) !== (userProfile.desiredFatMassChangeKg != null ? userProfile.desiredFatMassChangeKg : null) ||
+        (updatedProfile.desiredMuscleMassChangeKg != null ? updatedProfile.desiredMuscleMassChangeKg : null) !== (userProfile.desiredMuscleMassChangeKg != null ? userProfile.desiredMuscleMassChangeKg : null) ||
+        (updatedProfile.goalCompletionDate || null) !== (userProfile.goalCompletionDate || null);
 
-    if (goalChanged || !updatedProfile.goalStartDate) {
+    // If we are doing a "full goal edit" (starting a new goal explicitly), let's ensure it resets.
+    // However, App.tsx doesn't receive `isFullGoalEdit` parameter natively from the JourneyProfileEditor through handleSaveProfileAndGoals.
+    // Actually, JourneyProfileEditor manually resets goalStartDate: "profileToSave.goalStartDate = new Date().toISOString();" 
+    // And it will trigger the start weight reset too.
+    const isExplicitlyNewGoal = updatedProfile.goalStartDate !== userProfile.goalStartDate && updatedProfile.goalStartDate;
+
+    if ((goalChanged || !updatedProfile.goalStartDate) && !isExplicitlyNewGoal) {
         updatedProfile.goalStartDate = new Date().toISOString().split('T')[0];
         updatedProfile.goalStartWeight = updatedProfile.currentWeightKg;
         updatedProfile.goalStartFatMassKg = updatedProfile.bodyFatMassKg;
