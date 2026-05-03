@@ -527,7 +527,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                             {timeline.milestones.length > 0 && (
                                 <div className="mt-6">
                                     <h4 className="text-base font-semibold text-neutral-dark mb-2">Beräknad tidsplan:</h4>
-                                    <GoalTimeline milestones={timeline.milestones} paceFeedback={null} weightLogs={[]} goalType={profile.goalType} currentAppDate={new Date()} />
+                                    <GoalTimeline milestones={timeline.milestones} paceFeedback={null} weightLogs={[]} goalType={profile.goalType} currentAppDate={new Date()} userProfile={profile} />
                                 </div>
                             )}
                         </div>

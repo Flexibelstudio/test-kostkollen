@@ -229,6 +229,7 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
                 isoDate: milestoneDate.toISOString().split('T')[0],
                 targetDescription: targetString,
                 targetWeightKg: targetWeight,
+                targetChangeKg: cumulativeChange,
                 isFinal: false,
             });
         }
@@ -247,6 +248,7 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
           isoDate: endDate.toISOString().split('T')[0],
           targetDescription: finalTargetString,
           targetWeightKg: finalTargetWeight,
+          targetChangeKg: goalChange,
           isFinal: true
         });
     } else if (milestones.length > 0) {
@@ -255,6 +257,7 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
             isoDate: endDate.toISOString().split('T')[0],
             targetDescription: finalTargetString,
             targetWeightKg: finalTargetWeight,
+            targetChangeKg: goalChange,
             isFinal: true
         };
     }

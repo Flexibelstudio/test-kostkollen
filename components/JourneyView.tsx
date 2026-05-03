@@ -460,6 +460,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                 goalType={userProfile.goalType} 
                                 currentAppDate={new Date()}
                                 isBootcampActive={userProfile.isCourseActive}
+                                userProfile={userProfile}
                                 onAdjustGoal={handleAdjustGoal}
                             />
                             
