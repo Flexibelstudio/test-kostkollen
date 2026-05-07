@@ -3,13 +3,46 @@
 import { GoogleGenAI, GenerateContentResponse, Content, Modality } from "@google/genai";
 import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle } from '../types.ts';
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
+import { auth, firebaseConfig } from '../firebase.ts';
 
-// Ensure API_KEY is available.
-if (!process.env.API_KEY) {
-  console.error("API_KEY environment variable not set. Gemini API calls will fail.");
+// -- SECURE PROXY SETUP --
+// We route all Gemini API calls through our Firebase Cloud Function Proxy.
+// The raw GEMINI_API_KEY is safely stored ONLY on the backend.
+class ProxyFetch {
+    static async fetch(url: URL | RequestInfo, init?: RequestInit): Promise<Response> {
+        const user = auth.currentUser;
+        if (!user) {
+            throw new Error("Du måste vara inloggad för att använda AI-funktioner.");
+        }
+        
+        let token: string;
+        try {
+           token = await user.getIdToken();
+        } catch(e) {
+           throw new Error("Kunde inte verifiera inloggning för AI.");
+        }
+
+        const newInit = { ...init };
+        newInit.headers = {
+            ...newInit.headers,
+            'Authorization': `Bearer ${token}`
+        } as HeadersInit;
+
+        return fetch(url, newInit);
+    }
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "MISSING_API_KEY" });
+// Determine the Cloud Function URL based on the Firebase Project ID
+const cloudRegion = 'us-central1';
+const baseUrl = `https://${cloudRegion}-${firebaseConfig.projectId}.cloudfunctions.net/geminiApiProxy`;
+
+export const ai = new GoogleGenAI({ 
+  apiKey: "proxy-key", // The actual key is injected securely by the backend
+  baseUrl,
+  httpOptions: {
+      fetch: ProxyFetch.fetch
+  }
+});
 
 export interface AIDataForMorningBriefing {
   userProfile: UserProfileData;

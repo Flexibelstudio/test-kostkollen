@@ -3,6 +3,7 @@ const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
 const cors = require('cors')({ origin: true });
+const { Readable } = require('stream');
 
 // --- SÄKER HÄMTNING AV VARIABLER ---
 // Denna funktion förhindrar krascher om en miljövariabel saknas i molnet
@@ -1417,4 +1418,77 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
         logger.error("Error in publishScheduledPosts:", error);
         return null;
     }
+});
+
+// ---- GEMINI API PROXY ----
+// Securely proxies requests from the @google/genai SDK to the Gemini API, 
+// protecting the actual API key and ensuring only authenticated users can use it.
+exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
+    cors(req, res, async () => {
+        // Require valid Firebase Auth Token via Authorization header
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            logger.warn("geminiApiProxy: Missing or invalid Authorization header");
+            return res.status(401).send({ error: 'Unauthorized', message: 'Missing or invalid Authorization header' });
+        }
+
+        try {
+            const idToken = authHeader.split('Bearer ')[1];
+            await admin.auth().verifyIdToken(idToken);
+        } catch (error) {
+            logger.error("geminiApiProxy: Token verification failed", error);
+            return res.status(403).send({ error: 'Forbidden', message: 'Invalid or expired token' });
+        }
+
+        // Get the real API key from Firebase config or environment variable
+        const apiKey = process.env.GEMINI_API_KEY || getSafeConfig('gemini', 'api_key');
+        if (!apiKey) {
+            logger.error("geminiApiProxy: GEMINI_API_KEY is not configured on the server.");
+            return res.status(500).send({ error: 'Internal Server Error', message: 'Server missing API key configuration' });
+        }
+
+        // Extract the original path intended for the Gemini API (e.g., /v1alpha/models/...)
+        // req.url in onRequest gets the path relative to the function mount point.
+        // It generally looks like: /v1alpha/models/gemini-2.5-pro:generateContent
+        const endpointPath = req.url;
+        
+        const targetDomain = 'https://generativelanguage.googleapis.com';
+        // Append the actual API key securely
+        const targetUrl = `${targetDomain}${endpointPath}${endpointPath.includes('?') ? '&' : '?'}key=${apiKey}`;
+
+        try {
+            // Forward headers (skipping host so it is automatically derived)
+            const headersToForward = new Headers();
+            if (req.headers['content-type']) headersToForward.set('Content-Type', req.headers['content-type']);
+            if (req.headers['x-goog-api-client']) headersToForward.set('X-Goog-Api-Client', req.headers['x-goog-api-client']);
+            
+            // Do NOT forward x-goog-api-key, as it contains the dummy proxy key from the client
+            
+            const fetchRes = await fetch(targetUrl, {
+                method: req.method,
+                headers: headersToForward,
+                body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body)
+            });
+
+            // Forward the response status
+            res.status(fetchRes.status);
+            
+            // Forward the response headers
+            fetchRes.headers.forEach((value, key) => {
+                res.setHeader(key, value);
+            });
+
+            // Stream the response back (supports SSE for streaming text)
+            if (fetchRes.body) {
+                Readable.fromWeb(fetchRes.body).pipe(res);
+            } else {
+                const text = await fetchRes.text();
+                res.send(text);
+            }
+
+        } catch (error) {
+            logger.error('geminiApiProxy: Error proxying request:', error);
+            res.status(500).send({ error: 'Proxy Error', message: 'An error occurred while proxying the request.' });
+        }
+    });
 });
