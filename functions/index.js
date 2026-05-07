@@ -1441,7 +1441,10 @@ exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
         }
 
         // Get the real API key from Firebase config or environment variable
-        const apiKey = process.env.GEMINI_API_KEY || getSafeConfig('gemini', 'api_key');
+        let apiKey = process.env.GEMINI_API_KEY || getSafeConfig('gemini', 'api_key');
+        if (apiKey && apiKey.startsWith('"') && apiKey.endsWith('"')) {
+            apiKey = apiKey.slice(1, -1);
+        }
         if (!apiKey) {
             logger.error("geminiApiProxy: GEMINI_API_KEY is not configured on the server.");
             return res.status(500).send({ error: 'Internal Server Error', message: 'Server missing API key configuration' });
@@ -1450,7 +1453,18 @@ exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
         // Extract the original path intended for the Gemini API (e.g., /v1alpha/models/...)
         // req.url in onRequest gets the path relative to the function mount point.
         // It generally looks like: /v1alpha/models/gemini-2.5-pro:generateContent
-        const endpointPath = req.url;
+        let endpointPath = req.url;
+        
+        // Strip out the dummy 'proxy-key' if the SDK appended it
+        if (endpointPath.includes('key=')) {
+            endpointPath = endpointPath.replace(/([?&])key=[^&]*(&|$)/, (match, p1, p2) => {
+                return p2 ? p1 : '';
+            });
+            // Clean up dangling ? or & at the end
+            if (endpointPath.endsWith('?') || endpointPath.endsWith('&')) {
+                endpointPath = endpointPath.slice(0, -1);
+            }
+        }
         
         const targetDomain = 'https://generativelanguage.googleapis.com';
         // Append the actual API key securely
