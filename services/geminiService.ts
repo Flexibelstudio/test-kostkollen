@@ -1,9 +1,9 @@
-
 // services/geminiService.ts
 import { GoogleGenAI, GenerateContentResponse, Content, Modality } from "@google/genai";
 import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle } from '../types.ts';
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
-import { auth, firebaseConfig } from '../firebase.ts';
+import { auth, firebaseConfig, appCheck } from '../firebase.ts'; // Lagt till appCheck i importen
+import { getToken } from "firebase/app-check"; // Importera getToken för App Check
 
 // -- SECURE PROXY SETUP --
 // We route all Gemini API calls through our Firebase Cloud Function Proxy.
@@ -15,7 +15,7 @@ const baseUrl = `https://${cloudRegion}-${firebaseConfig.projectId}.cloudfunctio
 
 // Override global fetch to intercept requests to the Gemini proxy. 
 // The @google/genai SDK version used ignores custom fetch inside httpOptions, 
-// so we MUST use a global interceptor to inject the Firebase Auth token.
+// so we MUST use a global interceptor to inject the Firebase Auth token and App Check token.
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url: URL | RequestInfo, init?: RequestInit): Promise<Response> => {
     let targetUrlStr = typeof url === 'string' ? url : (url instanceof Request ? url.url : url.toString());
@@ -26,12 +26,23 @@ globalThis.fetch = async (url: URL | RequestInfo, init?: RequestInit): Promise<R
             throw new Error("Du måste vara inloggad för att använda AI-funktioner.");
         }
         
-        const token = await user.getIdToken();
-        console.log("Global fetch interceptor: Injecting Auth token for Gemini proxy");
+        // Hämta båda tokens parallellt för bästa prestanda
+        // Vi använder en fallback till en tom sträng om App Check inte är initierat (t.ex. vid mock-läge)
+        const [idToken, appCheckTokenResponse] = await Promise.all([
+            user.getIdToken(),
+            appCheck ? getToken(appCheck) : Promise.resolve({ token: "" })
+        ]);
+
+        console.log("Global fetch interceptor: Injecting Auth & App Check tokens for Gemini proxy");
 
         // Clone/create a new Request safely
         const req = url instanceof Request ? new Request(url, init) : new Request(targetUrlStr, init);
-        req.headers.set('Authorization', `Bearer ${token}`);
+        
+        // Injicera headers för både inloggning och App Check
+        req.headers.set('Authorization', `Bearer ${idToken}`);
+        if (appCheckTokenResponse.token) {
+            req.headers.set('X-Firebase-AppCheck', appCheckTokenResponse.token);
+        }
         
         return originalFetch(req);
     }
@@ -845,9 +856,9 @@ ${context.userCourseProgress ? `- Användaren har tillgång till kurser (separat
 **REGLER FOR GRAF-SVAR:**
 1.  **Identifiera Graf-förfrågan:** Om användaren frågar efter en graf, ett diagram eller en kurva (t.ex. "visa min viktkurva", "gör en graf över proteinintag"), MÅSTE du svara med ENDAST ett giltigt JSON-objekt. Inkludera ingen annan text, inga hälsningar eller markdown-kodstängsel.
 2.  **VÄLJ RÄTT DATAKÄLLA (VIKTIGAST!):**
-    *   Om frågan handlar om **vikt, muskler, fettmassa**, använd EXKLUSIVT data från **Viktloggar**.
-    *   Om frågan handlar om **protein, kalorier, kolhydrater, fettintag**, använd EXKLUSIVT data från **Dagliga Summeringar**.
-    *   Blanda ALDRIG dessa datakällor. Om du är osäker, välj den som bäst matchar nyckelorden i frågan.
+    * Om frågan handlar om **vikt, muskler, fettmassa**, använd EXKLUSIVT data från **Viktloggar**.
+    * Om frågan handlar om **protein, kalorier, kolhydrater, fettintag**, använd EXKLUSIVT data från **Dagliga Summeringar**.
+    * Blanda ALDRIG dessa datakällor. Om du är osäker, välj den som bäst matchar nyckelorden i frågan.
 3.  **JSON-Struktur:** Följ exakt denna struktur:
     {
       "chartType": "line",
@@ -862,9 +873,9 @@ ${context.userCourseProgress ? `- Användaren har tillgång till kurser (separat
     }
 4.  **Visa All Data:** Inkludera ALLA tillgängliga datapunkter från den valda datakällan. Summera, aggregera eller förenkla INTE datan. Om ingen tidsram anges, använd all tillgänglig data.
 5.  **Formatering:**
-    *   Använd ALLTID \`datasets\`-arrayen, även om det bara är en dataserie.
-    *   Använd \`null\` för saknade datapunkter.
-    *   Formatera datum i \`labels\` som 'dd/mm'.
+    * Använd ALLTID \`datasets\`-arrayen, även om det bara är en dataserie.
+    * Använd \`null\` för saknade datapunkter.
+    * Formatera datum i \`labels\` som 'dd/mm'.
 
 **Exempel 1 (Vikt):** Fråga: "visa min vikt" -> Använd **Viktloggar**.
 **JSON-svar:**
@@ -932,7 +943,7 @@ Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VI
 
     // Prefix with Borje's voice just like the user requested if it is Borje
     if (style === 'hard') {
-       fallbackMessage = `Börjes röst: "${fallbackMessage}"`;
+        fallbackMessage = `Börjes röst: "${fallbackMessage}"`;
     }
 
     async function* fallbackGenerator() {
@@ -963,9 +974,9 @@ ${last7DaysSummaryText || "Inga loggar de senaste 7 dagarna."}
 
 **Din uppgift:**
 Skriv en kort (1-2 meningar), uppmuntrande och personlig inledning till lektionen. 
-*   Om du ser ett mönster (t.ex. svårare på helger), nämn det på ett positivt och normaliserande sätt. Exempel: "Jag ser att helgerna kan vara lite extra utmanande, vilket är helt normalt. Den här lektionen kommer att ge dig verktyg for just sådana situationer."
-*   Om inget tydligt mönster finns, ge en allmänt peppande inledning som är relevant for lektionens tema om att hantera utmaningar. Exempel: "Alla resor har sina utmaningar. Den här lektionen fokuserar på hur du kan hantera dem på bästa sätt."
-*   Använd en vänlig och stöttande ton. Börja INTE med "Hej".`;
+* Om du ser ett mönster (t.ex. svårare på helger), nämn det på ett positivt och normaliserande sätt. Exempel: "Jag ser att helgerna kan vara lite extra utmanande, vilket är helt normalt. Den här lektionen kommer att ge dig verktyg for just sådana situationer."
+* Om inget tydligt mönster finns, ge en allmänt peppande inledning som är relevant for lektionens tema om att hantera utmaningar. Exempel: "Alla resor har sina utmaningar. Den här lektionen fokuserar på hur du kan hantera dem på bästa sätt."
+* Använd en vänlig och stöttande ton. Börja INTE med "Hej".`;
       break;
 
     case 'plateau':
@@ -981,9 +992,9 @@ ${last5WeightLogsText || "Inga viktloggar finns."}
 
 **Din uppgift:**
 Skriv en kort (1-2 meningar), uppmuntrande och personlig inledning till lektionen.
-*   Om du ser tecken på en platå, bekräfta det på ett normaliserande sätt. Exempel: "Det ser ut som att din vikt har stabiliserat sig de senaste mätningarna, vilket är en helt naturlig del av resan. Denna lektion är designad for att ge dig ny fart!"
-*   Om vikten fortfarande har en tydlig trend (upp eller ner), bekräfta de goda framstegen istället. Exempel: "Vilka fina framsteg du gör! Den här lektionen hjälper dig att fortsätta den positiva trenden och undvika platåer."
-*   Använd en vänlig och stöttande ton. Börja INTE med "Hej".`;
+* Om du ser tecken på en platå, bekräfta det på ett normaliserande sätt. Exempel: "Det ser ut som att din vikt har stabiliserat sig de senaste mätningarna, vilket är en helt naturlig del av resan. Denna lektion är designad for att ge dig ny fart!"
+* Om vikten fortfarande har en tydlig trend (upp eller ner), bekräfta de goda framstegen istället. Exempel: "Vilka fina framsteg du gör! Den här lektionen hjälper dig att fortsätta den positiva trenden och undvika platåer."
+* Använd en vänlig och stöttande ton. Börja INTE med "Hej".`;
       break;
     default:
       return Promise.resolve(""); // No hint, no intro
@@ -1148,26 +1159,26 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
         bodyCompositionDataPrompt = `- Muskelmassa (senaste): ${muskelmassa?.toFixed(1) || 'Ej mätt'} kg\n- Muskeltrend: ${muskelTrend}\n- Fettmassa (senaste): ${fettmassa?.toFixed(1) || 'Ej mätt'} kg`;
         switch (goalType) {
             case 'gain_muscle':
-                bodyCompositionContentPrompt = "Målet är muskelökning. Beskriv viktutvecklingen och muskelmassan positivt. En total viktuppgång är MÅLET. Koppla ihop total viktökning med en ökande/stabil muskeltrend som en framgång. Exempel: 'Starkt jobbat! Din vikt har ökat med X kg, och det är fantastiskt att din muskelmassa samtidigt visar en ökande trend. Det här är precis den utveckling vi vill se!'. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                bodyCompositionContentPrompt = "Målet är muskelökning. Beskriv viktutvecklingen och muskelmassan positivt. En total viktuppgång är MÅLET. Koppla ihop total viktökning med en ökande/stabil muskeltrend som en framgång. Exempel: 'Starkt jobbat! Din vikt har ökat med X kg, och det är fantastiskt att din muskelmassa samtidigt visar en ökande trend. Det här är precis den utveckling vi vill se!'. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n for nya rader.";
                 break;
             case 'lose_fat':
-                bodyCompositionContentPrompt = "Målet är fettminskning. Beskriv viktutveckling och muskelmassa. Lyft att en stabil eller ökande muskelmassa under en viktnedgång är ett stort styrketecken. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                bodyCompositionContentPrompt = "Målet är fettminskning. Beskriv viktutveckling och muskelmassa. Lyft att en stabil eller ökande muskelmassa under en viktnedgång är ett stort styrketecken. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n for nya rader.";
                 break;
             default: // maintain
-                bodyCompositionContentPrompt = "Målet är att bibehålla vikten. Beskriv viktutvecklingen med fokus på stabilitet. Normalisera små viktpendlingar och betona att den långsiktiga trenden är det viktiga. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                bodyCompositionContentPrompt = "Målet är att bibehålla vikten. Beskriv viktutvecklingen med fokus på stabilitet. Normalisera små viktpendlingar och betona att den långsiktiga trenden är det viktiga. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n for nya rader.";
                 break;
         }
     } else { // 'scale' or undefined
         bodyCompositionDataPrompt = "";
         switch (goalType) {
             case 'gain_muscle':
-                bodyCompositionContentPrompt = "Målet är muskelökning. Beskriv viktutvecklingen positivt. En total viktuppgång är MÅLET. Framhäv detta som en framgång. Exempel: 'Bra jobbat! Din vikt har ökat med X kg, vilket är ett tecken på att du är på rätt väg mot ditt mål.'. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                bodyCompositionContentPrompt = "Målet är muskelökning. Beskriv viktutvecklingen positivt. En total viktuppgång är MÅLET. Framhäv detta som en framgång. Exempel: 'Bra jobbat! Din vikt har ökat med X kg, vilket är ett tecken på att du är på rätt väg mot ditt mål.'. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n for nya rader.";
                 break;
             case 'lose_fat':
-                bodyCompositionContentPrompt = "Målet är fettminskning. Beskriv viktutvecklingen. Kommentera trenden (ner, upp, stabil) och hur den relaterar till målet. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                bodyCompositionContentPrompt = "Målet är fettminskning. Beskriv viktutvecklingen. Kommentera trenden (ner, upp, stabil) och hur den relaterar till målet. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n for nya rader.";
                 break;
             default: // maintain
-                bodyCompositionContentPrompt = "Målet är att bibehålla vikten. Beskriv viktutvecklingen med fokus på stabilitet. Normalisera små viktpendlingar. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n för nya rader.";
+                bodyCompositionContentPrompt = "Målet är att bibehålla vikten. Beskriv viktutvecklingen med fokus på stabilitet. Normalisera små viktpendlingar. Använd startvikten för det AKTUELLA målet (goalStartWeight) som referens. Använd \\n for nya rader.";
                 break;
         }
     }
@@ -1199,7 +1210,7 @@ Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med 
     {
       "emoji": "💬",
       "title": "Helhetsbild & Uppmuntran",
-      "content": "Skriv en uppmuntrande sammanfattning. Lyft engagemang, streaks, nivå, loggningar. Använd namn. Tala direkt till användaren. (Ex: “Kenta, du gör ett fantastiskt jobb!”). Använd \\n för nya rader."
+      "content": "Skriv en uppmuntrande sammanfattning. Lyft engagemang, streaks, nivå, loggningar. Använd namn. Tala direkt till användaren. (Ex: “Kenta, du gör ett fantastiskt jobb!”). Använd \\n for nya rader."
     },
     {
       "emoji": "📉",
@@ -1209,32 +1220,32 @@ Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med 
     {
       "emoji": "🧠",
       "title": "Mentalt Välbefinnande",
-      "content": "Användarens senaste logg för välbefinnande gjordes precis i samband med den senaste viktmätningen. Skriv en kort, insiktsfull kommentar som kopplar det mentala till det fysiska resultatet. Exempel: 'Jag ser att du rapporterat hög stress. Det är vanligt att det binder vätska och påverkar vikten.' eller 'Din höga energinivå är en superkraft för att nå dina mål!'. Om ingen data finns, skriv en allmän uppmuntran om att logga välbefinnande. Använd \\n för nya rader."
+      "content": "Användarens senaste logg för välbefinnande gjordes precis i samband med den senaste viktmätningen. Skriv en kort, insiktsfull kommentar som kopplar det mentala till det fysiska resultatet. Exempel: 'Jag ser att du rapporterat hög stress. Det är vanligt att det binder vätska och påverkar vikten.' eller 'Din höga energinivå är en superkraft för att nå dina mål!'. Om ingen data finns, skriv en allmän uppmuntran om att logga välbefinnande. Använd \\n for nya rader."
     },
     {
       "emoji": "🥦",
       "title": "Näringsvanor",
-      "content": "Analysera **ENDAST** datan från den specificerade analysperioden. Ge en ÖVERSIKTLIG summering av användarens följsamhet till kostplanen. Kommentera den generella trenden (t.ex. 'Du har följt din kaloriplan bra', 'Proteinintaget har varit stabilt'). Koppla ihop näringsintaget med resultatet på vågen (använd 'Viktförändring under perioden' från datan). UNDVIK att nämna enskilda dagar eller specifika datum. Håll det kortfattat och peppande. Använd \\n för nya rader."
+      "content": "Analysera **ENDAST** datan från den specificerade analysperioden. Ge en ÖVERSIKTLIG summering av användarens följsamhet till kostplanen. Kommentera den generella trenden (t.ex. 'Du har följt din kaloriplan bra', 'Proteinintaget har varit stabilt'). Koppla ihop näringsintaget med resultatet på vågen (använd 'Viktförändring under perioden' från datan). UNDVIK att nämna enskilda dagar eller specifika datum. Håll det kortfattat och peppande. Använd \\n for nya rader."
     },
     {
       "emoji": "💧",
       "title": "Vattenintag",
-      "content": "Bekräfta eller påminn om vattenintag. Ex: 'Bra jobbat med din vätska – du uppnår målet ${vattenuppfyllnadProcent}% av dagarna.' eller 'Kom ihåg att logga vatten dagligen – det påverkar både mättnad och ork.' Använd \\n för nya rader."
+      "content": "Bekräfta eller påminn om vattenintag. Ex: 'Bra jobbat med din vätska – du uppnår målet ${vattenuppfyllnadProcent}% av dagarna.' eller 'Kom ihåg att logga vatten dagligen – det påverkar både mättnad och ork.' Använd \\n for nya rader."
     },
     {
       "emoji": "🏃",
       "title": "Aktivitetsnivå",
-      "content": "Bekräfta eller ge milda korrigeringar om aktivitetsnivån. Ex: 'Du har angett att du är ‘Medelaktiv’. Det passar bra om du tränar 3–5 pass i veckan eller rör dig en hel del i vardagen – vilket verkar stämma in på dig!' Använd \\n för nya rader."
+      "content": "Bekräfta eller ge milda korrigeringar om aktivitetsnivån. Ex: 'Du har angett att du är ‘Medelaktiv’. Det passar bra om du tränar 3–5 pass i veckan eller rör dig en hel del i vardagen – vilket verkar stämma in på dig!' Använd \\n for nya rader."
     },
     {
       "emoji": "📚",
       "title": "Kursfeedback",
-      "content": "${kursFeedbackPrompt} Använd \\n för nya rader."
+      "content": "${kursFeedbackPrompt} Använd \\n for nya rader."
     },
     {
       "emoji": "🚀",
       "title": "Rekommendationer framåt",
-      "content": "Sammanfatta 2–3 tydliga, enkla steg. Använd punktlistor i formatet '• Punkt 1\\n• Punkt 2'. Om en platå upptäcktes (se platåinstruktioner ovan), se till att inkludera den speciella coachningen här. Annars, ge allmänna rekommendationer. Ex: '• Fortsätt hålla din streak levande. • Sikta på att nå proteinmålet varje dag.' Använd \\n för nya rader."
+      "content": "Sammanfatta 2–3 tydliga, enkla steg. Använd punktlistor i formatet '• Punkt 1\\n• Punkt 2'. Om en platå upptäcktes (se platåinstruktioner ovan), se till att inkludera den speciella coachningen här. Annars, ge allmänna rekommendationer. Ex: '• Fortsätt hålla din streak levande. • Sikta på att nå proteinmålet varje dag.' Använd \\n for nya rader."
     }
   ]
 }

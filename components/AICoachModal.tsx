@@ -169,12 +169,25 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
             ));
         }
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error streaming AI coach response:", error);
-        const errorMessage = error instanceof Error ? error.message : "Ett okänt fel inträffade.";
+        
+        // --- Punkt 3: Graceful Degradation (Börjes reservsvar) ---
+        let fallbackText = "Hoppsan, nu blev det ett tekniskt litet snedsteg. Försök igen om en stund!";
+        
+        if (error.message?.includes('429') || error.message?.includes('RATE_LIMIT_EXCEEDED')) {
+            fallbackText = coachStyle === 'hard' 
+                ? "Givakt! Du har snackat nog för den här timmen. Ut och rör på dig, så kan vi höras igen senare!"
+                : "Du har varit flitig med frågorna! Nu tar jag en liten kaffepaus, men återkom gärna om en timme så fortsätter vi.";
+        } else {
+            fallbackText = coachStyle === 'hard'
+                ? "Kommunikationsutrustningen strular! Gör 10 armhävningar medan jag startar om systemet."
+                : "Det verkar vara lite brus i ledningen just nu. Kan du prova att skicka meddelandet igen?";
+        }
+
         setMessages(prev => prev.map(m => 
             m.id === botMessagePlaceholder.id 
-                ? { ...m, text: `Ursäkta, ett fel inträffade: ${errorMessage}`, isStreaming: false } 
+                ? { ...m, text: fallbackText, isStreaming: false } 
                 : m
         ));
     } finally {
@@ -276,19 +289,25 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                         </button>
                     ))}
                 </div>
-                <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex items-center gap-2">
-                    <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="Skriv din fråga här..."
-                        disabled={isLoading}
-                        className="flex-1 w-full px-4 py-2.5 bg-neutral-light border border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:opacity-60"
-                        aria-label="Skriv meddelande"
-                    />
-                    <button type="submit" disabled={isLoading || !input.trim()} className="p-3 bg-primary text-white rounded-full shadow-sm hover:bg-primary-darker active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed interactive-transition">
-                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
-                    </button>
+                <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            value={input}
+                            maxLength={250}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder="Skriv din fråga här..."
+                            disabled={isLoading}
+                            className="flex-1 w-full px-4 py-2.5 bg-neutral-light border border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:opacity-60"
+                            aria-label="Skriv meddelande"
+                        />
+                        <button type="submit" disabled={isLoading || !input.trim()} className="p-3 bg-primary text-white rounded-full shadow-sm hover:bg-primary-darker active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed interactive-transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
+                        </button>
+                    </div>
+                    <p className="text-[10px] text-neutral-400 text-center uppercase tracking-wider">
+                        Tänk på vad du delar. Dela inga känsliga personuppgifter med coachen.
+                    </p>
                 </form>
             </footer>
         </div>

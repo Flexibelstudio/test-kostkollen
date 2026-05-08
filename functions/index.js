@@ -1426,9 +1426,31 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
 // ---- GEMINI API PROXY ----
 // Securely proxies requests from the @google/genai SDK to the Gemini API, 
 // protecting the actual API key and ensuring only authenticated users can use it.
-exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
+// Uppdatera exporten så den använder Secret Manager för nyckeln
+exports.geminiApiProxy = functions.runWith({ 
+    secrets: ["GEMINI_API_KEY"],
+    memory: "512MB" // AI-svar kan vara tunga, 512MB är säkert
+}).https.onRequest(async (req, res) => {
     cors(req, res, async () => {
-        // Require valid Firebase Auth Token via Authorization header
+        
+        // 1. APP CHECK VERIFIERING (Den nya säkerhetsvakten)
+        // Vi kör denna kontroll främst i produktion
+        if (process.env.NODE_ENV === 'production') {
+            const appCheckToken = req.header('X-Firebase-AppCheck');
+            if (!appCheckToken) {
+                logger.warn("geminiApiProxy: App Check token saknas");
+                return res.status(401).send({ error: 'Unauthorized', message: 'App Check token saknas.' });
+            }
+
+            try {
+                await admin.appCheck().verifyToken(appCheckToken);
+            } catch (err) {
+                logger.error("geminiApiProxy: Ogiltig App Check token", err);
+                return res.status(401).send({ error: 'Unauthorized', message: 'Ogiltig App Check token.' });
+            }
+        }
+
+        // 2. BEHÅLL DIN EXISTERANDE AUTH-KOLL
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             logger.warn("geminiApiProxy: Missing or invalid Authorization header");
@@ -1446,13 +1468,13 @@ exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
 
         const uid = decodedToken.uid;
 
-        // Rate Limiting Logic: 15 requests per hour per user
+        // 3. DIN RATE LIMITING (Snyggt byggd!)
         const usageRef = admin.firestore().collection('rate_limits').doc(`gemini_${uid}`);
         try {
             await admin.firestore().runTransaction(async (transaction) => {
                 const usageSnap = await transaction.get(usageRef);
                 const now = Date.now();
-                const windowMs = 60 * 60 * 1000; // 1 hour
+                const windowMs = 60 * 60 * 1000; 
                 const maxRequests = 15;
                 
                 if (!usageSnap.exists) {
@@ -1460,7 +1482,6 @@ exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
                 } else {
                     const data = usageSnap.data();
                     let requests = data.requests || [];
-                    // Filter out old requests outside the 1-hour window
                     requests = requests.filter(time => now - time < windowMs);
                     
                     if (requests.length >= maxRequests) {
@@ -1473,50 +1494,31 @@ exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
             });
         } catch (error) {
             if (error.message === "RATE_LIMIT_EXCEEDED") {
-                logger.warn(`geminiApiProxy: Rate limit exceeded for user ${uid}`);
                 return res.status(429).send({ error: 'Too Many Requests', message: 'RATE_LIMIT_EXCEEDED' });
             }
-            // If transaction fails for other reasons, logger it but continue
-            logger.error(`geminiApiProxy: Rate limit transaction failed for user ${uid}`, error);
+            logger.error(`geminiApiProxy: Rate limit failed for ${uid}`, error);
         }
 
-        // Get the real API key from Firebase config or environment variable
-        let apiKey = process.env.GEMINI_API_KEY || getSafeConfig('gemini', 'api_key');
-        if (apiKey && apiKey.startsWith('"') && apiKey.endsWith('"')) {
-            apiKey = apiKey.slice(1, -1);
-        }
+        // 4. HÄMTA NYCKELN FRÅN SECRETS (Detta är säkrast)
+        let apiKey = process.env.GEMINI_API_KEY; 
+        
         if (!apiKey) {
-            logger.error("geminiApiProxy: GEMINI_API_KEY is not configured on the server.");
-            return res.status(500).send({ error: 'Internal Server Error', message: 'Server missing API key configuration' });
+            logger.error("geminiApiProxy: GEMINI_API_KEY saknas i Secret Manager.");
+            return res.status(500).send({ error: 'Internal Server Error' });
         }
 
-        // Extract the original path intended for the Gemini API (e.g., /v1alpha/models/...)
-        // req.url in onRequest gets the path relative to the function mount point.
-        // It generally looks like: /v1alpha/models/gemini-2.5-pro:generateContent
+        // ... Resten av din fetch-logik (den ser bra ut!) ...
         let endpointPath = req.url;
-        
-        // Strip out the dummy 'proxy-key' if the SDK appended it
         if (endpointPath.includes('key=')) {
-            endpointPath = endpointPath.replace(/([?&])key=[^&]*(&|$)/, (match, p1, p2) => {
-                return p2 ? p1 : '';
-            });
-            // Clean up dangling ? or & at the end
-            if (endpointPath.endsWith('?') || endpointPath.endsWith('&')) {
-                endpointPath = endpointPath.slice(0, -1);
-            }
+            endpointPath = endpointPath.replace(/([?&])key=[^&]*(&|$)/, (match, p1, p2) => p2 ? p1 : '');
         }
         
-        const targetDomain = 'https://generativelanguage.googleapis.com';
-        // Append the actual API key securely
-        const targetUrl = `${targetDomain}${endpointPath}${endpointPath.includes('?') ? '&' : '?'}key=${apiKey}`;
+        const targetUrl = `https://generativelanguage.googleapis.com${endpointPath}${endpointPath.includes('?') ? '&' : '?'}key=${apiKey}`;
 
         try {
-            // Forward headers (skipping host so it is automatically derived)
             const headersToForward = new Headers();
             if (req.headers['content-type']) headersToForward.set('Content-Type', req.headers['content-type']);
             if (req.headers['x-goog-api-client']) headersToForward.set('X-Goog-Api-Client', req.headers['x-goog-api-client']);
-            
-            // Do NOT forward x-goog-api-key, as it contains the dummy proxy key from the client
             
             const fetchRes = await fetch(targetUrl, {
                 method: req.method,
@@ -1524,25 +1526,17 @@ exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
                 body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body)
             });
 
-            // Forward the response status
             res.status(fetchRes.status);
-            
-            // Forward the response headers
-            fetchRes.headers.forEach((value, key) => {
-                res.setHeader(key, value);
-            });
+            fetchRes.headers.forEach((value, key) => res.setHeader(key, value));
 
-            // Stream the response back (supports SSE for streaming text)
             if (fetchRes.body) {
                 Readable.fromWeb(fetchRes.body).pipe(res);
             } else {
-                const text = await fetchRes.text();
-                res.send(text);
+                res.send(await fetchRes.text());
             }
-
         } catch (error) {
-            logger.error('geminiApiProxy: Error proxying request:', error);
-            res.status(500).send({ error: 'Proxy Error', message: 'An error occurred while proxying the request.' });
+            logger.error('geminiApiProxy: Fetch error:', error);
+            res.status(500).send({ error: 'Proxy Error' });
         }
     });
 });
