@@ -22,16 +22,19 @@ class ProxyFetch {
            throw new Error("Kunde inte verifiera inloggning för AI.");
         }
 
-        // Skapa ett riktigt Headers-objekt (viktigt!)
+        // Skapa ett riktigt Headers-objekt från det existerande (viktigt!)
         const headers = new Headers(init?.headers || {});
         
-        // Här tvingar vi in din token
+        // Lägg till din inloggningstoken
         headers.set('Authorization', `Bearer ${token}`);
         
-        // Vi måste se till att Content-Type är rätt för JSON
+        // Se till att servern förstår att vi skickar JSON
         if (!headers.has('Content-Type')) {
             headers.set('Content-Type', 'application/json');
         }
+
+        // Logga i konsolen så du kan se att ID-kortet skickas (kan tas bort sen)
+        console.log("SKICKAR ID-KORT (Token):", token.substring(0, 10) + "...");
 
         const newInit: RequestInit = { 
             ...init,
