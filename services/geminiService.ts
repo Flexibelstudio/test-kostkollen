@@ -8,52 +8,41 @@ import { auth, firebaseConfig } from '../firebase.ts';
 // -- SECURE PROXY SETUP --
 // We route all Gemini API calls through our Firebase Cloud Function Proxy.
 // The raw GEMINI_API_KEY is safely stored ONLY on the backend.
-class ProxyFetch {
-    static async fetch(url: URL | RequestInfo, init?: RequestInit): Promise<Response> {
-        const user = auth.currentUser;
-        if (!user) {
-            throw new Error("Du måste vara inloggad för att använda AI-funktioner.");
-        }
-        
-        let token: string;
-        try {
-           token = await user.getIdToken();
-        } catch(e) {
-           throw new Error("Kunde inte verifiera inloggning för AI.");
-        }
-
-        // Skapa ett riktigt Headers-objekt från det existerande (viktigt!)
-        const headers = new Headers(init?.headers || {});
-        
-        // Lägg till din inloggningstoken
-        headers.set('Authorization', `Bearer ${token}`);
-        
-        // Se till att servern förstår att vi skickar JSON
-        if (!headers.has('Content-Type')) {
-            headers.set('Content-Type', 'application/json');
-        }
-
-        // Logga i konsolen så du kan se att ID-kortet skickas (kan tas bort sen)
-        console.log("SKICKAR ID-KORT (Token):", token.substring(0, 10) + "...");
-
-        const newInit: RequestInit = { 
-            ...init,
-            headers: headers
-        };
-
-        return fetch(url, newInit);
-    }
-}
 
 // Determine the Cloud Function URL based on the Firebase Project ID
 const cloudRegion = 'us-central1';
 const baseUrl = `https://${cloudRegion}-${firebaseConfig.projectId}.cloudfunctions.net/geminiApiProxy`;
 
+// Override global fetch to intercept requests to the Gemini proxy. 
+// The @google/genai SDK version used ignores custom fetch inside httpOptions, 
+// so we MUST use a global interceptor to inject the Firebase Auth token.
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (url: URL | RequestInfo, init?: RequestInit): Promise<Response> => {
+    let targetUrlStr = typeof url === 'string' ? url : (url instanceof Request ? url.url : url.toString());
+
+    if (targetUrlStr.startsWith(baseUrl)) {
+        const user = auth.currentUser;
+        if (!user) {
+            throw new Error("Du måste vara inloggad för att använda AI-funktioner.");
+        }
+        
+        const token = await user.getIdToken();
+        console.log("Global fetch interceptor: Injecting Auth token for Gemini proxy");
+
+        // Clone/create a new Request safely
+        const req = url instanceof Request ? new Request(url, init) : new Request(targetUrlStr, init);
+        req.headers.set('Authorization', `Bearer ${token}`);
+        
+        return originalFetch(req);
+    }
+    
+    return originalFetch(url, init);
+};
+
 export const ai = new GoogleGenAI({ 
   apiKey: "proxy-key", // The actual key is injected securely by the backend
   httpOptions: {
-      baseUrl: baseUrl,
-      fetch: ProxyFetch.fetch
+      baseUrl: baseUrl
   }
 });
 
@@ -297,7 +286,7 @@ ${fatChangeStr ? `- Fettmassa utveckling: ${fatChangeStr}` : ''}
       recentContext += `\nVIKTIG COACHING: Användaren har skött kosten och minskat sin ${activeMetricLabel}! Ge massivt beröm och bekräfta att metoden fungerar.`;
     }
 
-    if (isFatChangePrioritized && style === 'tough') {
+    if (isFatChangePrioritized && style === 'hard') {
         if (fatChange > 0) {
             recentContext += `\nVIKTIGT FÖR GENERALEN: Användaren har gått UPP i fett (+${fatChange.toFixed(1)} kg). Oavsett vad totalvikten visar, är detta underkänt! Ge svidande kritik på Generalens vis och kräv skärpning.`;
         } else if (fatChange < 0) {
