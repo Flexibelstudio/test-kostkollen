@@ -1435,12 +1435,49 @@ exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
             return res.status(401).send({ error: 'Unauthorized', message: 'Missing or invalid Authorization header' });
         }
 
+        let decodedToken;
         try {
             const idToken = authHeader.split('Bearer ')[1];
-            await admin.auth().verifyIdToken(idToken);
+            decodedToken = await admin.auth().verifyIdToken(idToken);
         } catch (error) {
             logger.error("geminiApiProxy: Token verification failed", error);
             return res.status(403).send({ error: 'Forbidden', message: 'Invalid or expired token' });
+        }
+
+        const uid = decodedToken.uid;
+
+        // Rate Limiting Logic: 15 requests per hour per user
+        const usageRef = admin.firestore().collection('rate_limits').doc(`gemini_${uid}`);
+        try {
+            await admin.firestore().runTransaction(async (transaction) => {
+                const usageSnap = await transaction.get(usageRef);
+                const now = Date.now();
+                const windowMs = 60 * 60 * 1000; // 1 hour
+                const maxRequests = 15;
+                
+                if (!usageSnap.exists) {
+                    transaction.set(usageRef, { requests: [now] });
+                } else {
+                    const data = usageSnap.data();
+                    let requests = data.requests || [];
+                    // Filter out old requests outside the 1-hour window
+                    requests = requests.filter(time => now - time < windowMs);
+                    
+                    if (requests.length >= maxRequests) {
+                        throw new Error("RATE_LIMIT_EXCEEDED");
+                    }
+                    
+                    requests.push(now);
+                    transaction.update(usageRef, { requests });
+                }
+            });
+        } catch (error) {
+            if (error.message === "RATE_LIMIT_EXCEEDED") {
+                logger.warn(`geminiApiProxy: Rate limit exceeded for user ${uid}`);
+                return res.status(429).send({ error: 'Too Many Requests', message: 'RATE_LIMIT_EXCEEDED' });
+            }
+            // If transaction fails for other reasons, logger it but continue
+            logger.error(`geminiApiProxy: Rate limit transaction failed for user ${uid}`, error);
         }
 
         // Get the real API key from Firebase config or environment variable

@@ -900,18 +900,45 @@ Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VI
     { role: 'user', parts: [{ text: question }] }
   ] as Content[];
 
-  const responseStream = await ai.models.generateContentStream({
-    model: GEMINI_MODEL_NAME_TEXT,
-    contents: contents,
-    config: {
-      systemInstruction: systemInstruction,
-      temperature: 0.7,
-      topK: 40,
-      topP: 0.95
-    }
-  });
+  try {
+    const responseStream = await ai.models.generateContentStream({
+      model: GEMINI_MODEL_NAME_TEXT,
+      contents: contents,
+      config: {
+        systemInstruction: systemInstruction,
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95
+      }
+    });
+    return responseStream;
+  } catch (error: any) {
+    console.error("AI Coach Stream error:", error);
+    
+    let fallbackMessage = "Givakt! Kommunikationsutrustningen strular tillfälligt. Gör 10 armhävningar och pröva att fråga mig igen om en minut!";
+    const isRateLimit = error?.status === 429 || error?.message?.includes('RATE_LIMIT') || error?.message?.includes('429') || error?.message?.includes('Too Many Requests');
 
-  return responseStream;
+    if (style === 'hard') {
+        if (isRateLimit) fallbackMessage = "Nu har du snackat hål i huvudet på mig, rekryt! Ta en rast i en timme, drick vatten och återkom sedan!";
+        else fallbackMessage = "Givakt! Kommunikationsutrustningen strular tillfälligt. Gör 10 armhävningar och pröva att fråga mig igen om en minut!";
+    } else if (style === 'soft') {
+        if (isRateLimit) fallbackMessage = "Nu har vi pratat ganska intensivt en stund. Låt oss ta en kort paus på någon timme så hörs vi sen igen.";
+        else fallbackMessage = "Oj då, min uppkoppling verkar lite trött just nu. Ta ett djupt andetag så försöker vi igen om en liten stund.";
+    } else {
+        if (isRateLimit) fallbackMessage = "Det har blivit många frågor nu på kort tid! Ta gärna en paus så fortsätter vi chatta om ett tag.";
+        else fallbackMessage = "Hallå där! Det verkar vara lite trassel med min uppkoppling. Vi testar igen om en stund!";
+    }
+
+    // Prefix with Borje's voice just like the user requested if it is Borje
+    if (style === 'hard') {
+       fallbackMessage = `Börjes röst: "${fallbackMessage}"`;
+    }
+
+    async function* fallbackGenerator() {
+      yield { text: fallbackMessage } as any;
+    }
+    return fallbackGenerator() as any;
+  }
 };
 
 
