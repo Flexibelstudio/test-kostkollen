@@ -36,11 +36,19 @@ class ProxyFetch {
 const cloudRegion = 'us-central1';
 const baseUrl = `https://${cloudRegion}-${firebaseConfig.projectId}.cloudfunctions.net/geminiApiProxy`;
 
+// Vi skapar en egen fetch-funktion som tvingar anropet till din Proxy-URL
+const proxyCompatibleFetch = async (url: string, options: any) => {
+  // Här byter vi ut Googles adress mot din Cloud Function-adress
+  const proxyUrl = url.replace('https://generativelanguage.googleapis.com', baseUrl);
+  return ProxyFetch.fetch(proxyUrl, options);
+};
+
 export const ai = new GoogleGenAI({ 
-  apiKey: "proxy-key", // The actual key is injected securely by the backend
-  baseUrl,
+  apiKey: "proxy-key", 
+  // Vi tar bort baseUrl härifrån och lägger logiken i fetch-funktionen istället
+  // för att säkerställa att SDK:n inte "smiter" förbi proxyn.
   httpOptions: {
-      fetch: ProxyFetch.fetch
+      fetch: proxyCompatibleFetch as any
   }
 });
 
