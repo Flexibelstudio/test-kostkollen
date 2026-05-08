@@ -31,17 +31,7 @@ class ProxyFetch {
             headers: headers // Här sätter vi de nya headerna korrekt
         };
 
-        // Force URL to be the proxy URL
-        const cloudRegion = 'us-central1';
-        const proxyBaseUrl = `https://${cloudRegion}-${firebaseConfig.projectId}.cloudfunctions.net/geminiApiProxy`;
-        
-        let urlString = url.toString();
-        // Replace the default Google API domain with our proxy domain
-        if (urlString.startsWith('https://generativelanguage.googleapis.com')) {
-            urlString = urlString.replace('https://generativelanguage.googleapis.com', proxyBaseUrl);
-        }
-
-        return fetch(urlString, newInit);
+        return fetch(url, newInit);
     }
 }
 
