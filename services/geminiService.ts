@@ -5,6 +5,8 @@ import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, Recip
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
 import { auth, firebaseConfig } from '../firebase.ts';
 
+console.log("KONTROLL: JAG KÖR DEN NYA KODEN VERSION 2.0");
+
 // -- SECURE PROXY SETUP --
 // We route all Gemini API calls through our Firebase Cloud Function Proxy.
 // The raw GEMINI_API_KEY is safely stored ONLY on the backend.
