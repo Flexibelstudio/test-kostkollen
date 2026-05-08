@@ -22,13 +22,20 @@ class ProxyFetch {
            throw new Error("Kunde inte verifiera inloggning för AI.");
         }
 
-        // Skapa ett nytt Headers-objekt för att vara säker på att vi inte tappar något
-        const headers = new Headers(init?.headers);
+        // Skapa ett riktigt Headers-objekt (viktigt!)
+        const headers = new Headers(init?.headers || {});
+        
+        // Här tvingar vi in din token
         headers.set('Authorization', `Bearer ${token}`);
+        
+        // Vi måste se till att Content-Type är rätt för JSON
+        if (!headers.has('Content-Type')) {
+            headers.set('Content-Type', 'application/json');
+        }
 
-        const newInit = { 
+        const newInit: RequestInit = { 
             ...init,
-            headers: headers // Här sätter vi de nya headerna korrekt
+            headers: headers
         };
 
         return fetch(url, newInit);
