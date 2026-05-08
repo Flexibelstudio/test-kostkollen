@@ -1423,7 +1423,7 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
 // ---- GEMINI API PROXY ----
 // Securely proxies requests from the @google/genai SDK to the Gemini API, 
 // protecting the actual API key and ensuring only authenticated users can use it.
-exports.geminiApiProxy = functions.https.onRequest(async (req, res) => {
+exports.geminiApiProxy = functions.runWith({ secrets: ["GEMINI_API_KEY"] }).https.onRequest(async (req, res) => {
     cors(req, res, async () => {
         // Require valid Firebase Auth Token via Authorization header
         const authHeader = req.headers.authorization;
