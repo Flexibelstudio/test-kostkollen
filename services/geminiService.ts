@@ -5,8 +5,6 @@ import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, Recip
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
 import { auth, firebaseConfig } from '../firebase.ts';
 
-console.log("KONTROLL: JAG KÖR DEN NYA KODEN VERSION 2.0");
-
 // -- SECURE PROXY SETUP --
 // We route all Gemini API calls through our Firebase Cloud Function Proxy.
 // The raw GEMINI_API_KEY is safely stored ONLY on the backend.
@@ -30,7 +28,17 @@ class ProxyFetch {
             'Authorization': `Bearer ${token}`
         } as HeadersInit;
 
-        return fetch(url, newInit);
+        // Force URL to be the proxy URL
+        const cloudRegion = 'us-central1';
+        const proxyBaseUrl = `https://${cloudRegion}-${firebaseConfig.projectId}.cloudfunctions.net/geminiApiProxy`;
+        
+        let urlString = url.toString();
+        // Replace the default Google API domain with our proxy domain
+        if (urlString.startsWith('https://generativelanguage.googleapis.com')) {
+            urlString = urlString.replace('https://generativelanguage.googleapis.com', proxyBaseUrl);
+        }
+
+        return fetch(urlString, newInit);
     }
 }
 
@@ -38,26 +46,12 @@ class ProxyFetch {
 const cloudRegion = 'us-central1';
 const baseUrl = `https://${cloudRegion}-${firebaseConfig.projectId}.cloudfunctions.net/geminiApiProxy`;
 
-// Denna funktion "fångar" alla anrop och tvingar dem till din Proxy
-const proxyCompatibleFetch = async (url: URL | RequestInfo, init?: RequestInit): Promise<Response> => {
-    const urlString = typeof url === 'string' ? url : url.toString();
-    
-    // Här tvingar vi anropet att byta domän
-    const proxyUrl = urlString.replace('https://generativelanguage.googleapis.com', baseUrl);
-    
-    // Denna rad gör att du ser i konsolen att det fungerar!
-    console.log("AI-ANROP GÅR NU VIA PROXY:", proxyUrl);
-    
-    return ProxyFetch.fetch(proxyUrl, init);
-};
-
-export const ai = new GoogleGenAI({ 
-  apiKey: "proxy-key", 
-  // Vi lägger till baseUrl här också som en extra säkerhetsåtgärd
-  baseUrl: baseUrl, 
-  httpOptions: {
-      fetch: proxyCompatibleFetch as any
-  }
+export const ai = new GoogleGenAI({ 
+  apiKey: "proxy-key", // The actual key is injected securely by the backend
+  httpOptions: {
+      baseUrl: baseUrl,
+      fetch: ProxyFetch.fetch
+  }
 });
 
 export interface AIDataForMorningBriefing {
