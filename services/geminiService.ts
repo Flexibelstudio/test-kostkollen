@@ -1440,4 +1440,4 @@ export const extractBarcodeFromImage = async (base64ImageData: string): Promise<
     console.error("Error extracting barcode with Gemini:", error);
     return null;
   }
-}; 
+};
