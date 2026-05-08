@@ -36,20 +36,26 @@ class ProxyFetch {
 const cloudRegion = 'us-central1';
 const baseUrl = `https://${cloudRegion}-${firebaseConfig.projectId}.cloudfunctions.net/geminiApiProxy`;
 
-// Vi skapar en egen fetch-funktion som tvingar anropet till din Proxy-URL
-const proxyCompatibleFetch = async (url: string, options: any) => {
-  // Här byter vi ut Googles adress mot din Cloud Function-adress
-  const proxyUrl = url.replace('https://generativelanguage.googleapis.com', baseUrl);
-  return ProxyFetch.fetch(proxyUrl, options);
+// Denna funktion "fångar" alla anrop och tvingar dem till din Proxy
+const proxyCompatibleFetch = async (url: URL | RequestInfo, init?: RequestInit): Promise<Response> => {
+    const urlString = typeof url === 'string' ? url : url.toString();
+    
+    // Här tvingar vi anropet att byta domän
+    const proxyUrl = urlString.replace('https://generativelanguage.googleapis.com', baseUrl);
+    
+    // Denna rad gör att du ser i konsolen att det fungerar!
+    console.log("AI-ANROP GÅR NU VIA PROXY:", proxyUrl);
+    
+    return ProxyFetch.fetch(proxyUrl, init);
 };
 
-export const ai = new GoogleGenAI({ 
-  apiKey: "proxy-key", 
-  // Vi tar bort baseUrl härifrån och lägger logiken i fetch-funktionen istället
-  // för att säkerställa att SDK:n inte "smiter" förbi proxyn.
-  httpOptions: {
-      fetch: proxyCompatibleFetch as any
-  }
+export const ai = new GoogleGenAI({ 
+  apiKey: "proxy-key", 
+  // Vi lägger till baseUrl här också som en extra säkerhetsåtgärd
+  baseUrl: baseUrl, 
+  httpOptions: {
+      fetch: proxyCompatibleFetch as any
+  }
 });
 
 export interface AIDataForMorningBriefing {
