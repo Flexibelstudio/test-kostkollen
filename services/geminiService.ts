@@ -22,11 +22,14 @@ class ProxyFetch {
            throw new Error("Kunde inte verifiera inloggning för AI.");
         }
 
-        const newInit = { ...init };
-        newInit.headers = {
-            ...newInit.headers,
-            'Authorization': `Bearer ${token}`
-        } as HeadersInit;
+        // Skapa ett nytt Headers-objekt för att vara säker på att vi inte tappar något
+        const headers = new Headers(init?.headers);
+        headers.set('Authorization', `Bearer ${token}`);
+
+        const newInit = { 
+            ...init,
+            headers: headers // Här sätter vi de nya headerna korrekt
+        };
 
         // Force URL to be the proxy URL
         const cloudRegion = 'us-central1';
