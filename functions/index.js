@@ -4,7 +4,14 @@ const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
 const cors = require('cors')({ 
     origin: true,
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Goog-Api-Client', 'x-goog-api-client', 'x-goog-api-key']
+    allowedHeaders: [
+        'Authorization', 
+        'Content-Type', 
+        'X-Goog-Api-Client', 
+        'x-goog-api-client', 
+        'x-goog-api-key',
+        'X-Firebase-AppCheck' // <--- LÄGG TILL DENNA!
+    ]
 });
 const { Readable } = require('stream');
 
@@ -1527,7 +1534,15 @@ exports.geminiApiProxy = functions.runWith({
             });
 
             res.status(fetchRes.status);
-            fetchRes.headers.forEach((value, key) => res.setHeader(key, value));
+            // Forward headers (MEN hoppa över de som rör kodning/komprimering)
+            fetchRes.headers.forEach((value, key) => {
+                const lowerKey = key.toLowerCase();
+                const restrictedHeaders = ['content-encoding', 'content-length', 'transfer-encoding'];
+                
+                if (!restrictedHeaders.includes(lowerKey)) {
+                    res.setHeader(key, value);
+                }
+            });
 
             if (fetchRes.body) {
                 Readable.fromWeb(fetchRes.body).pipe(res);
