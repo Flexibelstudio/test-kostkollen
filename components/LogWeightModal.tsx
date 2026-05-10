@@ -69,6 +69,44 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
     }
   }, [show]);
 
+  const handleSave = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    const weightValue = parseFloat(weightKg);
+    if (isNaN(weightValue) || weightValue <= 0) {
+      setError('Vänligen ange en giltig vikt.');
+      return;
+    }
+    setError(null);
+
+    // Show confirmation dialog first
+    if (!showConfirm) {
+      setShowConfirm(true);
+      return;
+    }
+
+    setIsSaving(true);
+
+    const muscleValue = parseFloat(skeletalMuscleMassKg);
+    const fatValue = parseFloat(bodyFatMassKg);
+    
+    try {
+        await onSave({
+            loggedAt: Date.now(),
+            weightKg: weightValue,
+            skeletalMuscleMassKg: !isNaN(muscleValue) ? muscleValue : undefined,
+            bodyFatMassKg: !isNaN(fatValue) ? fatValue : undefined,
+            comment: comment.trim() ? comment.trim() : undefined,
+        });
+        // Parent component will close the modal. isSaving will reset on next 'show'.
+    } catch (err) {
+        console.error("Error saving weight log:", err);
+        setError("Kunde inte spara mätningen. Försök igen.");
+        setIsSaving(false); // Reset on error so user can try again
+    }
+  };
+
   if (!show) return null;
 
   if (showConfirm) {
@@ -174,42 +212,6 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
       </div>
     );
   }
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const weightValue = parseFloat(weightKg);
-    if (isNaN(weightValue) || weightValue <= 0) {
-      setError('Vänligen ange en giltig vikt.');
-      return;
-    }
-    setError(null);
-
-    // Show confirmation dialog first
-    if (!showConfirm) {
-      setShowConfirm(true);
-      return;
-    }
-
-    setIsSaving(true);
-
-    const muscleValue = parseFloat(skeletalMuscleMassKg);
-    const fatValue = parseFloat(bodyFatMassKg);
-    
-    try {
-        await onSave({
-            loggedAt: Date.now(),
-            weightKg: weightValue,
-            skeletalMuscleMassKg: !isNaN(muscleValue) ? muscleValue : undefined,
-            bodyFatMassKg: !isNaN(fatValue) ? fatValue : undefined,
-            comment: comment.trim() ? comment.trim() : undefined,
-        });
-        // Parent component will close the modal. isSaving will reset on next 'show'.
-    } catch (err) {
-        console.error("Error saving weight log:", err);
-        setError("Kunde inte spara mätningen. Försök igen.");
-        setIsSaving(false); // Reset on error so user can try again
-    }
-  };
 
   const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-neutral-light/70 disabled:cursor-not-allowed";
   const labelClass = "block text-base font-medium text-neutral-dark";
