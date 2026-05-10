@@ -1480,10 +1480,13 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                     goalMet = true;
                 } else {
                     const excess = totals.calories - goals.calorieGoal;
-                    if (weeklyBankRef.current.bankedCalories >= excess) {
-                        goalMet = true;
-                        usedFromBank = Math.round(excess);
-                        savedBy = 'sparpott';
+                    // Deduct up to the available bank amount
+                    if (weeklyBankRef.current.bankedCalories > 0) {
+                        usedFromBank = Math.min(Math.round(excess), weeklyBankRef.current.bankedCalories);
+                        if (usedFromBank >= Math.round(excess)) {
+                            goalMet = true;
+                            savedBy = 'sparpott';
+                        }
                     }
                 }
             } else if (userProfile.goalType === 'gain_muscle') {
@@ -1576,18 +1579,20 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         }
 
         if (bankedAmount > 0) {
-            userUpdates["weeklyBank.bankedCalories"] = increment(bankedAmount);
+            const newVal = weeklyBankRef.current.bankedCalories + bankedAmount;
+            userUpdates["weeklyBank.bankedCalories"] = newVal;
             const newBank = {
                 ...weeklyBankRef.current,
-                bankedCalories: weeklyBankRef.current.bankedCalories + bankedAmount
+                bankedCalories: newVal
             };
             setWeeklyBank(newBank);
             weeklyBankRef.current = newBank;
         } else if (usedFromBank > 0) {
-            userUpdates["weeklyBank.bankedCalories"] = increment(-usedFromBank);
+            const newVal = Math.max(0, weeklyBankRef.current.bankedCalories - usedFromBank);
+            userUpdates["weeklyBank.bankedCalories"] = newVal;
             const newBank = {
                 ...weeklyBankRef.current,
-                bankedCalories: Math.max(0, weeklyBankRef.current.bankedCalories - usedFromBank)
+                bankedCalories: newVal
             };
             setWeeklyBank(newBank);
             weeklyBankRef.current = newBank;
@@ -1795,10 +1800,12 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
         if (currentUser && userProfile.goalType !== 'gain_muscle') {
              try {
+                const newVal = (weeklyBankRef.current?.bankedCalories || 0) + 100;
                 await updateUserDocument(currentUser.uid, {
-                    "weeklyBank.bankedCalories": increment(100)
+                    "weeklyBank.bankedCalories": newVal,
+                    "weeklyBank.weekId": weeklyBankRef.current?.weekId || getWeekInfo(new Date()).weekId
                 });
-                setWeeklyBank(prev => ({ ...prev, bankedCalories: prev.bankedCalories + 100 }));
+                setWeeklyBank(prev => ({ ...prev, bankedCalories: newVal, weekId: prev.weekId || getWeekInfo(new Date()).weekId }));
                 setToastNotification({ message: "100 kcal bonus tillagd i din sparpott!", type: 'success' });
                 playAudio('calorieBank');
              } catch (e) {}
