@@ -21,6 +21,7 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
   const [comment, setComment] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Bootcamp restriction logic
   const isBootcampActive = activeBootcamp?.status === 'fas1' || activeBootcamp?.status === 'fas2';
@@ -63,11 +64,48 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
       setComment('');
       setError(null);
       setIsSaving(false);
+      setShowConfirm(false);
       setAcceptedPunishment(false);
     }
   }, [show]);
 
   if (!show) return null;
+
+  if (showConfirm) {
+    return (
+      <div className="fixed inset-0 z-50 bg-neutral-dark/40 backdrop-blur-sm flex justify-center items-center p-4">
+        <div className="bg-white rounded-xl shadow-lg w-full max-w-sm overflow-hidden flex flex-col p-6 animate-scale-in">
+          <h3 className="text-xl font-bold text-neutral-dark mb-4 text-center font-sans tracking-tight">
+            Bekräfta dina siffror
+          </h3>
+          <p className="text-base text-neutral mb-8 text-center px-2 font-sans leading-relaxed">
+            Är du säker på att du fyllt i rätt? Din mätning kommer <strong className="font-semibold text-neutral-dark">inte</strong> att kunna ändras i efterhand.
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setShowConfirm(false)}
+              className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-neutral-light border border-neutral-light text-neutral hover:bg-neutral-light/80"
+              disabled={isSaving}
+            >
+              Ångra
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-primary text-white hover:bg-primary-dark shadow-sm disabled:opacity-70 flex justify-center items-center"
+            >
+              {isSaving ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                'Logga'
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isBlockedLogging) {
     return (
@@ -145,6 +183,13 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
       return;
     }
     setError(null);
+
+    // Show confirmation dialog first
+    if (!showConfirm) {
+      setShowConfirm(true);
+      return;
+    }
+
     setIsSaving(true);
 
     const muscleValue = parseFloat(skeletalMuscleMassKg);

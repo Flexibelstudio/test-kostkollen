@@ -19,6 +19,7 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
   const [recipes, setRecipes] = useState<SavedRecipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecipe, setSelectedRecipe] = useState<SavedRecipe | null>(null);
+  const [recipeToDelete, setRecipeToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (show && currentUser) {
@@ -39,18 +40,27 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUser) return;
+    setRecipeToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!currentUser || !recipeToDelete) return;
     
-    if (window.confirm('Är du säker på att du vill ta bort detta recept?')) {
-      try {
-        await deleteSavedRecipe(currentUser.uid, id);
-        setRecipes(prev => prev.filter(r => r.id !== id));
-      } catch (error) {
-        console.error("Error deleting recipe:", error);
-      }
+    try {
+      await deleteSavedRecipe(currentUser.uid, recipeToDelete);
+      setRecipes(prev => prev.filter(r => r.id !== recipeToDelete));
+    } catch (error) {
+      console.error("Error deleting recipe:", error);
+    } finally {
+      setRecipeToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setRecipeToDelete(null);
   };
 
   const handleShare = async (recipe: SavedRecipe, e: React.MouseEvent) => {
@@ -195,6 +205,38 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
           hideSearch={true}
           onShareRecipe={onShareRecipe}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {recipeToDelete && (
+        <div className="fixed inset-0 bg-neutral-dark/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4 interactive-transition">
+          <div 
+            className="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto interactive-transition p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+          >
+            <h3 className="text-xl font-bold font-sans text-neutral-dark mb-4 text-center">
+              Ta bort recept
+            </h3>
+            <p className="text-base text-neutral mb-8 text-center px-4 font-sans leading-relaxed">
+              Är du säker på att du vill ta bort detta recept? Det går inte att ångra.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={cancelDelete}
+                className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-neutral-light border border-neutral-light text-neutral hover:bg-neutral-light/80 active:scale-[0.98]"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-red-500 text-white hover:bg-red-600 active:scale-[0.98] shadow-sm hover:shadow"
+              >
+                Ta bort
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>,
     document.body
