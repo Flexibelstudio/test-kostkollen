@@ -111,35 +111,62 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
 
   if (showConfirm) {
     return (
-      <div className="fixed inset-0 z-50 bg-neutral-dark/40 backdrop-blur-sm flex justify-center items-center p-4">
-        <div className="bg-white rounded-xl shadow-lg w-full max-w-sm overflow-hidden flex flex-col p-6 animate-scale-in">
-          <h3 className="text-xl font-bold text-neutral-dark mb-4 text-center font-sans tracking-tight">
-            Bekräfta dina siffror
-          </h3>
-          <p className="text-base text-neutral mb-8 text-center px-2 font-sans leading-relaxed">
-            Är du säker på att du fyllt i rätt? Din mätning kommer <strong className="font-semibold text-neutral-dark">inte</strong> att kunna ändras i efterhand.
-          </p>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => setShowConfirm(false)}
-              className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-neutral-light border border-neutral-light text-neutral hover:bg-neutral-light/80"
-              disabled={isSaving}
-            >
-              Ångra
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-primary text-white hover:bg-primary-dark shadow-sm disabled:opacity-70 flex justify-center items-center"
-            >
-              {isSaving ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                'Logga'
-              )}
-            </button>
+      <div 
+        className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg overflow-hidden flex flex-col animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-xl font-bold text-neutral-dark mb-4 text-center font-sans tracking-tight">
+          Bekräfta dina siffror
+        </h3>
+        
+        <div className="bg-neutral-light/50 rounded-xl p-4 mb-6 space-y-3 shadow-inner">
+          <div className="flex justify-between items-center border-b border-neutral-200/60 pb-2">
+            <span className="text-neutral-600 font-medium text-sm uppercase tracking-wider">Vikt</span>
+            <span className="text-xl font-bold text-neutral-dark">{weightKg} kg</span>
           </div>
+          {(measurementMethod === 'inbody' || measurementMethod === 'unknown') && skeletalMuscleMassKg && (
+            <div className="flex justify-between items-center border-b border-neutral-200/60 pb-2">
+              <span className="text-neutral-600 font-medium text-sm uppercase tracking-wider">Muskelmassa</span>
+              <span className="text-xl font-bold text-neutral-dark">{skeletalMuscleMassKg} kg</span>
+            </div>
+          )}
+          {(measurementMethod === 'inbody' || measurementMethod === 'unknown') && bodyFatMassKg && (
+            <div className="flex justify-between items-center border-b border-neutral-200/60 pb-2">
+              <span className="text-neutral-600 font-medium text-sm uppercase tracking-wider">Fettmassa</span>
+              <span className="text-xl font-bold text-neutral-dark">{bodyFatMassKg} kg</span>
+            </div>
+          )}
+          {!hideComment && comment && (
+             <div className="pt-1">
+               <span className="text-neutral-600 font-medium text-xs uppercase tracking-wider block mb-1">Kommentar</span>
+               <p className="text-neutral-800 text-sm italic">"{comment}"</p>
+             </div>
+          )}
+        </div>
+
+        <p className="text-base text-neutral mb-8 text-center px-2 font-sans leading-relaxed">
+          Är du säker på att du fyllt i rätt? Din mätning kommer <strong className="font-semibold text-neutral-dark">inte</strong> att kunna ändras i efterhand.
+        </p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setShowConfirm(false)}
+            className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-neutral-light border border-neutral-light text-neutral hover:bg-neutral-light/80"
+            disabled={isSaving}
+          >
+             Ångra
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-primary text-white hover:bg-primary-dark shadow-sm disabled:opacity-70 flex justify-center items-center"
+          >
+            {isSaving ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              'Logga'
+            )}
+          </button>
         </div>
       </div>
     );
