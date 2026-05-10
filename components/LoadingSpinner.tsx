@@ -1,6 +1,3 @@
-git push
-
-
 import React from 'react';
 
 interface LoadingSpinnerProps {
