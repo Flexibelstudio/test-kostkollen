@@ -362,7 +362,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                   <span className={`px-2 py-1 rounded-full text-[10px] font-semibold border ${getCategoryColor(template.category)} uppercase tracking-wider`}>
                     {template.category}
                   </span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 bg-white/90 rounded-md shadow-sm p-0.5">
+                  <div className="flex gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 bg-white/90 rounded-md shadow-sm p-0.5">
                     <button onClick={(e) => { e.stopPropagation(); handleEditTemplate(template); }} className="p-1.5 text-neutral-400 hover:text-primary transition-colors">
                       <PencilIcon className="w-4 h-4" />
                     </button>

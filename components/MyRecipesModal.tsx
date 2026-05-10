@@ -143,7 +143,7 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
                     }}
                     className="bg-white border border-neutral-light rounded-2xl p-4 cursor-pointer hover:shadow-md transition-shadow group relative"
                   >
-                    <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-3 right-3 flex gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={(e) => handleShare(savedRecipe, e)}
                         className="p-1.5 bg-white text-neutral hover:text-primary rounded-full shadow-sm border border-neutral-light"
