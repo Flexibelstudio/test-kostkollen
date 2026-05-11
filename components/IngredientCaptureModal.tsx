@@ -109,7 +109,7 @@ const IngredientCaptureModal: React.FC<IngredientCaptureModalProps> = ({
                     <img src={imgDataUrl} alt={`Vald ingrediensbild ${index + 1}`} className="w-full h-full object-cover rounded-md shadow-sm" />
                     <button
                       onClick={() => onRemoveImage(index)}
-                      className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 active:scale-90 transition-opacity interactive-transition"
+                      className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full md:opacity-0 group-hover:opacity-100 hover:bg-red-700 active:scale-90 transition-opacity interactive-transition"
                       aria-label="Ta bort bild"
                     >
                       <TrashIcon className="w-4 h-4" />

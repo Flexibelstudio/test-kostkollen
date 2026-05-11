@@ -21,6 +21,7 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
   const [comment, setComment] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Bootcamp restriction logic
   const isBootcampActive = activeBootcamp?.status === 'fas1' || activeBootcamp?.status === 'fas2';
@@ -63,11 +64,113 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
       setComment('');
       setError(null);
       setIsSaving(false);
+      setShowConfirm(false);
       setAcceptedPunishment(false);
     }
   }, [show]);
 
+  const handleSave = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    const weightValue = parseFloat(weightKg);
+    if (isNaN(weightValue) || weightValue <= 0) {
+      setError('Vänligen ange en giltig vikt.');
+      return;
+    }
+    setError(null);
+
+    // Show confirmation dialog first
+    if (!showConfirm) {
+      setShowConfirm(true);
+      return;
+    }
+
+    setIsSaving(true);
+
+    const muscleValue = parseFloat(skeletalMuscleMassKg);
+    const fatValue = parseFloat(bodyFatMassKg);
+    
+    try {
+        await onSave({
+            loggedAt: Date.now(),
+            weightKg: weightValue,
+            skeletalMuscleMassKg: !isNaN(muscleValue) ? muscleValue : undefined,
+            bodyFatMassKg: !isNaN(fatValue) ? fatValue : undefined,
+            comment: comment.trim() ? comment.trim() : undefined,
+        });
+        // Parent component will close the modal. isSaving will reset on next 'show'.
+    } catch (err) {
+        console.error("Error saving weight log:", err);
+        setError("Kunde inte spara mätningen. Försök igen.");
+        setIsSaving(false); // Reset on error so user can try again
+    }
+  };
+
   if (!show) return null;
+
+  if (showConfirm) {
+    return (
+      <div 
+        className="bg-white p-6 sm:p-8 rounded-xl shadow-soft-xl w-full max-w-lg overflow-hidden flex flex-col animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-xl font-bold text-neutral-dark mb-4 text-center font-sans tracking-tight">
+          Bekräfta dina siffror
+        </h3>
+        
+        <div className="bg-neutral-light/50 rounded-xl p-4 mb-6 space-y-3 shadow-inner">
+          <div className="flex justify-between items-center border-b border-neutral-200/60 pb-2">
+            <span className="text-neutral-600 font-medium text-sm uppercase tracking-wider">Vikt</span>
+            <span className="text-xl font-bold text-neutral-dark">{weightKg} kg</span>
+          </div>
+          {(measurementMethod === 'inbody' || measurementMethod === 'unknown') && skeletalMuscleMassKg && (
+            <div className="flex justify-between items-center border-b border-neutral-200/60 pb-2">
+              <span className="text-neutral-600 font-medium text-sm uppercase tracking-wider">Muskelmassa</span>
+              <span className="text-xl font-bold text-neutral-dark">{skeletalMuscleMassKg} kg</span>
+            </div>
+          )}
+          {(measurementMethod === 'inbody' || measurementMethod === 'unknown') && bodyFatMassKg && (
+            <div className="flex justify-between items-center border-b border-neutral-200/60 pb-2">
+              <span className="text-neutral-600 font-medium text-sm uppercase tracking-wider">Fettmassa</span>
+              <span className="text-xl font-bold text-neutral-dark">{bodyFatMassKg} kg</span>
+            </div>
+          )}
+          {!hideComment && comment && (
+             <div className="pt-1">
+               <span className="text-neutral-600 font-medium text-xs uppercase tracking-wider block mb-1">Kommentar</span>
+               <p className="text-neutral-800 text-sm italic">"{comment}"</p>
+             </div>
+          )}
+        </div>
+
+        <p className="text-base text-neutral mb-8 text-center px-2 font-sans leading-relaxed">
+          Är du säker på att du fyllt i rätt? Din mätning kommer <strong className="font-semibold text-neutral-dark">inte</strong> att kunna ändras i efterhand.
+        </p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setShowConfirm(false)}
+            className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-neutral-light border border-neutral-light text-neutral hover:bg-neutral-light/80"
+            disabled={isSaving}
+          >
+             Ångra
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex-1 py-3 px-4 rounded-xl font-bold font-sans transition-all interactive-transition bg-primary text-white hover:bg-primary-dark shadow-sm disabled:opacity-70 flex justify-center items-center"
+          >
+            {isSaving ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              'Logga'
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isBlockedLogging) {
     return (
@@ -136,35 +239,6 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
       </div>
     );
   }
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const weightValue = parseFloat(weightKg);
-    if (isNaN(weightValue) || weightValue <= 0) {
-      setError('Vänligen ange en giltig vikt.');
-      return;
-    }
-    setError(null);
-    setIsSaving(true);
-
-    const muscleValue = parseFloat(skeletalMuscleMassKg);
-    const fatValue = parseFloat(bodyFatMassKg);
-    
-    try {
-        await onSave({
-            loggedAt: Date.now(),
-            weightKg: weightValue,
-            skeletalMuscleMassKg: !isNaN(muscleValue) ? muscleValue : undefined,
-            bodyFatMassKg: !isNaN(fatValue) ? fatValue : undefined,
-            comment: comment.trim() ? comment.trim() : undefined,
-        });
-        // Parent component will close the modal. isSaving will reset on next 'show'.
-    } catch (err) {
-        console.error("Error saving weight log:", err);
-        setError("Kunde inte spara mätningen. Försök igen.");
-        setIsSaving(false); // Reset on error so user can try again
-    }
-  };
 
   const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-neutral-light/70 disabled:cursor-not-allowed";
   const labelClass = "block text-base font-medium text-neutral-dark";

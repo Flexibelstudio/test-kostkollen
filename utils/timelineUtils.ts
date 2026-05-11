@@ -8,6 +8,7 @@ export interface TimelineMilestone {
   isoDate: string; // ISO date string (YYYY-MM-DD) for comparisons
   targetDescription: string;
   targetWeightKg: number;
+  targetChangeKg?: number; // Optional as not all milestones might need it
   isFinal: boolean;
 }
 
@@ -17,6 +18,7 @@ export const calculateGoalTimeline = (profile: UserProfileData, weightLogs: Weig
   metrics: {
       currentPacePerWeek: number;
       requiredPacePerWeek: number;
+      plannedPacePerWeek: number; // The planned 0.5kg/week etc
       projectedFinalWeight: number;
       isHealthyPace: boolean;
       isOffTrack: boolean;

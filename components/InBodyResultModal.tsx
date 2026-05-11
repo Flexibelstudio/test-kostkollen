@@ -48,7 +48,10 @@ const InBodyResultModal: React.FC<InBodyResultModalProps> = ({ show, onClose, sc
         </button>
       </div>
 
-      <p className="text-neutral-dark mb-4">Granska de skannade värdena nedan och spara mätningen.</p>
+      <p className="text-neutral-dark mb-4">
+        Granska de skannade värdena nedan och spara mätningen. <br/>
+        <strong className="text-red-500 text-sm mt-1 inline-block">Observera: Din mätning kommer inte att kunna ändras i efterhand.</strong>
+      </p>
 
       <div className="space-y-4 bg-neutral-light/70 p-4 rounded-lg">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">

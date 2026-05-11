@@ -11,6 +11,7 @@ interface DailyStats {
     calorieGoal: number;
     proteinGoalMet: boolean;
     waterGoalMet: boolean;
+    goalMet: boolean;
 }
 
 interface WeeklyActivityChartProps {

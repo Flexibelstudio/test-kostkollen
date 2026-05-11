@@ -12,6 +12,8 @@ import {
 } from "@firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
+// NYTT: Importera App Check
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 // ?mock=true aktiverar mock-läge (praktiskt för lokal test)
 const isMockQuery =
@@ -74,6 +76,7 @@ let realAuth: Auth | undefined;
 let db: Firestore | undefined;
 let functions: Functions | undefined;
 let storage: FirebaseStorage | undefined;
+let appCheck: any | undefined; // 1. ÄNDRING: Variabel för att hålla App Check-instansen
 
 if (useMock) {
   console.warn(
@@ -88,6 +91,17 @@ if (useMock) {
     db = getFirestore(app); // Prod & staging = separata projekt via netlify.toml
     functions = getFunctions(app, 'us-central1'); // Init functions in same region as backend
     
+    // --- NYTT: INITIALISERA APP CHECK ---
+    const siteKey = (import.meta as any).env.VITE_RECAPTCHA_SITE_KEY;
+    if (typeof window !== 'undefined' && siteKey) {
+      // 2. ÄNDRING: Spara instansen i variabeln appCheck så den kan exporteras
+      appCheck = initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider(siteKey),
+        isTokenAutoRefreshEnabled: true
+      });
+      console.log("Firebase App Check (reCAPTCHA v3) initierad.");
+    }
+
     // SMART FIX: Vi kollar om vi är i Produktion eller Staging baserat på Project ID
     // Om vi är i prod-projektet, tvinga den problematiska hinken. Annars använd config som vanligt.
     const isProd = firebaseConfig.projectId === "flexibel-kostkollen";
@@ -103,7 +117,8 @@ if (useMock) {
 
 // ===== Exporterade instanser =====
 export const auth = useMock ? (mockAuth as any) : (realAuth as Auth);
-export { db, app, functions, storage };
+// 3. ÄNDRING: Exportera appCheck
+export { db, app, functions, storage, appCheck };
 
 // ===== Promises för persistence (används i App.tsx) =====
 export const authPersistencePromise: Promise<{

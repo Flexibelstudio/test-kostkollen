@@ -359,7 +359,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         </div>
 
         {showWeightModal && createPortal(
-          <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setShowWeightModal(false)}>
+          <div className="fixed inset-0 bg-neutral-dark/40 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in" onClick={() => setShowWeightModal(false)}>
             <LogWeightModal 
               show={showWeightModal} 
               onClose={() => setShowWeightModal(false)} 

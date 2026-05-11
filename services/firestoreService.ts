@@ -28,7 +28,8 @@ import {
     arrayUnion,
     startAfter,
     QuerySnapshot,
-    collectionGroup
+    collectionGroup,
+    FieldValue
 } from "@firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import type { 
@@ -98,8 +99,8 @@ const formatChange = (change: number | undefined): string => {
 const cleanFirestoreData = (data: any) => {
   if (typeof data !== 'object' || data === null) return data;
   
-  // Om objektet är ett Firestore-kommando (har interna fält som _methodName eller Cc), låt det vara.
-  if (data._methodName || data.hasOwnProperty('Cc')) {
+  // Om objektet är ett Firestore-kommando känn igen det via instans eller specifika fält
+  if (data instanceof FieldValue || data._methodName || data.hasOwnProperty('Cc') || data?.constructor?.name?.includes('FieldValue') || data?.constructor?.name?.includes('Transform')) {
     return data;
   }
 

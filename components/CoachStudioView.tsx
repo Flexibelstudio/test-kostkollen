@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { COACH_PERSONAS } from '../constants';
 import { createUserPost } from '../services/firestoreService';
-import { GoogleGenAI } from '@google/genai';
 import { PostCategory } from '../types';
+import { ai } from '../services/geminiService';
 import { SparklesIcon } from './icons';
 import { Send } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -74,13 +74,6 @@ const CoachStudioView: React.FC<CoachStudioViewProps> = ({
 
   const handleGenerate = async () => {
     if (!brief.trim()) return;
-
-    if (!process.env.GEMINI_API_KEY) {
-      setToastNotification({ message: 'Gemini API-nyckel saknas.', type: 'error' });
-      return;
-    }
-
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     const userMessage = brief.trim();
     setChatHistory(prev => [...prev, { role: 'user', text: userMessage }]);

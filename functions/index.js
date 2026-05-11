@@ -2,7 +2,18 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const logger = require("firebase-functions/logger");
-const cors = require('cors')({ origin: true });
+const cors = require('cors')({ 
+    origin: true,
+    allowedHeaders: [
+        'Authorization', 
+        'Content-Type', 
+        'X-Goog-Api-Client', 
+        'x-goog-api-client', 
+        'x-goog-api-key',
+        'X-Firebase-AppCheck' // <--- LÄGG TILL DENNA!
+    ]
+});
+const { Readable } = require('stream');
 
 // --- SÄKER HÄMTNING AV VARIABLER ---
 // Denna funktion förhindrar krascher om en miljövariabel saknas i molnet
@@ -1417,4 +1428,130 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
         logger.error("Error in publishScheduledPosts:", error);
         return null;
     }
+});
+
+// ---- GEMINI API PROXY ----
+// Securely proxies requests from the @google/genai SDK to the Gemini API, 
+// protecting the actual API key and ensuring only authenticated users can use it.
+// Uppdatera exporten så den använder Secret Manager för nyckeln
+exports.geminiApiProxy = functions.runWith({ 
+    secrets: ["GEMINI_API_KEY"],
+    memory: "512MB" // AI-svar kan vara tunga, 512MB är säkert
+}).https.onRequest(async (req, res) => {
+    cors(req, res, async () => {
+        
+        // 1. APP CHECK VERIFIERING (Den nya säkerhetsvakten)
+        // Vi kör denna kontroll främst i produktion
+        if (process.env.NODE_ENV === 'production') {
+            const appCheckToken = req.header('X-Firebase-AppCheck');
+            if (!appCheckToken) {
+                logger.warn("geminiApiProxy: App Check token saknas");
+                return res.status(401).send({ error: 'Unauthorized', message: 'App Check token saknas.' });
+            }
+
+            try {
+                await admin.appCheck().verifyToken(appCheckToken);
+            } catch (err) {
+                logger.error("geminiApiProxy: Ogiltig App Check token", err);
+                return res.status(401).send({ error: 'Unauthorized', message: 'Ogiltig App Check token.' });
+            }
+        }
+
+        // 2. BEHÅLL DIN EXISTERANDE AUTH-KOLL
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            logger.warn("geminiApiProxy: Missing or invalid Authorization header");
+            return res.status(401).send({ error: 'Unauthorized', message: 'Missing or invalid Authorization header' });
+        }
+
+        let decodedToken;
+        try {
+            const idToken = authHeader.split('Bearer ')[1];
+            decodedToken = await admin.auth().verifyIdToken(idToken);
+        } catch (error) {
+            logger.error("geminiApiProxy: Token verification failed", error);
+            return res.status(403).send({ error: 'Forbidden', message: 'Invalid or expired token' });
+        }
+
+        const uid = decodedToken.uid;
+
+        // 3. DIN RATE LIMITING (Snyggt byggd!)
+        const usageRef = admin.firestore().collection('rate_limits').doc(`gemini_${uid}`);
+        try {
+            await admin.firestore().runTransaction(async (transaction) => {
+                const usageSnap = await transaction.get(usageRef);
+                const now = Date.now();
+                const windowMs = 60 * 60 * 1000; 
+                const maxRequests = 15;
+                
+                if (!usageSnap.exists) {
+                    transaction.set(usageRef, { requests: [now] });
+                } else {
+                    const data = usageSnap.data();
+                    let requests = data.requests || [];
+                    requests = requests.filter(time => now - time < windowMs);
+                    
+                    if (requests.length >= maxRequests) {
+                        throw new Error("RATE_LIMIT_EXCEEDED");
+                    }
+                    
+                    requests.push(now);
+                    transaction.update(usageRef, { requests });
+                }
+            });
+        } catch (error) {
+            if (error.message === "RATE_LIMIT_EXCEEDED") {
+                return res.status(429).send({ error: 'Too Many Requests', message: 'RATE_LIMIT_EXCEEDED' });
+            }
+            logger.error(`geminiApiProxy: Rate limit failed for ${uid}`, error);
+        }
+
+        // 4. HÄMTA NYCKELN FRÅN SECRETS (Detta är säkrast)
+        let apiKey = process.env.GEMINI_API_KEY; 
+        
+        if (!apiKey) {
+            logger.error("geminiApiProxy: GEMINI_API_KEY saknas i Secret Manager.");
+            return res.status(500).send({ error: 'Internal Server Error' });
+        }
+
+        // ... Resten av din fetch-logik (den ser bra ut!) ...
+        let endpointPath = req.url;
+        if (endpointPath.includes('key=')) {
+            endpointPath = endpointPath.replace(/([?&])key=[^&]*(&|$)/, (match, p1, p2) => p2 ? p1 : '');
+        }
+        
+        const targetUrl = `https://generativelanguage.googleapis.com${endpointPath}${endpointPath.includes('?') ? '&' : '?'}key=${apiKey}`;
+
+        try {
+            const headersToForward = new Headers();
+            if (req.headers['content-type']) headersToForward.set('Content-Type', req.headers['content-type']);
+            if (req.headers['x-goog-api-client']) headersToForward.set('X-Goog-Api-Client', req.headers['x-goog-api-client']);
+            
+            const fetchRes = await fetch(targetUrl, {
+                method: req.method,
+                headers: headersToForward,
+                body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body)
+            });
+
+            res.status(fetchRes.status);
+            // Forward headers (MEN hoppa över de som rör kodning/komprimering)
+            fetchRes.headers.forEach((value, key) => {
+                const lowerKey = key.toLowerCase();
+                const restrictedHeaders = ['content-encoding', 'content-length', 'transfer-encoding'];
+                
+                if (!restrictedHeaders.includes(lowerKey)) {
+                    res.setHeader(key, value);
+                }
+            });
+
+            if (fetchRes.body) {
+                Readable.fromWeb(fetchRes.body).pipe(res);
+            } else {
+                res.send(await fetchRes.text());
+            }
+        } catch (error) {
+            logger.error('geminiApiProxy: Fetch error:', error);
+            res.status(500).send({ error: 'Proxy Error' });
+        }
+    });
 });
