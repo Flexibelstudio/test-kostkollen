@@ -97,8 +97,12 @@ Svara ENDAST med själva meddelandetexten, inga kommentarer eller extra text.`;
         throw new Error("Empty response from AI");
     }
     return text.trim();
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating growth engine message:", error);
+    const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+    if (isQuotaError) {
+        return "Just nu har vi ovanligt högt tryck på vår AI-tjänst. Prova igen om en liten stund.";
+    }
     return `Hej! Jag ville bara kika in och se hur det går för dig. Säg till om du behöver någon hjälp eller pepp!`;
   }
 };
@@ -130,7 +134,7 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text.`;
         throw new Error("Empty response from AI");
     }
     return text.trim();
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating community post:", error);
     return `Hej allihopa! Hur går det med era mål den här veckan? Dela gärna med er av era bästa tips för att hålla motivationen uppe! 👇`;
   }
@@ -167,8 +171,12 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text. Bör
         throw new Error("Empty response from AI");
     }
     return text.trim();
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating Borje post:", error);
+    const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+    if (isQuotaError) {
+        throw new Error("Just nu har vi ovanligt högt tryck på systemet. Generalen vilar. Försök igen snart!");
+    }
     throw new Error("Kunde inte generera inlägg just nu.");
   }
 };
@@ -363,7 +371,7 @@ INSTRUKTIONER:
         throw new Error("Empty response from AI");
     }
     return text.trim();
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating morning briefing text:", error);
     return `God morgon ${name}! Hoppas du får en bra dag. Vi kör på!`;
   }
@@ -390,7 +398,7 @@ export const getMorningBriefingAudio = async (text: string, style: CoachStyle): 
     const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     return audioData || null;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating morning briefing audio:", error);
     return null;
   }
@@ -458,8 +466,12 @@ För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein
 
     return parsedData;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error analyzing food image with Gemini:", error);
+    const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+    if (isQuotaError) {
+        throw new Error("Just nu har vi ovanligt högt tryck på vår AI-tjänst. Prova igen om en liten stund eller logga din måltid manuellt så länge.");
+    }
     if (error instanceof Error) {
         throw new Error(`Kunde inte analysera bilden: ${error.message}`);
     }
@@ -524,12 +536,20 @@ Exempel för "öl": {"foodItem": "Öl, vanlig", "servingDescription": "1 burk (3
     
     return parsedData;
 
-  } catch (error) {
-    console.error("Error getting nutritional info from text search with Gemini:", error);
-     if (error instanceof Error) {
-        throw new Error(`Kunde inte hämta näringsinformation: ${error.message}`);
+  } catch (error: any) {
+    console.error("Gemini Error:", error);
+    
+    // Kolla efter specifika felkoder (429 = Spending cap/Rate limit)
+    const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+
+    if (isQuotaError) {
+        throw new Error("Just nu har vi ovanligt högt tryck på vår AI-tjänst. Prova igen om en liten stund eller logga din måltid manuellt så länge. Vi arbetar på att lösa det!");
     }
-    throw new Error("Kunde inte hämta näringsinformation på grund av ett okänt fel.");
+
+    if (error instanceof Error) {
+        throw new Error(`Ett fel uppstod: ${error.message}`);
+    }
+    throw new Error("Kunde inte hämta info just nu.");
   }
 };
 
@@ -612,8 +632,12 @@ ${contextPrompt}
 
     return response.text?.trim() || "Kunde inte generera svar.";
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error getting feedback from Coach from Gemini:", error);
+    const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+    if (isQuotaError) {
+        throw new Error("Coachen är lite upptagen just nu på grund av högt tryck hos Google. Försök igen om en liten stund!");
+    }
     if (error instanceof Error) {
       if (error.message.includes('500') || error.message.toLowerCase().includes('internal')) {
         throw new Error(`${persona.label} har stött på ett tekniskt problem och kan inte svara just nu. Vänligen försök igen om en liten stund.`);
@@ -707,8 +731,12 @@ Användarens fråga: "${recipeQuery}"`;
 
     return parsedData;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error getting recipe suggestion from Gemini:", error);
+    const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+    if (isQuotaError) {
+        throw new Error("Just nu har vi ovanligt högt tryck. Prova igen om en liten stund!");
+    }
      if (error instanceof Error) {
         throw new Error(`Kunde inte hämta receptförslag: ${error.message}`);
     }
@@ -797,8 +825,12 @@ JSON-struktur för varje recept i 'recipeSuggestions':
 
     return parsedData;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error getting recipes from ingredients image with Gemini:", error);
+    const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+    if (isQuotaError) {
+        throw new Error("Hög belastning på systemet just nu. Prova igen om en liten stund!");
+    }
     if (error instanceof Error) {
       throw new Error(`Kunde inte generera recept från bilder: ${error.message}`);
     }
@@ -937,7 +969,7 @@ Om användaren ställer en allmän fråga, svara med text som vanligt enligt "VI
         if (isRateLimit) fallbackMessage = "Nu har vi pratat ganska intensivt en stund. Låt oss ta en kort paus på någon timme så hörs vi sen igen.";
         else fallbackMessage = "Oj då, min uppkoppling verkar lite trött just nu. Ta ett djupt andetag så försöker vi igen om en liten stund.";
     } else {
-        if (isRateLimit) fallbackMessage = "Det har blivit många frågor nu på kort tid! Ta gärna en paus så fortsätter vi chatta om ett tag.";
+        if (isRateLimit) fallbackMessage = "Just nu har vi ovanligt högt tryck på min hjärna! Ta gärna en paus så fortsätter vi chatta om ett tag.";
         else fallbackMessage = "Hallå där! Det verkar vara lite trassel med min uppkoppling. Vi testar igen om en stund!";
     }
 
@@ -1010,7 +1042,7 @@ Skriv en kort (1-2 meningar), uppmuntrande och personlig inledning till lektione
       },
     });
     return response.text?.trim() || "";
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error getting AI personalized intro for hint '${hint}':`, error);
     // Return empty string on failure to allow fallback to static content
     return ""; 
@@ -1308,8 +1340,12 @@ ${bodyCompositionDataPrompt}
 
         return parsedData;
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error getting detailed journey analysis from Gemini:", error);
+        const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+        if (isQuotaError) {
+             throw new Error("Just nu kan jag inte generera din analys på grund av hög belastning hos Google. Prova igen om en liten stund!");
+        }
         if (error instanceof Error) {
             throw new Error(`Kunde inte generera analys: ${error.message}`);
         }
@@ -1355,8 +1391,12 @@ Skapa en sammanfattning med följande tre rubriker:
             },
         });
         return response.text?.trim() || "";
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error getting AI coach summary from Gemini:", error);
+        const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+        if (isQuotaError) {
+             return "AI-sammanfattning är tillfälligt otillgänglig på grund av hög belastning.";
+        }
         if (error instanceof Error) {
             throw new Error(`Kunde inte generera AI-sammanfattning: ${error.message}`);
         }
@@ -1424,8 +1464,12 @@ Exempel: {"foodItem": "Ekologisk Mellanmjölk", "calories": 45, "protein": 3.5, 
 
     return parsedData;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error analyzing nutrition label with Gemini:", error);
+    const isQuotaError = error?.message?.includes('429') || error?.status === 429;
+    if (isQuotaError) {
+        throw new Error("Just nu kan vi inte läsa av bilden pga hög belastning. Försök igen om en stund!");
+    }
     if (error instanceof Error) {
         throw new Error(`Kunde inte läsa näringsdeklarationen: ${error.message}`);
     }
@@ -1463,7 +1507,7 @@ export const extractBarcodeFromImage = async (base64ImageData: string): Promise<
     const digits = text.replace(/\D/g, '');
     return digits.length > 0 ? digits : null;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error extracting barcode with Gemini:", error);
     return null;
   }

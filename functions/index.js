@@ -1434,34 +1434,17 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
 // Securely proxies requests from the @google/genai SDK to the Gemini API, 
 // protecting the actual API key and ensuring only authenticated users can use it.
 // Uppdatera exporten så den använder Secret Manager för nyckeln
+// ---- GEMINI API PROXY (SÄKRAD VERSION) ----
 exports.geminiApiProxy = functions.runWith({ 
     secrets: ["GEMINI_API_KEY"],
-    memory: "512MB" // AI-svar kan vara tunga, 512MB är säkert
+    memory: "512MB" 
 }).https.onRequest(async (req, res) => {
     cors(req, res, async () => {
         
-        // 1. APP CHECK VERIFIERING (Den nya säkerhetsvakten)
-        // Vi kör denna kontroll främst i produktion
-        if (process.env.NODE_ENV === 'production') {
-            const appCheckToken = req.header('X-Firebase-AppCheck');
-            if (!appCheckToken) {
-                logger.warn("geminiApiProxy: App Check token saknas");
-                return res.status(401).send({ error: 'Unauthorized', message: 'App Check token saknas.' });
-            }
-
-            try {
-                await admin.appCheck().verifyToken(appCheckToken);
-            } catch (err) {
-                logger.error("geminiApiProxy: Ogiltig App Check token", err);
-                return res.status(401).send({ error: 'Unauthorized', message: 'Ogiltig App Check token.' });
-            }
-        }
-
-        // 2. BEHÅLL DIN EXISTERANDE AUTH-KOLL
+        // 1. AUTH-KOLL (Vem är användaren?)
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            logger.warn("geminiApiProxy: Missing or invalid Authorization header");
-            return res.status(401).send({ error: 'Unauthorized', message: 'Missing or invalid Authorization header' });
+            return res.status(401).send({ error: 'Unauthorized', message: 'Logga in för att använda AI.' });
         }
 
         let decodedToken;
@@ -1469,13 +1452,25 @@ exports.geminiApiProxy = functions.runWith({
             const idToken = authHeader.split('Bearer ')[1];
             decodedToken = await admin.auth().verifyIdToken(idToken);
         } catch (error) {
-            logger.error("geminiApiProxy: Token verification failed", error);
-            return res.status(403).send({ error: 'Forbidden', message: 'Invalid or expired token' });
+            return res.status(403).send({ error: 'Forbidden', message: 'Ogiltig session.' });
         }
 
         const uid = decodedToken.uid;
 
-        // 3. DIN RATE LIMITING (Snyggt byggd!)
+        // 2. TIER-KOLL (Är användaren betalande?)
+        // Vi hämtar användarens dokument för att se om de har en aktiv prenumeration
+        const userDoc = await admin.firestore().collection('users').doc(uid).get();
+        const userData = userDoc.data() || {};
+
+        if (userData.subscriptionStatus !== 'active') {
+            logger.warn(`Obehörigt AI-försök från användare ${uid} (Status: ${userData.subscriptionStatus})`);
+            return res.status(403).send({ 
+                error: 'Payment Required', 
+                message: 'AI-stöd kräver en aktiv prenumeration.' 
+            });
+        }
+
+        // 3. RATE LIMITING (Max 15 frågor per timme)
         const usageRef = admin.firestore().collection('rate_limits').doc(`gemini_${uid}`);
         try {
             await admin.firestore().runTransaction(async (transaction) => {
@@ -1501,20 +1496,17 @@ exports.geminiApiProxy = functions.runWith({
             });
         } catch (error) {
             if (error.message === "RATE_LIMIT_EXCEEDED") {
-                return res.status(429).send({ error: 'Too Many Requests', message: 'RATE_LIMIT_EXCEEDED' });
+                return res.status(429).send({ error: 'Too Many Requests', message: 'Du har nått timgränsen för AI-frågor.' });
             }
-            logger.error(`geminiApiProxy: Rate limit failed for ${uid}`, error);
+            logger.error(`Rate limit fail för ${uid}`, error);
         }
 
-        // 4. HÄMTA NYCKELN FRÅN SECRETS (Detta är säkrast)
+        // 4. HÄMTA NYCKEL OCH SKICKA VIDARE (Proxy)
         let apiKey = process.env.GEMINI_API_KEY; 
-        
         if (!apiKey) {
-            logger.error("geminiApiProxy: GEMINI_API_KEY saknas i Secret Manager.");
             return res.status(500).send({ error: 'Internal Server Error' });
         }
 
-        // ... Resten av din fetch-logik (den ser bra ut!) ...
         let endpointPath = req.url;
         if (endpointPath.includes('key=')) {
             endpointPath = endpointPath.replace(/([?&])key=[^&]*(&|$)/, (match, p1, p2) => p2 ? p1 : '');
@@ -1534,12 +1526,9 @@ exports.geminiApiProxy = functions.runWith({
             });
 
             res.status(fetchRes.status);
-            // Forward headers (MEN hoppa över de som rör kodning/komprimering)
             fetchRes.headers.forEach((value, key) => {
                 const lowerKey = key.toLowerCase();
-                const restrictedHeaders = ['content-encoding', 'content-length', 'transfer-encoding'];
-                
-                if (!restrictedHeaders.includes(lowerKey)) {
+                if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(lowerKey)) {
                     res.setHeader(key, value);
                 }
             });
@@ -1550,7 +1539,7 @@ exports.geminiApiProxy = functions.runWith({
                 res.send(await fetchRes.text());
             }
         } catch (error) {
-            logger.error('geminiApiProxy: Fetch error:', error);
+            logger.error('Proxy Fetch Error:', error);
             res.status(500).send({ error: 'Proxy Error' });
         }
     });
