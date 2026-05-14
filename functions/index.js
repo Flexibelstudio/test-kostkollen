@@ -814,10 +814,6 @@ exports.manualSummarizeYesterday = functions
 // NYTT: STRIPE INTEGRATION
 // ==========================================
 
-// ==========================================
-// NYTT: STRIPE INTEGRATION
-// ==========================================
-
 exports.createCheckoutSession = functions.runWith({ secrets: ["STRIPE_BOOTCAMP_PRICE"] }).https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Användaren är inte inloggad.');
@@ -1430,11 +1426,9 @@ exports.publishScheduledPosts = functions.pubsub.schedule('every 15 minutes').on
     }
 });
 
-// ---- GEMINI API PROXY ----
+// ---- GEMINI API PROXY (SÄKRAD VERSION) ----
 // Securely proxies requests from the @google/genai SDK to the Gemini API, 
 // protecting the actual API key and ensuring only authenticated users can use it.
-// Uppdatera exporten så den använder Secret Manager för nyckeln
-// ---- GEMINI API PROXY (SÄKRAD VERSION) ----
 exports.geminiApiProxy = functions.runWith({ 
     secrets: ["GEMINI_API_KEY"],
     memory: "512MB" 
@@ -1457,20 +1451,10 @@ exports.geminiApiProxy = functions.runWith({
 
         const uid = decodedToken.uid;
 
-        // 2. TIER-KOLL (Är användaren betalande?)
-        // Vi hämtar användarens dokument för att se om de har en aktiv prenumeration
-        const userDoc = await admin.firestore().collection('users').doc(uid).get();
-        const userData = userDoc.data() || {};
+        // --- HÄR ÄR TIER-KOLLEN BORTTAGEN ENLIGT ÖNSKEMÅL ---
+        // Nu kan alla inloggade användare (som din dotter) använda AI:n.
 
-        if (userData.subscriptionStatus !== 'active') {
-            logger.warn(`Obehörigt AI-försök från användare ${uid} (Status: ${userData.subscriptionStatus})`);
-            return res.status(403).send({ 
-                error: 'Payment Required', 
-                message: 'AI-stöd kräver en aktiv prenumeration.' 
-            });
-        }
-
-        // 3. RATE LIMITING (Max 15 frågor per timme)
+        // 2. RATE LIMITING (Max 15 frågor per timme)
         const usageRef = admin.firestore().collection('rate_limits').doc(`gemini_${uid}`);
         try {
             await admin.firestore().runTransaction(async (transaction) => {
@@ -1501,7 +1485,7 @@ exports.geminiApiProxy = functions.runWith({
             logger.error(`Rate limit fail för ${uid}`, error);
         }
 
-        // 4. HÄMTA NYCKEL OCH SKICKA VIDARE (Proxy)
+        // 3. HÄMTA NYCKEL OCH SKICKA VIDARE (Proxy)
         let apiKey = process.env.GEMINI_API_KEY; 
         if (!apiKey) {
             return res.status(500).send({ error: 'Internal Server Error' });
