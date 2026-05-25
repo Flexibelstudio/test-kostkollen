@@ -819,7 +819,7 @@ export const TimelineEventCard: FC<{
             if (totalReactionsCount === 0 && commentCount === 0) return null;
 
             return (
-                <div className="flex justify-between items-center py-2 px-1 border-b border-neutral-100 dark:border-neutral-800/50 text-xs text-neutral-500 ml-[60px] select-none">
+                <div className="flex justify-between items-center py-2 px-1 border-b border-neutral-100 dark:border-neutral-800/50 text-xs text-neutral-500 select-none">
                     {totalReactionsCount > 0 ? (
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
                             <div className="flex items-center -space-x-1 shrink-0">
@@ -850,7 +850,7 @@ export const TimelineEventCard: FC<{
         })()}
 
         {/* Action Bar (Gilla och Kommentera knappar) */}
-        <div className="flex items-center gap-2 mt-2 ml-[60px] premium-action-bar">
+        <div className="flex items-center gap-2 mt-2 premium-action-bar">
             {/* Gilla/Reagera Knapp (Facebook style) */}
             <div className="relative" ref={reactionMenuRef}>
                 <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-full transition-all border border-transparent hover:border-neutral-200 dark:hover:border-neutral-600 shadow-sm">
@@ -947,7 +947,7 @@ export const TimelineEventCard: FC<{
         
         {/* Comments Section */}
         {((event.comments && event.comments.length > 0) || newComment || commentImage) && (
-             <div className="space-y-2.5 mt-3 ml-[60px]">
+             <div className="space-y-2.5 mt-3">
                 {/* Visa tidigare kommentarer knapp */}
                 {event.comments && event.comments.length > 3 && !showAllComments && (
                     <button
@@ -1121,7 +1121,7 @@ export const TimelineEventCard: FC<{
             </div>
         )}
 
-        <form onSubmit={handleCommentSubmit} className="flex items-start gap-2.5 mt-3 ml-[60px]">
+        <form onSubmit={handleCommentSubmit} className="flex items-start gap-2.5 mt-3">
                 <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
                 <div className="flex-1 flex flex-col gap-1.5">
                     <input
