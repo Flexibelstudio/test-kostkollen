@@ -778,27 +778,27 @@ export const TimelineEventCard: FC<{
                         {event.icon} {event.category === 'workout' ? 'Träning' : event.category === 'food' ? 'Mat' : event.category === 'pepp' ? 'Pepp' : event.category === 'question' ? 'Fråga' : 'Allmänt'}
                     </span>
                 )}
-
-                {/* Content Area */}
-                <div className="mt-1">
-                    {event.type === 'weight' ? (
-                        renderWeightDescription(event.description)
-                    ) : (
-                        <p className="text-base text-neutral-dark whitespace-pre-wrap leading-relaxed break-words">{event.description}</p>
-                    )}
-                    
-                    {event.imageUrl && (
-                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px] bg-white flex items-center justify-center">
-                             <img 
-                                src={event.imageUrl} 
-                                alt="Inläggsbild" 
-                                className="max-w-full max-h-[400px] object-contain cursor-pointer hover:opacity-95 transition-opacity"
-                                onClick={() => onImageClick(event.imageUrl!, `Bild från ${event.userName}`)}
-                            />
-                        </div>
-                    )}
-                </div>
             </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="mt-3">
+            {event.type === 'weight' ? (
+                renderWeightDescription(event.description)
+            ) : (
+                <p className="text-base text-neutral-dark whitespace-pre-wrap leading-relaxed break-words">{event.description}</p>
+            )}
+            
+            {event.imageUrl && (
+                <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px] bg-white flex items-center justify-center">
+                     <img 
+                        src={event.imageUrl} 
+                        alt="Inläggsbild" 
+                        className="max-w-full max-h-[400px] object-contain cursor-pointer hover:opacity-95 transition-opacity"
+                        onClick={() => onImageClick(event.imageUrl!, `Bild från ${event.userName}`)}
+                    />
+                </div>
+            )}
         </div>
 
         {/* Reactions Overview Row */}
