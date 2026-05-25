@@ -33,8 +33,9 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // ---- VAPID-nycklar ----
-const vapidPublicKey = functions.config().webpush ? functions.config().webpush.public_key : null;
-const vapidPrivateKey = functions.config().webpush ? functions.config().webpush.private_key : null;
+// Robust loading check: first check system environment variables/secrets, then fallback to traditional functions.config()
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || process.env.WEBPUSH_PUBLIC_KEY || (functions.config().webpush ? functions.config().webpush.public_key : null);
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || process.env.WEBPUSH_PRIVATE_KEY || (functions.config().webpush ? functions.config().webpush.private_key : null);
 
 if (vapidPublicKey && vapidPrivateKey) {
     logger.log("Webpush VAPID keys loaded", {

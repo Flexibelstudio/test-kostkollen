@@ -61,7 +61,7 @@ interface UserProfileModalProps {
   aiFeedbackLoading?: boolean;
   aiFeedbackMessage?: AIStructuredFeedbackResponse | string | null;
   aiFeedbackError?: string | null;
-  onSubscribeToPush: () => Promise<boolean>;
+  onSubscribeToPush: (force?: boolean) => Promise<boolean>;
   isBootcampOnboarding?: boolean;
   isBootcampActive?: boolean;
 }
@@ -203,7 +203,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     const handleActivatePush = async () => {
         setIsSubscribing(true);
-        const success = await onSubscribeToPush();
+        const force = permissionStatus === 'granted';
+        const success = await onSubscribeToPush(force);
         if (success) {
             setPermissionStatus('granted');
         } else {
@@ -1155,11 +1156,28 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             <h4 className="text-lg font-bold text-neutral-dark">Enhet & Pushnotiser</h4>
                         </div>
                         
-                         <div className="p-4 bg-neutral-light/40 rounded-xl">
+                         <div className="p-4 bg-neutral-light/40 rounded-xl space-y-3">
                             {permissionStatus === 'granted' && (
-                                <div className="flex items-center text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
-                                    <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0" />
-                                    <span className="font-medium">Pushnotiser är aktiva på denna enhet.</span>
+                                <div className="space-y-3">
+                                    <div className="flex items-center text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
+                                        <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0" />
+                                        <span className="font-medium">Notisrättigheter är godkända i denna webbläsare.</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleActivatePush}
+                                        disabled={isSubscribing}
+                                        className="w-full px-5 py-2.5 text-sm font-bold text-neutral-dark bg-white hover:bg-neutral-100 border border-neutral-200 rounded-xl shadow-sm active:scale-95 transform interactive-transition flex items-center justify-center disabled:opacity-60"
+                                    >
+                                        {isSubscribing ? (
+                                            <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-neutral-dark mr-2"></div> Registrerar...</>
+                                        ) : (
+                                            <><BellIcon className="w-4 h-4 mr-2" /> Registrera denna enhet på nytt</>
+                                        )}
+                                    </button>
+                                    <p className="text-[11px] text-neutral-400 text-center leading-normal">
+                                        Klicka här om du har bytt enhet eller inte får dina notiser. Det tvingar webbläsaren att registrera din mottagare i databasen på nytt.
+                                    </p>
                                 </div>
                             )}
                             {permissionStatus === 'denied' && (
