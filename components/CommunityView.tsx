@@ -488,6 +488,7 @@ export const TimelineEventCard: FC<{
     sentFriendRequests?: Set<string>;
 }> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onDeleteComment, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend, sentFriendRequests = new Set() }) => {
     const [newComment, setNewComment] = useState('');
+    const [showAllComments, setShowAllComments] = useState(false);
     const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -588,6 +589,45 @@ export const TimelineEventCard: FC<{
     const displayPhotoURL = isBorje || isCoachPersona 
         ? event.userPhotoURL 
         : (isGlobalPost ? '/favicon.png' : event.userPhotoURL);
+
+    let currentUserReactionEmoji: string | null = null;
+    let currentUserHasAnyReaction = false;
+    Object.entries(event.reactions || {}).forEach(([emoji, users]) => {
+        if (users[currentUser.uid]) {
+            currentUserReactionEmoji = emoji;
+            currentUserHasAnyReaction = true;
+        }
+    });
+
+    const handleToggleDefaultLike = () => {
+        playAudio('uiClick', 0.6);
+        if (currentUserHasAnyReaction && currentUserReactionEmoji) {
+            onTogglePepp(event, currentUserReactionEmoji);
+        } else {
+            onTogglePepp(event, '👍');
+        }
+    };
+
+    const getAllReactorsText = () => {
+        const reactors: string[] = [];
+        const idsSeen = new Set<string>();
+        
+        Object.entries(event.reactions || {}).forEach(([emoji, users]) => {
+            Object.entries(users).forEach(([uid, name]) => {
+                const displayName = uid === currentUser.uid ? 'Du' : name;
+                if (!idsSeen.has(uid)) {
+                    idsSeen.add(uid);
+                    reactors.push(displayName);
+                }
+            });
+        });
+        
+        if (reactors.length === 0) return null;
+        if (reactors.length === 1) return `${reactors[0]} reagerade`;
+        if (reactors.length === 2) return `${reactors[0]} och ${reactors[1]} reagerade`;
+        if (reactors.length === 3) return `${reactors[0]}, ${reactors[1]} och ${reactors[2]} reagerade`;
+        return `${reactors[0]}, ${reactors[1]} och ${reactors.length - 2} till reagerade`;
+    };
 
     return (
     <div id={`event-${event.id}`} className={`group relative p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
@@ -761,28 +801,92 @@ export const TimelineEventCard: FC<{
             </div>
         </div>
 
-        {/* Reactions and Action Bar */}
-        <div className="flex flex-wrap items-center gap-1.5 mt-3 ml-[60px]">
-            {/* Add Reaction Button */}
+        {/* Reactions Overview Row */}
+        {(() => {
+            let totalReactionsCount = 0;
+            const activeEmojis: string[] = [];
+            Object.entries(event.reactions || {}).forEach(([emoji, users]) => {
+                const count = Object.keys(users).length;
+                if (count > 0) {
+                    totalReactionsCount += count;
+                    if (!activeEmojis.includes(emoji)) {
+                        activeEmojis.push(emoji);
+                    }
+                }
+            });
+            const commentCount = (event.comments || []).length;
+
+            if (totalReactionsCount === 0 && commentCount === 0) return null;
+
+            return (
+                <div className="flex justify-between items-center py-2 px-1 border-b border-neutral-100 dark:border-neutral-800/50 text-xs text-neutral-500 ml-[60px] select-none">
+                    {totalReactionsCount > 0 ? (
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                            <div className="flex items-center -space-x-1 shrink-0">
+                                {activeEmojis.slice(0, 3).map(emoji => (
+                                    <span key={emoji} className="text-sm bg-white dark:bg-neutral-dark rounded-full px-0.5 shadow-sm border border-neutral-100 dark:border-neutral-800">
+                                        {emoji}
+                                    </span>
+                                ))}
+                            </div>
+                            <span 
+                                className="truncate hover:underline cursor-help font-medium text-neutral-600 dark:text-neutral-300"
+                                title={Object.values(event.reactions || {}).flatMap(users => Object.values(users)).join(', ')}
+                            >
+                                {getAllReactorsText()}
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="flex-1"></div>
+                    )}
+                    
+                    {commentCount > 0 && (
+                        <span className="text-neutral-500 shrink-0 font-medium">
+                            {commentCount === 1 ? '1 kommentar' : `${commentCount} kommentarer`}
+                        </span>
+                    )}
+                </div>
+            );
+        })()}
+
+        {/* Action Bar (Gilla och Kommentera knappar) */}
+        <div className="flex items-center gap-2 mt-2 ml-[60px] premium-action-bar">
+            {/* Gilla/Reagera Knapp (Facebook style) */}
             <div className="relative" ref={reactionMenuRef}>
-                <button 
-                    onClick={(e) => {
-                        e.preventDefault();
-                        setShowReactionMenu(!showReactionMenu);
-                    }}
-                    className="flex items-center justify-center w-9 h-9 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 transition-colors border border-transparent hover:border-neutral-300 dark:hover:border-neutral-600"
-                    title="Reagera"
-                >
-                    <SmileIcon className="w-5 h-5" />
-                    <span className="absolute -top-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
-                        <PlusIcon className="w-3 h-3 text-neutral-500" />
-                    </span>
-                </button>
+                <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-full transition-all border border-transparent hover:border-neutral-200 dark:hover:border-neutral-600 shadow-sm">
+                    <button 
+                        onClick={(e) => {
+                            e.preventDefault();
+                            handleToggleDefaultLike();
+                        }}
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-l-full text-xs font-semibold cursor-pointer active:scale-95 transition-transform
+                            ${currentUserHasAnyReaction 
+                                ? 'text-primary dark:text-primary-light font-bold' 
+                                : 'text-neutral-600 dark:text-neutral-300'
+                            }`}
+                    >
+                        <span className="text-sm">{currentUserReactionEmoji || '👍'}</span>
+                        <span>{currentUserReactionEmoji ? 'Reagerat' : 'Gilla'}</span>
+                    </button>
+                    
+                    <span className="h-4 w-[1px] bg-neutral-300 dark:bg-neutral-600"></span>
+                    
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            setShowReactionMenu(!showReactionMenu);
+                        }}
+                        className="px-2.5 py-1.5 rounded-r-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-100 cursor-pointer active:scale-95 transition-all text-xs"
+                        title="Välj emoji"
+                    >
+                        <SmileIcon className="w-4 h-4" />
+                    </button>
+                </div>
                 
                 {/* Reaction Menu Dropdown */}
                 {showReactionMenu && (
                     <div className="absolute bottom-full left-0 mb-2 z-20 animate-fade-in" ref={emojiPickerRef}>
-                        <div className="flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5">
+                        <div className="flex gap-1.5 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-2 whitespace-nowrap">
                             {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
                                 <button 
                                     key={emoji}
@@ -791,7 +895,7 @@ export const TimelineEventCard: FC<{
                                         onTogglePepp(event, emoji);
                                         setShowReactionMenu(false);
                                     }} 
-                                    className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!event.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
+                                    className={`w-9 h-9 flex items-center justify-center rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-900 text-xl transition-transform hover:scale-120 ${!!event.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
                                     title={emoji}
                                 >
                                     {emoji}
@@ -802,10 +906,10 @@ export const TimelineEventCard: FC<{
                                     e.preventDefault();
                                     setShowEmojiPicker(!showEmojiPicker);
                                 }} 
-                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
+                                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral transition-transform hover:scale-125" 
                                 title="Fler emojis"
                             >
-                                <PlusIcon className="w-4 h-4" />
+                                <PlusIcon className="w-5 h-5" />
                             </button>
                         </div>
                         {showEmojiPicker && (
@@ -825,37 +929,37 @@ export const TimelineEventCard: FC<{
                 )}
             </div>
 
-            {/* Existing Reactions */}
-            {Object.entries(event.reactions || {}).map(([emoji, users]) => {
-                const count = Object.keys(users).length;
-                if (count === 0) return null;
-                const hasReacted = !!users[currentUser.uid];
-                
-                return (
-                    <button 
-                        key={emoji} 
-                        onClick={(e) => {
-                            e.preventDefault();
-                            onTogglePepp(event, emoji);
-                        }} 
-                        onMouseDown={(e) => e.preventDefault()}
-                        className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm transition-all active:scale-95 border
-                            ${hasReacted 
-                                ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
-                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
-                            }`}
-                    >
-                        <span>{emoji}</span>
-                        <span className="font-semibold">{count}</span>
-                    </button>
-                )
-            })}
+            {/* Kommentera knapp */}
+            <button
+                onClick={(e) => {
+                    e.preventDefault();
+                    const inputElement = document.getElementById(`comment-input-${event.id}`);
+                    if (inputElement) {
+                        inputElement.focus();
+                    }
+                }}
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-transparent hover:border-neutral-200 dark:hover:border-neutral-600 rounded-full text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+                <ArrowRightIcon className="w-3.5 h-3.5 rotate-90 text-neutral-500" />
+                <span>Kommentera</span>
+            </button>
         </div>
         
         {/* Comments Section */}
         {((event.comments && event.comments.length > 0) || newComment || commentImage) && (
-             <div className="space-y-3 mt-4 ml-[60px]">
-                {(event.comments || []).map(comment => {
+             <div className="space-y-2.5 mt-3 ml-[60px]">
+                {/* Visa tidigare kommentarer knapp */}
+                {event.comments && event.comments.length > 3 && !showAllComments && (
+                    <button
+                        type="button"
+                        onClick={() => setShowAllComments(true)}
+                        className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 mb-2 cursor-pointer"
+                    >
+                        Visa tidigare kommentarer ({event.comments.length - 3} till)
+                    </button>
+                )}
+
+                {((showAllComments ? event.comments : event.comments?.slice(-3)) || []).map(comment => {
                     const reactions = comment.reactions || {};
                     const reactionCounts: { [emoji: string]: number } = {};
                     let userReactionEmoji: string | null = null;
@@ -871,12 +975,12 @@ export const TimelineEventCard: FC<{
                     const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
 
                     return (
-                        <div key={comment.id} className="flex items-start gap-2 group">
-                            <Avatar photoURL={comment.authorPhotoURL} size={36} />
-                            <div className="flex-1">
+                        <div key={comment.id} className="flex items-start gap-2 group animate-fade-in">
+                            <Avatar photoURL={comment.authorPhotoURL} size={32} />
+                            <div className="flex-1 min-w-0">
                                 <div 
                                     onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
-                                    className={`rounded-2xl rounded-tl-none px-3 py-2 pr-8 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
+                                    className={`rounded-2xl rounded-tl-none px-3 py-1.5 pr-8 text-xs relative transition-colors duration-300 ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
                                 >
                                     {onDeleteComment && comment.authorUid === currentUser.uid && (
                                         <button
@@ -886,44 +990,73 @@ export const TimelineEventCard: FC<{
                                                     onDeleteComment(event.id, comment.id);
                                                 }
                                             }}
-                                            className="absolute top-2.5 right-2 px-1 text-neutral-400 hover:text-red-500 md:opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute top-2 right-2 px-1 text-neutral-400 hover:text-red-500 md:opacity-0 group-hover:opacity-100 transition-opacity"
                                             title="Ta bort kommentar"
                                         >
-                                            <TrashIcon className="w-3.5 h-3.5" />
+                                            <TrashIcon className="w-3 h-3" />
                                         </button>
                                     )}
-                                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                                        <p className="font-bold text-neutral-dark text-xs">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
+                                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                        <p className="font-bold text-neutral-dark text-[11px]">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
                                         {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
                                             sentFriendRequests.has(comment.authorUid) ? (
-                                                <div className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
-                                                    <CheckIcon className="w-4 h-4" />
+                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-50 rounded-md text-[9px] font-bold text-green-600 border border-green-100">
+                                                    <CheckIcon className="w-3 h-3" />
                                                     <span>Skickad</span>
                                                 </div>
                                             ) : (
                                                 <button 
                                                     onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
-                                                    className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-white/70 hover:bg-white rounded-full text-[12px] font-bold text-primary shadow-sm transition-colors cursor-pointer"
+                                                    className="flex items-center gap-0.5 px-2 py-0.5 bg-primary-100/80 hover:bg-primary-100 rounded-md text-[10px] font-bold text-primary transition-colors cursor-pointer"
                                                     title="Lägg till kompis"
                                                 >
-                                                    <UsersIcon className="w-4 h-4" />
+                                                    <UsersIcon className="w-3 h-3" />
                                                     <span>+</span>
                                                 </button>
                                             )
                                         )}
                                     </div>
-                                    {comment.text && <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>}
+                                    {comment.text && <p className="text-neutral-dark text-xs break-words leading-normal">{comment.text}</p>}
                                     {comment.imageUrl && (
-                                        <div className="mt-2 rounded-lg overflow-hidden max-w-xs">
-                                            <img src={comment.imageUrl} alt="Kommentar bild" className="w-full h-auto object-cover cursor-pointer" onClick={() => onImageClick(comment.imageUrl!, 'Kommentar bild')} />
+                                        <div className="mt-1.5 rounded-lg overflow-hidden max-w-[200px]">
+                                            <img src={comment.imageUrl} alt="Kommentar bild" className="w-full h-auto object-cover cursor-pointer hover:opacity-95" onClick={() => onImageClick(comment.imageUrl!, 'Kommentar bild')} />
+                                        </div>
+                                    )}
+
+                                    {/* Flytande reaktioner på kommentar (Facebook style) - absolut positionerad på bubblan */}
+                                    {hasReactions && (
+                                        <div className="absolute -bottom-2 right-2 flex items-center gap-1 bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700 rounded-full px-1.5 py-0.5 text-[9px] z-10 cursor-pointer hover:scale-110 active:scale-95 transition-all select-none">
+                                            {Object.entries(comment.reactions || {}).map(([emoji, users]) => {
+                                                const uids = Object.keys(users);
+                                                const count = uids.length;
+                                                if (count === 0) return null;
+                                                const hasReacted = !!users[currentUser.uid];
+                                                return (
+                                                    <button 
+                                                        key={emoji} 
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            onToggleCommentReaction(event, comment.id, emoji);
+                                                        }}
+                                                        className={`flex items-center gap-0.5 ${hasReacted ? 'scale-110 font-bold' : ''}`}
+                                                        title={`${emoji} (${uids.map(uid => uid === currentUser.uid ? 'Du' : users[uid]).join(', ')})`}
+                                                    >
+                                                        <span>{emoji}</span>
+                                                        <span className="text-neutral-500 font-semibold">{count}</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-3 mt-1 ml-1 relative">
+                                <div className="flex items-center gap-2 mt-0.5 ml-1 select-none">
                                     <span className="text-[10px] text-neutral-400">
                                         {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
                                     </span>
+                                    <span className="text-[10px] text-neutral-300">·</span>
 
+                                    {/* Kommentar-reaktionsmeny */}
                                     <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
                                         <button 
                                             onClick={(e) => {
@@ -931,17 +1064,13 @@ export const TimelineEventCard: FC<{
                                                 setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
                                                 setActiveCommentEmojiPickerId(null);
                                             }}
-                                            className={`relative flex items-center justify-center w-8 h-8 rounded-full transition-colors border border-transparent ${userReactionEmoji ? 'bg-primary-50 text-primary border-primary-200 dark:bg-primary-900/20 dark:border-primary-800' : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600'}`}
-                                            title="Reagera"
+                                            className={`text-[10px] font-bold hover:underline cursor-pointer ${userReactionEmoji ? 'text-primary' : 'text-neutral-500'}`}
                                         >
-                                            <SmileIcon className="w-4 h-4" />
-                                            <span className="absolute -top-0.5 -right-0.5 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
-                                                <PlusIcon className="w-2.5 h-2.5 text-neutral-500" />
-                                            </span>
+                                            {userReactionEmoji ? `Reagerat (${userReactionEmoji})` : 'Reagera'}
                                         </button>
                                         
                                         {activeCommentReactionId === comment.id && (
-                                            <div className="absolute bottom-full left-0 mb-2 flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5 z-20 animate-fade-in">
+                                            <div className="absolute bottom-full left-0 mb-1 flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1 z-20 animate-fade-in whitespace-nowrap">
                                                 {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
                                                     <button 
                                                         key={emoji}
@@ -950,7 +1079,7 @@ export const TimelineEventCard: FC<{
                                                             onToggleCommentReaction(event, comment.id, emoji);
                                                             setActiveCommentReactionId(null);
                                                         }} 
-                                                        className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!comment.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
+                                                        className={`w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-sm transition-transform hover:scale-110 ${!!comment.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
                                                         title={emoji}
                                                     >
                                                         {emoji}
@@ -962,13 +1091,13 @@ export const TimelineEventCard: FC<{
                                                             e.preventDefault();
                                                             setActiveCommentEmojiPickerId(activeCommentEmojiPickerId === comment.id ? null : comment.id);
                                                         }} 
-                                                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
+                                                        className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral" 
                                                         title="Fler emojis"
                                                     >
-                                                        <PlusIcon className="w-4 h-4" />
+                                                        <PlusIcon className="w-3.5 h-3.5" />
                                                     </button>
                                                     {activeCommentEmojiPickerId === comment.id && (
-                                                        <div className="absolute bottom-full right-0 mb-2 z-50">
+                                                        <div className="absolute bottom-full right-0 mb-1 z-50">
                                                             <EmojiPicker 
                                                                 onEmojiClick={(emojiData) => {
                                                                     onToggleCommentReaction(event, comment.id, emojiData.emoji);
@@ -984,31 +1113,6 @@ export const TimelineEventCard: FC<{
                                             </div>
                                         )}
                                     </div>
-                                    
-                                    {hasReactions && (
-                                        <div className="flex items-center gap-1">
-                                            {Object.entries(reactionCounts).map(([emoji, count]) => {
-                                                const hasReacted = !!comment.reactions?.[emoji]?.[currentUser.uid];
-                                                return (
-                                                    <button 
-                                                        key={emoji} 
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            onToggleCommentReaction(event, comment.id, emoji);
-                                                        }}
-                                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all active:scale-95 border shadow-sm
-                                                            ${hasReacted 
-                                                                ? 'bg-primary-50 border-primary text-primary-darker' 
-                                                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
-                                                            }`}
-                                                    >
-                                                        <span>{emoji}</span>
-                                                        <span className="font-semibold">{count}</span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1017,38 +1121,39 @@ export const TimelineEventCard: FC<{
             </div>
         )}
 
-        <form onSubmit={handleCommentSubmit} className="flex items-start gap-3 mt-4 ml-[60px]">
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
-                <div className="flex-1 flex flex-col gap-2">
+        <form onSubmit={handleCommentSubmit} className="flex items-start gap-2.5 mt-3 ml-[60px]">
+                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
+                <div className="flex-1 flex flex-col gap-1.5">
                     <input
+                        id={`comment-input-${event.id}`}
                         value={newComment}
                         onChange={e => setNewComment(e.target.value)}
-                        className="w-full px-4 py-3 text-base bg-[#ffffff] text-[#000000] rounded-2xl border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
+                        className="w-full px-3.5 py-2 text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-dark dark:text-neutral-100 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-neutral-400"
                         placeholder="Skriv en kommentar..."
                     />
                     <div className="flex justify-end items-center gap-1">
                         <button
                             type="button"
                             onClick={() => setShowCameraModal(true)}
-                            className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                            className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
                             title="Ta bild"
                         >
-                            <CameraIcon className="w-5 h-5" />
+                            <CameraIcon className="w-4 h-4" />
                         </button>
                         <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
+                            className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
                             title="Ladda upp bild"
                         >
-                            <ImageIcon className="w-5 h-5" />
+                            <ImageIcon className="w-4 h-4" />
                         </button>
                         <button 
                             type="submit" 
                             disabled={isSubmitting || (!newComment.trim() && !commentImage)} 
-                            className={`p-2 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary bg-primary-50' : 'text-neutral-300 bg-neutral-50'}`}
+                            className={`p-1.5 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary bg-primary-50' : 'text-neutral-300 bg-neutral-50'}`}
                         >
-                            <Send className="w-5 h-5" />
+                            <Send className="w-4 h-4" />
                         </button>
                     </div>
                     <input 
@@ -1059,14 +1164,14 @@ export const TimelineEventCard: FC<{
                         className="hidden" 
                     />
                     {commentImage && (
-                        <div className="mt-2 relative inline-block">
-                            <img src={commentImage} alt="Preview" className="h-20 w-auto rounded-lg object-cover border border-neutral-light" />
+                        <div className="mt-1.5 relative inline-block">
+                            <img src={commentImage} alt="Preview" className="h-16 w-auto rounded-lg object-cover border border-neutral-light" />
                             <button 
                                 type="button" 
                                 onClick={() => setCommentImage(null)}
-                                className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-md text-neutral-400 hover:text-red-500"
+                                className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-md text-neutral-400 hover:text-red-500"
                             >
-                                <XMarkIcon className="w-4 h-4" />
+                                <XMarkIcon className="w-3.5 h-3.5" />
                             </button>
                         </div>
                     )}
