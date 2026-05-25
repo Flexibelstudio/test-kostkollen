@@ -980,7 +980,7 @@ export const TimelineEventCard: FC<{
                             <div className="flex-1 min-w-0">
                                 <div 
                                     onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
-                                    className={`rounded-2xl rounded-tl-none px-3 py-1.5 pr-8 text-xs relative transition-colors duration-300 ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
+                                    className={`rounded-2xl rounded-tl-none px-3.5 py-2 pr-8 text-sm relative transition-colors duration-300 ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
                                 >
                                     {onDeleteComment && comment.authorUid === currentUser.uid && (
                                         <button
@@ -997,7 +997,7 @@ export const TimelineEventCard: FC<{
                                         </button>
                                     )}
                                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                                        <p className="font-bold text-neutral-dark text-[11px]">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
+                                        <p className="font-bold text-neutral-dark text-[12.5px]">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
                                         {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
                                             sentFriendRequests.has(comment.authorUid) ? (
                                                 <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-50 rounded-md text-[9px] font-bold text-green-600 border border-green-100">
@@ -1016,7 +1016,7 @@ export const TimelineEventCard: FC<{
                                             )
                                         )}
                                     </div>
-                                    {comment.text && <p className="text-neutral-dark text-xs break-words leading-normal">{comment.text}</p>}
+                                    {comment.text && <p className="text-neutral-dark text-[13.5px] break-words leading-normal">{comment.text}</p>}
                                     {comment.imageUrl && (
                                         <div className="mt-1.5 rounded-lg overflow-hidden max-w-[200px]">
                                             <img src={comment.imageUrl} alt="Kommentar bild" className="w-full h-auto object-cover cursor-pointer hover:opacity-95" onClick={() => onImageClick(comment.imageUrl!, 'Kommentar bild')} />
@@ -1050,11 +1050,11 @@ export const TimelineEventCard: FC<{
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-2 mt-0.5 ml-1 select-none">
-                                    <span className="text-[10px] text-neutral-400">
+                                <div className="flex items-center gap-2 mt-1 ml-1 select-none">
+                                    <span className="text-[11px] text-neutral-400">
                                         {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
                                     </span>
-                                    <span className="text-[10px] text-neutral-300">·</span>
+                                    <span className="text-[11px] text-neutral-300">·</span>
 
                                     {/* Kommentar-reaktionsmeny */}
                                     <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
@@ -1064,7 +1064,7 @@ export const TimelineEventCard: FC<{
                                                 setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
                                                 setActiveCommentEmojiPickerId(null);
                                             }}
-                                            className={`text-[10px] font-bold hover:underline cursor-pointer ${userReactionEmoji ? 'text-primary' : 'text-neutral-500'}`}
+                                            className={`text-[11px] font-semibold hover:underline cursor-pointer ${userReactionEmoji ? 'text-primary' : 'text-neutral-500'}`}
                                         >
                                             {userReactionEmoji ? `Reagerat (${userReactionEmoji})` : 'Reagera'}
                                         </button>
@@ -1128,7 +1128,7 @@ export const TimelineEventCard: FC<{
                         id={`comment-input-${event.id}`}
                         value={newComment}
                         onChange={e => setNewComment(e.target.value)}
-                        className="w-full px-3.5 py-2 text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-dark dark:text-neutral-100 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-neutral-400"
+                        className="w-full px-3.5 py-2 text-sm bg-neutral-100 dark:bg-neutral-800 text-neutral-dark dark:text-neutral-100 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-neutral-400 placeholder:text-sm"
                         placeholder="Skriv en kommentar..."
                     />
                     <div className="flex justify-end items-center gap-1">
