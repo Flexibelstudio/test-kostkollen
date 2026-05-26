@@ -27,6 +27,7 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
     className = ""
 }) => {
     const [showFullPicker, setShowFullPicker] = useState(false);
+    const [isDark, setIsDark] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -37,6 +38,11 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
         };
         if (isOpen) {
             document.addEventListener('mousedown', handleClickOutside);
+            // Dynamic theme detection
+            setIsDark(
+                document.documentElement.classList.contains('dark') || 
+                document.body.classList.contains('dark')
+            );
         }
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isOpen, onClose]);
@@ -54,7 +60,7 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
                 transition={{ type: "spring", damping: 18, stiffness: 300 }}
                 className="flex items-center gap-1.5 bg-white dark:bg-neutral-900 shadow-2xl border border-neutral-200 dark:border-neutral-800 rounded-full p-1.5 whitespace-nowrap"
             >
-                {emojis.map((emoji, index) => (
+                {emojis.map((emoji) => (
                     <motion.button 
                         key={emoji}
                         type="button"
@@ -91,7 +97,7 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
                     </motion.button>
 
                     {showFullPicker && (
-                        <div className="absolute bottom-full right-0 mb-3 z-50 shadow-2xl animate-scale-in">
+                        <div className="absolute bottom-full right-[-60px] xs:right-[-40px] sm:right-0 mb-3 z-50 shadow-2xl animate-scale-in">
                             <EmojiPicker 
                                 onEmojiClick={(emojiData) => {
                                     onSelectEmoji(emojiData.emoji);
@@ -99,7 +105,9 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
                                     onClose();
                                 }}
                                 autoFocusSearch={false}
-                                theme={Theme.LIGHT}
+                                theme={isDark ? Theme.DARK : Theme.LIGHT}
+                                width={290}
+                                height={380}
                             />
                         </div>
                     )}
@@ -137,28 +145,24 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
     // Dynamic Tabs based on actual reactions
     const reactMap = reactions || {};
     
-    // Calculate compiled user lists
-    const allReactionsList = React.useMemo(() => {
+    // Calculate compiled user lists of all reactions (including duplicates)
+    const rawReactionsList = React.useMemo(() => {
         const list: { uid: string; name: string; emoji: string }[] = [];
-        const seenUids = new Set<string>();
 
         // 1. Core reactions map
         Object.entries(reactMap).forEach(([emoji, users]) => {
             Object.entries(users).forEach(([uid, name]) => {
-                if (!seenUids.has(uid)) {
-                    list.push({ uid, name, emoji });
-                    seenUids.add(uid);
-                }
+                list.push({ uid, name, emoji });
             });
         });
 
         // 2. Legacy Likes
         likes.forEach(uid => {
-            if (!seenUids.has(uid)) {
+            const hasAny = list.some(item => item.uid === uid);
+            if (!hasAny) {
                 const buddy = buddyDetails.find(b => b.uid === uid);
                 const name = uid === currentUser.uid ? 'Du' : (buddy?.name || 'Kompis');
                 list.push({ uid, name, emoji: '❤️' });
-                seenUids.add(uid);
             }
         });
 
@@ -168,19 +172,43 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
     // Group counts
     const tabCounts = React.useMemo(() => {
         const counts: Record<string, number> = {};
-        allReactionsList.forEach(item => {
+        rawReactionsList.forEach(item => {
             counts[item.emoji] = (counts[item.emoji] || 0) + 1;
         });
         return counts;
-    }, [allReactionsList]);
+    }, [rawReactionsList]);
 
     const emojisUsed = Object.keys(tabCounts).sort((a, b) => tabCounts[b] - tabCounts[a]);
     const [selectedTab, setSelectedTab] = useState<string>('all'); // 'all' or emoji
 
-    const filteredUsers = React.useMemo(() => {
-        if (selectedTab === 'all') return allReactionsList;
-        return allReactionsList.filter(item => item.emoji === selectedTab);
-    }, [allReactionsList, selectedTab]);
+    // Grouping for the 'all' tab
+    const groupedUsers = React.useMemo(() => {
+        const groups: Record<string, { uid: string; name: string; emojis: string[] }> = {};
+        rawReactionsList.forEach(item => {
+            if (!groups[item.uid]) {
+                groups[item.uid] = { uid: item.uid, name: item.name, emojis: [] };
+            }
+            if (!groups[item.uid].emojis.includes(item.emoji)) {
+                groups[item.uid].emojis.push(item.emoji);
+            }
+        });
+        return Object.values(groups);
+    }, [rawReactionsList]);
+
+    // Construct the display list
+    const displayList = React.useMemo(() => {
+        if (selectedTab === 'all') {
+            return groupedUsers;
+        } else {
+            return rawReactionsList
+                .filter(item => item.emoji === selectedTab)
+                .map(item => ({
+                    uid: item.uid,
+                    name: item.name,
+                    emojis: [selectedTab]
+                }));
+        }
+    }, [selectedTab, groupedUsers, rawReactionsList]);
 
     useEffect(() => {
         if (isOpen) {
@@ -195,7 +223,7 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 z-50 flex items-center justify-center pt-10 pb-6">
                 {/* Backdrop overlay */}
                 <motion.div 
                     initial={{ opacity: 0 }}
@@ -223,7 +251,7 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
                         <div className="flex items-center gap-1.5">
                             <span className="font-bold text-lg text-neutral-800 dark:text-neutral-100">Reaktioner</span>
                             <span className="text-sm px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-full font-bold text-neutral-500">
-                                {allReactionsList.length}
+                                {rawReactionsList.length}
                             </span>
                         </div>
                         <button 
@@ -246,7 +274,7 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
                                 }`}
                         >
                             <span>Alla</span>
-                            <span className={selectedTab === 'all' ? 'text-white/90' : 'text-neutral-400'}>{allReactionsList.length}</span>
+                            <span className={selectedTab === 'all' ? 'text-white/90' : 'text-neutral-400'}>{rawReactionsList.length}</span>
                         </button>
 
                         {emojisUsed.map(emoji => (
@@ -267,8 +295,8 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
 
                     {/* User list (scrollable) */}
                     <div className="flex-grow overflow-y-auto p-4 space-y-3.5 custom-scrollbar min-h-[250px]">
-                        {filteredUsers.length > 0 ? (
-                            filteredUsers.map(item => {
+                        {displayList.length > 0 ? (
+                            displayList.map(item => {
                                 const isMe = item.uid === currentUser.uid;
                                 const isFriend = buddyDetails.some(b => b.uid === item.uid);
                                 const isPending = sentFriendRequests.has(item.uid);
@@ -280,8 +308,12 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
                                             {/* Avatar with Emoji overlay badge */}
                                             <div className="relative">
                                                 <Avatar photoURL={buddyInfo?.photoURL} size={48} />
-                                                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white dark:bg-neutral-800 shadow-md border border-neutral-100 dark:border-neutral-700 flex items-center justify-center text-xs select-none">
-                                                    {item.emoji}
+                                                <div className="absolute -bottom-1 -right-2 flex items-center -space-x-1 select-none">
+                                                    {item.emojis.map((em, idx) => (
+                                                        <div key={idx} className="w-5.5 h-5.5 rounded-full bg-white dark:bg-neutral-950 shadow-md border border-neutral-100 dark:border-neutral-800 flex items-center justify-center text-[11px] select-none shrink-0" style={{ zIndex: 10 + idx }}>
+                                                            {em}
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
 
@@ -629,7 +661,7 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                     {/* Custom Emojis tray popup */}
                                                     <AnimatePresence>
                                                         {activeCommentReactionId === comment.id && (
-                                                            <div className="absolute bottom-full left-0 mb-2 z-30">
+                                                            <div className="absolute bottom-full left-[-70px] xs:left-[-50px] sm:left-0 mb-2 z-30">
                                                                 <FloatingReactionPicker 
                                                                     isOpen={true} 
                                                                     currentUserReaction={userReactionEmoji}
