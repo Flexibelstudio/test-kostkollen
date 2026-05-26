@@ -329,6 +329,7 @@ export const ChatWindow: React.FC<{
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const [showEmojiPickerFor, setShowEmojiPickerFor] = useState<string | null>(null);
     const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
+    const [reactionTriggerRect, setReactionTriggerRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
     const [mentionSearch, setMentionSearch] = useState<string | null>(null);
     const [mentionIndex, setMentionIndex] = useState<number>(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1221,6 +1222,13 @@ export const ChatWindow: React.FC<{
                                     <button 
                                         onClick={(e) => {
                                             e.preventDefault();
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            setReactionTriggerRect({
+                                                left: rect.left,
+                                                top: rect.top,
+                                                width: rect.width,
+                                                height: rect.height
+                                            });
                                             setShowEmojiPickerFor(showEmojiPickerFor === msg.id ? null : msg.id);
                                         }}
                                         className={`flex items-center justify-center w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 transition-colors border border-transparent hover:border-neutral-300 dark:hover:border-neutral-600 ${isMe ? 'order-last' : 'order-first'}`}
@@ -1252,7 +1260,7 @@ export const ChatWindow: React.FC<{
                                                         setShowEmojiPickerFor(null);
                                                     }}
                                                     onClose={() => setShowEmojiPickerFor(null)}
-                                                    className={`bottom-full ${isMe ? 'right-0' : 'left-0'} mb-2`}
+                                                    triggerRect={reactionTriggerRect}
                                                 />
                                             );
                                         })()}

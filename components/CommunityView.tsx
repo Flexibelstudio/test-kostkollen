@@ -498,6 +498,7 @@ export const TimelineEventCard: FC<{
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [showReactionMenu, setShowReactionMenu] = useState(false);
     const [showFbReactions, setShowFbReactions] = useState(false);
+    const [reactionTriggerRect, setReactionTriggerRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
     const [activeCommentReactionId, setActiveCommentReactionId] = useState<string | null>(null);
     const [activeCommentEmojiPickerId, setActiveCommentEmojiPickerId] = useState<string | null>(null);
     const [showCameraModal, setShowCameraModal] = useState(false);
@@ -862,6 +863,13 @@ export const TimelineEventCard: FC<{
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setReactionTriggerRect({
+                                        left: rect.left,
+                                        top: rect.top,
+                                        width: rect.width,
+                                        height: rect.height
+                                    });
                                     setShowFbReactions(!showFbReactions);
                                 }}
                                 className="p-0.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-100 cursor-pointer active:scale-90 transition-all"
@@ -881,7 +889,7 @@ export const TimelineEventCard: FC<{
                                             setShowFbReactions(false);
                                         }}
                                         onClose={() => setShowFbReactions(false)}
-                                        className="bottom-full -left-6 xs:left-0 mb-2"
+                                        triggerRect={reactionTriggerRect}
                                     />
                                 )}
                             </AnimatePresence>

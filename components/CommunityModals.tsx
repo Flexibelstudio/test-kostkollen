@@ -18,6 +18,7 @@ interface FloatingReactionPickerProps {
     onSelectEmoji: (emoji: string) => void;
     currentUserReaction?: string | null;
     className?: string;
+    triggerRect?: { left: number; top: number; width: number; height: number } | null;
 }
 
 export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
@@ -25,7 +26,8 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
     onClose,
     onSelectEmoji,
     currentUserReaction,
-    className = ""
+    className = "",
+    triggerRect
 }) => {
     const [showFullPicker, setShowFullPicker] = useState(false);
     const [isDark, setIsDark] = useState(false);
@@ -34,6 +36,11 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                // Ignore clicks that occur inside the full emoji picker portal
+                const target = e.target as HTMLElement;
+                if (target.closest('[data-portal="emoji-picker"]') || target.closest('.EmojiPickerReact')) {
+                    return;
+                }
                 onClose();
             }
         };
@@ -52,14 +59,40 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
 
     const emojis = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
-    return (
-        <div ref={containerRef} className={`absolute z-40 ${className}`}>
+    const element = (
+        <div 
+            ref={containerRef} 
+            className={triggerRect ? "" : `absolute z-40 ${className}`}
+            style={triggerRect ? {
+                position: 'fixed',
+                left: (() => {
+                    let x = triggerRect.left + triggerRect.width / 2;
+                    // Prevent going offscreen (picker width is ~300px)
+                    x = Math.max(165, x);
+                    x = Math.min(window.innerWidth - 165, x);
+                    return x;
+                })(),
+                top: (() => {
+                    const pickerHeight = 56;
+                    const showBelow = triggerRect.top < pickerHeight + 25;
+                    return showBelow 
+                        ? triggerRect.top + triggerRect.height + 8 
+                        : triggerRect.top - 8;
+                })(),
+                transform: (() => {
+                    const pickerHeight = 56;
+                    const showBelow = triggerRect.top < pickerHeight + 25;
+                    return showBelow ? 'translate(-50%, 0)' : 'translate(-50%, -100%)';
+                })(),
+                zIndex: 150
+            } : undefined}
+        >
             <motion.div 
-                initial={{ opacity: 0, scale: 0.85, y: 10 }}
+                initial={{ opacity: 0, scale: 0.85, y: triggerRect ? 5 : 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.85, y: 10 }}
+                exit={{ opacity: 0, scale: 0.85, y: triggerRect ? 5 : 10 }}
                 transition={{ type: "spring", damping: 18, stiffness: 300 }}
-                className="flex items-center gap-1.5 bg-white dark:bg-neutral-900 shadow-2xl border border-neutral-200 dark:border-neutral-800 rounded-full p-1.5 whitespace-nowrap"
+                className="flex items-center gap-1.5 bg-white dark:bg-neutral-900 shadow-2xl border border-neutral-200 dark:border-neutral-800 rounded-full p-1.5 whitespace-nowrap animate-scale-in"
             >
                 {emojis.map((emoji) => (
                     <motion.button 
@@ -98,7 +131,7 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
                     </motion.button>
 
                     {showFullPicker && createPortal(
-                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" data-portal="emoji-picker">
                             {/* Backdrop overlay with blur */}
                             <div 
                                 className="absolute inset-0 bg-black/40 backdrop-blur-[1.5px]" 
@@ -145,6 +178,8 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
             </motion.div>
         </div>
     );
+
+    return triggerRect ? createPortal(element, document.body) : element;
 };
 
 
@@ -433,6 +468,7 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
     const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeCommentReactionId, setActiveCommentReactionId] = useState<string | null>(null);
+    const [commentReactionTriggerRect, setCommentReactionTriggerRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
     const [showCameraModal, setShowCameraModal] = useState(false);
     const [showReactionOverlayFor, setShowReactionOverlayFor] = useState<string | null>(null); // For hover list of who reacted
 
@@ -679,6 +715,13 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                     <button 
                                                         onClick={(e) => {
                                                             e.preventDefault();
+                                                            const rect = e.currentTarget.getBoundingClientRect();
+                                                            setCommentReactionTriggerRect({
+                                                                left: rect.left,
+                                                                top: rect.top,
+                                                                width: rect.width,
+                                                                height: rect.height
+                                                            });
                                                             setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
                                                         }}
                                                         className={`flex items-center gap-1.5 text-[12.5px] font-bold hover:underline cursor-pointer transition-colors
@@ -691,17 +734,16 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                     {/* Custom Emojis tray popup */}
                                                     <AnimatePresence>
                                                         {activeCommentReactionId === comment.id && (
-                                                            <div className="absolute bottom-full left-[-70px] xs:left-[-50px] sm:left-0 mb-2 z-30">
-                                                                <FloatingReactionPicker 
-                                                                    isOpen={true} 
-                                                                    currentUserReaction={userReactionEmoji}
-                                                                    onSelectEmoji={(emoji) => {
-                                                                        onToggleCommentReaction(event, comment.id, emoji);
-                                                                        setActiveCommentReactionId(null);
-                                                                    }}
-                                                                    onClose={() => setActiveCommentReactionId(null)}
-                                                                />
-                                                            </div>
+                                                            <FloatingReactionPicker 
+                                                                 isOpen={true} 
+                                                                 currentUserReaction={userReactionEmoji}
+                                                                 onSelectEmoji={(emoji) => {
+                                                                     onToggleCommentReaction(event, comment.id, emoji);
+                                                                     setActiveCommentReactionId(null);
+                                                                 }}
+                                                                 onClose={() => setActiveCommentReactionId(null)}
+                                                                 triggerRect={commentReactionTriggerRect}
+                                                            />
                                                         )}
                                                     </AnimatePresence>
                                                 </div>
