@@ -7,6 +7,8 @@ import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon, SmileIco
 import { Users as UsersIcon, BellOff as BellOffIcon, AtSign as AtSignIcon, Globe as GlobeIcon, Lock as LockIcon, Shield as ShieldIcon, Heart as HeartIcon, Camera as CameraIcon } from 'lucide-react';
 import { searchForBuddies, fetchUsersByUids, sendFriendRequest } from '../services/firestoreService';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
+import { FloatingReactionPicker } from './CommunityModals';
+import { AnimatePresence } from 'framer-motion';
 
 const resizeImage = (file: File, maxSize: number): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -331,11 +333,26 @@ export const ChatWindow: React.FC<{
     const [mentionIndex, setMentionIndex] = useState<number>(0);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
+    const longPressTimeoutRef = useRef<any>(null);
 
     // Capture the last read timestamp when opening the chat to highlight new messages
     const [initialLastReadTimestamp] = useState(() => {
         return chat.memberSettings?.[currentUser.uid]?.lastReadTimestamp || 0;
     });
+
+    const handlePressStart = (msgId: string) => {
+        if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = setTimeout(() => {
+            setShowEmojiPickerFor(msgId);
+        }, 500);
+    };
+
+    const handlePressEnd = () => {
+        if (longPressTimeoutRef.current) {
+            clearTimeout(longPressTimeoutRef.current);
+            longPressTimeoutRef.current = null;
+        }
+    };
 
     const chatMembers = useMemo(() => {
         const membersMap = new Map<string, { uid: string, name: string, photoURL?: string }>();
@@ -1139,7 +1156,15 @@ export const ChatWindow: React.FC<{
                                     )}
                                 </div>
                             )}
-                            <div className={`max-w-[80%] px-4 py-2 rounded-2xl relative group ${isMe ? 'bg-primary text-white rounded-br-sm' : isNewMessage ? 'bg-primary-50 border border-primary-200 text-neutral-dark rounded-bl-sm shadow-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}>
+                            <div 
+                                onTouchStart={() => handlePressStart(msg.id)}
+                                onTouchEnd={handlePressEnd}
+                                onTouchMove={handlePressEnd}
+                                onMouseDown={() => handlePressStart(msg.id)}
+                                onMouseUp={handlePressEnd}
+                                onMouseLeave={handlePressEnd}
+                                className={`max-w-[80%] px-4 py-2 rounded-2xl relative group select-none transition-all active:scale-[0.985] duration-100 ${isMe ? 'bg-primary text-white rounded-br-sm' : isNewMessage ? 'bg-primary-50 border border-primary-200 text-neutral-dark rounded-bl-sm shadow-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}
+                            >
                                 {msg.replyTo && (
                                     <div className={`mb-2 p-2 rounded-lg text-sm border-l-4 ${isMe ? 'bg-black/20 border-white/50 text-white/90' : 'bg-neutral-light/50 border-primary text-neutral-dark'}`}>
                                         <div className="font-bold text-sm mb-0.5">{msg.replyTo.senderName}</div>
@@ -1191,7 +1216,7 @@ export const ChatWindow: React.FC<{
 
                             {/* Reactions and Action Bar (Outside Bubble) */}
                             <div className={`flex flex-wrap items-center gap-1.5 mt-1 ${isMe ? 'justify-end' : 'justify-start'} w-full max-w-[80%]`}>
-                                {/* Add Reaction Button */}
+                                {/* Add Reaction Button (Facebook style) */}
                                 <div className="relative">
                                     <button 
                                         onClick={(e) => {
@@ -1207,53 +1232,31 @@ export const ChatWindow: React.FC<{
                                         </span>
                                     </button>
                                     
-                                    {/* Reaction Menu Dropdown */}
-                                    {showEmojiPickerFor === msg.id && (
-                                        <div className={`absolute bottom-full ${isMe ? 'right-0' : 'left-0'} mb-2 z-20 animate-fade-in`} ref={emojiPickerRef}>
-                                            <div className="flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5">
-                                                {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
-                                                    <button 
-                                                        key={emoji}
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            const hasReacted = !!msg.reactions?.[emoji]?.[currentUser.uid];
-                                                            toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emoji, !hasReacted);
-                                                            setShowEmojiPickerFor(null);
-                                                            setShowFullEmojiPicker(false);
-                                                        }} 
-                                                        className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!msg.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
-                                                        title={emoji}
-                                                    >
-                                                        {emoji}
-                                                    </button>
-                                                ))}
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        setShowFullEmojiPicker(!showFullEmojiPicker);
-                                                    }} 
-                                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
-                                                    title="Fler emojis"
-                                                >
-                                                    <PlusIcon className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            {showFullEmojiPicker && (
-                                                <div className={`absolute bottom-full ${isMe ? 'right-0' : 'left-0'} mb-2 z-50`}>
-                                                    <EmojiPicker 
-                                                        onEmojiClick={(emojiData) => {
-                                                            const hasReacted = !!msg.reactions?.[emojiData.emoji]?.[currentUser.uid];
-                                                            toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emojiData.emoji, !hasReacted);
-                                                            setShowEmojiPickerFor(null);
-                                                            setShowFullEmojiPicker(false);
-                                                        }}
-                                                        autoFocusSearch={false}
-                                                        theme={Theme.LIGHT}
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                    {/* Modern Reactions Tray Overlay */}
+                                    <AnimatePresence>
+                                        {showEmojiPickerFor === msg.id && (() => {
+                                            const currentUserReactionEmoji = (() => {
+                                                if (!msg.reactions) return null;
+                                                for (const [emoji, users] of Object.entries(msg.reactions)) {
+                                                    if (users[currentUser.uid]) return emoji;
+                                                }
+                                                return null;
+                                            })();
+                                            return (
+                                                <FloatingReactionPicker 
+                                                    isOpen={true}
+                                                    currentUserReaction={currentUserReactionEmoji || undefined}
+                                                    onSelectEmoji={(emoji) => {
+                                                        const hasReacted = !!msg.reactions?.[emoji]?.[currentUser.uid];
+                                                        toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emoji, !hasReacted);
+                                                        setShowEmojiPickerFor(null);
+                                                    }}
+                                                    onClose={() => setShowEmojiPickerFor(null)}
+                                                    className={`bottom-full ${isMe ? 'right-0' : 'left-0'} mb-2`}
+                                                />
+                                            );
+                                        })()}
+                                    </AnimatePresence>
                                 </div>
 
                                 {/* Existing Reactions */}
