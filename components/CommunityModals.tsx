@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, FC } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { User } from '@firebase/auth';
 import { TimelineEvent, TimelineComment, BuddyDetails, UserProfileData } from '../types';
@@ -96,20 +97,49 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
                         <PlusIcon className="w-5 h-5 text-neutral-500" />
                     </motion.button>
 
-                    {showFullPicker && (
-                        <div className="absolute bottom-full right-[-60px] xs:right-[-40px] sm:right-0 mb-3 z-50 shadow-2xl animate-scale-in">
-                            <EmojiPicker 
-                                onEmojiClick={(emojiData) => {
-                                    onSelectEmoji(emojiData.emoji);
+                    {showFullPicker && createPortal(
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                            {/* Backdrop overlay with blur */}
+                            <div 
+                                className="absolute inset-0 bg-black/40 backdrop-blur-[1.5px]" 
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                     setShowFullPicker(false);
-                                    onClose();
                                 }}
-                                autoFocusSearch={false}
-                                theme={isDark ? Theme.DARK : Theme.LIGHT}
-                                width={290}
-                                height={380}
                             />
-                        </div>
+                            {/* Centered card holding the picker */}
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.9, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, y: 15 }}
+                                className="relative bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden p-2.5 border border-neutral-200 dark:border-neutral-800 flex flex-col items-center z-10"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="w-full flex items-center justify-between px-3 pb-2 mb-2 border-b border-neutral-100 dark:border-neutral-800">
+                                    <span className="text-sm font-bold text-neutral-700 dark:text-neutral-200">Välj emoji</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFullPicker(false)}
+                                        className="text-xs font-semibold text-primary dark:text-primary-light hover:underline px-2 py-1 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-md transition-colors cursor-pointer"
+                                    >
+                                        Stäng
+                                    </button>
+                                </div>
+                                <EmojiPicker 
+                                    onEmojiClick={(emojiData) => {
+                                        onSelectEmoji(emojiData.emoji);
+                                        setShowFullPicker(false);
+                                        onClose();
+                                    }}
+                                    autoFocusSearch={true}
+                                    theme={isDark ? Theme.DARK : Theme.LIGHT}
+                                    width={290}
+                                    height={380}
+                                />
+                            </motion.div>
+                        </div>,
+                        document.body
                     )}
                 </div>
             </motion.div>
