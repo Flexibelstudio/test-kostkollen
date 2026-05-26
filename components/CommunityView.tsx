@@ -27,7 +27,7 @@ import { subscribeToUserChats, sendMessage } from '../services/chatService';
 import { 
     HeartIcon, 
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
-    ShareIcon, PencilIcon, CameraIcon, SmileIcon
+    ShareIcon, PencilIcon, CameraIcon, SmileIcon, ChatBubbleOvalLeftEllipsisIcon
 } from './icons';
 import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon, Users as UsersIcon } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
@@ -35,10 +35,12 @@ import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
 import Lightbox from './Lightbox';
 import { ChatRoomsView } from './ChatRoomsView';
+import { FloatingReactionPicker, ReactionsBottomSheet, CommentsBottomSheet } from './CommunityModals';
 import CameraModal from './CameraModal';
 import { COACH_PERSONAS } from '../constants';
 import { uploadImageToStorage, uploadBase64ToStorage, base64ToBlob } from '../utils/storageUtils';
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
+import { AnimatePresence } from 'framer-motion';
 
 // --- HELPER FUNCTIONS ---
 
@@ -486,12 +488,17 @@ export const TimelineEventCard: FC<{
     setToastNotification?: (toast: { message: string; type: 'success' | 'error' } | null) => void;
     onAddFriend?: (userId: string, userName: string) => void;
     sentFriendRequests?: Set<string>;
-}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onDeleteComment, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend, sentFriendRequests = new Set() }) => {
+    onOpenComments?: (event: TimelineEvent) => void;
+    onOpenReactions?: (event: TimelineEvent) => void;
+}> = ({ event, currentUser, userProfile, onTogglePepp, onAddComment, onToggleLike, onToggleCommentReaction, onDelete, onDeleteComment, onImageClick, onShare, lastViewTimestamp, buddyDetails, currentStreak, activeBootcamp, setToastNotification, onAddFriend, sentFriendRequests = new Set(), onOpenComments, onOpenReactions }) => {
     const [newComment, setNewComment] = useState('');
+    const [showAllComments, setShowAllComments] = useState(false);
     const [commentImage, setCommentImage] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [showReactionMenu, setShowReactionMenu] = useState(false);
+    const [showFbReactions, setShowFbReactions] = useState(false);
+    const [reactionTriggerRect, setReactionTriggerRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
     const [activeCommentReactionId, setActiveCommentReactionId] = useState<string | null>(null);
     const [activeCommentEmojiPickerId, setActiveCommentEmojiPickerId] = useState<string | null>(null);
     const [showCameraModal, setShowCameraModal] = useState(false);
@@ -589,6 +596,45 @@ export const TimelineEventCard: FC<{
         ? event.userPhotoURL 
         : (isGlobalPost ? '/favicon.png' : event.userPhotoURL);
 
+    let currentUserReactionEmoji: string | null = null;
+    let currentUserHasAnyReaction = false;
+    Object.entries(event.reactions || {}).forEach(([emoji, users]) => {
+        if (users[currentUser.uid]) {
+            currentUserReactionEmoji = emoji;
+            currentUserHasAnyReaction = true;
+        }
+    });
+
+    const handleToggleDefaultLike = () => {
+        playAudio('uiClick', 0.6);
+        if (currentUserHasAnyReaction && currentUserReactionEmoji) {
+            onTogglePepp(event, currentUserReactionEmoji);
+        } else {
+            onTogglePepp(event, '👍');
+        }
+    };
+
+    const getAllReactorsText = () => {
+        const reactors: string[] = [];
+        const idsSeen = new Set<string>();
+        
+        Object.entries(event.reactions || {}).forEach(([emoji, users]) => {
+            Object.entries(users).forEach(([uid, name]) => {
+                const displayName = uid === currentUser.uid ? 'Du' : name;
+                if (!idsSeen.has(uid)) {
+                    idsSeen.add(uid);
+                    reactors.push(displayName);
+                }
+            });
+        });
+        
+        if (reactors.length === 0) return null;
+        if (reactors.length === 1) return `${reactors[0]} reagerade`;
+        if (reactors.length === 2) return `${reactors[0]} och ${reactors[1]} reagerade`;
+        if (reactors.length === 3) return `${reactors[0]}, ${reactors[1]} och ${reactors[2]} reagerade`;
+        return `${reactors[0]}, ${reactors[1]} och ${reactors.length - 2} till reagerade`;
+    };
+
     return (
     <div id={`event-${event.id}`} className={`group relative p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
         isNewEvent 
@@ -604,7 +650,7 @@ export const TimelineEventCard: FC<{
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col min-w-0 flex-1">
-                        <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
+                        <p className="text-[15px] text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
                             <span className="font-bold">{displayName}</span>
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 sentFriendRequests.has(event.userId) ? (
@@ -705,7 +751,7 @@ export const TimelineEventCard: FC<{
                     </div>
 
                     <div className="flex items-start gap-2 ml-2">
-                        <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
+                        <span className="text-[13px] text-neutral whitespace-nowrap mt-0.5">
                             {new Date(event.timestamp).toLocaleString('sv-SE', {
                                 ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
                                     ? { hour: '2-digit', minute: '2-digit' } 
@@ -738,352 +784,145 @@ export const TimelineEventCard: FC<{
                         {event.icon} {event.category === 'workout' ? 'Träning' : event.category === 'food' ? 'Mat' : event.category === 'pepp' ? 'Pepp' : event.category === 'question' ? 'Fråga' : 'Allmänt'}
                     </span>
                 )}
-
-                {/* Content Area */}
-                <div className="mt-1">
-                    {event.type === 'weight' ? (
-                        renderWeightDescription(event.description)
-                    ) : (
-                        <p className="text-base text-neutral-dark whitespace-pre-wrap leading-relaxed break-words">{event.description}</p>
-                    )}
-                    
-                    {event.imageUrl && (
-                        <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px] bg-white flex items-center justify-center">
-                             <img 
-                                src={event.imageUrl} 
-                                alt="Inläggsbild" 
-                                className="max-w-full max-h-[400px] object-contain cursor-pointer hover:opacity-95 transition-opacity"
-                                onClick={() => onImageClick(event.imageUrl!, `Bild från ${event.userName}`)}
-                            />
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
 
-        {/* Reactions and Action Bar */}
-        <div className="flex flex-wrap items-center gap-1.5 mt-3 ml-[60px]">
-            {/* Add Reaction Button */}
-            <div className="relative" ref={reactionMenuRef}>
-                <button 
-                    onClick={(e) => {
-                        e.preventDefault();
-                        setShowReactionMenu(!showReactionMenu);
-                    }}
-                    className="flex items-center justify-center w-9 h-9 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 transition-colors border border-transparent hover:border-neutral-300 dark:hover:border-neutral-600"
-                    title="Reagera"
-                >
-                    <SmileIcon className="w-5 h-5" />
-                    <span className="absolute -top-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
-                        <PlusIcon className="w-3 h-3 text-neutral-500" />
-                    </span>
-                </button>
-                
-                {/* Reaction Menu Dropdown */}
-                {showReactionMenu && (
-                    <div className="absolute bottom-full left-0 mb-2 z-20 animate-fade-in" ref={emojiPickerRef}>
-                        <div className="flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5">
-                            {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
-                                <button 
-                                    key={emoji}
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        onTogglePepp(event, emoji);
-                                        setShowReactionMenu(false);
-                                    }} 
-                                    className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!event.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
-                                    title={emoji}
-                                >
-                                    {emoji}
-                                </button>
-                            ))}
+        {/* Content Area */}
+        <div className="mt-3">
+            {event.type === 'weight' ? (
+                renderWeightDescription(event.description)
+            ) : (
+                <p className="text-base text-neutral-dark whitespace-pre-wrap leading-relaxed break-words">{event.description}</p>
+            )}
+            
+            {event.imageUrl && (
+                <div className="mt-3 rounded-xl overflow-hidden shadow-sm border border-neutral-light/50 max-h-[400px] bg-white flex items-center justify-center">
+                     <img 
+                        src={event.imageUrl} 
+                        alt="Inläggsbild" 
+                        className="max-w-full max-h-[400px] object-contain cursor-pointer hover:opacity-95 transition-opacity"
+                        onClick={() => onImageClick(event.imageUrl!, `Bild från ${event.userName}`)}
+                    />
+                </div>
+            )}
+        </div>
+
+        {/* Unified Facebook-Style Reactions & Action Bar Row */}
+        {(() => {
+            let totalReactionsCount = 0;
+            const activeEmojis: string[] = [];
+            Object.entries(event.reactions || {}).forEach(([emoji, users]) => {
+                const count = Object.keys(users).length;
+                if (count > 0) {
+                    totalReactionsCount += count;
+                    if (!activeEmojis.includes(emoji)) {
+                        activeEmojis.push(emoji);
+                    }
+                }
+            });
+            const commentCount = (event.comments || []).length;
+
+            return (
+                <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800/40 select-none">
+                    {/* Left: Reactions & Pickers pill */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800/60 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 rounded-full py-1.5 px-3 border border-neutral-200/30 shadow-sm transition-all text-neutral-600 dark:text-neutral-300">
                             <button 
                                 onClick={(e) => {
                                     e.preventDefault();
-                                    setShowEmojiPicker(!showEmojiPicker);
-                                }} 
-                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
-                                title="Fler emojis"
+                                    handleToggleDefaultLike();
+                                }}
+                                className="flex items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 transition-transform"
+                                title={currentUserReactionEmoji ? `Du reagerade med ${currentUserReactionEmoji}. Klicka för att ta bort.` : "Gilla"}
                             >
-                                <PlusIcon className="w-4 h-4" />
+                                {/* Thumbs up or custom reaction emoji */}
+                                <span className="text-sm shrink-0">{currentUserReactionEmoji || '👍'}</span>
+                                
+                                {/* Top active reactions side-by-side inside the button */}
+                                {totalReactionsCount > 0 && (
+                                    <div className="flex items-center -space-x-1 shrink-0 ml-0.5 mr-1" onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOpenReactions?.(event);
+                                    }}>
+                                        {activeEmojis.slice(0, 3).map(emoji => (
+                                            <span key={emoji} className="text-[11px] bg-white dark:bg-neutral-800 rounded-full px-0.5 border border-neutral-200/50 dark:border-neutral-700 shadow-sm">
+                                                {emoji}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                                {/* Total Reactions Count */}
+                                <span className="text-[13px] font-bold text-neutral-700 dark:text-neutral-200">
+                                    {totalReactionsCount > 0 ? totalReactionsCount : 'Gilla'}
+                                </span>
                             </button>
+
+                            <span className="h-3.5 w-[1px] bg-neutral-300 dark:bg-neutral-600 mx-1"></span>
+
+                            {/* Small Smiley icon button to access extra reactions */}
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setReactionTriggerRect({
+                                        left: rect.left,
+                                        top: rect.top,
+                                        width: rect.width,
+                                        height: rect.height
+                                    });
+                                    setShowFbReactions(!showFbReactions);
+                                }}
+                                className="p-0.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-100 cursor-pointer active:scale-90 transition-all"
+                                title="Välj reaktion"
+                            >
+                                <SmileIcon className="w-4 h-4" />
+                            </button>
+
+                            {/* Floating reactions list selector */}
+                            <AnimatePresence>
+                                {showFbReactions && (
+                                    <FloatingReactionPicker 
+                                        isOpen={true}
+                                        currentUserReaction={currentUserReactionEmoji}
+                                        onSelectEmoji={(emoji) => {
+                                            onTogglePepp(event, emoji);
+                                            setShowFbReactions(false);
+                                        }}
+                                        onClose={() => setShowFbReactions(false)}
+                                        triggerRect={reactionTriggerRect}
+                                    />
+                                )}
+                            </AnimatePresence>
                         </div>
-                        {showEmojiPicker && (
-                            <div className="absolute bottom-full left-0 mb-2 z-50">
-                                <EmojiPicker 
-                                    onEmojiClick={(emojiData) => {
-                                        onTogglePepp(event, emojiData.emoji);
-                                        setShowEmojiPicker(false);
-                                        setShowReactionMenu(false);
-                                    }}
-                                    autoFocusSearch={false}
-                                    theme={Theme.LIGHT}
-                                />
-                            </div>
+
+                        {/* Reactors text shown on larger screens next to the pill */}
+                        {totalReactionsCount > 0 && (
+                            <span 
+                                className="hidden sm:inline text-xs text-neutral-400 hover:underline cursor-pointer font-semibold truncate max-w-[150px]"
+                                onClick={() => onOpenReactions?.(event)}
+                            >
+                                {getAllReactorsText()}
+                            </span>
                         )}
                     </div>
-                )}
-            </div>
 
-            {/* Existing Reactions */}
-            {Object.entries(event.reactions || {}).map(([emoji, users]) => {
-                const count = Object.keys(users).length;
-                if (count === 0) return null;
-                const hasReacted = !!users[currentUser.uid];
-                
-                return (
-                    <button 
-                        key={emoji} 
+                    {/* Right: Comments Pill */}
+                    <button
                         onClick={(e) => {
                             e.preventDefault();
-                            onTogglePepp(event, emoji);
-                        }} 
-                        onMouseDown={(e) => e.preventDefault()}
-                        className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm transition-all active:scale-95 border
-                            ${hasReacted 
-                                ? 'bg-primary-50 border-primary text-primary-darker shadow-sm' 
-                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
-                            }`}
+                            onOpenComments?.(event);
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 dark:bg-neutral-800/60 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 text-neutral-600 dark:text-neutral-300 border border-neutral-200/30 rounded-full text-[13px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer hover:border-neutral-400/30"
+                        title="Kommentera"
                     >
-                        <span>{emoji}</span>
-                        <span className="font-semibold">{count}</span>
+                        <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
+                        <span className="text-[13px] font-bold text-neutral-700 dark:text-neutral-200">
+                            {commentCount > 0 ? (commentCount === 1 ? '1 kommentar' : `${commentCount} kommentarer`) : 'Kommentera'}
+                        </span>
                     </button>
-                )
-            })}
-        </div>
-        
-        {/* Comments Section */}
-        {((event.comments && event.comments.length > 0) || newComment || commentImage) && (
-             <div className="space-y-3 mt-4 ml-[60px]">
-                {(event.comments || []).map(comment => {
-                    const reactions = comment.reactions || {};
-                    const reactionCounts: { [emoji: string]: number } = {};
-                    let userReactionEmoji: string | null = null;
-                    
-                    Object.keys(reactions).forEach(emoji => {
-                        reactionCounts[emoji] = Object.keys(reactions[emoji]).length;
-                        if (reactions[emoji][currentUser.uid]) {
-                            userReactionEmoji = emoji;
-                        }
-                    });
-                    
-                    const hasReactions = Object.keys(reactionCounts).length > 0;
-                    const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
-
-                    return (
-                        <div key={comment.id} className="flex items-start gap-2 group">
-                            <Avatar photoURL={comment.authorPhotoURL} size={36} />
-                            <div className="flex-1">
-                                <div 
-                                    onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
-                                    className={`rounded-2xl rounded-tl-none px-3 py-2 pr-8 text-sm relative transition-colors duration-500 ease-out ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
-                                >
-                                    {onDeleteComment && comment.authorUid === currentUser.uid && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                if (window.confirm("Är du säker på att du vill ta bort kommentaren?")) {
-                                                    onDeleteComment(event.id, comment.id);
-                                                }
-                                            }}
-                                            className="absolute top-2.5 right-2 px-1 text-neutral-400 hover:text-red-500 md:opacity-0 group-hover:opacity-100 transition-opacity"
-                                            title="Ta bort kommentar"
-                                        >
-                                            <TrashIcon className="w-3.5 h-3.5" />
-                                        </button>
-                                    )}
-                                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                                        <p className="font-bold text-neutral-dark text-xs">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
-                                        {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
-                                            sentFriendRequests.has(comment.authorUid) ? (
-                                                <div className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
-                                                    <CheckIcon className="w-4 h-4" />
-                                                    <span>Skickad</span>
-                                                </div>
-                                            ) : (
-                                                <button 
-                                                    onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
-                                                    className="flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-white/70 hover:bg-white rounded-full text-[12px] font-bold text-primary shadow-sm transition-colors cursor-pointer"
-                                                    title="Lägg till kompis"
-                                                >
-                                                    <UsersIcon className="w-4 h-4" />
-                                                    <span>+</span>
-                                                </button>
-                                            )
-                                        )}
-                                    </div>
-                                    {comment.text && <p className="text-neutral-dark break-words leading-snug">{comment.text}</p>}
-                                    {comment.imageUrl && (
-                                        <div className="mt-2 rounded-lg overflow-hidden max-w-xs">
-                                            <img src={comment.imageUrl} alt="Kommentar bild" className="w-full h-auto object-cover cursor-pointer" onClick={() => onImageClick(comment.imageUrl!, 'Kommentar bild')} />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-3 mt-1 ml-1 relative">
-                                    <span className="text-[10px] text-neutral-400">
-                                        {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
-                                    </span>
-
-                                    <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
-                                                setActiveCommentEmojiPickerId(null);
-                                            }}
-                                            className={`relative flex items-center justify-center w-8 h-8 rounded-full transition-colors border border-transparent ${userReactionEmoji ? 'bg-primary-50 text-primary border-primary-200 dark:bg-primary-900/20 dark:border-primary-800' : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600'}`}
-                                            title="Reagera"
-                                        >
-                                            <SmileIcon className="w-4 h-4" />
-                                            <span className="absolute -top-0.5 -right-0.5 bg-white dark:bg-neutral-darker rounded-full p-[1px]">
-                                                <PlusIcon className="w-2.5 h-2.5 text-neutral-500" />
-                                            </span>
-                                        </button>
-                                        
-                                        {activeCommentReactionId === comment.id && (
-                                            <div className="absolute bottom-full left-0 mb-2 flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1.5 z-20 animate-fade-in">
-                                                {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
-                                                    <button 
-                                                        key={emoji}
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            onToggleCommentReaction(event, comment.id, emoji);
-                                                            setActiveCommentReactionId(null);
-                                                        }} 
-                                                        className={`w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-lg transition-transform hover:scale-110 ${!!comment.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
-                                                        title={emoji}
-                                                    >
-                                                        {emoji}
-                                                    </button>
-                                                ))}
-                                                <div className="relative">
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            setActiveCommentEmojiPickerId(activeCommentEmojiPickerId === comment.id ? null : comment.id);
-                                                        }} 
-                                                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral transition-transform hover:scale-110" 
-                                                        title="Fler emojis"
-                                                    >
-                                                        <PlusIcon className="w-4 h-4" />
-                                                    </button>
-                                                    {activeCommentEmojiPickerId === comment.id && (
-                                                        <div className="absolute bottom-full right-0 mb-2 z-50">
-                                                            <EmojiPicker 
-                                                                onEmojiClick={(emojiData) => {
-                                                                    onToggleCommentReaction(event, comment.id, emojiData.emoji);
-                                                                    setActiveCommentReactionId(null);
-                                                                    setActiveCommentEmojiPickerId(null);
-                                                                }}
-                                                                autoFocusSearch={false}
-                                                                theme={Theme.LIGHT}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    
-                                    {hasReactions && (
-                                        <div className="flex items-center gap-1">
-                                            {Object.entries(reactionCounts).map(([emoji, count]) => {
-                                                const hasReacted = !!comment.reactions?.[emoji]?.[currentUser.uid];
-                                                return (
-                                                    <button 
-                                                        key={emoji} 
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            onToggleCommentReaction(event, comment.id, emoji);
-                                                        }}
-                                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all active:scale-95 border shadow-sm
-                                                            ${hasReacted 
-                                                                ? 'bg-primary-50 border-primary text-primary-darker' 
-                                                                : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
-                                                            }`}
-                                                    >
-                                                        <span>{emoji}</span>
-                                                        <span className="font-semibold">{count}</span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        )}
-
-        <form onSubmit={handleCommentSubmit} className="flex items-start gap-3 mt-4 ml-[60px]">
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={40} />
-                <div className="flex-1 flex flex-col gap-2">
-                    <input
-                        value={newComment}
-                        onChange={e => setNewComment(e.target.value)}
-                        className="w-full px-4 py-3 text-base bg-[#ffffff] text-[#000000] rounded-2xl border border-[#E5E7EB] focus:border-[#3bab5a]/50 focus:outline-none focus:ring-2 focus:ring-[#3bab5a]/20 transition-all placeholder-[#9CA3AF]"
-                        placeholder="Skriv en kommentar..."
-                    />
-                    <div className="flex justify-end items-center gap-1">
-                        <button
-                            type="button"
-                            onClick={() => setShowCameraModal(true)}
-                            className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
-                            title="Ta bild"
-                        >
-                            <CameraIcon className="w-5 h-5" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="p-2 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
-                            title="Ladda upp bild"
-                        >
-                            <ImageIcon className="w-5 h-5" />
-                        </button>
-                        <button 
-                            type="submit" 
-                            disabled={isSubmitting || (!newComment.trim() && !commentImage)} 
-                            className={`p-2 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary bg-primary-50' : 'text-neutral-300 bg-neutral-50'}`}
-                        >
-                            <Send className="w-5 h-5" />
-                        </button>
-                    </div>
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleImageUpload} 
-                        accept="image/*" 
-                        className="hidden" 
-                    />
-                    {commentImage && (
-                        <div className="mt-2 relative inline-block">
-                            <img src={commentImage} alt="Preview" className="h-20 w-auto rounded-lg object-cover border border-neutral-light" />
-                            <button 
-                                type="button" 
-                                onClick={() => setCommentImage(null)}
-                                className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-md text-neutral-400 hover:text-red-500"
-                            >
-                                <XMarkIcon className="w-4 h-4" />
-                            </button>
-                        </div>
-                    )}
                 </div>
-        </form>
-
-        <CameraModal 
-            show={showCameraModal} 
-            onClose={() => setShowCameraModal(false)} 
-            onImageCapture={(imageDataUrl) => { 
-                setCommentImage('data:image/jpeg;base64,' + imageDataUrl); 
-                setShowCameraModal(false); 
-            }} 
-            onCameraError={(err) => console.error(err)} 
-            instructionText="Ta en bild att dela i kommentar"
-            hideTip={true}
-        />
+            );
+        })()}
     </div>
     );
 };
@@ -1589,6 +1428,8 @@ export const CommunityView: React.FC<{
 
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
   const [shareEvent, setShareEvent] = useState<TimelineEvent | null>(null);
+  const [selectedCommentsEvent, setSelectedCommentsEvent] = useState<TimelineEvent | null>(null);
+  const [selectedReactionsEvent, setSelectedReactionsEvent] = useState<TimelineEvent | null>(null);
   
   // Real-time & Pagination State
   // Initialize with timelineEvents to show cached data immediately if available
@@ -1959,6 +1800,8 @@ export const CommunityView: React.FC<{
                                             currentStreak={currentStreak}
                                             onAddFriend={handleAddFriendToCommunity}
                                             sentFriendRequests={sentFriendRequests}
+                                            onOpenComments={(ev) => setSelectedCommentsEvent(ev)}
+                                            onOpenReactions={(ev) => setSelectedReactionsEvent(ev)}
                                         />
                                     ))}
                                 </div>
@@ -2032,6 +1875,44 @@ export const CommunityView: React.FC<{
                 userProfile={userProfile}
                 setToastNotification={setToastNotification}
             />
+
+            {/* Facebook-style Comments Details Bottom Sheet */}
+            {selectedCommentsEvent && (() => {
+                const liveEvent = visibleEvents.find(e => e.id === selectedCommentsEvent.id) || selectedCommentsEvent;
+                return (
+                    <CommentsBottomSheet 
+                        isOpen={true}
+                        onClose={() => setSelectedCommentsEvent(null)}
+                        event={liveEvent}
+                        currentUser={currentUser}
+                        userProfile={userProfile}
+                        onAddComment={handleAddComment}
+                        onToggleCommentReaction={handleToggleCommentReaction}
+                        onDeleteComment={handleDeleteComment}
+                        buddyDetails={buddyDetails}
+                        onAddFriend={handleAddFriendToCommunity}
+                        sentFriendRequests={sentFriendRequests}
+                        onImageClick={(src, alt) => setLightboxImage({ src, alt })}
+                        setToastNotification={setToastNotification}
+                    />
+                );
+            })()}
+
+            {/* Facebook-style Reactions Details Bottom Sheet */}
+            {selectedReactionsEvent && (() => {
+                const liveEvent = visibleEvents.find(e => e.id === selectedReactionsEvent.id) || selectedReactionsEvent;
+                return (
+                    <ReactionsBottomSheet 
+                        isOpen={true}
+                        onClose={() => setSelectedReactionsEvent(null)}
+                        reactions={liveEvent.reactions || {}}
+                        buddyDetails={buddyDetails}
+                        currentUser={currentUser}
+                        onAddFriend={handleAddFriendToCommunity}
+                        sentFriendRequests={sentFriendRequests}
+                    />
+                );
+            })()}
         </div>
     );
 };

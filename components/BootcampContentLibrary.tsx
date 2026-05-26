@@ -25,6 +25,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   // Calendar State
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
   const [draggedTemplate, setDraggedTemplate] = useState<PostTemplate | null>(null);
+  const [draggedScheduledPost, setDraggedScheduledPost] = useState<ScheduledPost | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -160,13 +161,37 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   };
 
   const handleDropToGrid = async (week: number, day: number) => {
-    if (!draggedTemplate) return;
+    if (draggedTemplate) {
+      setSchedulingTemplate(draggedTemplate);
+      setScheduleWeek(week);
+      setScheduleDay(day);
+      setScheduleTime('08:00');
+      setDraggedTemplate(null);
+    } else if (draggedScheduledPost) {
+      const postId = draggedScheduledPost.id;
+      const oldWeek = draggedScheduledPost.programWeek;
+      const oldDay = draggedScheduledPost.programDay;
 
-    setSchedulingTemplate(draggedTemplate);
-    setScheduleWeek(week);
-    setScheduleDay(day);
-    setScheduleTime('08:00');
-    setDraggedTemplate(null);
+      // Om inlägget släpps på samma cell, gör ingenting
+      if (oldWeek === week && oldDay === day) {
+        setDraggedScheduledPost(null);
+        return;
+      }
+
+      try {
+        await updateDoc(doc(db, 'scheduledPosts', postId), {
+          programWeek: week,
+          programDay: day,
+          updatedAt: serverTimestamp()
+        });
+        setToastNotification({ message: 'Inlägget flyttat!', type: 'success' });
+      } catch (error) {
+        console.error("Error moving scheduled post:", error);
+        setToastNotification({ message: 'Kunde inte flytta inlägget', type: 'error' });
+      } finally {
+        setDraggedScheduledPost(null);
+      }
+    }
   };
 
   const handleDeleteScheduledPost = async (id: string) => {
@@ -294,7 +319,12 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                             return (
                               <div 
                                 key={post.id} 
-                                className={`text-[10px] p-1.5 rounded border ${getCategoryColor(post.category)} relative group/post shadow-sm`}
+                                className={`text-[10px] p-1.5 rounded border ${getCategoryColor(post.category)} relative group/post shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors`}
+                                draggable
+                                onDragStart={(e) => {
+                                  setDraggedScheduledPost(post);
+                                }}
+                                onDragEnd={() => setDraggedScheduledPost(null)}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingScheduledPost(post);

@@ -594,7 +594,7 @@ export const App = () => {
     }, [currentDate]);
 
 
-const handleSubscribeToPush = async (): Promise<boolean> => {
+const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         console.warn('Push notiser stöds inte i denna webbläsare.');
         return false;
@@ -610,6 +610,15 @@ const handleSubscribeToPush = async (): Promise<boolean> => {
         
         // Kontrollera om en existerande subscription finns
         let subscription = await registration.pushManager.getSubscription();
+        
+        if (subscription && force) {
+            try {
+                await subscription.unsubscribe();
+            } catch (unsubError) {
+                console.warn('Kunde inte avregistrera tidigare push-prenumeration:', unsubError);
+            }
+            subscription = null;
+        }
         
         if (!subscription) {
             const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
