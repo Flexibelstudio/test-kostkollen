@@ -644,7 +644,7 @@ export const TimelineEventCard: FC<{
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col min-w-0 flex-1">
-                        <p className="text-sm text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
+                        <p className="text-[15px] text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
                             <span className="font-bold">{displayName}</span>
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 sentFriendRequests.has(event.userId) ? (
@@ -745,7 +745,7 @@ export const TimelineEventCard: FC<{
                     </div>
 
                     <div className="flex items-start gap-2 ml-2">
-                        <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
+                        <span className="text-[13px] text-neutral whitespace-nowrap mt-0.5">
                             {new Date(event.timestamp).toLocaleString('sv-SE', {
                                 ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
                                     ? { hour: '2-digit', minute: '2-digit' } 
@@ -819,7 +819,7 @@ export const TimelineEventCard: FC<{
             if (totalReactionsCount === 0 && commentCount === 0) return null;
 
             return (
-                <div className="flex justify-between items-center py-2 px-1 border-b border-neutral-100 dark:border-neutral-800/50 text-xs text-neutral-500 select-none">
+                <div className="flex justify-between items-center py-2 px-1 border-b border-neutral-100 dark:border-neutral-800/50 text-[14.5px] text-neutral-500 select-none">
                     {totalReactionsCount > 0 ? (
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
                             <div className="flex items-center -space-x-1 shrink-0">
@@ -859,7 +859,7 @@ export const TimelineEventCard: FC<{
                             e.preventDefault();
                             handleToggleDefaultLike();
                         }}
-                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-l-full text-xs font-semibold cursor-pointer active:scale-95 transition-transform
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-l-full text-[14.5px] font-semibold cursor-pointer active:scale-95 transition-transform
                             ${currentUserHasAnyReaction 
                                 ? 'text-primary dark:text-primary-light font-bold' 
                                 : 'text-neutral-600 dark:text-neutral-300'
@@ -876,7 +876,7 @@ export const TimelineEventCard: FC<{
                             e.preventDefault();
                             setShowReactionMenu(!showReactionMenu);
                         }}
-                        className="px-2.5 py-1.5 rounded-r-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-100 cursor-pointer active:scale-95 transition-all text-xs"
+                        className="px-2.5 py-1.5 rounded-r-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-100 cursor-pointer active:scale-95 transition-all text-sm"
                         title="Välj emoji"
                     >
                         <SmileIcon className="w-4 h-4" />
@@ -908,6 +908,7 @@ export const TimelineEventCard: FC<{
                                 }} 
                                 className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral transition-transform hover:scale-125" 
                                 title="Fler emojis"
+                                id="more-emojis-button"
                             >
                                 <PlusIcon className="w-5 h-5" />
                             </button>
@@ -938,7 +939,7 @@ export const TimelineEventCard: FC<{
                         inputElement.focus();
                     }
                 }}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-transparent hover:border-neutral-200 dark:hover:border-neutral-600 rounded-full text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-transparent hover:border-neutral-200 dark:hover:border-neutral-600 rounded-full text-[13.5px] font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
             >
                 <ArrowRightIcon className="w-3.5 h-3.5 rotate-90 text-neutral-500" />
                 <span>Kommentera</span>
@@ -953,7 +954,7 @@ export const TimelineEventCard: FC<{
                     <button
                         type="button"
                         onClick={() => setShowAllComments(true)}
-                        className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 mb-2 cursor-pointer"
+                        className="text-[13.5px] font-semibold text-primary hover:underline flex items-center gap-1 mb-2 cursor-pointer"
                     >
                         Visa tidigare kommentarer ({event.comments.length - 3} till)
                     </button>
@@ -997,7 +998,7 @@ export const TimelineEventCard: FC<{
                                         </button>
                                     )}
                                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                                        <p className="font-bold text-neutral-dark text-[12.5px]">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
+                                        <p className="font-bold text-neutral-dark text-[14.5px]">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
                                         {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
                                             sentFriendRequests.has(comment.authorUid) ? (
                                                 <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-50 rounded-md text-[9px] font-bold text-green-600 border border-green-100">
@@ -1016,7 +1017,7 @@ export const TimelineEventCard: FC<{
                                             )
                                         )}
                                     </div>
-                                    {comment.text && <p className="text-neutral-dark text-[13.5px] break-words leading-normal">{comment.text}</p>}
+                                    {comment.text && <p className="text-neutral-dark text-base break-words leading-relaxed">{comment.text}</p>}
                                     {comment.imageUrl && (
                                         <div className="mt-1.5 rounded-lg overflow-hidden max-w-[200px]">
                                             <img src={comment.imageUrl} alt="Kommentar bild" className="w-full h-auto object-cover cursor-pointer hover:opacity-95" onClick={() => onImageClick(comment.imageUrl!, 'Kommentar bild')} />
@@ -1050,12 +1051,12 @@ export const TimelineEventCard: FC<{
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-2 mt-1 ml-1 select-none">
-                                    <span className="text-[11px] text-neutral-400">
+                                <div className="flex items-center gap-2 mt-1.5 ml-1 select-none">
+                                    <span className="text-[13px] text-neutral-400">
                                         {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
                                     </span>
-                                    <span className="text-[11px] text-neutral-300">·</span>
-
+                                    <span className="text-[13px] text-neutral-300">·</span>
+ 
                                     {/* Kommentar-reaktionsmeny */}
                                     <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
                                         <button 
@@ -1064,7 +1065,7 @@ export const TimelineEventCard: FC<{
                                                 setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
                                                 setActiveCommentEmojiPickerId(null);
                                             }}
-                                            className={`text-[11px] font-semibold hover:underline cursor-pointer ${userReactionEmoji ? 'text-primary' : 'text-neutral-500'}`}
+                                            className={`text-[13px] font-semibold hover:underline cursor-pointer ${userReactionEmoji ? 'text-primary' : 'text-neutral-500'}`}
                                         >
                                             {userReactionEmoji ? `Reagerat (${userReactionEmoji})` : 'Reagera'}
                                         </button>
@@ -1128,7 +1129,7 @@ export const TimelineEventCard: FC<{
                         id={`comment-input-${event.id}`}
                         value={newComment}
                         onChange={e => setNewComment(e.target.value)}
-                        className="w-full px-3.5 py-2 text-sm bg-neutral-100 dark:bg-neutral-800 text-neutral-dark dark:text-neutral-100 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-neutral-400 placeholder:text-sm"
+                        className="w-full px-3.5 py-2.5 text-base bg-neutral-100 dark:bg-neutral-800 text-neutral-dark dark:text-neutral-100 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-neutral-400 placeholder:text-[15px]"
                         placeholder="Skriv en kommentar..."
                     />
                     <div className="flex justify-end items-center gap-1">
