@@ -27,7 +27,7 @@ import { subscribeToUserChats, sendMessage } from '../services/chatService';
 import { 
     HeartIcon, 
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
-    ShareIcon, PencilIcon, CameraIcon, SmileIcon
+    ShareIcon, PencilIcon, CameraIcon, SmileIcon, ChatBubbleOvalLeftEllipsisIcon
 } from './icons';
 import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon, Users as UsersIcon } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
@@ -806,7 +806,7 @@ export const TimelineEventCard: FC<{
             )}
         </div>
 
-        {/* Reactions Overview Row */}
+        {/* Unified Facebook-Style Reactions & Action Bar Row */}
         {(() => {
             let totalReactionsCount = 0;
             const activeEmojis: string[] = [];
@@ -821,350 +821,100 @@ export const TimelineEventCard: FC<{
             });
             const commentCount = (event.comments || []).length;
 
-            if (totalReactionsCount === 0 && commentCount === 0) return null;
-
             return (
-                <div className="flex justify-between items-center py-2 px-1 border-b border-neutral-100 dark:border-neutral-800/50 text-[14px] text-neutral-500 select-none">
-                    {totalReactionsCount > 0 ? (
-                        <div 
-                            className="flex items-center gap-1.5 flex-1 min-w-0 cursor-pointer hover:underline"
-                            onClick={() => onOpenReactions?.(event)}
-                        >
-                            <div className="flex items-center -space-x-1 shrink-0">
-                                {activeEmojis.slice(0, 3).map(emoji => (
-                                    <span key={emoji} className="text-sm bg-white dark:bg-neutral-dark rounded-full px-0.5 shadow-sm border border-neutral-100 dark:border-neutral-800">
-                                        {emoji}
-                                    </span>
-                                ))}
-                            </div>
-                            <span className="truncate font-semibold text-neutral-600 dark:text-neutral-300">
+                <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800/40 select-none">
+                    {/* Left: Reactions & Pickers pill */}
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800/60 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 rounded-full py-1.5 px-3 border border-neutral-200/30 shadow-sm transition-all text-neutral-600 dark:text-neutral-300">
+                            <button 
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handleToggleDefaultLike();
+                                }}
+                                className="flex items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 transition-transform"
+                                title={currentUserReactionEmoji ? `Du reagerade med ${currentUserReactionEmoji}. Klicka för att ta bort.` : "Gilla"}
+                            >
+                                {/* Thumbs up or custom reaction emoji */}
+                                <span className="text-sm shrink-0">{currentUserReactionEmoji || '👍'}</span>
+                                
+                                {/* Top active reactions side-by-side inside the button */}
+                                {totalReactionsCount > 0 && (
+                                    <div className="flex items-center -space-x-1 shrink-0 ml-0.5 mr-1" onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOpenReactions?.(event);
+                                    }}>
+                                        {activeEmojis.slice(0, 3).map(emoji => (
+                                            <span key={emoji} className="text-[11px] bg-white dark:bg-neutral-800 rounded-full px-0.5 border border-neutral-200/50 dark:border-neutral-700 shadow-sm">
+                                                {emoji}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                                {/* Total Reactions Count */}
+                                <span className="text-[13px] font-bold text-neutral-700 dark:text-neutral-200">
+                                    {totalReactionsCount > 0 ? totalReactionsCount : 'Gilla'}
+                                </span>
+                            </button>
+
+                            <span className="h-3.5 w-[1px] bg-neutral-300 dark:bg-neutral-600 mx-1"></span>
+
+                            {/* Small Smiley icon button to access extra reactions */}
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    setShowFbReactions(!showFbReactions);
+                                }}
+                                className="p-0.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-100 cursor-pointer active:scale-90 transition-all"
+                                title="Välj reaktion"
+                            >
+                                <SmileIcon className="w-4 h-4" />
+                            </button>
+
+                            {/* Floating reactions list selector */}
+                            <AnimatePresence>
+                                {showFbReactions && (
+                                    <FloatingReactionPicker 
+                                        isOpen={true}
+                                        currentUserReaction={currentUserReactionEmoji}
+                                        onSelectEmoji={(emoji) => {
+                                            onTogglePepp(event, emoji);
+                                            setShowFbReactions(false);
+                                        }}
+                                        onClose={() => setShowFbReactions(false)}
+                                        className="bottom-full left-0 mb-2"
+                                    />
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Reactors text shown on larger screens next to the pill */}
+                        {totalReactionsCount > 0 && (
+                            <span 
+                                className="hidden sm:inline text-xs text-neutral-400 hover:underline cursor-pointer font-semibold truncate max-w-[150px]"
+                                onClick={() => onOpenReactions?.(event)}
+                            >
                                 {getAllReactorsText()}
                             </span>
-                        </div>
-                    ) : (
-                        <div className="flex-1"></div>
-                    )}
-                    
-                    {commentCount > 0 && (
-                        <span 
-                            className="text-neutral-500 shrink-0 font-semibold hover:underline cursor-pointer"
-                            onClick={() => onOpenComments?.(event)}
-                        >
-                            {commentCount === 1 ? '1 kommentar' : `${commentCount} kommentarer`}
+                        )}
+                    </div>
+
+                    {/* Right: Comments Pill */}
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onOpenComments?.(event);
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 dark:bg-neutral-800/60 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 text-neutral-600 dark:text-neutral-300 border border-neutral-200/30 rounded-full text-[13px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer hover:border-neutral-400/30"
+                        title="Kommentera"
+                    >
+                        <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
+                        <span className="text-[13px] font-bold text-neutral-700 dark:text-neutral-200">
+                            {commentCount > 0 ? (commentCount === 1 ? '1 kommentar' : `${commentCount} kommentarer`) : 'Kommentera'}
                         </span>
-                    )}
+                    </button>
                 </div>
             );
         })()}
-
-        {/* Action Bar (Gilla och Kommentera knappar) */}
-        <div className="flex items-center gap-2 mt-2 premium-action-bar select-none">
-            {/* Gilla/Reagera Knapp (Facebook style) */}
-            <div className="relative">
-                <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-full transition-all border border-transparent hover:border-neutral-200 dark:hover:border-neutral-600 shadow-sm">
-                    <button 
-                        onClick={(e) => {
-                            e.preventDefault();
-                            handleToggleDefaultLike();
-                        }}
-                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-l-full text-[14.5px] font-semibold cursor-pointer active:scale-95 transition-transform
-                            ${currentUserHasAnyReaction 
-                                ? 'text-primary dark:text-primary-light font-bold' 
-                                : 'text-neutral-600 dark:text-neutral-300'
-                            }`}
-                    >
-                        <span className="text-sm">{currentUserReactionEmoji || '👍'}</span>
-                        <span>{currentUserReactionEmoji ? 'Reagerat' : 'Gilla'}</span>
-                    </button>
-                    
-                    <span className="h-4 w-[1px] bg-neutral-300 dark:bg-neutral-600"></span>
-                    
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            setShowFbReactions(!showFbReactions);
-                        }}
-                        className="px-2.5 py-1.5 rounded-r-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-100 cursor-pointer active:scale-95 transition-all text-sm"
-                        title="Välj reaktion"
-                    >
-                        <SmileIcon className="w-4 h-4" />
-                    </button>
-                </div>
-                
-                {/* Floating Reactions Tray */}
-                <AnimatePresence>
-                    {showFbReactions && (
-                        <FloatingReactionPicker 
-                            isOpen={true}
-                            currentUserReaction={currentUserReactionEmoji}
-                            onSelectEmoji={(emoji) => {
-                                onTogglePepp(event, emoji);
-                                setShowFbReactions(false);
-                            }}
-                            onClose={() => setShowFbReactions(false)}
-                            className="bottom-full left-0 mb-2"
-                        />
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* Kommentera knapp */}
-            <button
-                onClick={(e) => {
-                    e.preventDefault();
-                    onOpenComments?.(event);
-                }}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-transparent hover:border-neutral-200 dark:hover:border-neutral-600 rounded-full text-[13.5px] font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
-            >
-                <ArrowRightIcon className="w-3.5 h-3.5 rotate-90 text-neutral-500" />
-                <span>Kommentera</span>
-            </button>
-        </div>
-        
-        {/* Comments Section Start */}
-        {((event.comments && event.comments.length > 0) || newComment || commentImage) && (
-             <div className="space-y-2.5 mt-3">
-                {/* Visa tidigare kommentarer knapp */}
-                {event.comments && event.comments.length > 3 && !showAllComments && (
-                    <button
-                        type="button"
-                        onClick={() => setShowAllComments(true)}
-                        className="text-[13.5px] font-semibold text-primary hover:underline flex items-center gap-1 mb-2 cursor-pointer"
-                    >
-                        Visa tidigare kommentarer ({event.comments.length - 3} till)
-                    </button>
-                )}
-
-                {((showAllComments ? event.comments : event.comments?.slice(-3)) || []).map(comment => {
-                    const reactions = comment.reactions || {};
-                    const reactionCounts: { [emoji: string]: number } = {};
-                    let userReactionEmoji: string | null = null;
-                    
-                    Object.keys(reactions).forEach(emoji => {
-                        reactionCounts[emoji] = Object.keys(reactions[emoji]).length;
-                        if (reactions[emoji][currentUser.uid]) {
-                            userReactionEmoji = emoji;
-                        }
-                    });
-                    
-                    const hasReactions = Object.keys(reactionCounts).length > 0;
-                    const isNewComment = lastViewTimestamp !== null && comment.timestamp > lastViewTimestamp && comment.authorUid !== currentUser.uid;
-
-                    return (
-                        <div key={comment.id} className="flex items-start gap-2 group animate-fade-in">
-                            <Avatar photoURL={comment.authorPhotoURL} size={32} />
-                            <div className="flex-1 min-w-0">
-                                <div 
-                                    onDoubleClick={() => onToggleCommentReaction(event, comment.id, '❤️')} 
-                                    className={`rounded-2xl rounded-tl-none px-3.5 py-2 pr-8 text-sm relative transition-colors duration-300 ${isNewComment ? 'bg-green-50 dark:bg-green-900/20' : 'bg-neutral-light/60 dark:bg-neutral-dark'}`}
-                                >
-                                    {onDeleteComment && comment.authorUid === currentUser.uid && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                if (window.confirm("Är du säker på att du vill ta bort kommentaren?")) {
-                                                    onDeleteComment(event.id, comment.id);
-                                                }
-                                            }}
-                                            className="absolute top-2 right-2 px-1 text-neutral-400 hover:text-red-500 md:opacity-0 group-hover:opacity-100 transition-opacity"
-                                            title="Ta bort kommentar"
-                                        >
-                                            <TrashIcon className="w-3 h-3" />
-                                        </button>
-                                    )}
-                                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                                        <p className="font-bold text-neutral-dark text-[14.5px]">{comment.authorUid === currentUser.uid ? 'Du' : comment.authorName}</p>
-                                        {comment.authorUid !== currentUser.uid && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
-                                            sentFriendRequests.has(comment.authorUid) ? (
-                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-50 rounded-md text-[9px] font-bold text-green-600 border border-green-100">
-                                                    <CheckIcon className="w-3 h-3" />
-                                                    <span>Skickad</span>
-                                                </div>
-                                            ) : (
-                                                <button 
-                                                    onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
-                                                    className="flex items-center gap-0.5 px-2 py-0.5 bg-primary-100/80 hover:bg-primary-100 rounded-md text-[10px] font-bold text-primary transition-colors cursor-pointer"
-                                                    title="Lägg till kompis"
-                                                >
-                                                    <UsersIcon className="w-3 h-3" />
-                                                    <span>+</span>
-                                                </button>
-                                            )
-                                        )}
-                                    </div>
-                                    {comment.text && <p className="text-neutral-dark text-base break-words leading-relaxed">{comment.text}</p>}
-                                    {comment.imageUrl && (
-                                        <div className="mt-1.5 rounded-lg overflow-hidden max-w-[200px]">
-                                            <img src={comment.imageUrl} alt="Kommentar bild" className="w-full h-auto object-cover cursor-pointer hover:opacity-95" onClick={() => onImageClick(comment.imageUrl!, 'Kommentar bild')} />
-                                        </div>
-                                    )}
-
-                                    {/* Flytande reaktioner på kommentar (Facebook style) - absolut positionerad på bubblan */}
-                                    {hasReactions && (
-                                        <div className="absolute -bottom-2 right-2 flex items-center gap-1 bg-white dark:bg-neutral-800 shadow-sm border border-neutral-100 dark:border-neutral-700 rounded-full px-1.5 py-0.5 text-[9px] z-10 cursor-pointer hover:scale-110 active:scale-95 transition-all select-none">
-                                            {Object.entries(comment.reactions || {}).map(([emoji, users]) => {
-                                                const uids = Object.keys(users);
-                                                const count = uids.length;
-                                                if (count === 0) return null;
-                                                const hasReacted = !!users[currentUser.uid];
-                                                return (
-                                                    <button 
-                                                        key={emoji} 
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            onToggleCommentReaction(event, comment.id, emoji);
-                                                        }}
-                                                        className={`flex items-center gap-0.5 ${hasReacted ? 'scale-110 font-bold' : ''}`}
-                                                        title={`${emoji} (${uids.map(uid => uid === currentUser.uid ? 'Du' : users[uid]).join(', ')})`}
-                                                    >
-                                                        <span>{emoji}</span>
-                                                        <span className="text-neutral-500 font-semibold">{count}</span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2 mt-1.5 ml-1 select-none">
-                                    <span className="text-[13px] text-neutral-400">
-                                        {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
-                                    </span>
-                                    <span className="text-[13px] text-neutral-300">·</span>
- 
-                                    {/* Kommentar-reaktionsmeny */}
-                                    <div className="relative" ref={activeCommentReactionId === comment.id ? commentReactionMenuRef : null}>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
-                                                setActiveCommentEmojiPickerId(null);
-                                            }}
-                                            className={`text-[13px] font-semibold hover:underline cursor-pointer ${userReactionEmoji ? 'text-primary' : 'text-neutral-500'}`}
-                                        >
-                                            {userReactionEmoji ? `Reagerat (${userReactionEmoji})` : 'Reagera'}
-                                        </button>
-                                        
-                                        {activeCommentReactionId === comment.id && (
-                                            <div className="absolute bottom-full left-0 mb-1 flex gap-1 bg-white dark:bg-neutral-dark shadow-lg border border-neutral-light dark:border-neutral-dark rounded-full p-1 z-20 animate-fade-in whitespace-nowrap">
-                                                {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
-                                                    <button 
-                                                        key={emoji}
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            onToggleCommentReaction(event, comment.id, emoji);
-                                                            setActiveCommentReactionId(null);
-                                                        }} 
-                                                        className={`w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-sm transition-transform hover:scale-110 ${!!comment.reactions?.[emoji]?.[currentUser.uid] ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`} 
-                                                        title={emoji}
-                                                    >
-                                                        {emoji}
-                                                    </button>
-                                                ))}
-                                                <div className="relative">
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            setActiveCommentEmojiPickerId(activeCommentEmojiPickerId === comment.id ? null : comment.id);
-                                                        }} 
-                                                        className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-darker text-neutral" 
-                                                        title="Fler emojis"
-                                                    >
-                                                        <PlusIcon className="w-3.5 h-3.5" />
-                                                    </button>
-                                                    {activeCommentEmojiPickerId === comment.id && (
-                                                        <div className="absolute bottom-full right-0 mb-1 z-50">
-                                                            <EmojiPicker 
-                                                                onEmojiClick={(emojiData) => {
-                                                                    onToggleCommentReaction(event, comment.id, emojiData.emoji);
-                                                                    setActiveCommentReactionId(null);
-                                                                    setActiveCommentEmojiPickerId(null);
-                                                                }}
-                                                                autoFocusSearch={false}
-                                                                theme={Theme.LIGHT}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        )}
-
-        <form onSubmit={handleCommentSubmit} className="flex items-start gap-2.5 mt-3">
-                <Avatar photoURL={userProfile.photoURL} gender={userProfile.gender} size={32} />
-                <div className="flex-1 flex flex-col gap-1.5">
-                    <input
-                        id={`comment-input-${event.id}`}
-                        value={newComment}
-                        onChange={e => setNewComment(e.target.value)}
-                        className="w-full px-3.5 py-2.5 text-base bg-neutral-100 dark:bg-neutral-800 text-neutral-dark dark:text-neutral-100 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-neutral-400 placeholder:text-[15px]"
-                        placeholder="Skriv en kommentar..."
-                    />
-                    <div className="flex justify-end items-center gap-1">
-                        <button
-                            type="button"
-                            onClick={() => setShowCameraModal(true)}
-                            className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
-                            title="Ta bild"
-                        >
-                            <CameraIcon className="w-4 h-4" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="p-1.5 rounded-full text-neutral-400 hover:text-primary hover:bg-primary-50 transition-colors"
-                            title="Ladda upp bild"
-                        >
-                            <ImageIcon className="w-4 h-4" />
-                        </button>
-                        <button 
-                            type="submit" 
-                            disabled={isSubmitting || (!newComment.trim() && !commentImage)} 
-                            className={`p-1.5 rounded-full transition-all ${newComment.trim() || commentImage ? 'text-primary bg-primary-50' : 'text-neutral-300 bg-neutral-50'}`}
-                        >
-                            <Send className="w-4 h-4" />
-                        </button>
-                    </div>
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleImageUpload} 
-                        accept="image/*" 
-                        className="hidden" 
-                    />
-                    {commentImage && (
-                        <div className="mt-1.5 relative inline-block">
-                            <img src={commentImage} alt="Preview" className="h-16 w-auto rounded-lg object-cover border border-neutral-light" />
-                            <button 
-                                type="button" 
-                                onClick={() => setCommentImage(null)}
-                                className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-md text-neutral-400 hover:text-red-500"
-                            >
-                                <XMarkIcon className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-                    )}
-                </div>
-        </form>
-
-        <CameraModal 
-            show={showCameraModal} 
-            onClose={() => setShowCameraModal(false)} 
-            onImageCapture={(imageDataUrl) => { 
-                setCommentImage('data:image/jpeg;base64,' + imageDataUrl); 
-                setShowCameraModal(false); 
-            }} 
-            onCameraError={(err) => console.error(err)} 
-            instructionText="Ta en bild att dela i kommentar"
-            hideTip={true}
-        />
     </div>
     );
 };

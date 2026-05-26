@@ -619,10 +619,11 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                             e.preventDefault();
                                                             setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
                                                         }}
-                                                        className={`text-[12.5px] font-bold hover:underline cursor-pointer transition-colors
-                                                            ${userReactionEmoji ? 'text-primary' : 'text-neutral-500'}`}
+                                                        className={`flex items-center gap-1.5 text-[12.5px] font-bold hover:underline cursor-pointer transition-colors
+                                                            ${userReactionEmoji ? 'text-primary dark:text-primary-light font-extrabold' : 'text-neutral-500 hover:text-neutral-800'}`}
                                                     >
-                                                        {userReactionEmoji ? `Reagerat (${userReactionEmoji})` : 'Reagera'}
+                                                        <span className="text-sm shrink-0">{userReactionEmoji || '👍'}</span>
+                                                        <span>{userReactionEmoji ? 'Gillar' : 'Gilla'}</span>
                                                     </button>
 
                                                     {/* Custom Emojis tray popup */}
