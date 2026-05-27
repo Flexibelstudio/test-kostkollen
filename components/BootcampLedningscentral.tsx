@@ -56,6 +56,169 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
   const [minWeights6W, setMinWeights6W] = useState(5);
   const [minWeights12W, setMinWeights12W] = useState(10);
 
+  const allCohorts = [
+    {
+      id: 'solo',
+      name: 'Solo-trupp',
+      inviteCode: 'N/A',
+      startDate: 'Löpande',
+      status: 'active' as const,
+      isPublic: true,
+      chatGroupId: 'solo_chat',
+      createdBy: 'system',
+      createdAt: Date.now()
+    },
+    ...cohorts
+  ];
+
+  const getProcessedStats = () => {
+    const nowMs = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    const allReached6W: any[] = [];
+    const allReached12W: any[] = [];
+
+    summaryData.forEach((item) => {
+      const startDateStr = item.startDate;
+      if (!startDateStr) return;
+      const startMs = new Date(startDateStr).getTime();
+      const daysActive = Math.floor((nowMs - startMs) / oneDayMs);
+
+      // --- 6 WEEKS PROCESS (FAS 1) ---
+      if (daysActive >= 41) {
+        const border6W = startMs + 43 * oneDayMs; // Upp till dag 43 för att fånga upp hela 6:e veckan
+        
+        // Loggar inom de första 6 veckorna
+        const logs6W = item.weightLogs.filter((l: any) => l.loggedAt >= startMs - 12 * 60 * 60 * 1000 && l.loggedAt <= border6W);
+        const reports6W = item.eveningReports.filter((r: any) => {
+          const repMs = new Date(r.date).getTime();
+          return repMs >= startMs - 12 * 60 * 60 * 1000 && repMs <= border6W;
+        });
+
+        const totalReports = reports6W.length;
+        const greenCount = reports6W.filter((r: any) => r.isGreenDay).length;
+        const greenPercent = totalReports > 0 ? Math.round((greenCount / totalReports) * 100) : 0;
+        const logsCount = logs6W.length;
+
+        const doingWork = greenPercent >= minGreenDaysPct && logsCount >= minWeights6W;
+
+        // Viktförändring från första till sista under vecka 1-6
+        let loss: number | null = null;
+        if (logs6W.length >= 2) {
+          const earliestLog = logs6W[0];
+          const latestLog = logs6W[logs6W.length - 1];
+          loss = earliestLog.weightKg - latestLog.weightKg;
+        }
+
+        allReached6W.push({
+          name: item.name,
+          email: item.email,
+          cohortName: item.cohortName,
+          logsCount,
+          greenPercent,
+          greenCount,
+          totalReports,
+          loss,
+          doingWork,
+          raw: item
+        });
+      }
+
+      // --- 12 WEEKS PROCESS (HELA BOOTCAMP) ---
+      if (daysActive >= 83) {
+        const border12W = startMs + 85 * oneDayMs; // Upp till dag 85 för hela bootcampet
+
+        // Loggar inom de första 12 veckorna
+        const logs12W = item.weightLogs.filter((l: any) => l.loggedAt >= startMs - 12 * 60 * 60 * 1000 && l.loggedAt <= border12W);
+        const reports12W = item.eveningReports.filter((r: any) => {
+          const repMs = new Date(r.date).getTime();
+          return repMs >= startMs - 12 * 60 * 60 * 1000 && repMs <= border12W;
+        });
+
+        const totalReports = reports12W.length;
+        const greenCount = reports12W.filter((r: any) => r.isGreenDay).length;
+        const greenPercent = totalReports > 0 ? Math.round((greenCount / totalReports) * 100) : 0;
+        const logsCount = logs12W.length;
+
+        const doingWork = greenPercent >= minGreenDaysPct && logsCount >= minWeights12W;
+
+        // Viktförändring under hela 12 veckorna
+        let loss: number | null = null;
+        if (logs12W.length >= 2) {
+          const earliestLog = logs12W[0];
+          const latestLog = logs12W[logs12W.length - 1];
+          loss = earliestLog.weightKg - latestLog.weightKg;
+        }
+
+        allReached12W.push({
+          name: item.name,
+          email: item.email,
+          cohortName: item.cohortName,
+          logsCount,
+          greenPercent,
+          greenCount,
+          totalReports,
+          loss,
+          doingWork,
+          raw: item
+        });
+      }
+    });
+
+    // Aggregerat för 6 veckor (Fas 1)
+    const qualified6W = allReached6W.filter(item => item.doingWork);
+    const validLosses6W = qualified6W.filter(item => item.loss !== null) as { loss: number; name: string }[];
+    const averageWeightLoss6W = validLosses6W.length > 0
+      ? validLosses6W.reduce((sum, item) => sum + item.loss, 0) / validLosses6W.length
+      : 0;
+
+    let bestLoss6W = 0;
+    let bestName6W = '—';
+    if (validLosses6W.length > 0) {
+      const sortedByLoss6W = [...validLosses6W].sort((a, b) => b.loss - a.loss);
+      if (sortedByLoss6W[0].loss > 0) {
+        bestLoss6W = sortedByLoss6W[0].loss;
+        bestName6W = sortedByLoss6W[0].name;
+      }
+    }
+
+    // Aggregerat för 12 veckor (Hela bootcampet)
+    const qualified12W = allReached12W.filter(item => item.doingWork);
+    const validLosses12W = qualified12W.filter(item => item.loss !== null) as { loss: number; name: string }[];
+    const averageWeightLoss12W = validLosses12W.length > 0
+      ? validLosses12W.reduce((sum, item) => sum + item.loss, 0) / validLosses12W.length
+      : 0;
+
+    let bestLoss12W = 0;
+    let bestName12W = '—';
+    if (validLosses12W.length > 0) {
+      const sortedByLoss12W = [...validLosses12W].sort((a, b) => b.loss - a.loss);
+      if (sortedByLoss12W[0].loss > 0) {
+        bestLoss12W = sortedByLoss12W[0].loss;
+        bestName12W = sortedByLoss12W[0].name;
+      }
+    }
+
+    return {
+      result6W: {
+        allReached: allReached6W,
+        reachedCount: allReached6W.length,
+        qualifiedCount: qualified6W.length,
+        averageWeightLoss: averageWeightLoss6W,
+        bestLoss: bestLoss6W,
+        bestName: bestName6W
+      },
+      result12W: {
+        allReached: allReached12W,
+        reachedCount: allReached12W.length,
+        qualifiedCount: qualified12W.length,
+        averageWeightLoss: averageWeightLoss12W,
+        bestLoss: bestLoss12W,
+        bestName: bestName12W
+      }
+    };
+  };
+
   const fetchSummaryStats = async () => {
     setLoadingSummary(true);
     try {
@@ -239,21 +402,6 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
     });
   };
 
-  const allCohorts = [
-    {
-      id: 'solo',
-      name: 'Solo-trupp',
-      inviteCode: 'N/A',
-      startDate: 'Löpande',
-      status: 'active' as const,
-      isPublic: true,
-      chatGroupId: 'solo_chat',
-      createdBy: 'system',
-      createdAt: Date.now()
-    },
-    ...cohorts
-  ];
-
   if (selectedCohortId) {
     const cohort = allCohorts.find(c => c.id === selectedCohortId);
     if (!cohort) return null;
@@ -271,13 +419,13 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         </button>
 
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
-          <div className="flex justify-between items-start mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
               <h2 className="text-2xl font-bold text-neutral-dark flex items-center gap-2">
                 <TrophyIcon className="w-6 h-6 text-primary" />
                 {cohort.name}
               </h2>
-              <div className="flex items-center gap-4 mt-2 text-sm text-neutral-500">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-neutral-500">
                 {(!cohort.isPublic && cohort.id !== 'solo') && (
                   <span className="flex items-center gap-1"><KeyIcon className="w-4 h-4" /> Kod: {cohort.inviteCode}</span>
                 )}
@@ -285,7 +433,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                 <span className="flex items-center gap-1"><UsersIcon className="w-4 h-4" /> {cohortParticipants.length} deltagare</span>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+            <span className={`px-3 py-1 rounded-full text-sm font-bold self-start sm:self-auto ${
               cohort.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
               cohort.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
               'bg-gray-100 text-gray-700'
@@ -539,30 +687,30 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex gap-2">
-          <div className="flex bg-neutral-100 p-1 rounded-xl">
+      <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full justify-between">
+          <div className="flex bg-neutral-100 p-1 rounded-xl overflow-x-auto max-w-full scrollbar-none snap-x whitespace-nowrap">
             <button
               onClick={() => setActiveTab('cohorts')}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'cohorts' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold text-xs sm:text-sm transition-colors snap-start ${activeTab === 'cohorts' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
             >
               Trupper
             </button>
             <button
               onClick={() => setActiveTab('participants')}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'participants' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold text-xs sm:text-sm transition-colors snap-start ${activeTab === 'participants' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
             >
               Deltagare
             </button>
             <button
               onClick={() => setActiveTab('library')}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'library' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold text-xs sm:text-sm transition-colors snap-start ${activeTab === 'library' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
             >
               Schema
             </button>
             <button
               onClick={() => setActiveTab('summary')}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'summary' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold text-xs sm:text-sm transition-colors snap-start ${activeTab === 'summary' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
             >
               Sammanställning
             </button>
@@ -570,9 +718,9 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
           {activeTab === 'cohorts' && (
             <button
               onClick={() => setIsCreating(true)}
-              className="bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-dark transition-colors flex items-center gap-2"
+              className="bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-dark transition-colors flex items-center justify-center gap-2 text-sm whitespace-nowrap self-stretch sm:self-auto"
             >
-              <PlusIcon className="w-5 h-5" />
+              <PlusIcon className="w-5 h-5 flex-shrink-0" />
               Skapa Ny Trupp
             </button>
           )}
