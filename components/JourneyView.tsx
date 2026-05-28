@@ -452,6 +452,51 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                 )}
                             </div>
 
+                            {goalProgress >= 100 && !userProfile.mainGoalCompleted && (
+                                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-5 rounded-2xl border border-emerald-200 dark:border-emerald-800 shadow-sm animate-fade-in">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center text-xl shrink-0">
+                                            🎉
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="font-extrabold text-emerald-800 dark:text-emerald-400 text-base">
+                                                Du har nått ditt mål i förväg!
+                                            </h4>
+                                            <p className="text-sm text-neutral-dark dark:text-neutral-200 mt-1 leading-relaxed">
+                                                Enastående disciplin! Eftersom du deltar i ett pågående bootcamp kan du nu välja hur du vill spendera resten av tiden:
+                                            </p>
+                                            
+                                            <div className="mt-4 flex flex-col md:flex-row gap-2.5">
+                                                <button
+                                                    onClick={async () => {
+                                                        playAudio('uiClick');
+                                                        const updatedProfile = { 
+                                                            ...userProfile, 
+                                                            mainGoalCompleted: true 
+                                                        };
+                                                        await onSaveProfileAndGoals(updatedProfile, goals);
+                                                        setToastNotification({ message: 'Framgången registrerad! Fortsätt på samma resa bootcampen ut.', type: 'success' });
+                                                    }}
+                                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-xl text-xs sm:text-sm shadow-sm transition-all active:scale-95 text-center"
+                                                >
+                                                    Fortsätt som vanligt
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        playAudio('uiClick');
+                                                        setIsProfileEditing(true);
+                                                        setIsFullGoalEdit(true);
+                                                    }}
+                                                    className="flex-1 bg-white hover:bg-neutral-50 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-bold py-2.5 px-3 rounded-xl text-xs sm:text-sm shadow-xs transition-all active:scale-95 text-center"
+                                                >
+                                                    Sätt nytt mål / Bibehålla
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <GoalTimeline 
                                 milestones={timeline.milestones} 
                                 paceFeedback={timeline.paceFeedback} 
@@ -549,23 +594,39 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             onClick={() => setShowResetConfirmModal(false)}
         >
             <div className="bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
-                {activeBootcamp ? (
+                {activeBootcamp && !userProfile.mainGoalCompleted && goalProgress < 100 ? (
                     <>
                         <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center">
                             <img src={COACH_PERSONAS['hard'].imageUrl} alt="General Börje" className="w-8 h-8 rounded-full object-cover mr-2 border border-primary" />
                             General Börje
                         </h3>
-                        <p className="text-neutral mb-6">
+                        <p className="text-neutral mb-6 text-sm leading-relaxed">
                             Ditt mål är låst under pågående bootcamp, soldat! Fokusera på att slutföra uppdraget innan du sätter nya mål.
                         </p>
                         <div className="flex justify-end">
                             <button onClick={() => setShowResetConfirmModal(false)} className="w-full px-5 py-2.5 text-white bg-primary hover:bg-primary-darker rounded-xl active:scale-95 interactive-transition font-medium">Uppfattat!</button>
                         </div>
                     </>
+                ) : activeBootcamp && (userProfile.mainGoalCompleted || goalProgress >= 100) ? (
+                    <>
+                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center">
+                            <img src={COACH_PERSONAS['hard'].imageUrl} alt="General Börje" className="w-8 h-8 rounded-full object-cover mr-2 border border-primary" />
+                            General Börje
+                        </h3>
+                        <p className="text-neutral mb-6 text-sm leading-relaxed">
+                            Enastående insats, soldat! Du har slutfört ditt primära uppdrag och krossat ditt mål i förväg.
+                            <br /><br />
+                            Jag godkänner härmed att du väljer ett nytt mål (t.ex. att bibehålla vikten eller sikta på en ny fett/muskel-nivå) för resten av bootcampen för maximal utväxling. Är du redo att sätta nytt delmål?
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button onClick={() => setShowResetConfirmModal(false)} className="px-5 py-2.5 text-neutral-dark dark:text-neutral-light bg-neutral-light hover:bg-gray-300 rounded-xl active:scale-95 transition-all font-medium">Avbryt</button>
+                            <button onClick={handleStartNewGoal} className="px-5 py-2.5 text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl active:scale-95 transition-all font-medium">Ja, nytt uppdrag!</button>
+                        </div>
+                    </>
                 ) : (
                     <>
                         <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Sätta ett nytt mål?</h3>
-                        <p className="text-neutral mb-6">
+                        <p className="text-neutral mb-6 text-sm leading-relaxed">
                             Detta kommer att markera ditt nuvarande mål som slutfört och låter dig ställa in ett nytt. Vill du fortsätta?
                         </p>
                         <div className="flex justify-end space-x-3">
