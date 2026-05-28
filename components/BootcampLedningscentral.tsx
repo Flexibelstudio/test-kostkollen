@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '@firebase/auth';
-import { UserProfileData, BootcampCohort, CoachViewMember, BootcampParticipant } from '../types';
+import { UserProfileData, BootcampCohort, CoachViewMember, BootcampParticipant, WeightLogEntry, EveningReport } from '../types';
 import { subscribeToCohorts, createCohort, subscribeToAllBootcampParticipants, updateCohort, deleteCohort } from '../services/bootcampService';
 import { createChat } from '../services/chatService';
 import { TrophyIcon, UsersIcon, PlusIcon, XMarkIcon, CalendarIcon, KeyIcon, FireIcon, CheckIcon, ArrowLeftIcon } from './icons';
@@ -8,8 +8,7 @@ import BootcampFeed from './BootcampFeed';
 import CoachStudioView from './CoachStudioView';
 import { subscribeToUserEveningReports } from '../services/bootcampService';
 import { createUserPost } from '../services/firestoreService';
-import { EveningReport } from '../types';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface BootcampLedningscentralProps {
@@ -48,8 +47,239 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
   const [editCohortIsPublic, setEditCohortIsPublic] = useState(false);
   const [cohortToDelete, setCohortToDelete] = useState<BootcampCohort | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'cohorts' | 'participants' | 'library'>('cohorts');
+  const [activeTab, setActiveTab] = useState<'cohorts' | 'participants' | 'library' | 'summary'>('cohorts');
   const [sortConfig, setSortConfig] = useState<{ key: keyof BootcampParticipant | 'name' | 'cohortName'; direction: 'asc' | 'desc' }>({ key: 'currentStreak', direction: 'desc' });
+
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryData, setSummaryData] = useState<any[]>([]);
+  const [minGreenDaysPct, setMinGreenDaysPct] = useState(75);
+  const [minWeights6W, setMinWeights6W] = useState(5);
+  const [minWeights12W, setMinWeights12W] = useState(10);
+
+  const allCohorts = [
+    {
+      id: 'solo',
+      name: 'Solo-trupp',
+      inviteCode: 'N/A',
+      startDate: 'Löpande',
+      status: 'active' as const,
+      isPublic: true,
+      chatGroupId: 'solo_chat',
+      createdBy: 'system',
+      createdAt: Date.now()
+    },
+    ...cohorts
+  ];
+
+  const getProcessedStats = () => {
+    const nowMs = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    const allReached6W: any[] = [];
+    const allReached12W: any[] = [];
+
+    summaryData.forEach((item) => {
+      const startDateStr = item.startDate;
+      if (!startDateStr) return;
+      const startMs = new Date(startDateStr).getTime();
+      const daysActive = Math.floor((nowMs - startMs) / oneDayMs);
+
+      // --- 6 WEEKS PROCESS (FAS 1) ---
+      if (daysActive >= 41) {
+        const border6W = startMs + 43 * oneDayMs; // Upp till dag 43 för att fånga upp hela 6:e veckan
+        
+        // Loggar inom de första 6 veckorna
+        const logs6W = item.weightLogs.filter((l: any) => l.loggedAt >= startMs - 12 * 60 * 60 * 1000 && l.loggedAt <= border6W);
+        const reports6W = item.eveningReports.filter((r: any) => {
+          const repMs = new Date(r.date).getTime();
+          return repMs >= startMs - 12 * 60 * 60 * 1000 && repMs <= border6W;
+        });
+
+        const totalReports = reports6W.length;
+        const greenCount = reports6W.filter((r: any) => r.isGreenDay).length;
+        const greenPercent = totalReports > 0 ? Math.round((greenCount / totalReports) * 100) : 0;
+        const logsCount = logs6W.length;
+
+        const doingWork = greenPercent >= minGreenDaysPct && logsCount >= minWeights6W;
+
+        // Viktförändring från första till sista under vecka 1-6
+        let loss: number | null = null;
+        if (logs6W.length >= 2) {
+          const earliestLog = logs6W[0];
+          const latestLog = logs6W[logs6W.length - 1];
+          loss = earliestLog.weightKg - latestLog.weightKg;
+        }
+
+        allReached6W.push({
+          name: item.name,
+          email: item.email,
+          cohortName: item.cohortName,
+          logsCount,
+          greenPercent,
+          greenCount,
+          totalReports,
+          loss,
+          doingWork,
+          raw: item
+        });
+      }
+
+      // --- 12 WEEKS PROCESS (HELA BOOTCAMP) ---
+      if (daysActive >= 83) {
+        const border12W = startMs + 85 * oneDayMs; // Upp till dag 85 för hela bootcampet
+
+        // Loggar inom de första 12 veckorna
+        const logs12W = item.weightLogs.filter((l: any) => l.loggedAt >= startMs - 12 * 60 * 60 * 1000 && l.loggedAt <= border12W);
+        const reports12W = item.eveningReports.filter((r: any) => {
+          const repMs = new Date(r.date).getTime();
+          return repMs >= startMs - 12 * 60 * 60 * 1000 && repMs <= border12W;
+        });
+
+        const totalReports = reports12W.length;
+        const greenCount = reports12W.filter((r: any) => r.isGreenDay).length;
+        const greenPercent = totalReports > 0 ? Math.round((greenCount / totalReports) * 100) : 0;
+        const logsCount = logs12W.length;
+
+        const doingWork = greenPercent >= minGreenDaysPct && logsCount >= minWeights12W;
+
+        // Viktförändring under hela 12 veckorna
+        let loss: number | null = null;
+        if (logs12W.length >= 2) {
+          const earliestLog = logs12W[0];
+          const latestLog = logs12W[logs12W.length - 1];
+          loss = earliestLog.weightKg - latestLog.weightKg;
+        }
+
+        allReached12W.push({
+          name: item.name,
+          email: item.email,
+          cohortName: item.cohortName,
+          logsCount,
+          greenPercent,
+          greenCount,
+          totalReports,
+          loss,
+          doingWork,
+          raw: item
+        });
+      }
+    });
+
+    // Aggregerat för 6 veckor (Fas 1)
+    const qualified6W = allReached6W.filter(item => item.doingWork);
+    const validLosses6W = qualified6W.filter(item => item.loss !== null) as { loss: number; name: string }[];
+    const averageWeightLoss6W = validLosses6W.length > 0
+      ? validLosses6W.reduce((sum, item) => sum + item.loss, 0) / validLosses6W.length
+      : 0;
+
+    let bestLoss6W = 0;
+    let bestName6W = '—';
+    if (validLosses6W.length > 0) {
+      const sortedByLoss6W = [...validLosses6W].sort((a, b) => b.loss - a.loss);
+      if (sortedByLoss6W[0].loss > 0) {
+        bestLoss6W = sortedByLoss6W[0].loss;
+        bestName6W = sortedByLoss6W[0].name;
+      }
+    }
+
+    // Aggregerat för 12 veckor (Hela bootcampet)
+    const qualified12W = allReached12W.filter(item => item.doingWork);
+    const validLosses12W = qualified12W.filter(item => item.loss !== null) as { loss: number; name: string }[];
+    const averageWeightLoss12W = validLosses12W.length > 0
+      ? validLosses12W.reduce((sum, item) => sum + item.loss, 0) / validLosses12W.length
+      : 0;
+
+    let bestLoss12W = 0;
+    let bestName12W = '—';
+    if (validLosses12W.length > 0) {
+      const sortedByLoss12W = [...validLosses12W].sort((a, b) => b.loss - a.loss);
+      if (sortedByLoss12W[0].loss > 0) {
+        bestLoss12W = sortedByLoss12W[0].loss;
+        bestName12W = sortedByLoss12W[0].name;
+      }
+    }
+
+    return {
+      result6W: {
+        allReached: allReached6W,
+        reachedCount: allReached6W.length,
+        qualifiedCount: qualified6W.length,
+        averageWeightLoss: averageWeightLoss6W,
+        bestLoss: bestLoss6W,
+        bestName: bestName6W
+      },
+      result12W: {
+        allReached: allReached12W,
+        reachedCount: allReached12W.length,
+        qualifiedCount: qualified12W.length,
+        averageWeightLoss: averageWeightLoss12W,
+        bestLoss: bestLoss12W,
+        bestName: bestName12W
+      }
+    };
+  };
+
+  const fetchSummaryStats = async () => {
+    setLoadingSummary(true);
+    try {
+      const dataPromises = participants.map(async (p) => {
+        const member = membersList.find(m => m.id === p.userId);
+        const cohort = allCohorts.find(c => c.id === p.cohortId);
+        const cohortName = cohort ? cohort.name : (p.cohortId === 'solo' ? 'Solo-trupp' : 'Okänd');
+        
+        // 1. Fetch weight logs
+        const weightLogsRef = collection(db, 'users', p.userId, 'weightLogs');
+        const weightSnap = await getDocs(weightLogsRef);
+        const weightLogsTmp = weightSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as WeightLogEntry);
+        // Sort ascending by loggedAt
+        weightLogsTmp.sort((a, b) => a.loggedAt - b.loggedAt);
+
+        // 2. Fetch evening reports
+        const eveningReportsRef = collection(db, 'bootcampCohorts', p.cohortId, 'participants', p.userId, 'eveningReports');
+        const reportsSnap = await getDocs(eveningReportsRef);
+        const reportsTmp = reportsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as EveningReport);
+        // Sort by date YYYY-MM-DD
+        reportsTmp.sort((a, b) => a.date.localeCompare(b.date));
+
+        const startDateStr = p.originalStartDate || p.fas1StartDate;
+        if (!startDateStr) {
+          return null;
+        }
+
+        const startMs = new Date(startDateStr).getTime();
+        const daysActive = Math.floor((Date.now() - startMs) / (1000 * 60 * 60 * 24));
+
+        return {
+          userId: p.userId,
+          name: member?.name || 'Okänd',
+          email: member?.email || '',
+          cohortName,
+          status: p.status,
+          startDate: startDateStr,
+          daysActive,
+          weightLogs: weightLogsTmp,
+          eveningReports: reportsTmp,
+          participantObj: p,
+          memberObj: member
+        };
+      });
+
+      const resolved = await Promise.all(dataPromises);
+      const filtered = resolved.filter((r): r is any => r !== null);
+      setSummaryData(filtered);
+    } catch (error) {
+      console.error("Kunde inte hämta sammanställningsdata:", error);
+      setToastNotification({ message: 'Ett fel uppstod vid hämtning av statistik', type: 'error' });
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'summary' && summaryData.length === 0 && participants.length > 0) {
+      fetchSummaryStats();
+    }
+  }, [activeTab, participants]);
 
   useEffect(() => {
     const unsubscribeCohorts = subscribeToCohorts((data) => {
@@ -172,21 +402,6 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
     });
   };
 
-  const allCohorts = [
-    {
-      id: 'solo',
-      name: 'Solo-trupp',
-      inviteCode: 'N/A',
-      startDate: 'Löpande',
-      status: 'active' as const,
-      isPublic: true,
-      chatGroupId: 'solo_chat',
-      createdBy: 'system',
-      createdAt: Date.now()
-    },
-    ...cohorts
-  ];
-
   if (selectedCohortId) {
     const cohort = allCohorts.find(c => c.id === selectedCohortId);
     if (!cohort) return null;
@@ -204,13 +419,13 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         </button>
 
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
-          <div className="flex justify-between items-start mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
               <h2 className="text-2xl font-bold text-neutral-dark flex items-center gap-2">
                 <TrophyIcon className="w-6 h-6 text-primary" />
                 {cohort.name}
               </h2>
-              <div className="flex items-center gap-4 mt-2 text-sm text-neutral-500">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-neutral-500">
                 {(!cohort.isPublic && cohort.id !== 'solo') && (
                   <span className="flex items-center gap-1"><KeyIcon className="w-4 h-4" /> Kod: {cohort.inviteCode}</span>
                 )}
@@ -218,7 +433,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                 <span className="flex items-center gap-1"><UsersIcon className="w-4 h-4" /> {cohortParticipants.length} deltagare</span>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+            <span className={`px-3 py-1 rounded-full text-sm font-bold self-start sm:self-auto ${
               cohort.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
               cohort.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
               'bg-gray-100 text-gray-700'
@@ -472,34 +687,40 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex gap-2">
-          <div className="flex bg-neutral-100 p-1 rounded-xl">
+      <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full justify-between">
+          <div className="flex bg-neutral-100 p-1 rounded-xl overflow-x-auto max-w-full scrollbar-none snap-x whitespace-nowrap">
             <button
               onClick={() => setActiveTab('cohorts')}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'cohorts' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold text-xs sm:text-sm transition-colors snap-start ${activeTab === 'cohorts' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
             >
               Trupper
             </button>
             <button
               onClick={() => setActiveTab('participants')}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'participants' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold text-xs sm:text-sm transition-colors snap-start ${activeTab === 'participants' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
             >
               Deltagare
             </button>
             <button
               onClick={() => setActiveTab('library')}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'library' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold text-xs sm:text-sm transition-colors snap-start ${activeTab === 'library' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
             >
               Schema
+            </button>
+            <button
+              onClick={() => setActiveTab('summary')}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold text-xs sm:text-sm transition-colors snap-start ${activeTab === 'summary' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Sammanställning
             </button>
           </div>
           {activeTab === 'cohorts' && (
             <button
               onClick={() => setIsCreating(true)}
-              className="bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-dark transition-colors flex items-center gap-2"
+              className="bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-dark transition-colors flex items-center justify-center gap-2 text-sm whitespace-nowrap self-stretch sm:self-auto"
             >
-              <PlusIcon className="w-5 h-5" />
+              <PlusIcon className="w-5 h-5 flex-shrink-0" />
               Skapa Ny Trupp
             </button>
           )}
@@ -764,6 +985,332 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
             setToastNotification={setToastNotification}
             currentUser={currentUser}
         />
+      )}
+
+      {activeTab === 'summary' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Filter / Inställningar för "Göra jobbet" */}
+          <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-neutral-dark flex items-center gap-2">
+                  <TrophyIcon className="w-5 h-5 text-primary" />
+                  Kriterier för "Att göra jobbet"
+                </h3>
+                <p className="text-sm text-neutral-500 mt-1">
+                  Ställ in kraven för engagemang. Endast deltagare som uppfyller dessa krav räknas med i statistiken.
+                </p>
+              </div>
+              <button
+                onClick={fetchSummaryStats}
+                disabled={loadingSummary}
+                className="px-4 py-2 text-sm font-bold text-primary bg-primary-50 rounded-xl hover:bg-primary-100 transition-colors disabled:opacity-50 self-start md:self-auto"
+              >
+                {loadingSummary ? 'Uppdaterar...' : 'Uppdatera data'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-neutral-100">
+              {/* Slider 1: Green days limit */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm font-bold text-neutral-dark">
+                  <span>Krav på gröna dagar:</span>
+                  <span className="text-primary">{minGreenDaysPct}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={minGreenDaysPct}
+                  onChange={(e) => setMinGreenDaysPct(Number(e.target.value))}
+                  className="w-full accent-primary bg-neutral-100 h-2 rounded-lg cursor-pointer"
+                />
+                <p className="text-[11px] text-neutral-500">Andel av kvällsrapporterna som måste vara "Grön dag".</p>
+              </div>
+
+              {/* Slider 2: Weight logs 6W */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm font-bold text-neutral-dark">
+                  <span>Mätningar (6 veckor):</span>
+                  <span className="text-primary">Minst {minWeights6W} st</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="15"
+                  step="1"
+                  value={minWeights6W}
+                  onChange={(e) => setMinWeights6W(Number(e.target.value))}
+                  className="w-full accent-primary bg-neutral-100 h-2 rounded-lg cursor-pointer"
+                />
+                <p className="text-[11px] text-neutral-500">Antal invägningar under de första 6 veckorna (motsvarar varje vecka).</p>
+              </div>
+
+              {/* Slider 3: Weight logs 12W */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm font-bold text-neutral-dark">
+                  <span>Mätningar (12 veckor):</span>
+                  <span className="text-primary">Minst {minWeights12W} st</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="25"
+                  step="1"
+                  value={minWeights12W}
+                  onChange={(e) => setMinWeights12W(Number(e.target.value))}
+                  className="w-full accent-primary bg-neutral-100 h-2 rounded-lg cursor-pointer"
+                />
+                <p className="text-[11px] text-neutral-500">Antal invägningar under de 12 veckorna.</p>
+              </div>
+            </div>
+          </div>
+
+          {loadingSummary ? (
+            <div className="bg-white p-12 rounded-3xl shadow-soft-xl border border-neutral-light text-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-neutral-600">Laddar sammanställning... Hämtar loggdata och kvällsrapporter för samtliga dugliga deltagare...</p>
+            </div>
+          ) : (
+            (() => {
+              const { result6W, result12W } = getProcessedStats();
+
+              return (
+                <div className="space-y-8 animate-fade-in">
+                  {/* Vecka 6 Aggregerade Resultat */}
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-bold text-neutral-dark flex items-center gap-2">
+                      <CheckIcon className="w-5 h-5 text-emerald-500" />
+                      Efter 6 veckor (Fas 1)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+                        <div className="text-sm font-bold text-neutral-500 uppercase tracking-wider mb-1">Gör jobbet (Kvalificerade)</div>
+                        <div className="text-3xl font-extrabold text-neutral-dark">
+                          {result6W.qualifiedCount} <span className="text-lg font-bold text-neutral-400">av {result6W.reachedCount}</span>
+                        </div>
+                        <p className="text-xs text-neutral-500 mt-2">Deltagare som nått 6 veckor och uppfyller engagemangskraven.</p>
+                      </div>
+
+                      <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+                        <div className="text-sm font-bold text-neutral-500 uppercase tracking-wider mb-1">Snitt-viktnedgång</div>
+                        <div className="text-3xl font-extrabold text-emerald-600">
+                          {result6W.qualifiedCount > 0 ? `-${result6W.averageWeightLoss.toFixed(1).replace('.', ',')} kg` : '—'}
+                        </div>
+                        <p className="text-xs text-neutral-500 mt-2">Genomsnittlig viktminskning för de som gör jobbet.</p>
+                      </div>
+
+                      <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+                        <div className="text-sm font-bold text-neutral-500 uppercase tracking-wider mb-1">Mest viktnedgång</div>
+                        <div className="text-3xl font-extrabold text-primary">
+                          {result6W.bestLoss > 0 ? `-${result6W.bestLoss.toFixed(1).replace('.', ',')} kg` : '—'}
+                        </div>
+                        <p className="text-xs text-neutral-600 mt-2 font-medium">
+                          {result6W.bestLoss > 0 ? `Innehas av: ${result6W.bestName}` : 'Ingen registrerad viktminskning ännu.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vecka 12 Aggregerade Resultat */}
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-bold text-neutral-dark flex items-center gap-2">
+                      <TrophyIcon className="w-5 h-5 text-amber-500" />
+                      Efter 12 veckor (Hela Bootcampet)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+                        <div className="text-sm font-bold text-neutral-500 uppercase tracking-wider mb-1">Gör jobbet (Kvalificerade)</div>
+                        <div className="text-3xl font-extrabold text-neutral-dark">
+                          {result12W.qualifiedCount} <span className="text-lg font-bold text-neutral-400">av {result12W.reachedCount}</span>
+                        </div>
+                        <p className="text-xs text-neutral-500 mt-2">Deltagare som fullföljt 12 veckor och gjort jobbet.</p>
+                      </div>
+
+                      <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+                        <div className="text-sm font-bold text-neutral-500 uppercase tracking-wider mb-1">Snitt-viktnedgång</div>
+                        <div className="text-3xl font-extrabold text-emerald-600">
+                          {result12W.qualifiedCount > 0 ? `-${result12W.averageWeightLoss.toFixed(1).replace('.', ',')} kg` : '—'}
+                        </div>
+                        <p className="text-xs text-neutral-500 mt-2">Genomsnittlig viktminskning för de som fullföljt och gjort jobbet.</p>
+                      </div>
+
+                      <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
+                        <div className="text-sm font-bold text-neutral-500 uppercase tracking-wider mb-1">Mest viktnedgång</div>
+                        <div className="text-3xl font-extrabold text-primary">
+                          {result12W.bestLoss > 0 ? `-${result12W.bestLoss.toFixed(1).replace('.', ',')} kg` : '—'}
+                        </div>
+                        <p className="text-xs text-neutral-600 mt-2 font-medium">
+                          {result12W.bestLoss > 0 ? `Innehas av: ${result12W.bestName}` : 'Ingen registrerad viktminskning ännu.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detaljlistor */}
+                  <div className="grid grid-cols-1 gap-6">
+                    {/* 6 Veckor Deltagarlista */}
+                    <div className="bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden">
+                      <div className="bg-neutral-50 p-4 border-b border-neutral-light">
+                        <h4 className="font-bold text-neutral-dark flex justify-between items-center text-sm md:text-base">
+                          <span>Deltagare vid 6 veckor ({result6W.allReached.length} st påbörjat v.6+)</span>
+                        </h4>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs md:text-sm">
+                          <thead>
+                            <tr className="bg-neutral-50/50 border-b border-neutral-light text-[11px] text-neutral-500 uppercase tracking-wider">
+                              <th className="p-3 font-bold">Namn</th>
+                              <th className="p-3 font-bold">Trupp</th>
+                              <th className="p-3 font-bold">Invägningar (v1-v6)</th>
+                              <th className="p-3 font-bold">Gröna Dagar %</th>
+                              <th className="p-3 font-bold">Viktförändring</th>
+                              <th className="p-3 font-bold">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-light">
+                            {result6W.allReached.map((item, idx) => (
+                              <tr 
+                                key={idx} 
+                                className="hover:bg-neutral-50 transition-colors cursor-pointer"
+                                onClick={() => setSelectedParticipant(item.raw.participantObj)}
+                              >
+                                <td className="p-3">
+                                  <div className="font-bold text-neutral-dark">{item.name}</div>
+                                  <div className="text-[11px] text-neutral-500">{item.email}</div>
+                                </td>
+                                <td className="p-3 text-neutral-600">{item.cohortName}</td>
+                                <td className="p-3 text-neutral-600 font-semibold">
+                                  <span className={item.logsCount >= minWeights6W ? 'text-emerald-600' : 'text-amber-600'}>
+                                    {item.logsCount} st
+                                  </span>
+                                </td>
+                                <td className="p-3 font-semibold text-neutral-600">
+                                  <span className={item.greenPercent >= minGreenDaysPct ? 'text-emerald-600' : 'text-amber-600'}>
+                                    {item.greenPercent}%
+                                  </span>{' '}
+                                  <span className="text-[10px] text-neutral-400 font-normal">
+                                    ({item.greenCount}/{item.totalReports})
+                                  </span>
+                                </td>
+                                <td className="p-3 font-bold text-neutral-dark">
+                                  {item.loss !== null ? (
+                                    <span className={item.loss > 0 ? "text-emerald-600" : "text-neutral-500"}>
+                                      {item.loss > 0 ? `-${item.loss.toFixed(1).replace('.', ',')} kg` : `${Math.abs(item.loss).toFixed(1).replace('.', ',')} kg`}
+                                    </span>
+                                  ) : (
+                                    <span className="text-neutral-400 font-normal italic">Saknas logg</span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {item.doingWork ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                                      Gör Jobbet
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-500 whitespace-nowrap">
+                                      Ej tillräckligt engagemang
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                            {result6W.allReached.length === 0 && (
+                              <tr>
+                                <td colSpan={6} className="p-6 text-center text-neutral-500 text-sm italic">
+                                  Inga deltagare har nått 6 veckor ännu.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* 12 Veckor Deltagarlista */}
+                    <div className="bg-white rounded-3xl shadow-soft-xl border border-neutral-light overflow-hidden">
+                      <div className="bg-neutral-50 p-4 border-b border-neutral-light">
+                        <h4 className="font-bold text-neutral-dark flex justify-between items-center text-sm md:text-base">
+                          <span>Deltagare vid 12 veckor ({result12W.allReached.length} st påbörjat v.12+)</span>
+                        </h4>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs md:text-sm">
+                          <thead>
+                            <tr className="bg-neutral-50/50 border-b border-neutral-light text-[11px] text-neutral-500 uppercase tracking-wider">
+                              <th className="p-3 font-bold">Namn</th>
+                              <th className="p-3 font-bold">Trupp</th>
+                              <th className="p-3 font-bold">Invägningar (v1-v12)</th>
+                              <th className="p-3 font-bold">Gröna Dagar %</th>
+                              <th className="p-3 font-bold">Viktförändring</th>
+                              <th className="p-3 font-bold">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-light">
+                            {result12W.allReached.map((item, idx) => (
+                              <tr 
+                                key={idx} 
+                                className="hover:bg-neutral-50 transition-colors cursor-pointer"
+                                onClick={() => setSelectedParticipant(item.raw.participantObj)}
+                              >
+                                <td className="p-3">
+                                  <div className="font-bold text-neutral-dark">{item.name}</div>
+                                  <div className="text-[11px] text-neutral-500">{item.email}</div>
+                                </td>
+                                <td className="p-3 text-neutral-600">{item.cohortName}</td>
+                                <td className="p-3 text-neutral-600 font-semibold">
+                                  <span className={item.logsCount >= minWeights12W ? 'text-emerald-600' : 'text-amber-600'}>
+                                    {item.logsCount} st
+                                  </span>
+                                </td>
+                                <td className="p-3 font-semibold text-neutral-600">
+                                  <span className={item.greenPercent >= minGreenDaysPct ? 'text-emerald-600' : 'text-amber-600'}>
+                                    {item.greenPercent}%
+                                  </span>{' '}
+                                  <span className="text-[10px] text-neutral-400 font-normal">
+                                    ({item.greenCount}/{item.totalReports})
+                                  </span>
+                                </td>
+                                <td className="p-3 font-bold text-neutral-dark">
+                                  {item.loss !== null ? (
+                                    <span className={item.loss > 0 ? "text-emerald-600" : "text-neutral-500"}>
+                                      {item.loss > 0 ? `-${item.loss.toFixed(1).replace('.', ',')} kg` : `${Math.abs(item.loss).toFixed(1).replace('.', ',')} kg`}
+                                    </span>
+                                  ) : (
+                                    <span className="text-neutral-400 font-normal italic">Saknas logg</span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {item.doingWork ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                                      Gör Jobbet
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-500 whitespace-nowrap">
+                                      Ej tillräckligt engagemang
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                            {result12W.allReached.length === 0 && (
+                              <tr>
+                                <td colSpan={6} className="p-6 text-center text-neutral-500 text-sm italic">
+                                  Inga deltagare har nått 12 veckor ännu.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          )}
+        </div>
       )}
 
       {selectedParticipant && membersList.find(m => m.id === selectedParticipant.userId) && (

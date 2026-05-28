@@ -29,7 +29,7 @@ import {
     TrashIcon, CheckIcon, XMarkIcon, UserPlusIcon, SearchIcon, ArrowRightIcon,
     ShareIcon, PencilIcon, CameraIcon, SmileIcon, ChatBubbleOvalLeftEllipsisIcon
 } from './icons';
-import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon, Users as UsersIcon } from 'lucide-react';
+import { User as UserIcon, Dumbbell, PieChart, MoreHorizontal, Image as ImageIcon, Send, RefreshCw, PlusIcon, Users as UsersIcon, ThumbsUp } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { playAudio } from '../services/audioService';
 import { Avatar } from './UserProfileModal';
@@ -835,8 +835,8 @@ export const TimelineEventCard: FC<{
                                 className="flex items-center gap-1 cursor-pointer hover:opacity-85 active:scale-95 transition-transform"
                                 title={currentUserReactionEmoji ? `Du reagerade med ${currentUserReactionEmoji}. Klicka för att ta bort.` : "Gilla"}
                             >
-                                {/* Thumbs up or custom reaction emoji */}
-                                <span className="text-sm shrink-0">{currentUserReactionEmoji || '👍'}</span>
+                                {/* Fast grå tumme */}
+                                <ThumbsUp className="w-4 h-4 text-neutral-500 dark:text-neutral-400 shrink-0 mr-1" />
                                 
                                 {/* Top active reactions side-by-side inside the button */}
                                 {totalReactionsCount > 0 && (

@@ -5,7 +5,7 @@ import type { User } from '@firebase/auth';
 import { TimelineEvent, TimelineComment, BuddyDetails, UserProfileData } from '../types';
 import { Avatar } from './UserProfileModal';
 import { XMarkIcon, CameraIcon, CheckIcon, SmileIcon, TrashIcon, PlusIcon } from './icons';
-import { Users as UsersIcon, Image as ImageIcon, Send } from 'lucide-react';
+import { Users as UsersIcon, Image as ImageIcon, Send, ThumbsUp } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { playAudio } from '../services/audioService';
 
@@ -727,7 +727,7 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                         className={`flex items-center gap-1.5 text-[12.5px] font-bold hover:underline cursor-pointer transition-colors
                                                             ${userReactionEmoji ? 'text-primary dark:text-primary-light font-extrabold' : 'text-neutral-500 hover:text-neutral-800'}`}
                                                     >
-                                                        <span className="text-sm shrink-0">{userReactionEmoji || '👍'}</span>
+                                                        <ThumbsUp className="w-3.5 h-3.5 shrink-0 text-neutral-500 dark:text-neutral-400" />
                                                         <span>{userReactionEmoji ? 'Gillar' : 'Gilla'}</span>
                                                     </button>
 
