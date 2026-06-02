@@ -171,7 +171,7 @@ export const completeBootcampOnboarding = async (userId: string, cohortId: strin
   };
 
   // If solo, start the 12 weeks from today
-  if (cohortId === 'solo') {
+  if (cohortId === 'solo' || cohortId === 'solo_group') {
     const startDateStr = new Date().toISOString().split('T')[0];
     updates.fas1StartDate = startDateStr;
     updates.originalStartDate = startDateStr;

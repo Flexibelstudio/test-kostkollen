@@ -237,7 +237,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
         // 2. Fetch evening reports
         const eveningReportsRef = collection(db, 'bootcampCohorts', p.cohortId, 'participants', p.userId, 'eveningReports');
         const reportsSnap = await getDocs(eveningReportsRef);
-        const reportsTmp = reportsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as EveningReport);
+        const reportsTmp = reportsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as unknown as EveningReport);
         // Sort by date YYYY-MM-DD
         reportsTmp.sort((a, b) => a.date.localeCompare(b.date));
 
