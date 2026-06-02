@@ -230,7 +230,10 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       
       const isUsingInBody = data.skeletalMuscleMassKg != null || data.bodyFatMassKg != null;
       
-      const startDate = participant.originalStartDate ? new Date(participant.originalStartDate) : new Date();
+      let startDate = participant.originalStartDate ? new Date(participant.originalStartDate) : new Date();
+      if (participant.cohortId === 'solo' || participant.cohortId === 'solo_group') {
+        startDate = new Date();
+      }
       const targetDate = new Date(startDate);
       targetDate.setDate(targetDate.getDate() + 84); // 12 weeks
 
@@ -423,7 +426,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             <div className="text-left">
               <h1 className="text-2xl font-extrabold uppercase tracking-wider">Lägesrapport</h1>
               <p className="text-neutral-300 text-sm font-medium">
-                {participant.cohortId === 'solo' ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDTRÄNING' : 'FAS 2: ELIT'}
+                {(participant.cohortId === 'solo' || participant.cohortId === 'solo_group') ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDTRÄNING' : 'FAS 2: ELIT'}
               </p>
             </div>
           </div>
