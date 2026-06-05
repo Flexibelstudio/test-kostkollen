@@ -648,6 +648,33 @@ exports.scheduledNotificationChecker = functions.pubsub
           await sendNotificationToUser(userId, payload, "weighInReminder");
           await db.collection("users").doc(userId).update({lastWeighInReminderSent: todayDateString});
         }
+
+        // 6. Provperiod (kl 11) - påminnelse inför slut av gratisperioden
+        if (localHour === 11 && user.subscriptionStatus === 'trialing' && user.currentPeriodEnd && user.lastTrialReminderSent !== todayDateString) {
+          try {
+            const end = new Date(user.currentPeriodEnd);
+            const now = new Date();
+            const diffTime = end.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            // Dag 5 (ca 2-3 dagar kvar av gratisveckan)
+            if (diffDays >= 1 && diffDays <= 3 && user.status !== 'archived') {
+              const payload = {
+                notification: {
+                  title: "Din gratisvecka tar snart slut ⚡",
+                  body: "Se hur din första vecka gått och allt du hunnit uppnå 💪",
+                  icon: "/icons/icon-192x192.png",
+                  badge: "/icons/badge-96x96.png",
+                  data: { url: "/?showTrialRecap=true" }
+                }
+              };
+              await sendNotificationToUser(userId, payload, "trialReminder");
+              await db.collection("users").doc(userId).update({ lastTrialReminderSent: todayDateString });
+            }
+          } catch (trialErr) {
+            logger.error("Error processing trial reminder in scheduler for user " + userId, trialErr);
+          }
+        }
       }
       return null;
     });
@@ -1222,6 +1249,29 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
                 });
                 await batch.commit();
             }
+        }
+        else if (event.type === 'customer.subscription.trial_will_end') {
+             const subscription = event.data.object;
+             const usersSnapshot = await db.collection('users').where('subscriptionId', '==', subscription.id).get();
+             if (!usersSnapshot.empty) {
+                 const promises = usersSnapshot.docs.map(async (doc) => {
+                     const userData = doc.data();
+                     if (userData.subscriptionStatus !== 'canceled' && userData.subscriptionStatus !== 'canceling') {
+                         const payload = {
+                             notification: {
+                                 title: "Din gratisvecka tar snart slut ⚡",
+                                 body: "Se hur din första vecka gått och allt du hunnit uppnå 💪",
+                                 icon: "/icons/icon-192x192.png",
+                                 badge: "/icons/badge-96x96.png",
+                                 data: { url: "/?showTrialRecap=true" }
+                             }
+                         };
+                         await sendNotificationToUser(doc.id, payload, "trialReminder");
+                         await doc.ref.update({ lastTrialReminderSent: stockholmNow().dateString });
+                     }
+                 });
+                 await Promise.all(promises);
+             }
         }
     } catch (err) {
         logger.error("Error handling webhook event:", err);

@@ -816,13 +816,22 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
 
       const daysLeft = getTrialDaysLeftLocal(userProfile.currentPeriodEnd);
       const hasSeen = localStorage.getItem(`hasSeenTrialRecapDialog_${currentUser.uid}`);
+      const params = new URLSearchParams(window.location.search);
+      const forceOpen = params.get('showTrialRecap') === 'true';
 
       // Dag 5-7 motsvarar 1-3 dagar kvar.
-      if (daysLeft >= 1 && daysLeft <= 3 && hasSeen !== 'true') {
+      if ((forceOpen || (daysLeft >= 1 && daysLeft <= 3)) && (forceOpen || hasSeen !== 'true')) {
         try {
           const count = await fetchTotalMealsCount(currentUser.uid);
           setTotalMealsCount(count);
           setShowTrialRecapModal(true);
+
+          if (forceOpen) {
+            // Städa bort parametern så den inte poppar upp igen efter stängning
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('showTrialRecap');
+            window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
+          }
         } catch (err) {
           console.error("Error reading trial meals statistics:", err);
         }
