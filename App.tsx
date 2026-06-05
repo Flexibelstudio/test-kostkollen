@@ -38,7 +38,7 @@ import {
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   listenForFriendRequests,
   fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate, listenToCommunityTimeline,
-  setPastDaySummary, savePushSubscription, unlockAchievement
+  setPastDaySummary, savePushSubscription, unlockAchievement, fetchTotalMealsCount
 } from './services/firestoreService.ts';
 
 import { subscribeToUserChats } from './services/chatService.ts';
@@ -71,6 +71,7 @@ import WaterSplashEffect from './components/WaterSplashEffect';
 import MorningReportModal from './components/MorningReportModal.tsx';
 import GamificationModal from './components/GamificationModal.tsx';
 import SubscriptionModal from './components/SubscriptionModal.tsx';
+import { TrialRecapModal } from './components/TrialRecapModal.tsx';
 import { BootcampFinaleModal } from './components/BootcampFinaleModal.tsx';
 
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -355,6 +356,8 @@ export const App = () => {
   const [isProfileModalOnboarding, setIsProfileModalOnboarding] = useState(false);
   const [showGamificationModal, setShowGamificationModal] = useState(false); 
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showTrialRecapModal, setShowTrialRecapModal] = useState(false);
+  const [totalMealsCount, setTotalMealsCount] = useState<number>(0);
 
   const [journeyInitialTab, setJourneyInitialTab] = useState<'calendar' | 'profile' | 'achievements'>('calendar');
 
@@ -798,6 +801,36 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         } catch (error) {}
     }
   }, [isInitialDataLoaded, currentUser]);
+
+  // Trial countdown dialog loader (Dag 5-7 av provperioden, d.v.s. 1 till 3 dagar kvar)
+  useEffect(() => {
+    const checkAndLoadTrialRecap = async () => {
+      if (!currentUser || !isInitialDataLoaded || userProfile.subscriptionStatus !== 'trialing' || !userProfile.currentPeriodEnd) return;
+      
+      const getTrialDaysLeftLocal = (endStr: string) => {
+        const end = new Date(endStr);
+        const now = new Date();
+        const diffTime = end.getTime() - now.getTime();
+        return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      };
+
+      const daysLeft = getTrialDaysLeftLocal(userProfile.currentPeriodEnd);
+      const hasSeen = localStorage.getItem(`hasSeenTrialRecapDialog_${currentUser.uid}`);
+
+      // Dag 5-7 motsvarar 1-3 dagar kvar.
+      if (daysLeft >= 1 && daysLeft <= 3 && hasSeen !== 'true') {
+        try {
+          const count = await fetchTotalMealsCount(currentUser.uid);
+          setTotalMealsCount(count);
+          setShowTrialRecapModal(true);
+        } catch (err) {
+          console.error("Error reading trial meals statistics:", err);
+        }
+      }
+    };
+
+    checkAndLoadTrialRecap();
+  }, [isInitialDataLoaded, currentUser, userProfile.subscriptionStatus, userProfile.currentPeriodEnd]);
 
   useEffect(() => {
       if (currentUser) {
@@ -2059,6 +2092,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                     setInitialPostText(recipeText);
                     setViewMode('community');
                 }}
+                onOpenSubscription={() => setShowSubscriptionModal(true)}
             />
          )}
          {viewMode === 'journey' && (
@@ -2218,6 +2252,22 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 onUndoCancelSuccess={() => {
                     setUserProfile(prev => ({ ...prev, subscriptionStatus: 'active' }));
                 }}
+            />
+        )}
+        {showTrialRecapModal && currentUser && (
+            <TrialRecapModal 
+                show={showTrialRecapModal}
+                onClose={() => {
+                    setShowTrialRecapModal(false);
+                    localStorage.setItem(`hasSeenTrialRecapDialog_${currentUser.uid}`, 'true');
+                }}
+                userName={userProfile.name || currentUser.displayName || ''}
+                currentStreak={streakData.currentStreak}
+                totalMealsLogged={totalMealsCount}
+                bankedCalories={weeklyBank?.bankedCalories || 0}
+                coachStyle={userProfile.coachStyle || 'balanced'}
+                onOpenSubscription={() => setShowSubscriptionModal(true)}
+                hasLowUsage={Object.keys(pastDaysSummary).length < 3}
             />
         )}
         {showFinaleModal && unseenFinale && currentUser && (

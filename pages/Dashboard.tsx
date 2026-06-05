@@ -206,6 +206,7 @@ interface DashboardProps {
     hasCompletedTodaysReport?: boolean;
     onShareRecipe?: (recipeText: string) => void;
     onOpenBootcamp?: () => void;
+    onOpenSubscription?: () => void;
 }
 
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
@@ -229,7 +230,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     activeBootcamp,
     hasCompletedTodaysReport,
     onShareRecipe,
-    onOpenBootcamp
+    onOpenBootcamp,
+    onOpenSubscription
 }) => {
     const {
         currentUser,
@@ -839,6 +841,47 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     return (
         <div className="flex flex-col gap-3 pb-0 relative">
+            {/* Gratisperiod Nedräkningsrad */}
+            {userProfile.subscriptionStatus === 'trialing' && userProfile.currentPeriodEnd && (() => {
+                const getTrialDaysLeftLocal = (endStr: string) => {
+                    const end = new Date(endStr);
+                    const now = new Date();
+                    const diffTime = end.getTime() - now.getTime();
+                    return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                };
+                
+                const formatTrialEndDateLocal = (endStr: string) => {
+                    const date = new Date(endStr);
+                    const day = date.getDate();
+                    const months = [
+                        'januari', 'februari', 'mars', 'april', 'maj', 'juni',
+                        'juli', 'augusti', 'september', 'oktober', 'november', 'december'
+                    ];
+                    return `${day} ${months[date.getMonth()]}`;
+                };
+
+                const daysLeft = getTrialDaysLeftLocal(userProfile.currentPeriodEnd);
+                const dateStr = formatTrialEndDateLocal(userProfile.currentPeriodEnd);
+                
+                const text = daysLeft <= 4 
+                    ? `Gratisperiod: ${daysLeft} ${daysLeft === 1 ? 'dag' : 'dagar'} kvar`
+                    : `${daysLeft} dagar kvar av din gratisperiod · Första dragningen ${dateStr} (95 kr)`;
+
+                return (
+                    <button 
+                        type="button"
+                        onClick={onOpenSubscription}
+                        className="w-full bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-100 dark:border-emerald-900/30 px-4 py-3.5 rounded-2xl flex items-center justify-between transition-all active:scale-[0.99] text-xs sm:text-sm font-semibold shadow-sm"
+                    >
+                        <div className="flex items-center gap-2 text-left">
+                            <span className="text-emerald-500">✨</span>
+                            <span>{text}</span>
+                        </div>
+                        <ArrowRightIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 ml-2" />
+                    </button>
+                );
+            })()}
+
             {/* Bootcamp CTA */}
             {showEveningReportCTA && (
                 <button 

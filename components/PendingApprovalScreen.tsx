@@ -213,22 +213,22 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
             </button>
 
             {/* Trygghetsrader precis vid knappen */}
-            <div className="flex flex-col gap-1.5 justify-center items-start text-sm font-semibold text-emerald-700 mb-6 bg-emerald-50/60 py-3.5 px-4 rounded-xl border border-emerald-100">
+            <div className="w-full flex flex-col gap-1.5 items-start text-sm font-semibold text-[#0f5132] mb-6 bg-[#e2f0d9]/60 py-3.5 px-4 rounded-xl border border-[#c3e6cb] text-left">
                 <div className="flex items-center gap-2">
-                    <span className="text-emerald-500">✓</span>
+                    <span className="text-emerald-600">✓</span>
                     <span>Inga pengar dras idag – du lägger bara in ditt kort</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-emerald-500">✓</span>
+                    <span className="text-emerald-600">✓</span>
                     <span>Vi påminner dig innan provperioden tar slut</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-emerald-500">✓</span>
+                    <span className="text-emerald-600">✓</span>
                     <span>Avsluta med ett klick</span>
                 </div>
             </div>
 
-            <p className="text-neutral text-xs mb-8">
+            <p className="text-neutral text-xs mb-8 text-left px-1 leading-relaxed">
             Därefter 95 kr/mån. Betalningen hanteras säkert via Stripe. Ingen bindningstid.
             </p>
             

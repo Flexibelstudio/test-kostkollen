@@ -1874,3 +1874,16 @@ export async function undoCancelSubscription(userId: string) {
     const undoCancelSub = httpsCallable(functions, 'undoCancelSubscription');
     await undoCancelSub();
 }
+
+export async function fetchTotalMealsCount(userId: string): Promise<number> {
+    if (!db) return 0;
+    try {
+        const mealLogsRef = collection(db, 'users', userId, 'mealLogs');
+        const snap = await getDocsSafe(query(mealLogsRef, limit(150)));
+        return snap.size;
+    } catch (err) {
+        console.error("Error fetching total meals count:", err);
+        return 0;
+    }
+}
+
