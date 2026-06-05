@@ -751,11 +751,35 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         const unsubscribe = listenToCommunityTimeline(
             currentUser.uid,
             ({ events }) => {
-                setTimelineEvents(events);
+                let filteredEvents = events;
+                
+                // Användare med rollen 'member' ser endast inlägg skapade efter att de registrerade sitt eget konto
+                if (userProfile && userProfile.role === 'member') {
+                    const registrationTime = (() => {
+                        if (!userProfile.createdAt) return 0;
+                        if (typeof (userProfile.createdAt as any).toDate === 'function') {
+                            return (userProfile.createdAt as any).toDate().getTime();
+                        }
+                        if (typeof (userProfile.createdAt as any).toMillis === 'function') {
+                            return (userProfile.createdAt as any).toMillis();
+                        }
+                        if ((userProfile.createdAt as any).seconds) {
+                            return (userProfile.createdAt as any).seconds * 1000;
+                        }
+                        return new Date(userProfile.createdAt as any).getTime();
+                    })();
+                    
+                    if (registrationTime > 0) {
+                        // Vi filtrerar bort gamla inlägg och sparar de som skapades vid eller efter registreringen (minus 1 min marginal)
+                        filteredEvents = events.filter(event => event.timestamp >= (registrationTime - 60000));
+                    }
+                }
+                
+                setTimelineEvents(filteredEvents);
                 
                 // Check for new events to show a toast
-                if (previousTimelineEventsRef.current.length > 0 && events.length > 0) {
-                    const newestEvent = events[0];
+                if (previousTimelineEventsRef.current.length > 0 && filteredEvents.length > 0) {
+                    const newestEvent = filteredEvents[0];
                     const previousNewestEvent = previousTimelineEventsRef.current[0];
                     
                     if (newestEvent.id !== previousNewestEvent?.id && 
@@ -777,14 +801,14 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
                         }
                     }
                 }
-                previousTimelineEventsRef.current = events;
+                previousTimelineEventsRef.current = filteredEvents;
             },
             20,
             activeBootcamp?.cohortId
         );
         
         return () => unsubscribe();
-    }, [currentUser, userStatus, activeBootcamp?.cohortId, setToastNotification]);
+    }, [currentUser, userStatus, activeBootcamp?.cohortId, setToastNotification, userProfile?.role, userProfile?.createdAt]);
 
     useEffect(() => {
         const previousViewMode = previousViewModeRef.current;
@@ -1091,6 +1115,8 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
     setShowAIFeedbackModal(false);
     setShowUserProfileModal(false); 
     setHasCompletedOnboarding(true);
+    setViewMode('main'); // Sätt startsidan vid avslutat konto/onboarding
+    setOpenBootcampDirectly(false); // Säkerställ att han inte slussas direkt till bootcamp-registrering
     setShowSpotlight(true);
     
     const todayUID = dayKeySE(new Date());
