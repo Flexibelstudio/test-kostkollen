@@ -309,6 +309,10 @@ export const App = () => {
     isInitialDataLoaded,
     resetUserData,
     refreshUserData,
+    simulatedUserStatus,
+    setSimulatedUserStatus,
+    simulatedSubscriptionStatus,
+    setSimulatedSubscriptionStatus,
   } = useUserContext();
 
   // Local UI State
