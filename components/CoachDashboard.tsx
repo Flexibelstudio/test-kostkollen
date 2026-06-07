@@ -118,7 +118,7 @@ const StatCard: React.FC<{
   );
 };
 
-const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive' }> = ({ status }) => {
+const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive'; stripeCustomerId?: string | null }> = ({ status, stripeCustomerId }) => {
     let classes = "";
     let label = "";
     
@@ -136,13 +136,18 @@ const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling'
             label = '🟡 Sägs upp';
             break;
         case 'canceled':
-        case 'inactive':
-            classes = 'bg-red-50 text-red-700 border-red-200';
-            label = '🔴 Inaktiv / Avbruten';
+            classes = 'bg-neutral-100 text-neutral-600 border-neutral-300';
+            label = '⚫ Avslutad';
             break;
+        case 'inactive':
         default:
-            classes = 'bg-red-50 text-red-700 border-red-200';
-            label = '🔴 Inaktiv / Avbruten';
+            if (stripeCustomerId) {
+                classes = 'bg-neutral-100 text-neutral-600 border-neutral-300';
+                label = '⚫ Avslutad';
+            } else {
+                classes = 'bg-red-50 text-red-700 border-red-200';
+                label = '🔴 Aldrig aktiverad';
+            }
             break;
     }
 
@@ -287,7 +292,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
 
 const MemberFilters: React.FC<{
     searchQuery: string; onSearchChange: (q: string) => void;
-    filterStatus: 'all' | 'approved' | 'inactive' | 'archived'; onFilterStatusChange: (s: 'all' | 'approved' | 'inactive' | 'archived') => void;
+    filterStatus: 'all' | 'approved' | 'never_activated' | 'canceled' | 'archived'; onFilterStatusChange: (s: 'all' | 'approved' | 'never_activated' | 'canceled' | 'archived') => void;
     onRefresh: () => void; isRefreshDisabled: boolean;
 }> = ({ searchQuery, onSearchChange, filterStatus, onFilterStatusChange, onRefresh, isRefreshDisabled }) => (
     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-3 gap-3">
@@ -308,14 +313,14 @@ const MemberFilters: React.FC<{
                     aria-label="Sök medlemmar" 
                 />
             </div>
-
+ 
             {/* Filter Pills */}
-            <div className="flex bg-neutral-light/30 p-0.5 rounded-lg">
-                {(['all', 'approved', 'inactive', 'archived'] as const).map((status) => (
+            <div className="flex bg-neutral-light/30 p-0.5 rounded-lg overflow-x-auto max-w-full">
+                {(['all', 'approved', 'never_activated', 'canceled', 'archived'] as const).map((status) => (
                     <button
                         key={status}
                         onClick={() => onFilterStatusChange(status)}
-                        className={`px-2 py-1 text-xs font-semibold rounded-md transition-all ${
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all whitespace-nowrap cursor-pointer ${
                             filterStatus === status 
                                 ? 'bg-white shadow-sm text-primary' 
                                 : 'text-neutral hover:text-neutral-dark hover:bg-neutral-light/50'
@@ -323,7 +328,8 @@ const MemberFilters: React.FC<{
                     >
                         {status === 'all' && 'Alla'}
                         {status === 'approved' && 'Aktiva'}
-                        {status === 'inactive' && 'Inaktiva'}
+                        {status === 'never_activated' && '🔴 Aldrig aktiverad'}
+                        {status === 'canceled' && '⚫ Avslutad'}
                         {status === 'archived' && 'Arkiv'}
                     </button>
                 ))}
@@ -461,7 +467,7 @@ const MemberListTable: React.FC<{
                                 {member.status === 'archived' ? (
                                     <span className="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border bg-gray-100 text-gray-600 border-gray-200">Arkiverad</span>
                                 ) : (
-                                    <SubscriptionBadge status={member.subscriptionStatus} />
+                                    <SubscriptionBadge status={member.subscriptionStatus} stripeCustomerId={member.stripeCustomerId} />
                                 )}
                             </td>
                             <td className="px-3 py-2.5 whitespace-nowrap text-sm font-medium">
@@ -513,7 +519,7 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
     const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
     
     // New filter status state
-    const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'inactive' | 'archived'>('approved');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'never_activated' | 'canceled' | 'archived'>('approved');
     
     const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
     const [sortBy, setSortBy] = useState<SortableKeys | null>(initialSortBy);
@@ -611,8 +617,14 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
             return member.status === 'approved' && 
                    (member.subscriptionStatus === 'active' || member.subscriptionStatus === 'trialing' || member.subscriptionStatus === 'canceling');
         }
-        if (filterStatus === 'inactive') {
+        if (filterStatus === 'never_activated') {
             return member.status === 'approved' && 
+                   !member.stripeCustomerId &&
+                   (member.subscriptionStatus === 'canceled' || member.subscriptionStatus === 'inactive' || !member.subscriptionStatus);
+        }
+        if (filterStatus === 'canceled') {
+            return member.status === 'approved' && 
+                   !!member.stripeCustomerId &&
                    (member.subscriptionStatus === 'canceled' || member.subscriptionStatus === 'inactive' || !member.subscriptionStatus);
         }
         return member.status === filterStatus;
