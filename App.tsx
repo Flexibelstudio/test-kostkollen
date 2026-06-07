@@ -753,20 +753,29 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
             ({ events }) => {
                 let filteredEvents = events;
                 
-                // Användare med rollen 'member' ser endast inlägg skapade efter att de registrerade sitt eget konto
-                if (userProfile && userProfile.role === 'member') {
+                // Användare som inte är 'coach' eller 'admin' (dvs standardmedlemmar) ser endast inlägg efter registrering.
+                const userRoleValue = userProfile?.role || 'member';
+                const isCoachOrAdmin = userRoleValue === 'coach' || userRoleValue === 'admin';
+                if (!isCoachOrAdmin) {
                     const registrationTime = (() => {
-                        if (!userProfile.createdAt) return 0;
-                        if (typeof (userProfile.createdAt as any).toDate === 'function') {
-                            return (userProfile.createdAt as any).toDate().getTime();
+                        if (userProfile && userProfile.createdAt) {
+                            if (typeof (userProfile.createdAt as any).toDate === 'function') {
+                                return (userProfile.createdAt as any).toDate().getTime();
+                            }
+                            if (typeof (userProfile.createdAt as any).toMillis === 'function') {
+                                return (userProfile.createdAt as any).toMillis();
+                            }
+                            if ((userProfile.createdAt as any).seconds) {
+                                return (userProfile.createdAt as any).seconds * 1000;
+                            }
+                            const t = new Date(userProfile.createdAt as any).getTime();
+                            if (!isNaN(t)) return t;
                         }
-                        if (typeof (userProfile.createdAt as any).toMillis === 'function') {
-                            return (userProfile.createdAt as any).toMillis();
+                        if (currentUser && currentUser.metadata && currentUser.metadata.creationTime) {
+                            const t = new Date(currentUser.metadata.creationTime).getTime();
+                            if (!isNaN(t)) return t;
                         }
-                        if ((userProfile.createdAt as any).seconds) {
-                            return (userProfile.createdAt as any).seconds * 1000;
-                        }
-                        return new Date(userProfile.createdAt as any).getTime();
+                        return 0;
                     })();
                     
                     if (registrationTime > 0) {

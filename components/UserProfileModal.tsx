@@ -691,11 +691,31 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             <input type="number" name="ageYears" id="ageYears" value={profile.ageYears == null ? '' : profile.ageYears} onChange={handleProfileChange} className={inputClass} min="1" placeholder="T.ex. 30" required />
                         </div>
                         <div>
-                            <label htmlFor="gender" className="block text-base font-medium text-neutral-dark">Kön *</label>
-                            <select name="gender" id="gender" value={profile.gender} onChange={handleProfileChange} className={selectClass} required>
-                                <option value="female">Kvinna</option>
-                                <option value="male">Man</option>
-                            </select>
+                            <label className="block text-base font-medium text-neutral-dark mb-1.5">Kön *</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => handleProfileChange({ target: { name: 'gender', value: 'female', type: 'text' } })}
+                                    className={`py-3 px-4 rounded-xl border text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                        profile.gender === 'female'
+                                            ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20 shadow-sm'
+                                            : 'bg-white border-neutral-200 text-neutral-dark hover:border-neutral-300'
+                                    }`}
+                                >
+                                    <span className="text-base">👩</span> Kvinna
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleProfileChange({ target: { name: 'gender', value: 'male', type: 'text' } })}
+                                    className={`py-3 px-4 rounded-xl border text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                        profile.gender === 'male'
+                                            ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20 shadow-sm'
+                                            : 'bg-white border-neutral-200 text-neutral-dark hover:border-neutral-300'
+                                    }`}
+                                >
+                                    <span className="text-base">👨</span> Man
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </section>

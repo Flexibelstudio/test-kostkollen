@@ -358,6 +358,8 @@ export async function fetchInitialAppData(userId: string) {
       subscriptionStatus: userDocData.subscriptionStatus,
       currentPeriodEnd: userDocData.currentPeriodEnd,
       highestBootcampStreak: highestBootcampStreak,
+      role: userDocData.role,
+      createdAt: userDocData.createdAt,
     };
     
     const commonMeals = commonMealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as CommonMeal[];
