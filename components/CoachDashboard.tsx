@@ -612,22 +612,33 @@ const useCoachDashboard = (initialSortBy: SortableKeys = 'memberSince', initialS
         const searchMatches = searchQuery.trim() === '' || member.name.toLowerCase().includes(searchQuery.toLowerCase()) || member.email.toLowerCase().includes(searchQuery.toLowerCase());
         if (!searchMatches) return false;
         
-        if (filterStatus === 'all') return true;
-        if (filterStatus === 'approved') {
-            return member.status === 'approved' && 
-                   (member.subscriptionStatus === 'active' || member.subscriptionStatus === 'trialing' || member.subscriptionStatus === 'canceling');
+        if (member.status === 'archived') {
+            return filterStatus === 'all' || filterStatus === 'archived';
         }
-        if (filterStatus === 'never_activated') {
-            return member.status === 'approved' && 
-                   !member.stripeCustomerId &&
-                   (member.subscriptionStatus === 'canceled' || member.subscriptionStatus === 'inactive' || !member.subscriptionStatus);
+        if (filterStatus === 'archived') {
+            return false;
         }
-        if (filterStatus === 'canceled') {
-            return member.status === 'approved' && 
-                   !!member.stripeCustomerId &&
-                   (member.subscriptionStatus === 'canceled' || member.subscriptionStatus === 'inactive' || !member.subscriptionStatus);
+        if (filterStatus === 'all') {
+            return true;
         }
-        return member.status === filterStatus;
+        
+        const sub = member.subscriptionStatus;
+        const hasStripeId = !!member.stripeCustomerId;
+        
+        let determinedStatus: 'active' | 'never_activated' | 'canceled';
+        if (sub === 'active' || sub === 'trialing' || sub === 'canceling') {
+            determinedStatus = 'active';
+        } else if (sub === 'canceled' || hasStripeId) {
+            determinedStatus = 'canceled';
+        } else {
+            determinedStatus = 'never_activated';
+        }
+        
+        if (filterStatus === 'approved') return determinedStatus === 'active';
+        if (filterStatus === 'never_activated') return determinedStatus === 'never_activated';
+        if (filterStatus === 'canceled') return determinedStatus === 'canceled';
+        
+        return false;
     }), [membersList, filterStatus, searchQuery]);
 
     const sortedAndFilteredMembers = useMemo(() => {
