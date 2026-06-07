@@ -233,6 +233,7 @@ export interface UserProfileData {
   // Subscription fields
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
   currentPeriodEnd?: string; // ISO date string
+  stripeCustomerId?: string | null;
 
   // Fields for filters/security constraints
   role?: UserRole;
@@ -542,6 +543,7 @@ export interface CoachViewMember {
     totalLessons: number;
   };
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
+  stripeCustomerId?: string | null;
   weeklyWeightChange?: number;
   ageYears?: number;
   gender: Gender;

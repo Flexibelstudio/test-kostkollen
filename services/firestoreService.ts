@@ -1390,6 +1390,7 @@ export async function fetchCoachViewMembers(): Promise<CoachViewMember[]> {
       goalSummary: goalSummary,
       courseProgressSummary: data.courseProgressSummary,
       subscriptionStatus: data.subscriptionStatus || (data.status === 'approved' ? 'active' : 'inactive'),
+      stripeCustomerId: data.stripeCustomerId || null,
       ageYears: data.ageYears ?? undefined,
       gender: data.gender,
       numberOfBuddies: numberOfBuddies,
