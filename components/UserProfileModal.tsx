@@ -702,7 +702,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                             : 'bg-white border-neutral-200 text-neutral-dark hover:border-neutral-300'
                                     }`}
                                 >
-                                    <span className="text-base">👩</span> Kvinna
+                                    Kvinna
                                 </button>
                                 <button
                                     type="button"
@@ -713,7 +713,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                             : 'bg-white border-neutral-200 text-neutral-dark hover:border-neutral-300'
                                     }`}
                                 >
-                                    <span className="text-base">👨</span> Man
+                                    Man
                                 </button>
                             </div>
                         </div>
