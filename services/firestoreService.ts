@@ -1875,6 +1875,13 @@ export async function undoCancelSubscription(userId: string) {
     await undoCancelSub();
 }
 
+export async function createStripePortalSession(): Promise<string> {
+    if (!functions) throw new Error("Functions not initialized");
+    const createPortalSession = httpsCallable(functions, 'createPortalSession');
+    const result = await createPortalSession({ returnUrl: window.location.origin });
+    return (result.data as any).url;
+}
+
 export async function fetchTotalMealsCount(userId: string): Promise<number> {
     if (!db) return 0;
     try {

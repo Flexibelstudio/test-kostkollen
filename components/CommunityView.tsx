@@ -1459,12 +1459,34 @@ export const CommunityView: React.FC<{
           return true;
       }).sort((a,b) => b.timestamp - a.timestamp);
 
+      // Användare med rollen 'member' ser endast inlägg skapade efter att de registrerade sitt eget konto
+      if (userProfile && userProfile.role === 'member') {
+          const registrationTime = (() => {
+              if (!userProfile.createdAt) return 0;
+              if (typeof (userProfile.createdAt as any).toDate === 'function') {
+                  return (userProfile.createdAt as any).toDate().getTime();
+              }
+              if (typeof (userProfile.createdAt as any).toMillis === 'function') {
+                  return (userProfile.createdAt as any).toMillis();
+              }
+              if ((userProfile.createdAt as any).seconds) {
+                  return (userProfile.createdAt as any).seconds * 1000;
+              }
+              return new Date(userProfile.createdAt as any).getTime();
+          })();
+          
+          if (registrationTime > 0) {
+              // Vi filtrerar bort gamla inlägg och sparar de som skapades vid eller efter registreringen (minus 1 min marginal)
+              filtered = filtered.filter(event => event.timestamp >= (registrationTime - 60000));
+          }
+      }
+
       if (feedFilter === 'bootcamp' && activeBootcamp) {
           filtered = filtered.filter(e => e.bootcampId === activeBootcamp.cohortId || (e.visibleTo && e.visibleTo.includes('bootcamp')) || (e.visibleTo && e.visibleTo.includes('bootcamp_and_friends')));
       }
 
       return filtered;
-  }, [realtimeEvents, historicalEvents, feedFilter, activeBootcamp]);
+  }, [realtimeEvents, historicalEvents, feedFilter, activeBootcamp, userProfile]);
 
   // Scroll to highlighted event
   useEffect(() => {

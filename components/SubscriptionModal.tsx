@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { XMarkIcon, CreditCardIcon, ExclamationTriangleIcon } from './icons';
-import { cancelSubscription, undoCancelSubscription } from '../services/firestoreService';
+import { cancelSubscription, undoCancelSubscription, createStripePortalSession } from '../services/firestoreService';
 
 interface SubscriptionModalProps {
   show: boolean;
@@ -15,9 +15,27 @@ interface SubscriptionModalProps {
 const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ show, onClose, status, currentPeriodEnd, onCancelSuccess, onUndoCancelSuccess }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   if (!show) return null;
+
+  const handleOpenPortal = async () => {
+    setIsOpeningPortal(true);
+    try {
+      const url = await createStripePortalSession();
+      if (url) {
+        window.location.href = url;
+      } else {
+        alert("Kunde inte skapa portal-session hos Stripe.");
+      }
+    } catch (error: any) {
+      console.error("Portal error:", error);
+      alert(error.message || "Ett fel uppstod när betalningsportalen skulle öppnas.");
+    } finally {
+      setIsOpeningPortal(false);
+    }
+  };
 
   const handleCancel = async () => {
     setIsProcessing(true);
@@ -98,26 +116,46 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ show, onClose, st
                 <div className="bg-neutral-light/30 p-4 rounded-xl border border-neutral-light">
                     <p className="text-sm font-semibold text-neutral-500 uppercase tracking-wide mb-1">Status</p>
                     <div className="flex items-center justify-between">
-                        <span className={`text-lg font-bold ${status === 'active' ? 'text-green-600' : 'text-orange-500'}`}>
-                            {status === 'active' ? 'Aktiv' : status === 'canceling' ? 'Avslutas snart' : 'Avslutad'}
+                        <span className={`text-lg font-bold ${(status === 'active' || status === 'trialing') ? 'text-green-600' : 'text-orange-500'}`}>
+                            {status === 'active' ? 'Aktiv' : status === 'trialing' ? 'Gratisperiod' : status === 'canceling' ? 'Avslutas snart' : 'Avslutad'}
                         </span>
                         {status === 'active' && (
                             <span className="text-sm bg-green-100 text-green-700 px-2 py-1 rounded-md">Förnyas automatiskt</span>
                         )}
+                        {status === 'trialing' && (
+                            <span className="text-sm bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md font-semibold">Provperiod</span>
+                        )}
                     </div>
-                    {(status === 'active' || status === 'canceling') && currentPeriodEnd && (
+                    {(status === 'active' || status === 'trialing' || status === 'canceling') && currentPeriodEnd && (
                         <p className="text-sm text-neutral-dark mt-2">
-                            {status === 'active' ? 'Nästa dragning:' : 'Tillgång t.o.m:'} <strong>{formatDate(currentPeriodEnd)}</strong>
+                            {status === 'trialing' ? 'Första dragningen:' : status === 'active' ? 'Nästa dragning:' : 'Tillgång t.o.m:'} <strong>{formatDate(currentPeriodEnd)}</strong>
                         </p>
                     )}
                 </div>
 
-                {status === 'active' && !showConfirm && (
+                {(status === 'active' || status === 'trialing' || status === 'canceling') && (
+                    <button 
+                        onClick={handleOpenPortal}
+                        disabled={isOpeningPortal}
+                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
+                    >
+                        {isOpeningPortal ? (
+                            <span>Laddar...</span>
+                        ) : (
+                            <>
+                                <span>💳</span>
+                                <span>Hantera betalmetod & kvitton (Stripe)</span>
+                            </>
+                        )}
+                    </button>
+                )}
+
+                {(status === 'active' || status === 'trialing') && !showConfirm && (
                     <button 
                         onClick={() => setShowConfirm(true)}
-                        className="w-full py-3 text-red-600 font-semibold hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
+                        className="w-full text-center py-2 text-neutral hover:text-red-600 rounded-lg text-xs transition-colors border border-transparent hover:bg-red-50"
                     >
-                        Avsluta prenumeration
+                        Avsluta {status === 'trialing' ? 'gratisperioden' : 'prenumeration'}
                     </button>
                 )}
 
@@ -128,7 +166,9 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ show, onClose, st
                             <div>
                                 <h4 className="font-bold text-red-700">Är du säker?</h4>
                                 <p className="text-sm text-red-600 mt-1">
-                                    Din prenumeration kommer inte att förnyas efter {formatDate(currentPeriodEnd)}. Du behåller din tillgång fram till dess.
+                                    {status === 'trialing' 
+                                        ? `Ditt kort kommer inte att debiteras efter provperiodens slut den ${formatDate(currentPeriodEnd)}. Du behåller din tillgång under resterande provdagar.`
+                                        : `Din prenumeration kommer inte att förnyas efter ${formatDate(currentPeriodEnd)}. Du behåller din tillgång fram till dess.`}
                                 </p>
                             </div>
                         </div>

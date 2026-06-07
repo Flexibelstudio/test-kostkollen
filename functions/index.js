@@ -1241,6 +1241,44 @@ exports.cancelSubscription = functions.https.onCall(async (data, context) => {
   }
 });
 
+exports.createPortalSession = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Inte inloggad.");
+  }
+
+  const stripeSecret =
+    process.env.STRIPE_SECRET_KEY || getSafeConfig("stripe", "secret");
+  const stripe = require("stripe")(stripeSecret);
+  const userEmail = context.auth.token.email;
+  const origin = data.returnUrl || "https://app.kostloggen.se";
+
+  try {
+    const existingCustomers = await stripe.customers.list({
+      email: userEmail,
+      limit: 1,
+    });
+
+    if (existingCustomers.data.length === 0) {
+      throw new functions.https.HttpsError(
+        "not-found",
+        "Kunde inte hitta din Stripe-kundprofil. Se till att du påbörjat din gratisperiod.",
+      );
+    }
+
+    const customerId = existingCustomers.data[0].id;
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: origin,
+    });
+
+    return { url: session.url };
+  } catch (error) {
+    console.error("Stripe portal fel:", error);
+    throw new functions.https.HttpsError("internal", error.message || "Kunde inte skapa portal-session.");
+  }
+});
+
 exports.undoCancelSubscription = functions.https.onCall(
   async (data, context) => {
     if (!context.auth)
@@ -1811,8 +1849,22 @@ exports.publishScheduledPosts = functions.pubsub
           const currentWeek = Math.floor(diffDays / 7) + 1;
           const currentDay = (diffDays % 7) + 1;
 
+          // Hämta nuvarande veckodag i Stockholm (1 = Måndag, 7 = Söndag)
+          const currentWeekdayValue = stockholmTime.getDay() === 0 ? 7 : stockholmTime.getDay();
+
+          let shouldPublishToday = false;
+
+          if (postData.publishOnWeekday !== undefined && postData.publishOnWeekday !== null && postData.publishOnWeekday !== '') {
+            // Om en specifik veckodag är vald, matcha programvecka och faktisk veckodag
+            const targetWeekday = parseInt(postData.publishOnWeekday, 10);
+            shouldPublishToday = (currentWeek === programWeek && currentWeekdayValue === targetWeekday);
+          } else {
+            // Annars standard programvecka och programdag
+            shouldPublishToday = (currentWeek === programWeek && currentDay === programDay);
+          }
+
           // Kolla om inlägget ska publiceras idag för denna bootcamp
-          if (currentWeek === programWeek && currentDay === programDay) {
+          if (shouldPublishToday) {
             // Kolla om det är exkluderat
             if (
               postData.excludedGroups &&

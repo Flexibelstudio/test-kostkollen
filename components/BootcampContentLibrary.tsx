@@ -34,6 +34,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
   const [schedulingTemplate, setSchedulingTemplate] = useState<PostTemplate | null>(null);
   const [scheduleWeek, setScheduleWeek] = useState<number>(1);
   const [scheduleDay, setScheduleDay] = useState<number>(1);
+  const [scheduleWeekday, setScheduleWeekday] = useState<string>('');
   const [scheduleTime, setScheduleTime] = useState<string>('08:00');
 
   useEffect(() => {
@@ -114,6 +115,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
           scheduledFor: data.scheduledFor?.toMillis(),
           programWeek: data.programWeek,
           programDay: data.programDay,
+          publishOnWeekday: data.publishOnWeekday,
           publishTime: data.publishTime,
           status: data.status,
           createdAt: data.createdAt?.toMillis() || Date.now(),
@@ -332,6 +334,11 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                               >
                                 <div className="font-bold line-clamp-1 mb-0.5">{title}</div>
                                 <div className="line-clamp-2 opacity-80 leading-tight">{post.content}</div>
+                                {post.publishOnWeekday && (
+                                  <div className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1 rounded mt-1 w-max flex items-center gap-0.5">
+                                    🗓️ {['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][post.publishOnWeekday - 1]}
+                                  </div>
+                                )}
                                 {post.groupId === 'all' && post.excludedGroups && post.excludedGroups.length > 0 && (
                                   <div className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1 rounded mt-1 w-max">
                                     Avvikelser ({post.excludedGroups.length})
@@ -470,8 +477,37 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                       setToastNotification({ message: 'Kunde inte uppdatera tid', type: 'error' });
                     }
                   }}
-                  className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                  className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm mb-3"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Koppla till veckodag (valfritt)</label>
+                <select
+                  value={editingScheduledPost.publishOnWeekday || ''}
+                  onChange={async (e) => {
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    setEditingScheduledPost({ ...editingScheduledPost, publishOnWeekday: val || undefined });
+                    try {
+                      await updateDoc(doc(db, 'scheduledPosts', editingScheduledPost.id), {
+                        publishOnWeekday: val
+                      });
+                    } catch (error) {
+                      console.error("Error updating weekday:", error);
+                      setToastNotification({ message: 'Kunde inte uppdatera veckodag', type: 'error' });
+                    }
+                  }}
+                  className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm bg-white"
+                >
+                  <option value="">Styr efter programdag (standard)</option>
+                  <option value="1">Måndag</option>
+                  <option value="2">Tisdag</option>
+                  <option value="3">Onsdag</option>
+                  <option value="4">Torsdag</option>
+                  <option value="5">Fredag</option>
+                  <option value="6">Lördag</option>
+                  <option value="7">Söndag</option>
+                </select>
               </div>
 
               {editingScheduledPost.groupId !== 'all' && (
@@ -549,7 +585,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
       )}
 
       {schedulingTemplate && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 animate-fade-in">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-6 border-b border-neutral-light">
               <h3 className="text-xl font-bold text-neutral-dark">Schemalägg mall</h3>
@@ -571,7 +607,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                   <select
                     value={scheduleWeek}
                     onChange={(e) => setScheduleWeek(Number(e.target.value))}
-                    className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                    className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm bg-white"
                   >
                     {Array.from({ length: 12 }, (_, i) => i + 1).map(w => (
                       <option key={w} value={w}>Vecka {w}</option>
@@ -579,11 +615,11 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-neutral-dark mb-1">Dag</label>
+                  <label className="block text-sm font-bold text-neutral-dark mb-1">Dag (I programmet)</label>
                   <select
                     value={scheduleDay}
                     onChange={(e) => setScheduleDay(Number(e.target.value))}
-                    className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                    className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm bg-white"
                   >
                     {['Dag 1', 'Dag 2', 'Dag 3', 'Dag 4', 'Dag 5', 'Dag 6', 'Dag 7'].map((d, i) => (
                       <option key={i + 1} value={i + 1}>{d}</option>
@@ -591,6 +627,25 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                   </select>
                 </div>
               </div>
+
+              <div>
+                <label className="block text-sm font-bold text-neutral-dark mb-1">Koppla till veckodag (valfritt)</label>
+                <select
+                  value={scheduleWeekday}
+                  onChange={(e) => setScheduleWeekday(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm bg-white"
+                >
+                  <option value="">Styr efter programdag (standard)</option>
+                  <option value="1">Måndag</option>
+                  <option value="2">Tisdag</option>
+                  <option value="3">Onsdag</option>
+                  <option value="4">Torsdag</option>
+                  <option value="5">Fredag</option>
+                  <option value="6">Lördag</option>
+                  <option value="7">Söndag</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-bold text-neutral-dark mb-1">Tid (valfritt)</label>
                 <input
@@ -613,7 +668,8 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                 onClick={async () => {
                   const cohortName = selectedCohort === 'all' ? 'alla trupper' : cohorts.find(c => c.id === selectedCohort)?.name || 'vald trupp';
                   const dayName = `Dag ${scheduleDay}`;
-                  const confirmMsg = `Bekräfta schemaläggning:\n\nInlägget kommer att publiceras automatiskt i flödet för ${cohortName}.\nNär: Vecka ${scheduleWeek}, ${dayName} kl ${scheduleTime || '08:00'}.\n\nVill du fortsätta?`;
+                  const weekdayText = scheduleWeekday ? ` (Låst till ${['Måndagar', 'Tisdagar', 'Onsdagar', 'Torsdagar', 'Fredagar', 'Lördagar', 'Söndagar'][Number(scheduleWeekday) - 1]})` : '';
+                  const confirmMsg = `Bekräfta schemaläggning:\n\nInlägget kommer att publiceras automatiskt i flödet för ${cohortName}.\nNär: Vecka ${scheduleWeek}, ${dayName}${weekdayText} kl ${scheduleTime || '08:00'}.\n\nVill du fortsätta?`;
                   
                   if (!window.confirm(confirmMsg)) return;
 
@@ -625,6 +681,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                       category: schedulingTemplate.category,
                       programWeek: scheduleWeek,
                       programDay: scheduleDay,
+                      publishOnWeekday: scheduleWeekday ? Number(scheduleWeekday) : null,
                       publishTime: scheduleTime || '08:00',
                       status: 'pending',
                       createdAt: serverTimestamp(),
