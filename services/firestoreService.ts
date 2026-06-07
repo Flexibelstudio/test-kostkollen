@@ -358,6 +358,8 @@ export async function fetchInitialAppData(userId: string) {
       subscriptionStatus: userDocData.subscriptionStatus,
       currentPeriodEnd: userDocData.currentPeriodEnd,
       highestBootcampStreak: highestBootcampStreak,
+      role: userDocData.role,
+      createdAt: userDocData.createdAt,
     };
     
     const commonMeals = commonMealsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as CommonMeal[];
@@ -1874,3 +1876,23 @@ export async function undoCancelSubscription(userId: string) {
     const undoCancelSub = httpsCallable(functions, 'undoCancelSubscription');
     await undoCancelSub();
 }
+
+export async function createStripePortalSession(): Promise<string> {
+    if (!functions) throw new Error("Functions not initialized");
+    const createPortalSession = httpsCallable(functions, 'createPortalSession');
+    const result = await createPortalSession({ returnUrl: window.location.origin });
+    return (result.data as any).url;
+}
+
+export async function fetchTotalMealsCount(userId: string): Promise<number> {
+    if (!db) return 0;
+    try {
+        const mealLogsRef = collection(db, 'users', userId, 'mealLogs');
+        const snap = await getDocsSafe(query(mealLogsRef, limit(150)));
+        return snap.size;
+    } catch (err) {
+        console.error("Error fetching total meals count:", err);
+        return 0;
+    }
+}
+

@@ -85,12 +85,18 @@ const TermsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
 export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('mode') === 'login' || params.get('login') === 'true';
+    }
+    return false; // Default to signup (Starta konto)
+  });
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [resetFeedback, setResetFeedback] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(true); // Passive agreement under the button, defaults to true
   const [showTermsModal, setShowTermsModal] = useState(false);
 
 
@@ -98,9 +104,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
   useEffect(() => {
     setError(null);
     setResetFeedback(null);
-    if(isLogin) {
-      setAgreedToTerms(false);
-    }
   }, [isLogin, email, password]);
 
   const handlePasswordReset = async () => {
@@ -135,11 +138,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
     e.preventDefault();
     setError(null);
     setResetFeedback(null);
-
-    if (!isLogin && !agreedToTerms) {
-        setError("Du måste godkänna villkoren för att skapa ett konto.");
-        return;
-    }
 
     setIsLoading(true);
 
@@ -203,8 +201,14 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
         <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-soft-xl w-full max-w-md animate-scale-in border border-neutral-light/50">
           <div className="text-center mb-6">
             <img src="/favicon.png" alt="Kostloggen.se logo" className="h-20 w-20 mx-auto mb-3 drop-shadow-sm" />
-            <h2 className="text-2xl sm:text-3xl font-bold text-neutral-dark">{isLogin ? "Logga in" : "Skapa konto"}</h2>
-            <p className="text-neutral mt-1 font-medium">{isLogin ? "Välkommen tillbaka!" : "Fyll i dina uppgifter för att börja."}</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-neutral-dark">
+              {isLogin ? "Logga in" : "Starta dina 7 gratisdagar"}
+            </h2>
+            <p className="text-neutral mt-2 text-sm font-medium leading-relaxed">
+              {isLogin 
+                ? "Välkommen tillbaka!" 
+                : "Du betalar inget idag. 95 kr/mån efter provperioden – avsluta när du vill."}
+            </p>
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -247,41 +251,31 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
               </button>
             </div>
 
-            {!isLogin && (
-                <div className="flex items-start space-x-3 pt-2">
-                    <input
-                        id="terms"
-                        type="checkbox"
-                        checked={agreedToTerms}
-                        onChange={(e) => setAgreedToTerms(e.target.checked)}
-                        className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary border-gray-300 rounded focus:ring-primary"
-                        aria-describedby="terms-label"
-                    />
-                    <label htmlFor="terms" id="terms-label" className="text-sm text-neutral">
-                        Jag har läst och godkänner{' '}
-                        <button
-                            type="button"
-                            onClick={() => setShowTermsModal(true)}
-                            className="font-semibold text-primary hover:underline"
-                        >
-                            villkoren
-                        </button>
-                        {' '}för att använda Kostloggen.
-                    </label>
-                </div>
-            )}
-
             <div className="pt-2">
                 <button 
                   type="submit" 
-                  disabled={isLoading || (!isLogin && !agreedToTerms)}
+                  disabled={isLoading}
                   className={`${buttonBaseClass} bg-primary hover:bg-primary-darker`}
                 >
                   {isLoading && !resetFeedback ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mx-auto"></div>
-                  ) : (isLogin ? "Logga in" : "Registrera konto")}
+                  ) : (isLogin ? "Logga in" : "Starta 7 dagar gratis")}
                 </button>
             </div>
+
+            {!isLogin && (
+              <p className="text-xs text-neutral text-center mt-3 leading-relaxed">
+                Genom att skapa konto godkänner du{' '}
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  villkoren
+                </button>
+                .
+              </p>
+            )}
           </form>
 
           {(error || resetFeedback) && (

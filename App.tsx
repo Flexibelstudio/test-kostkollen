@@ -38,7 +38,7 @@ import {
   saveProfileAndGoals, saveWeightLog, updateUserDocument, saveCourseProgress,
   listenForFriendRequests,
   fetchCommunityTimeline, fetchBuddyDetailsList, fetchMealLogsForDate, listenToCommunityTimeline,
-  setPastDaySummary, savePushSubscription, unlockAchievement
+  setPastDaySummary, savePushSubscription, unlockAchievement, fetchTotalMealsCount
 } from './services/firestoreService.ts';
 
 import { subscribeToUserChats } from './services/chatService.ts';
@@ -71,6 +71,7 @@ import WaterSplashEffect from './components/WaterSplashEffect';
 import MorningReportModal from './components/MorningReportModal.tsx';
 import GamificationModal from './components/GamificationModal.tsx';
 import SubscriptionModal from './components/SubscriptionModal.tsx';
+import { TrialRecapModal } from './components/TrialRecapModal.tsx';
 import { BootcampFinaleModal } from './components/BootcampFinaleModal.tsx';
 
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
@@ -308,6 +309,10 @@ export const App = () => {
     isInitialDataLoaded,
     resetUserData,
     refreshUserData,
+    simulatedUserStatus,
+    setSimulatedUserStatus,
+    simulatedSubscriptionStatus,
+    setSimulatedSubscriptionStatus,
   } = useUserContext();
 
   // Local UI State
@@ -355,6 +360,8 @@ export const App = () => {
   const [isProfileModalOnboarding, setIsProfileModalOnboarding] = useState(false);
   const [showGamificationModal, setShowGamificationModal] = useState(false); 
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showTrialRecapModal, setShowTrialRecapModal] = useState(false);
+  const [totalMealsCount, setTotalMealsCount] = useState<number>(0);
 
   const [journeyInitialTab, setJourneyInitialTab] = useState<'calendar' | 'profile' | 'achievements'>('calendar');
 
@@ -744,11 +751,44 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         const unsubscribe = listenToCommunityTimeline(
             currentUser.uid,
             ({ events }) => {
-                setTimelineEvents(events);
+                let filteredEvents = events;
+                
+                // Användare som inte är 'coach' eller 'admin' (dvs standardmedlemmar) ser endast inlägg efter registrering.
+                const userRoleValue = userProfile?.role || 'member';
+                const isCoachOrAdmin = userRoleValue === 'coach' || userRoleValue === 'admin';
+                if (!isCoachOrAdmin) {
+                    const registrationTime = (() => {
+                        if (userProfile && userProfile.createdAt) {
+                            if (typeof (userProfile.createdAt as any).toDate === 'function') {
+                                return (userProfile.createdAt as any).toDate().getTime();
+                            }
+                            if (typeof (userProfile.createdAt as any).toMillis === 'function') {
+                                return (userProfile.createdAt as any).toMillis();
+                            }
+                            if ((userProfile.createdAt as any).seconds) {
+                                return (userProfile.createdAt as any).seconds * 1000;
+                            }
+                            const t = new Date(userProfile.createdAt as any).getTime();
+                            if (!isNaN(t)) return t;
+                        }
+                        if (currentUser && currentUser.metadata && currentUser.metadata.creationTime) {
+                            const t = new Date(currentUser.metadata.creationTime).getTime();
+                            if (!isNaN(t)) return t;
+                        }
+                        return 0;
+                    })();
+                    
+                    if (registrationTime > 0) {
+                        // Vi filtrerar bort gamla inlägg och sparar de som skapades vid eller efter registreringen (minus 1 min marginal)
+                        filteredEvents = events.filter(event => event.timestamp >= (registrationTime - 60000));
+                    }
+                }
+                
+                setTimelineEvents(filteredEvents);
                 
                 // Check for new events to show a toast
-                if (previousTimelineEventsRef.current.length > 0 && events.length > 0) {
-                    const newestEvent = events[0];
+                if (previousTimelineEventsRef.current.length > 0 && filteredEvents.length > 0) {
+                    const newestEvent = filteredEvents[0];
                     const previousNewestEvent = previousTimelineEventsRef.current[0];
                     
                     if (newestEvent.id !== previousNewestEvent?.id && 
@@ -770,14 +810,14 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
                         }
                     }
                 }
-                previousTimelineEventsRef.current = events;
+                previousTimelineEventsRef.current = filteredEvents;
             },
             20,
             activeBootcamp?.cohortId
         );
         
         return () => unsubscribe();
-    }, [currentUser, userStatus, activeBootcamp?.cohortId, setToastNotification]);
+    }, [currentUser, userStatus, activeBootcamp?.cohortId, setToastNotification, userProfile?.role, userProfile?.createdAt]);
 
     useEffect(() => {
         const previousViewMode = previousViewModeRef.current;
@@ -798,6 +838,45 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         } catch (error) {}
     }
   }, [isInitialDataLoaded, currentUser]);
+
+  // Trial countdown dialog loader (Dag 5-7 av provperioden, d.v.s. 1 till 3 dagar kvar)
+  useEffect(() => {
+    const checkAndLoadTrialRecap = async () => {
+      if (!currentUser || !isInitialDataLoaded || userProfile.subscriptionStatus !== 'trialing' || !userProfile.currentPeriodEnd) return;
+      
+      const getTrialDaysLeftLocal = (endStr: string) => {
+        const end = new Date(endStr);
+        const now = new Date();
+        const diffTime = end.getTime() - now.getTime();
+        return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      };
+
+      const daysLeft = getTrialDaysLeftLocal(userProfile.currentPeriodEnd);
+      const hasSeen = localStorage.getItem(`hasSeenTrialRecapDialog_${currentUser.uid}`);
+      const params = new URLSearchParams(window.location.search);
+      const forceOpen = params.get('showTrialRecap') === 'true';
+
+      // Dag 5-7 motsvarar 1-3 dagar kvar.
+      if ((forceOpen || (daysLeft >= 1 && daysLeft <= 3)) && (forceOpen || hasSeen !== 'true')) {
+        try {
+          const count = await fetchTotalMealsCount(currentUser.uid);
+          setTotalMealsCount(count);
+          setShowTrialRecapModal(true);
+
+          if (forceOpen) {
+            // Städa bort parametern så den inte poppar upp igen efter stängning
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('showTrialRecap');
+            window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
+          }
+        } catch (err) {
+          console.error("Error reading trial meals statistics:", err);
+        }
+      }
+    };
+
+    checkAndLoadTrialRecap();
+  }, [isInitialDataLoaded, currentUser, userProfile.subscriptionStatus, userProfile.currentPeriodEnd]);
 
   useEffect(() => {
       if (currentUser) {
@@ -1045,6 +1124,8 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
     setShowAIFeedbackModal(false);
     setShowUserProfileModal(false); 
     setHasCompletedOnboarding(true);
+    setViewMode('main'); // Sätt startsidan vid avslutat konto/onboarding
+    setOpenBootcampDirectly(false); // Säkerställ att han inte slussas direkt till bootcamp-registrering
     setShowSpotlight(true);
     
     const todayUID = dayKeySE(new Date());
@@ -2059,6 +2140,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                     setInitialPostText(recipeText);
                     setViewMode('community');
                 }}
+                onOpenSubscription={() => setShowSubscriptionModal(true)}
             />
          )}
          {viewMode === 'journey' && (
@@ -2218,6 +2300,22 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 onUndoCancelSuccess={() => {
                     setUserProfile(prev => ({ ...prev, subscriptionStatus: 'active' }));
                 }}
+            />
+        )}
+        {showTrialRecapModal && currentUser && (
+            <TrialRecapModal 
+                show={showTrialRecapModal}
+                onClose={() => {
+                    setShowTrialRecapModal(false);
+                    localStorage.setItem(`hasSeenTrialRecapDialog_${currentUser.uid}`, 'true');
+                }}
+                userName={userProfile.name || currentUser.displayName || ''}
+                currentStreak={streakData.currentStreak}
+                totalMealsLogged={totalMealsCount}
+                bankedCalories={weeklyBank?.bankedCalories || 0}
+                coachStyle={userProfile.coachStyle || 'balanced'}
+                onOpenSubscription={() => setShowSubscriptionModal(true)}
+                hasLowUsage={Object.keys(pastDaysSummary).length < 3}
             />
         )}
         {showFinaleModal && unseenFinale && currentUser && (

@@ -233,6 +233,10 @@ export interface UserProfileData {
   // Subscription fields
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
   currentPeriodEnd?: string; // ISO date string
+
+  // Fields for filters/security constraints
+  role?: UserRole;
+  createdAt?: any;
 }
 
 // Firestore user document structure
@@ -702,6 +706,7 @@ export interface ScheduledPost {
   scheduledFor?: number; // Timestamp for when it should be published (legacy)
   programWeek?: number; // 1-12
   programDay?: number; // 1-7 (1 = Måndag, 7 = Söndag)
+  publishOnWeekday?: number; // 1-7 (1 = Måndag, 7 = Söndag)
   publishTime?: string; // e.g. "08:00"
   status: 'pending' | 'published';
   createdAt: number;

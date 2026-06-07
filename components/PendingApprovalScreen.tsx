@@ -175,10 +175,10 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
             <div className="w-20 h-20 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
                 <UserCircleIcon className="w-12 h-12 text-primary" />
             </div>
-            <h2 className="text-3xl font-extrabold text-neutral-dark mb-3">Välkommen!</h2>
+            <h2 className="text-3xl font-extrabold text-neutral-dark mb-3">Nästan klart!</h2>
             <p className="text-neutral font-medium text-base mb-1">{userEmail}</p>
             <p className="text-neutral-dark text-lg mb-8 leading-relaxed">
-            Ditt konto väntar på att aktiveras. För att få tillgång till alla funktioner i Kostloggen behöver du starta din prenumeration. <span className="font-bold text-primary">De första 7 dagarna är helt gratis!</span>
+              Starta din gratisvecka så är du igång på 30 sekunder.
             </p>
             
             <div className="bg-primary-50 border border-primary-100 rounded-2xl p-6 mb-8 text-left relative overflow-hidden">
@@ -206,13 +206,29 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
                 </>
             ) : (
                 <>
-                    <LockClosedIcon className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+                    <SparklesIcon className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
                     Starta 7 dagar gratis
                 </>
             )}
             </button>
 
-            <p className="text-neutral text-xs mb-8">
+            {/* Trygghetsrader precis vid knappen */}
+            <div className="w-full flex flex-col gap-1.5 items-start text-sm font-semibold text-[#0f5132] mb-6 bg-[#e2f0d9]/60 py-3.5 px-4 rounded-xl border border-[#c3e6cb] text-left">
+                <div className="flex items-center gap-2">
+                    <span className="text-emerald-600">✓</span>
+                    <span>Inga pengar dras idag – du lägger bara in ditt kort</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-emerald-600">✓</span>
+                    <span>Vi påminner dig innan provperioden tar slut</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-emerald-600">✓</span>
+                    <span>Avsluta med ett klick</span>
+                </div>
+            </div>
+
+            <p className="text-neutral text-xs mb-8 text-left px-1 leading-relaxed">
             Därefter 95 kr/mån. Betalningen hanteras säkert via Stripe. Ingen bindningstid.
             </p>
             
