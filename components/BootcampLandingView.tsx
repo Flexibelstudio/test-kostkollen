@@ -56,6 +56,9 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         
         const url = (result.data as any).url;
         if (url) {
+            if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem('pending_checkout_type', 'bootcamp');
+            }
             window.location.href = url;
         } else {
             throw new Error("No URL returned from Stripe");

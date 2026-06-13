@@ -985,8 +985,31 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         setToastNotification({ message: "Betalning bekräftad! Välkommen in!", type: 'success' });
         
         // --- SKICKA KÖP TILL META PIXEL ---
-        if (typeof window !== 'undefined' && (window as any).fbq) {
-            (window as any).fbq('track', 'Purchase', { currency: 'SEK', value: 95.00 });
+        let checkoutType = 'subscription'; // standard fallback
+        if (typeof window !== 'undefined') {
+            const stored = window.sessionStorage.getItem('pending_checkout_type');
+            if (stored) {
+                checkoutType = stored;
+                window.sessionStorage.removeItem('pending_checkout_type');
+            } else if (activeBootcamp) {
+                checkoutType = 'bootcamp';
+            }
+        }
+
+        if (typeof window !== 'undefined') {
+            if (window.location.hostname === 'app.kostloggen.se') {
+                if ((window as any).fbq) {
+                    if (checkoutType === 'bootcamp') {
+                        (window as any).fbq('track', 'Purchase', { currency: 'SEK', value: 495.00 });
+                        console.log("Meta Pixel: Skickade Purchase (495 kr) för bootcamp");
+                    } else {
+                        (window as any).fbq('track', 'CompleteRegistration');
+                        console.log("Meta Pixel: Skickade CompleteRegistration för prenumeration");
+                    }
+                }
+            } else {
+                console.log(`[Meta Pixel Sandbox] Event skulle ha skickats i produktion (${checkoutType === 'bootcamp' ? 'Purchase: 495 kr' : 'CompleteRegistration'})`);
+            }
         }
         // ----------------------------------
 
@@ -999,7 +1022,7 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         const newPath = newUrl.pathname.endsWith('/success') ? '/' : newUrl.pathname;
         window.history.replaceState({}, '', newPath + newUrl.search);
     }
-  }, [userStatus, setToastNotification]);
+  }, [userStatus, setToastNotification, activeBootcamp]);
 
   const handleNavigateToCourses = () => {
     setViewMode('coursesView');

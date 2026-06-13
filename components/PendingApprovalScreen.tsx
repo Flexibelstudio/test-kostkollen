@@ -109,6 +109,9 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
         const data = result.data as { url: string; sessionId: string };
         
         if (data && data.url) {
+            if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem('pending_checkout_type', 'subscription');
+            }
             window.location.href = data.url; 
         } else {
             console.error("Ingen URL mottogs från Stripe", data);
