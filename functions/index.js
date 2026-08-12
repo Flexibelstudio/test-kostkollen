@@ -1456,23 +1456,21 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
         if (cohortId) {
           // It's a bootcamp payment
           let originalStartDate = null;
-          const cohortDoc = await db
-            .collection("bootcampCohorts")
-            .doc(cohortId)
-            .get();
-          if (cohortDoc.exists && cohortDoc.data().startDate) {
-            originalStartDate = cohortDoc.data().startDate;
-          } else if (cohortId === "solo_group") {
-            // Fallback to 'solo' if 'solo_group' doesn't have a startDate yet
-            const soloDoc = await db
+          const today = new Date();
+          const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+          if (cohortId === "solo_group" || cohortId === "solo") {
+            // Solo participants always start today (individually)
+            originalStartDate = todayStr;
+          } else {
+            const cohortDoc = await db
               .collection("bootcampCohorts")
-              .doc("solo")
+              .doc(cohortId)
               .get();
-            if (soloDoc.exists && soloDoc.data().startDate) {
-              originalStartDate = soloDoc.data().startDate;
+            if (cohortDoc.exists && cohortDoc.data().startDate) {
+              originalStartDate = cohortDoc.data().startDate;
             } else {
-              const today = new Date();
-              originalStartDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+              originalStartDate = todayStr;
             }
           }
 
@@ -1492,12 +1490,14 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
               currentStreak: 0,
               longestStreak: 0,
               needsCoachAttention: false,
+              finaleSeen: false,
             });
 
-          // Update user profile to indicate they are in a course
+          // Update user profile to indicate they are in an active course and reset completed status
           await db.collection("users").doc(firebaseUid).set(
             {
               isCourseActive: true,
+              hasCompletedBootcamp: false,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
             { merge: true },
