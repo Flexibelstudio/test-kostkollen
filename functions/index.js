@@ -19,48 +19,64 @@ const { Readable } = require("stream");
 // Denna funktion förhindrar krascher om en miljövariabel saknas i molnet
 function getSafeConfig(domain, key) {
   try {
-    return functions.config()[domain][key];
+    if (typeof functions.config === "function") {
+      const cfg = functions.config();
+      if (cfg && cfg[domain] && cfg[domain][key]) {
+        return cfg[domain][key];
+      }
+    }
+    return null;
   } catch (e) {
     return null;
   }
 }
 
-// Initiera Stripe med den hemliga nyckeln (från .env ELLER molnet)
-const stripeSecret =
-  process.env.STRIPE_SECRET_KEY || getSafeConfig("stripe", "secret");
-const stripe = require("stripe")(stripeSecret);
+// Lazy Stripe initializer
+let stripeInstance = null;
+function getStripe() {
+  if (!stripeInstance) {
+    const stripeSecret =
+      process.env.STRIPE_SECRET_KEY || getSafeConfig("stripe", "secret");
+    if (!stripeSecret) {
+      logger.warn("STRIPE_SECRET_KEY missing in environment.");
+    }
+    stripeInstance = require("stripe")(stripeSecret || "dummy_key");
+  }
+  return stripeInstance;
+}
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// ---- VAPID-nycklar ----
-// Robust loading check: first check system environment variables/secrets, then fallback to traditional functions.config()
-const vapidPublicKey =
-  process.env.VAPID_PUBLIC_KEY ||
-  process.env.WEBPUSH_PUBLIC_KEY ||
-  (functions.config().webpush ? functions.config().webpush.public_key : null);
-const vapidPrivateKey =
-  process.env.VAPID_PRIVATE_KEY ||
-  process.env.WEBPUSH_PRIVATE_KEY ||
-  (functions.config().webpush ? functions.config().webpush.private_key : null);
+// ---- VAPID-nycklar (Lazy) ----
+function getVapidKeys() {
+  const vapidPublicKey =
+    process.env.VAPID_PUBLIC_KEY ||
+    process.env.WEBPUSH_PUBLIC_KEY ||
+    getSafeConfig("webpush", "public_key");
+  const vapidPrivateKey =
+    process.env.VAPID_PRIVATE_KEY ||
+    process.env.WEBPUSH_PRIVATE_KEY ||
+    getSafeConfig("webpush", "private_key");
+  return { vapidPublicKey, vapidPrivateKey };
+}
 
-if (vapidPublicKey && vapidPrivateKey) {
-  logger.log("Webpush VAPID keys loaded", {
-    publicKeyLength: vapidPublicKey.length,
-    privateKeyLength: vapidPrivateKey.length,
-  });
-
-  try {
-    webpush.setVapidDetails(
-      "mailto:support@kostloggen.se",
-      vapidPublicKey,
-      vapidPrivateKey,
-    );
-  } catch (error) {
-    logger.error("VAPID details configuration failed at startup:", error);
+let isVapidConfigured = false;
+function initVapidDetails() {
+  if (isVapidConfigured) return;
+  const { vapidPublicKey, vapidPrivateKey } = getVapidKeys();
+  if (vapidPublicKey && vapidPrivateKey) {
+    try {
+      webpush.setVapidDetails(
+        "mailto:support@kostloggen.se",
+        vapidPublicKey,
+        vapidPrivateKey,
+      );
+      isVapidConfigured = true;
+    } catch (error) {
+      logger.error("VAPID details configuration failed at startup:", error);
+    }
   }
-} else {
-  logger.warn("WEBPUSH keys are not set. Push notifications will be disabled.");
 }
 
 // ---- Hjälpfunktioner för pushnotiser ----
@@ -83,6 +99,8 @@ async function getCoachAndAdminIds() {
 }
 
 async function sendNotificationToUser(userId, payload, notificationType) {
+  initVapidDetails();
+  const { vapidPublicKey, vapidPrivateKey } = getVapidKeys();
   if (!vapidPrivateKey || !vapidPublicKey) {
     logger.warn(
       `Skipping notification for ${userId} because WEBPUSH keys are not configured.`,
@@ -1125,6 +1143,7 @@ exports.createCheckoutSession = functions
     }
 
     try {
+      const stripe = getStripe();
       const userEmail = context.auth.token.email;
       const userId = context.auth.uid;
 
@@ -1425,6 +1444,7 @@ exports.onChatMessageUpdated = functions.firestore
   });
 
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
+  const stripe = getStripe();
   const signature = req.headers["stripe-signature"];
   // Hämta webhook secret från .env ELLER molnet
   const endpointSecret =
