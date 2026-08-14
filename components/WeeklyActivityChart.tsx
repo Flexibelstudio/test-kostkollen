@@ -158,14 +158,13 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             const dayLabel = day.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '').charAt(0).toUpperCase();
             const hasLog = calories > 0;
             
-            let barColor = 'bg-neutral-100'; 
+            let barColor = 'bg-[#F1EAE0]'; 
             
             if (hasLog) {
-                // Nu använder vi den uppdaterade goalMet som inkluderar sparpott-räddning
                 if (goalMet) {
-                    barColor = 'bg-primary'; 
+                    barColor = 'bg-[#D96E4A]'; 
                 } else {
-                    barColor = 'bg-secondary'; 
+                    barColor = 'bg-[#C05A38]'; 
                 }
             }
 
@@ -177,7 +176,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             const surplus = Math.max(0, calories - calorieGoal);
             const isOverGoal = calories > calorieGoal;
 
-            const dayLabelColor = waterGoalMet ? 'text-blue-500 font-bold' : (isViewing ? 'text-neutral-dark font-bold' : 'text-neutral');
+            const dayLabelColor = waterGoalMet ? 'text-[#8C9A86] font-bold' : (isViewing ? 'text-[#56524D] dark:text-[#FAF6EF] font-bold' : 'text-[#7A756E] dark:text-[#C2BCB4]');
 
             return (
                 <button
@@ -188,12 +187,12 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 >
                     <div className="relative w-full flex flex-col items-center justify-end h-full pb-6">
                         {isOverGoal && !showSpinner && (
-                            <span className="absolute -top-6 text-[10px] sm:text-xs font-bold text-secondary animate-fade-in">
+                            <span className="absolute -top-6 text-[10px] sm:text-xs font-bold text-[#C05A38] animate-fade-in">
                                 +{surplus.toFixed(0)}
                             </span>
                         )}
 
-                        <div className={`w-full max-w-[24px] sm:max-w-[32px] h-full bg-neutral-light/40 rounded-full relative overflow-hidden flex flex-col-reverse justify-start ${isViewing ? 'ring-2 ring-offset-2 ring-primary/30' : ''}`}>
+                        <div className={`w-full max-w-[24px] sm:max-w-[32px] h-full bg-[#F1EAE0] dark:bg-[#34302C] border border-[#E2D8CC] dark:border-[#484440] rounded-full relative overflow-hidden flex flex-col-reverse justify-start ${isViewing ? 'ring-2 ring-offset-2 ring-[#D96E4A]' : ''}`}>
                             {showSpinner ? (
                                 <div className="w-full h-full flex items-end justify-center pb-2 animate-fade-in">
                                      <div className="w-5 h-5 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>

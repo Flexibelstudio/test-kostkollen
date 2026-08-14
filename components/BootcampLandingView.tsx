@@ -217,7 +217,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         {/* Private Invite Code */}
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light md:col-span-2">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
+            <div className="w-10 h-10 bg-[#F1EAE0] rounded-xl flex items-center justify-center text-[#56524D]">
               <KeyIcon className="w-5 h-5" />
             </div>
             <h2 className="text-lg font-bold text-neutral-dark">Har du en inbjudningskod?</h2>
@@ -248,7 +248,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         {/* Public Cohorts */}
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+            <div className="w-12 h-12 bg-[#F1EAE0] rounded-xl flex items-center justify-center text-[#56524D]">
               <UsersIcon className="w-6 h-6" />
             </div>
             <div>
@@ -273,7 +273,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
                   <div>
                     <h3 className="font-bold text-neutral-dark">{cohort.name}</h3>
                     {hasStarted ? (
-                        <p className="text-sm font-medium text-orange-600">Startade {cohort.startDate} – Sista chansen!</p>
+                        <p className="text-sm font-medium text-[#D96E4A]">Startade {cohort.startDate} – Sista chansen!</p>
                     ) : (
                         <p className="text-sm text-neutral-500">Startar: {cohort.startDate}</p>
                     )}
@@ -295,7 +295,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         {/* Solo Start */}
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+            <div className="w-12 h-12 bg-[#E8EFE9] rounded-xl flex items-center justify-center text-[#2B3B2C]">
               <UserIcon className="w-6 h-6" />
             </div>
             <div>

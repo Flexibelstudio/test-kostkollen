@@ -42,6 +42,7 @@ import {
 } from './services/firestoreService.ts';
 
 import { subscribeToUserChats } from './services/chatService.ts';
+import { listenToUserChallenges, syncUserChallengeStatus, getDateUID_SE } from './services/challengeService.ts';
 
 // Context
 import { useUserContext } from './context/UserContext';
@@ -73,6 +74,8 @@ import GamificationModal from './components/GamificationModal.tsx';
 import SubscriptionModal from './components/SubscriptionModal.tsx';
 import { TrialRecapModal } from './components/TrialRecapModal.tsx';
 import { BootcampFinaleModal } from './components/BootcampFinaleModal.tsx';
+import { BootcampDiplomaModal } from './components/BootcampDiplomaModal.tsx';
+import { BOOTCAMP_RANKS, BootcampRankDef } from './utils/bootcampUtils.ts';
 
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
@@ -82,8 +85,9 @@ import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportF
 import {
   InformationCircleIcon, AICoachIcon,
   PencilIcon,
-  BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon, CreditCardIcon
+  BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon, CreditCardIcon, UserPlusIcon
 } from './components/icons.tsx';
+import { shareAppInvite } from './utils/shareUtils';
 import { Home, Footprints, Users, GraduationCap, Moon, Sun } from "lucide-react";
 import Dashboard from './pages/Dashboard';
 
@@ -222,7 +226,7 @@ const AIFeedbackModal: React.FC<{
             {showDiscussButton && (
                 <button 
                     onClick={onDiscuss} 
-                    className="flex-1 px-5 py-3 text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 px-5 py-3 text-lg font-medium text-white bg-[#D96E4A] hover:bg-[#C05A38] rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                     <SparklesIcon className="w-5 h-5" /> Diskutera med Coach
                 </button>
@@ -354,6 +358,11 @@ export const App = () => {
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [unseenFinale, setUnseenFinale] = useState<any>(null);
   const [showFinaleModal, setShowFinaleModal] = useState(false);
+  const [promotionDiplomaModalData, setPromotionDiplomaModalData] = useState<{
+    rankDef: BootcampRankDef;
+    userName: string;
+    streakDays: number;
+  } | null>(null);
   
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState<boolean>(false);
@@ -393,7 +402,7 @@ export const App = () => {
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
   const [newlyUnlockedLesson, setNewlyUnlockedLesson] = useState<CourseLesson | null>(null);
 
-  const [onboardingStep, setOnboardingStep] = useState<'form' | 'feedback'>('form');
+  const [onboardingStep, setOnboardingStep] = useState<'form' | 'feedback' | 'invite'>('form');
   const [showOnboardingCompletion, setShowOnboardingCompletion] = useState<boolean>(false);
   const [showSpotlight, setShowSpotlight] = useState<boolean>(false);
   const [checklistState, setChecklistState] = useState<OnboardingChecklistState | null>(null);
@@ -594,6 +603,70 @@ export const App = () => {
 
         checkAndUnlockLessons();
     }, [isInitialDataLoaded, currentUser, streakData.currentStreak, userCourseProgress, userRole, userStatus, setUserCourseProgress]);
+
+    // 18:00 Challenge Food Logging Reminder Effect
+    useEffect(() => {
+        if (!currentUser || userProfile?.notificationSettings?.foodReminder === false) return;
+
+        const check1800ChallengeReminder = async () => {
+            const now = new Date();
+            if (now.getHours() < 18) return; // Only trigger at or after 18:00 local time
+
+            const todayStr = getDateUID_SE(now);
+            const storageKey = `challenge_reminder_notified_${currentUser.uid}_${todayStr}`;
+            if (localStorage.getItem(storageKey)) return; // Already notified today
+
+            // Check if user has logged food today
+            const summary = pastDaysSummary[todayStr];
+            const hasLoggedToday = summary && (summary.consumedCalories > 0 || summary.goalMet);
+
+            if (hasLoggedToday) return; // User already logged food today!
+
+            const unsubscribe = listenToUserChallenges(currentUser.uid, (challenges) => {
+                const activeChallenge = challenges.find(c => c.status === 'active' && c.participantUids.includes(currentUser.uid) && !c.participants?.[currentUser.uid]?.leftAt);
+                if (activeChallenge) {
+                    localStorage.setItem(storageKey, 'true');
+                    setToastNotification({
+                        message: 'Glöm inte att logga din mat idag i 7-dagarsutmaningen!',
+                        type: 'info'
+                    });
+
+                    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                        try {
+                            new Notification('Peppkompis Utmaning 🏆', {
+                                body: 'En liten påminnelse: glöm inte att logga maten idag för att hålla sviten i er 7-dagarsutmaning!',
+                                icon: '/favicon.ico'
+                            });
+                        } catch (e) {}
+                    }
+                }
+            });
+
+            return () => unsubscribe();
+        };
+
+        check1800ChallengeReminder();
+        const interval = setInterval(check1800ChallengeReminder, 5 * 60 * 1000); // Check every 5 mins
+        return () => clearInterval(interval);
+    }, [currentUser, userProfile?.notificationSettings?.foodReminder, pastDaysSummary]);
+
+    // Auto-sync challenge status when food is logged
+    useEffect(() => {
+        if (!currentUser) return;
+        const todayStr = getDateUID_SE(new Date());
+        const summary = pastDaysSummary[todayStr];
+        const hasLoggedToday = summary && (summary.consumedCalories > 0 || summary.goalMet);
+
+        if (hasLoggedToday) {
+            const unsubscribe = listenToUserChallenges(currentUser.uid, (challenges) => {
+                const activeChallenges = challenges.filter(c => c.status === 'active' && c.participantUids.includes(currentUser.uid));
+                if (activeChallenges.length > 0) {
+                    syncUserChallengeStatus(currentUser.uid, activeChallenges, [todayStr]);
+                }
+            });
+            return () => unsubscribe();
+        }
+    }, [currentUser, pastDaysSummary]);
 
 
     useEffect(() => {
@@ -1030,7 +1103,6 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
 
   const handleLogout = async () => {
-    playAudio('uiClick');
     setShowProfileDropdown(false);
     try {
       await logout();
@@ -1041,7 +1113,6 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
 
   const toggleInterfaceView = () => {
-    playAudio('uiClick');
     setShowProfileDropdown(false);
     setCurrentInterface(prev => prev === 'member' ? 'coach' : 'member');
   };
@@ -1228,12 +1299,10 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
     
   const closeModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
-    playAudio('uiClick');
     modalSetter(false);
   };
 
   const openModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
-    playAudio('uiClick');
     modalSetter(true);
   };
 
@@ -1288,7 +1357,6 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
 
     setActiveCourse(course);
     setViewMode('courseOverview');
-    playAudio('uiClick');
   };
 
   const handleCloseLessonDetail = () => {
@@ -1304,7 +1372,6 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
 
   const handleToggleFocusPoint = async (lessonId: string, focusPointId: string) => {
     if (!currentUser) return;
-    playAudio('uiClick');
 
     const currentProgress = userCourseProgress[lessonId] || {
       completedFocusPoints: [],
@@ -1516,8 +1583,10 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
 
   const handleCloseUserProfileModal = () => {
-    if (isProfileModalOnboarding && onboardingStep === 'feedback') {
+    if (isProfileModalOnboarding && onboardingStep === 'invite') {
         handleFinishOnboarding();
+    } else if (isProfileModalOnboarding && onboardingStep === 'feedback') {
+        setOnboardingStep('invite');
     } else {
         setShowUserProfileModal(false);
         setOnboardingStep('form');
@@ -1920,7 +1989,6 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 });
                 setWeeklyBank(prev => ({ ...prev, bankedCalories: newVal, weekId: prev.weekId || getWeekInfo(new Date()).weekId }));
                 setToastNotification({ message: "100 kcal bonus tillagd i din sparpott!", type: 'success' });
-                playAudio('calorieBank');
              } catch (e) {}
         }
     };
@@ -2022,8 +2090,8 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
   return (
     <>
-      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} ${shouldShowGreenBackground ? 'bg-[#D0E5D4] dark:bg-[#1A2B1C]' : 'bg-neutral-light dark:bg-neutral-darker'} bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
-       <header className={`w-full ${shouldShowGreenBackground ? 'bg-white dark:bg-[#2A3B2C] border-b-2 border-[#4A5B4C]' : 'bg-white dark:bg-neutral-darker'} text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30`}>
+      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} bg-neutral-light dark:bg-neutral-darker bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
+       <header className="w-full bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
@@ -2037,7 +2105,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                             onClick={item.onClick}
                         >
                             <span className="icon-wrap">
-                                <item.Icon color="#3bab5a" size={24} strokeWidth={1.5} />
+                                <item.Icon color={item.isActive ? "#D96E4A" : "#7A756E"} size={24} strokeWidth={item.isActive ? 2 : 1.5} />
                             </span>
                             {item.notificationCount > 0 && (
                                 <span className="absolute top-[-4px] right-[-4px] flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold ring-2 ring-white">
@@ -2068,10 +2136,22 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                                     }}
                                 />
                                 <DropdownMenuItem
+                                    icon={<UserPlusIcon />}
+                                    label="Bjud in kompisar"
+                                    onClick={async () => {
+                                        setShowProfileDropdown(false);
+                                        const res = await shareAppInvite();
+                                        if (res.copied) {
+                                            setToastNotification({ message: 'Inbjudan kopierad till urklipp!', type: 'success' });
+                                        } else if (res.shared) {
+                                            setToastNotification({ message: 'Inbjudan delad!', type: 'success' });
+                                        }
+                                    }}
+                                />
+                                <DropdownMenuItem
                                     icon={<TrophyIcon />}
                                     label="Streak & Rekord"
                                     onClick={() => {
-                                        playAudio('uiClick');
                                         setShowGamificationModal(true);
                                         setShowProfileDropdown(false);
                                     }}
@@ -2111,7 +2191,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                                             icon={<SwitchHorizontalIcon />}
                                             label="Coach Dashboard"
                                             onClick={toggleInterfaceView}
-                                            className="text-indigo-600 hover:bg-indigo-50 font-medium"
+                                            className="text-[#D96E4A] hover:bg-[#F6E2D9]/50 font-medium"
                                         />
                                     </>
                                 )}
@@ -2276,12 +2356,12 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             localStorage.setItem('lastSeenMorningReport', todayUID);
         }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} yesterdayMeals={morningReportData.yesterdayMeals} yesterdayBootcampReport={morningReportData.yesterdayBootcampReport} activeBootcamp={effectiveActiveBootcamp} pastDaysSummary={Object.values(pastDaysSummary)} weightLogs={weightLogs} />}
         {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
-        {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} isBootcampActive={!!effectiveActiveBootcamp} /></div></div>}
+        {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} isBootcampActive={!!effectiveActiveBootcamp} onFinishOnboarding={handleFinishOnboarding} onGoToInviteStep={() => setOnboardingStep('invite')} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
         {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />}
         {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
         {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
-        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
+        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
         {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark/40 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} activeBootcamp={effectiveActiveBootcamp} weightLogs={weightLogs} /></div>}
         {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
         {/* Pass userCourseProgress to AI Coach Modal */}
@@ -2344,6 +2424,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         {showFinaleModal && unseenFinale && currentUser && (
             <BootcampFinaleModal
                 participant={unseenFinale}
+                userName={userProfile.name || currentUser.displayName || ''}
                 onClose={() => {
                     setShowFinaleModal(false);
                     markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
@@ -2353,6 +2434,41 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                     markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
                     setViewMode('coursesView');
                 }}
+            />
+        )}
+
+        {promotionDiplomaModalData && currentUser && (
+            <BootcampDiplomaModal
+                rankDef={promotionDiplomaModalData.rankDef}
+                userName={promotionDiplomaModalData.userName}
+                streakDays={promotionDiplomaModalData.streakDays}
+                onClose={() => {
+                    if (currentUser && promotionDiplomaModalData) {
+                      localStorage.setItem(`seenRankPromo_${promotionDiplomaModalData.rankDef.req}_${currentUser.uid}`, 'true');
+                    }
+                    setPromotionDiplomaModalData(null);
+                }}
+                onShareInFeed={async (data) => {
+                    if (currentUser) {
+                      try {
+                        const { addTimelineEvent } = await import('./services/firestoreService');
+                        await addTimelineEvent(currentUser.uid, {
+                          type: 'achievement',
+                          timestamp: Date.now(),
+                          title: `har befordrats till ${data.rankDef.name}! 🎖️`,
+                          description: `Har erhållit befordringsbevis för ${data.streakDays} dagar i följd i Generalens Bootcamp! "${data.rankDef.quote}"`,
+                          icon: '🎖️',
+                          relatedDocId: `diploma_${data.rankDef.name.toLowerCase()}`
+                        });
+                        setToastNotification({ message: 'Diplomet har delats i flödet! 🎉', type: 'success' });
+                        localStorage.setItem(`seenRankPromo_${data.rankDef.req}_${currentUser.uid}`, 'true');
+                      } catch (e) {
+                        console.error('Kunde inte dela i flödet:', e);
+                        setToastNotification({ message: 'Gick inte att dela i flödet just nu.', type: 'error' });
+                      }
+                    }
+                }}
+                isNewPromotion={true}
             />
         )}
 

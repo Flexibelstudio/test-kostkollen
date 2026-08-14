@@ -45,45 +45,45 @@ const MealStructureGuide: React.FC<MealStructureGuideProps> = ({ calorieGoal, pr
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-2xl border border-orange-100 dark:border-orange-800/50 flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center text-orange-600 dark:text-orange-400 mb-2">
+            <div className="bg-[#F6E2D9]/40 p-3 rounded-2xl border border-[#F6E2D9] flex flex-col items-center text-center">
+              <div className="w-10 h-10 rounded-full bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] mb-2">
                 <Coffee className="w-5 h-5" />
               </div>
               <span className="text-xs font-bold text-neutral-dark uppercase">Frukost</span>
-              <span className="text-lg font-extrabold text-orange-600 dark:text-orange-400">~{breakfast} <span className="text-xs font-medium">kcal</span></span>
-              <span className="text-xs font-bold text-neutral-500 mt-1">~{breakfastProtein}g protein</span>
+              <span className="text-lg font-extrabold text-[#D96E4A]">~{breakfast} <span className="text-xs font-medium">kcal</span></span>
+              <span className="text-xs font-bold text-[#7A756E] mt-1">~{breakfastProtein}g protein</span>
             </div>
             
-            <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-2xl border border-green-100 dark:border-green-800/50 flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-600 dark:text-green-400 mb-2">
+            <div className="bg-[#F6E2D9]/40 p-3 rounded-2xl border border-[#F6E2D9] flex flex-col items-center text-center">
+              <div className="w-10 h-10 rounded-full bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] mb-2">
                 <Sandwich className="w-5 h-5" />
               </div>
               <span className="text-xs font-bold text-neutral-dark uppercase">Lunch</span>
-              <span className="text-lg font-extrabold text-green-600 dark:text-green-400">~{lunch} <span className="text-xs font-medium">kcal</span></span>
-              <span className="text-xs font-bold text-neutral-500 mt-1">~{lunchProtein}g protein</span>
+              <span className="text-lg font-extrabold text-[#D96E4A]">~{lunch} <span className="text-xs font-medium">kcal</span></span>
+              <span className="text-xs font-bold text-[#7A756E] mt-1">~{lunchProtein}g protein</span>
             </div>
 
-            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-2xl border border-indigo-100 dark:border-indigo-800/50 flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-2">
+            <div className="bg-[#F6E2D9]/40 p-3 rounded-2xl border border-[#F6E2D9] flex flex-col items-center text-center">
+              <div className="w-10 h-10 rounded-full bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] mb-2">
                 <CookingPot className="w-5 h-5" />
               </div>
               <span className="text-xs font-bold text-neutral-dark uppercase">Middag</span>
-              <span className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">~{dinner} <span className="text-xs font-medium">kcal</span></span>
-              <span className="text-xs font-bold text-neutral-500 mt-1">~{dinnerProtein}g protein</span>
+              <span className="text-lg font-extrabold text-[#D96E4A]">~{dinner} <span className="text-xs font-medium">kcal</span></span>
+              <span className="text-xs font-bold text-[#7A756E] mt-1">~{dinnerProtein}g protein</span>
             </div>
 
-            <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-2xl border border-purple-100 dark:border-purple-800/50 flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400 mb-2">
+            <div className="bg-[#F6E2D9]/40 p-3 rounded-2xl border border-[#F6E2D9] flex flex-col items-center text-center">
+              <div className="w-10 h-10 rounded-full bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] mb-2">
                 <Apple className="w-5 h-5" />
               </div>
               <span className="text-xs font-bold text-neutral-dark uppercase">Mellanmål</span>
-              <span className="text-lg font-extrabold text-purple-600 dark:text-purple-400">~{snacks} <span className="text-xs font-medium">kcal</span></span>
-              <span className="text-xs font-bold text-neutral-500 mt-1">~{snacksProtein}g protein</span>
+              <span className="text-lg font-extrabold text-[#D96E4A]">~{snacks} <span className="text-xs font-medium">kcal</span></span>
+              <span className="text-xs font-bold text-[#7A756E] mt-1">~{snacksProtein}g protein</span>
             </div>
           </div>
 
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-800/50 flex gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+          <div className="bg-[#F1EAE0] p-4 rounded-2xl border border-[#E2D8CC] flex gap-3 mb-3">
+            <div className="w-10 h-10 rounded-full bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shrink-0">
               <Droplet className="w-5 h-5" />
             </div>
             <div>

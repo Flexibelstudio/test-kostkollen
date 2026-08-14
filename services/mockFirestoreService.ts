@@ -300,14 +300,14 @@ export async function fetchDetailedMemberDataForCoach(memberId: string): Promise
 
 // --- Buddy System Mocks ---
 let mockFriendRequests: PeppkompisRequest[] = [
-    { id: 'req1', fromUid: 'friend1', fromName: 'Pelle', fromEmail: 'pelle@test.com', toUid: MOCK_USER_ID, status: 'pending', createdAt: Date.now() }
+    { id: 'req1', fromUid: 'friend1', fromName: 'Pelle', toUid: MOCK_USER_ID, status: 'pending', createdAt: Date.now() }
 ];
 
 let mockOutgoingRequests: PeppkompisRequest[] = [];
 
 
 let mockBuddies: { [userId: string]: Peppkompis[] } = {
-    [MOCK_USER_ID]: [{ uid: 'friend2', name: 'Lisa', email: 'lisa@test.com', photoURL: 'https://i.pravatar.cc/150?u=lisa' }]
+    [MOCK_USER_ID]: [{ uid: 'friend2', name: 'Lisa', photoURL: 'https://i.pravatar.cc/150?u=lisa' }]
 };
 
 export async function addPepp(fromUser: { uid: string, name: string }, toUserUid: string, dateString: string): Promise<void> {
@@ -320,9 +320,9 @@ export async function updateUserSearchableStatus(userId: string, isSearchable: b
 
 export async function searchForBuddies(currentUserId: string): Promise<Peppkompis[]> {
     const users: Peppkompis[] = [
-        { uid: 'friend1', name: 'Pelle', email: 'pelle@test.com', photoURL: 'https://i.pravatar.cc/150?u=pelle', gender: 'male' },
-        { uid: 'friend2', name: 'Lisa', email: 'lisa@test.com', photoURL: 'https://i.pravatar.cc/150?u=lisa', gender: 'female' },
-        { uid: 'newfriend123', name: 'Ny Kompis', email: 'newfriend@test.com', photoURL: undefined, gender: 'female' }
+        { uid: 'friend1', name: 'Pelle', photoURL: 'https://i.pravatar.cc/150?u=pelle', gender: 'male' },
+        { uid: 'friend2', name: 'Lisa', photoURL: 'https://i.pravatar.cc/150?u=lisa', gender: 'female' },
+        { uid: 'newfriend123', name: 'Ny Kompis', photoURL: undefined, gender: 'female' }
     ];
     return users.filter(u => u.uid !== currentUserId);
 }
@@ -332,7 +332,6 @@ export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string)
         id: `req_${Date.now()}`,
         fromUid: fromUser.uid,
         fromName: fromUser.name,
-        fromEmail: fromUser.email,
         toUid: toUserUid,
         status: 'pending',
         createdAt: Date.now(),
@@ -358,7 +357,7 @@ export async function updateFriendRequestStatus(request: PeppkompisRequest, stat
     mockFriendRequests = mockFriendRequests.filter(r => r.id !== request.id);
     if (status === 'accepted') {
         if (!mockBuddies[request.toUid]) mockBuddies[request.toUid] = [];
-        mockBuddies[request.toUid].push({ uid: request.fromUid, name: request.fromName, email: request.fromEmail });
+        mockBuddies[request.toUid].push({ uid: request.fromUid, name: request.fromName });
     }
 }
 export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {

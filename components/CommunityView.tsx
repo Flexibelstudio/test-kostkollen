@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, FC, useCallback, useRef } from 'react';
 import type { User } from '@firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Peppkompis, TimelineEvent, Achievement, BuddyDetails, UserProfileData, PeppkompisRequest, TimelineComment, Reactions, PostCategory, UserRole, Chat } from '../types';
 import { 
@@ -40,7 +40,12 @@ import CameraModal from './CameraModal';
 import { COACH_PERSONAS } from '../constants';
 import { uploadImageToStorage, uploadBase64ToStorage, base64ToBlob } from '../utils/storageUtils';
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
+import { RankBadge } from './RankBadge';
 import { AnimatePresence } from 'framer-motion';
+import { shareAppInvite } from '../utils/shareUtils';
+import { ChallengeCard } from './ChallengeCard';
+import { listenToUserChallenges, syncUserChallengeStatus } from '../services/challengeService';
+import type { Challenge } from '../types';
 
 // --- HELPER FUNCTIONS ---
 
@@ -130,7 +135,6 @@ export const CreatePostWidget: FC<{
     const handleSubmit = async () => {
         if (!text.trim() && !image) return;
         setIsSubmitting(true);
-        playAudio('uiClick');
 
         try {
             let finalImageUrl = image || undefined;
@@ -374,18 +378,19 @@ const BuddyCard: FC<{
                         <h3 className="text-xl font-bold text-neutral-dark truncate">{buddy.name}</h3>
                         <p className="text-xs text-neutral flex items-center gap-2 mt-0.5 min-w-0">
                             {buddy.currentStreak !== undefined && buddy.currentStreak >= 0 && (
-                                <span className="font-medium text-orange-500 whitespace-nowrap">🔥 {buddy.currentStreak}</span>
+                                <span className="font-medium text-[#D96E4A] whitespace-nowrap">🔥 {buddy.currentStreak}</span>
                             )}
                             {buddy.currentStreak !== undefined && buddy.currentStreak >= 0 && Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0) >= 0 && (
                                 <span className="text-neutral-300 shrink-0">|</span>
                             )}
                             {Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0) >= 0 && (
-                                <span className="font-medium text-yellow-600 flex items-center gap-1 whitespace-nowrap">
+                                <span className="font-medium text-[#D96E4A] flex items-center gap-1 whitespace-nowrap">
                                     🎖️ {Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0)}
                                     {getBootcampRankInfo(Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0), 0, 'fas1').currentRank && (
                                         <>
                                             <span className="text-neutral-300 shrink-0">|</span>
-                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-[#E8EFE9] text-[#2B3B2C] rounded-full inline-flex items-center gap-1">
+                                                <RankBadge rank={getBootcampRankInfo(Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0), 0, 'fas1').currentRank} size="sm" className="w-3.5 h-3.5" />
                                                 {getBootcampRankInfo(Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0), 0, 'fas1').currentRank}
                                             </span>
                                         </>
@@ -581,20 +586,25 @@ export const TimelineEventCard: FC<{
     // --- COMPACT STATS LOGIC ---
     const isCurrentUser = event.userId === currentUser.uid;
     
-    // Check if the post was made by a coach persona
+    // Check if the post was made by a coach persona or is editorial
     const isCoachPersona = event.userName && 
         Object.values(COACH_PERSONAS).some(coach => coach.label === event.userName);
     const isBorje = event.userName === 'Börje' || event.userName === 'General Börje';
+    const isEditorial = Boolean(event.isEditorial || event.senderType === 'coach' || event.senderType === 'kostloggen');
 
-    const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL');
+    const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL') || isEditorial;
 
-    const displayName = isBorje || isCoachPersona 
-        ? event.userName 
-        : (isGlobalPost ? 'Kostloggen' : (isCurrentUser ? 'Du' : event.userName));
+    const displayName = isEditorial
+        ? (event.senderName || event.userName || 'Kostloggen')
+        : (isBorje || isCoachPersona 
+            ? event.userName 
+            : (isGlobalPost ? 'Kostloggen' : (isCurrentUser ? 'Du' : event.userName)));
         
-    const displayPhotoURL = isBorje || isCoachPersona 
-        ? event.userPhotoURL 
-        : (isGlobalPost ? '/favicon.png' : event.userPhotoURL);
+    const displayPhotoURL = isEditorial
+        ? (event.userPhotoURL || '/favicon.png')
+        : (isBorje || isCoachPersona 
+            ? event.userPhotoURL 
+            : (isGlobalPost ? '/favicon.png' : event.userPhotoURL));
 
     let currentUserReactionEmoji: string | null = null;
     let currentUserHasAnyReaction = false;
@@ -606,7 +616,6 @@ export const TimelineEventCard: FC<{
     });
 
     const handleToggleDefaultLike = () => {
-        playAudio('uiClick', 0.6);
         if (currentUserHasAnyReaction && currentUserReactionEmoji) {
             onTogglePepp(event, currentUserReactionEmoji);
         } else {
@@ -638,12 +647,12 @@ export const TimelineEventCard: FC<{
     return (
     <div id={`event-${event.id}`} className={`group relative p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
         isNewEvent 
-            ? 'bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+            ? 'bg-[#E8EFE9] border-[#8C9A86]/40' 
             : isBorje
-                ? 'bg-red-50/50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                ? 'bg-red-50 border-red-200'
             : (isGlobalPost || isCoachPersona)
-                ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-                : 'bg-white dark:bg-neutral-darker border-neutral-light'
+                ? 'bg-[#F6E2D9]/40 border-[#D96E4A]/30'
+                : 'bg-white border-neutral-light'
     }`}>
         <div className="flex items-start gap-3">
             <Avatar photoURL={displayPhotoURL} gender={event.gender} size={48} />
@@ -654,14 +663,14 @@ export const TimelineEventCard: FC<{
                             <span className="font-bold">{displayName}</span>
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 sentFriendRequests.has(event.userId) ? (
-                                    <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                    <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-[#E8EFE9] rounded-full text-[12px] font-bold text-[#2B3B2C] shadow-sm border border-[#8C9A86]/40">
                                         <CheckIcon className="w-4 h-4" />
                                         <span>Skickad</span>
                                     </div>
                                 ) : (
                                     <button 
                                         onClick={() => onAddFriend(event.userId, event.userName)}
-                                        className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
+                                        className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-[#F6E2D9] hover:bg-[#D96E4A]/20 rounded-full text-[12px] font-bold text-[#D96E4A] transition-colors cursor-pointer shadow-sm"
                                         title="Lägg till kompis"
                                     >
                                         <UsersIcon className="w-4 h-4" />
@@ -669,13 +678,17 @@ export const TimelineEventCard: FC<{
                                     </button>
                                 )
                             )}
-                            {isGlobalPost && !event.bootcampId && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            {isEditorial ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#F6E2D9] text-[#D96E4A] border border-[#D96E4A]/20">
+                                    ✨ Redaktionellt
+                                </span>
+                            ) : isGlobalPost && !event.bootcampId ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#F6E2D9] text-[#D96E4A]">
                                     Officiellt
                                 </span>
-                            )}
+                            ) : null}
                             {event.bootcampId && event.type === 'user_post' && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#F6E2D9] text-[#D96E4A]">
                                     🎖️ General Börjes Bootcamp
                                 </span>
                             )}
@@ -716,18 +729,19 @@ export const TimelineEventCard: FC<{
                                 <div className="mt-1 mb-2 w-full min-w-0">
                                     <div className="flex items-center gap-2 text-xs text-neutral-500 font-medium mb-1.5 min-w-0">
                                         {event.streakAtPost !== undefined && event.streakAtPost >= 0 && (
-                                            <span className="flex items-center gap-0.5 text-orange-600 whitespace-nowrap shrink-0"><span className="text-sm">🔥</span> {event.streakAtPost}</span>
+                                            <span className="flex items-center gap-0.5 text-[#D96E4A] whitespace-nowrap shrink-0"><span className="text-sm">🔥</span> {event.streakAtPost}</span>
                                         )}
                                         {hasBootcampStreak && (
                                             <>
                                                 {event.streakAtPost !== undefined && event.streakAtPost >= 0 && <span className="text-neutral-300 shrink-0">|</span>}
-                                                <span className="flex items-center gap-0.5 text-yellow-600 whitespace-nowrap shrink-0"><span className="text-sm">🎖️</span> {event.bootcampStreakAtPost}</span>
+                                                <span className="flex items-center gap-0.5 text-[#D96E4A] whitespace-nowrap shrink-0"><span className="text-sm">🎖️</span> {event.bootcampStreakAtPost}</span>
                                             </>
                                         )}
                                         {hasHighestStreak && rankName && (
                                             <>
                                                 {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak) && <span className="text-neutral-300 shrink-0">|</span>}
-                                                <span className="text-[11px] font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full whitespace-nowrap shrink-0">
+                                                <span className="text-[11px] font-bold px-2 py-0.5 bg-[#E8EFE9] text-[#2B3B2C] rounded-full whitespace-nowrap shrink-0 inline-flex items-center gap-1">
+                                                    <RankBadge rank={rankName} size="sm" className="w-3.5 h-3.5" />
                                                     {rankName}
                                                 </span>
                                             </>
@@ -948,26 +962,38 @@ const FriendManagementView: FC<{
     const [buddySearchQuery, setBuddySearchQuery] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoadingData, setIsLoadingData] = useState(true);
-    const [allSearchableUsers, setAllSearchableUsers] = useState<Peppkompis[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchResults, setSearchResults] = useState<Peppkompis[]>([]);
     const [requests, setRequests] = useState<PeppkompisRequest[]>([]);
     const [outgoingRequests, setOutgoingRequests] = useState<PeppkompisRequest[]>([]);
     const [activeTab, setActiveTab] = useState<'buddies' | 'search' | 'requests'>(initialTab);
     const [buddyToRemove, setBuddyToRemove] = useState<Peppkompis | null>(null);
     const [showInviteOptionsModal, setShowInviteOptionsModal] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [userChallenges, setUserChallenges] = useState<Challenge[]>([]);
+
+    useEffect(() => {
+        if (!currentUser?.uid) return;
+        const unsubscribe = listenToUserChallenges(currentUser.uid, (challenges) => {
+            setUserChallenges(challenges);
+        });
+        return () => unsubscribe();
+    }, [currentUser?.uid]);
+
+    const activeChallenge = useMemo(() => {
+        return userChallenges.find(c => c.participantUids?.includes(currentUser.uid) && !c.participants?.[currentUser.uid]?.leftAt) || null;
+    }, [userChallenges, currentUser.uid]);
 
 
     const fetchData = useCallback(async () => {
         setIsLoadingData(true);
         try {
-            const [reqs, outReqs, allUsers] = await Promise.all([
+            const [reqs, outReqs] = await Promise.all([
                 fetchFriendRequests(currentUser.uid),
                 fetchOutgoingFriendRequests(currentUser.uid),
-                searchForBuddies(currentUser.uid),
             ]);
             setRequests(reqs.filter(r => r.fromUid !== currentUser.uid));
             setOutgoingRequests(outReqs);
-            setAllSearchableUsers(allUsers);
         } catch (error) {
             setToastNotification({ message: "Kunde inte ladda kompisdata.", type: 'error' });
         } finally {
@@ -977,67 +1003,57 @@ const FriendManagementView: FC<{
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const inviteText = `Haka på mig och gå ner i vikt med Kostloggen så kan vi peppa varandra! 🌟\n\nDu får automatiskt 7 dagar helt gratis när du skapar ditt konto!\n\nLadda ner appen och lägg till mig som kompis här: https://app.kostloggen.se`;
+    useEffect(() => {
+        const queryText = searchQuery.trim().toLowerCase();
+        if (!queryText) {
+            setSearchResults([]);
+            setIsSearching(false);
+            return;
+        }
+        setIsSearching(true);
+        const timer = setTimeout(async () => {
+            try {
+                const results = await searchForBuddies(currentUser.uid, queryText);
+                const buddyUids = new Set(buddyDetails.map(b => b.uid));
+                setSearchResults(results.filter(u => !buddyUids.has(u.uid)));
+            } catch (err) {
+                console.error("Search error:", err);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery, currentUser.uid, buddyDetails]);
 
     const handleShareViaApp = async () => {
         setShowInviteOptionsModal(false);
-        playAudio('uiClick');
-        
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    text: inviteText,
-                });
-            } catch (error) {
-                if (!(error instanceof DOMException && error.name === 'AbortError')) {
-                    console.error('Error sharing:', error);
-                    setToastNotification({ message: 'Kunde inte dela inbjudan.', type: 'error' });
-                }
-            }
-        } else {
-            // Fallback for desktop
-            navigator.clipboard.writeText(inviteText).then(() => {
-                setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
-            }, () => {
-                setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
-            });
+        const res = await shareAppInvite();
+        if (res.copied) {
+            setToastNotification({ message: 'Inbjudan kopierad till urklipp!', type: 'success' });
+        } else if (res.shared) {
+            setToastNotification({ message: 'Inbjudan delad!', type: 'success' });
         }
     };
     
-    const handleCopyToClipboard = () => {
-        playAudio('uiClick');
-        navigator.clipboard.writeText(inviteText).then(() => {
+    const handleCopyToClipboard = async () => {
+        const res = await shareAppInvite();
+        if (res.copied) {
             setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 2000); // Reset feedback after 2s
-        }, () => {
-            setToastNotification({ message: 'Kunde inte kopiera texten.', type: 'error' });
-        });
+            setToastNotification({ message: 'Inbjudningstext kopierad!', type: 'success' });
+            setTimeout(() => setIsCopied(false), 2000);
+        }
     };
 
 
-    const searchResults = useMemo(() => {
-        const buddyUids = new Set(buddyDetails.map(b => b.uid));
-        const nonFriends = allSearchableUsers.filter(user => !buddyUids.has(user.uid));
-
-        const query = searchQuery.trim().toLowerCase();
-        if (!query) return [];
-        
-        return nonFriends.filter(user => 
-            user.name.toLowerCase().includes(query) || 
-            (user.email && user.email.toLowerCase().includes(query))
-        );
-    }, [searchQuery, allSearchableUsers, buddyDetails]);
-    
     const handleSendRequest = async (toUser: Peppkompis) => {
         const currentUserPeppkompis: Peppkompis = {
             uid: currentUser.uid,
             name: userProfile.name || "En användare",
-            email: currentUser.email || '',
             photoURL: userProfile.photoURL,
             gender: userProfile.gender,
         };
         try {
-            await sendFriendRequest(currentUserPeppkompis, toUser.uid);
+            await sendFriendRequest(currentUserPeppkompis, toUser.uid, toUser.name);
             setToastNotification({ message: `Förfrågan skickad till ${toUser.name}!`, type: 'success' });
             const outReqs = await fetchOutgoingFriendRequests(currentUser.uid);
             setOutgoingRequests(outReqs);
@@ -1050,8 +1066,7 @@ const FriendManagementView: FC<{
         const query = buddySearchQuery.trim().toLowerCase();
         if (!query) return buddyDetails;
         return buddyDetails.filter(buddy => 
-            buddy.name.toLowerCase().includes(query) || 
-            (buddy.email && buddy.email.toLowerCase().includes(query))
+            buddy.name.toLowerCase().includes(query)
         );
     }, [buddySearchQuery, buddyDetails]);
 
@@ -1067,13 +1082,11 @@ const FriendManagementView: FC<{
     };
     
     const handleRemoveBuddyRequest = (buddy: Peppkompis) => {
-        playAudio('uiClick');
         setBuddyToRemove(buddy);
     };
 
     const confirmRemoveBuddy = async () => {
         if (!buddyToRemove) return;
-        playAudio('uiClick');
         try {
             await removeBuddy(currentUser.uid, buddyToRemove.uid);
             onDataChanged();
@@ -1103,6 +1116,33 @@ const FriendManagementView: FC<{
             case 'buddies':
                 return (
                     <div className="space-y-4">
+                        <ChallengeCard
+                            challenge={activeChallenge}
+                            currentUserId={currentUser.uid}
+                            currentUserProfile={userProfile}
+                            buddyDetails={buddyDetails}
+                            onChallengeUpdated={fetchData}
+                            setToastNotification={setToastNotification}
+                        />
+                        {buddyDetails.length < 3 && (
+                            <div className="bg-[#F6E2D9]/60 border border-[#D96E4A]/30 p-4 rounded-xl flex items-center justify-between gap-4">
+                                <div>
+                                    <p className="text-sm font-bold text-[#56524D]">
+                                        Du har {buddyDetails.length === 0 ? 'inga' : buddyDetails.length} {buddyDetails.length === 1 ? 'kompis' : 'kompisar'} ännu
+                                    </p>
+                                    <p className="text-xs text-neutral-600 mt-0.5">
+                                        Det är betydligt roligare och lättare att nå sina mål tillsammans! Bjud in minst 3 vänner för att peppa varandra.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowInviteOptionsModal(true)}
+                                    className="flex-shrink-0 px-3.5 py-2 bg-[#D96E4A] hover:bg-[#C05A38] text-white text-xs font-bold rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                                >
+                                    <UserPlusIcon className="w-4 h-4" /> Bjud in
+                                </button>
+                            </div>
+                        )}
                         <div className="relative">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                             <input 
@@ -1147,7 +1187,9 @@ const FriendManagementView: FC<{
                             />
                         </div>
                         <div className="space-y-2">
-                            {searchResults.map(user => {
+                            {isSearching ? (
+                                <p className="text-sm text-neutral text-center py-4">Söker...</p>
+                            ) : searchResults.map(user => {
                                 const isBuddy = buddyDetails.some(b => b.uid === user.uid);
                                 const hasPendingRequest = outgoingRequests.some(r => r.toUid === user.uid);
                                 return (
@@ -1156,13 +1198,13 @@ const FriendManagementView: FC<{
                                             <Avatar photoURL={user.photoURL} gender={user.gender} size={32} />
                                             <p className="font-semibold text-neutral-dark text-sm">{user.name}</p>
                                         </div>
-                                        {isBuddy ? ( <span className="text-xs font-semibold text-primary px-2 py-1 bg-primary-100 rounded-full">Kompis</span>
-                                        ) : hasPendingRequest ? ( <span className="text-xs font-semibold text-yellow-600 px-2 py-1 bg-yellow-100 rounded-full">Väntar</span>
-                                        ) : ( <button onClick={() => handleSendRequest(user)} className="p-2 text-green-600 hover:bg-green-100 rounded-full" title={`Skicka förfrågan`}><UserPlusIcon className="w-5 h-5" /></button> )}
+                                        {isBuddy ? ( <span className="text-xs font-semibold text-[#D96E4A] px-2 py-1 bg-[#F6E2D9] rounded-full">Kompis</span>
+                                        ) : hasPendingRequest ? ( <span className="text-xs font-semibold text-[#D96E4A] px-2 py-1 bg-[#F6E2D9] rounded-full">Väntar</span>
+                                        ) : ( <button onClick={() => handleSendRequest(user)} className="p-2 text-[#D96E4A] hover:bg-[#F6E2D9] rounded-full" title={`Skicka förfrågan`}><UserPlusIcon className="w-5 h-5" /></button> )}
                                     </div>
                                 );
                             })}
-                             {searchQuery && searchResults.length === 0 && (
+                             {searchQuery && !isSearching && searchResults.length === 0 && (
                                 <p className="text-sm text-neutral text-center py-4">Inga användare matchade din sökning.</p>
                             )}
                         </div>
@@ -1177,14 +1219,14 @@ const FriendManagementView: FC<{
                                 <p className="font-semibold text-sm">{req.fromName}</p>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => handleRequestAction(req, 'declined')} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><XMarkIcon className="w-5 h-5" /></button>
-                                    <button onClick={() => handleRequestAction(req, 'accepted')} className="p-2 text-green-600 hover:bg-green-100 rounded-full"><CheckIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => handleRequestAction(req, 'accepted')} className="p-2 text-[#D96E4A] hover:bg-[#F6E2D9] rounded-full"><CheckIcon className="w-5 h-5" /></button>
                                 </div>
                             </div>
                         )) : <p className="text-sm text-neutral">Inga nya förfrågningar.</p>}
                          <h4 className="font-semibold pt-2 border-t">Utgående ({outgoingRequests.length})</h4>
                         {outgoingRequests.length > 0 ? outgoingRequests.map(req => (
                             <div key={req.id} className="flex items-center justify-between bg-neutral-light dark:bg-neutral-dark p-2 rounded-lg">
-                                <p className="font-semibold text-sm">{allSearchableUsers.find(u => u.uid === req.toUid)?.name || 'Okänd'}</p>
+                                <p className="font-semibold text-sm">{req.toName || 'Utgående förfrågan'}</p>
                                 <button onClick={() => handleCancelRequest(req.id)} className="text-xs font-semibold text-red-600 px-2 py-1 bg-red-100 rounded-full hover:bg-red-200">Avbryt</button>
                             </div>
                         )) : <p className="text-sm text-neutral">Inga utgående förfrågningar.</p>}
@@ -1197,7 +1239,7 @@ const FriendManagementView: FC<{
         <div className="flex flex-col h-full w-full">
             <div className="flex-shrink-0 px-4 pt-4">
                 <nav className="flex -mb-px border-b border-neutral-light">
-                    <button onClick={() => setActiveTab('buddies')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'buddies' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina kompisar</button>
+                    <button onClick={() => setActiveTab('buddies')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'buddies' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina kompisar ({buddyDetails.length})</button>
                     <button onClick={() => setActiveTab('search')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'search' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Hitta kompisar</button>
                     <button onClick={() => setActiveTab('requests')} className={`relative py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'requests' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>
                         Förfrågningar
@@ -1257,7 +1299,7 @@ const FriendManagementView: FC<{
                             <button
                                 onClick={handleCopyToClipboard}
                                 disabled={isCopied}
-                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark dark:text-white bg-neutral-light dark:bg-neutral-dark hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md shadow-sm disabled:bg-green-100 disabled:text-green-700"
+                                className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-neutral-dark dark:text-white bg-neutral-light dark:bg-neutral-dark hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md shadow-sm disabled:bg-[#E8EFE9] disabled:text-[#2B3B2C]"
                             >
                                 <PencilIcon className="w-5 h-5 mr-2" /> {isCopied ? 'Kopierad!' : 'Kopiera inbjudningstext'}
                             </button>
@@ -1415,6 +1457,20 @@ export const CommunityView: React.FC<{
   const [sentFriendRequests, setSentFriendRequests] = useState<Set<string>>(new Set());
   
   const previousTabRef = useRef(activeTab);
+  const [userChallenges, setUserChallenges] = useState<Challenge[]>([]);
+
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    const unsubscribe = listenToUserChallenges(currentUser.uid, (challenges) => {
+      setUserChallenges(challenges);
+    });
+    return () => unsubscribe();
+  }, [currentUser?.uid]);
+
+  const activeChallenge = useMemo(() => {
+    return userChallenges.find(c => c.participantUids?.includes(currentUser.uid) && !c.participants?.[currentUser.uid]?.leftAt) || null;
+  }, [userChallenges, currentUser.uid]);
+
   useEffect(() => {
     if (previousTabRef.current === 'flode' && activeTab !== 'flode') {
       setEffectiveLastViewTimestamp(Date.now());
@@ -1435,9 +1491,59 @@ export const CommunityView: React.FC<{
   // Initialize with timelineEvents to show cached data immediately if available
   const [realtimeEvents, setRealtimeEvents] = useState<TimelineEvent[]>(Array.isArray(timelineEvents) ? timelineEvents : []);
   const [historicalEvents, setHistoricalEvents] = useState<TimelineEvent[]>([]);
+  const [editorialEvents, setEditorialEvents] = useState<TimelineEvent[]>([]);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+
+  // Fetch published editorial/scheduled posts when user has fewer than 3 buddies
+  useEffect(() => {
+    if (!db) return;
+    if (buddyDetails.length < 3) {
+      const q = query(
+        collection(db, 'scheduledPosts'),
+        where('status', '==', 'published')
+      );
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const posts: TimelineEvent[] = snapshot.docs.map(d => {
+          const data = d.data();
+          const effectiveSender = data.senderName || 'Kostloggen';
+          const photoURL = effectiveSender === 'Kostloggen' 
+            ? '/favicon.png' 
+            : (COACH_PERSONAS[effectiveSender as keyof typeof COACH_PERSONAS]?.imageUrl || '/favicon.png');
+
+          return {
+            id: `sch_${d.id}`,
+            content: data.content,
+            title: data.title || '',
+            description: data.content,
+            icon: '✨',
+            category: data.category || 'pepp',
+            isEditorial: true,
+            senderType: data.senderType || 'kostloggen',
+            senderName: effectiveSender,
+            userName: effectiveSender,
+            userPhotoURL: photoURL,
+            isGlobal: true,
+            visibleTo: ['GLOBAL', 'all', 'editorial'],
+            timestamp: data.createdAt || Date.now(),
+            type: 'user_post',
+            userId: `editorial_${effectiveSender.toLowerCase().replace(/\s+/g, '_')}`,
+            gender: 'female',
+            reactions: {},
+            comments: [],
+            relatedDocPath: 'scheduledPosts'
+          } as TimelineEvent;
+        });
+        setEditorialEvents(posts);
+      }, (err) => {
+        console.warn("Could not listen to published scheduled posts:", err);
+      });
+      return () => unsubscribe();
+    } else {
+      setEditorialEvents([]);
+    }
+  }, [buddyDetails.length]);
 
   // Sync prop to state when it changes (e.g. initial load finishes in App.tsx or new realtime events arrive)
   useEffect(() => {
@@ -1450,8 +1556,9 @@ export const CommunityView: React.FC<{
   const visibleEvents = useMemo(() => {
       const rt = Array.isArray(realtimeEvents) ? realtimeEvents : [];
       const hist = Array.isArray(historicalEvents) ? historicalEvents : [];
+      const edit = Array.isArray(editorialEvents) ? editorialEvents : [];
       
-      const all = [...rt, ...hist];
+      const all = [...rt, ...hist, ...edit];
       const seen = new Set();
       let filtered = all.filter(e => {
           if (seen.has(e.id)) return false;
@@ -1486,7 +1593,8 @@ export const CommunityView: React.FC<{
           
           if (registrationTime > 0) {
               // Vi filtrerar bort gamla inlägg och sparar de som skapades vid eller efter registreringen (minus 1 min marginal)
-              filtered = filtered.filter(event => event.timestamp >= (registrationTime - 60000));
+              // Obs: Redaktionella inlägg undantas från tidsfiltreringen så att nya användare ser dem direkt.
+              filtered = filtered.filter(event => event.isEditorial || event.timestamp >= (registrationTime - 60000));
           }
       }
 
@@ -1495,7 +1603,7 @@ export const CommunityView: React.FC<{
       }
 
       return filtered;
-  }, [realtimeEvents, historicalEvents, feedFilter, activeBootcamp, userProfile]);
+  }, [realtimeEvents, historicalEvents, editorialEvents, feedFilter, activeBootcamp, userProfile]);
 
   // Scroll to highlighted event
   useEffect(() => {
@@ -1557,7 +1665,6 @@ export const CommunityView: React.FC<{
 
     const handleTogglePepp = async (event: TimelineEvent, newEmoji: string) => {
         if (!event.id) return;
-        playAudio('uiClick', 0.6);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
         const updateEventList = (list: TimelineEvent[]) => list.map(e => {
@@ -1591,7 +1698,6 @@ export const CommunityView: React.FC<{
     };
     
     const handleToggleCommentReaction = async (event: TimelineEvent, commentId: string, emoji: string) => {
-        playAudio('uiClick');
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'Användare' };
         
         // Optimistic update
@@ -1632,7 +1738,6 @@ export const CommunityView: React.FC<{
     };
 
     const handleToggleLike = async (event: TimelineEvent, commentId: string) => {
-        playAudio('uiClick', 0.5);
         const fromUser = { uid: currentUser.uid, name: userProfile.name || 'En kompis' };
         
         const updateEventList = (list: TimelineEvent[]) => list.map(e => {
@@ -1660,8 +1765,6 @@ export const CommunityView: React.FC<{
     };
 
     const handleDeleteComment = async (eventId: string, commentId: string) => {
-        playAudio('uiClick');
-        
         // Optimistic update
         const updateEventList = (list: TimelineEvent[]) => list.map(e => 
             e.id === eventId ? { ...e, comments: (e.comments || []).filter(c => c.id !== commentId) } : e
@@ -1681,7 +1784,6 @@ export const CommunityView: React.FC<{
     
     const handleAddComment = async (event: TimelineEvent, text: string, imageBase64?: string) => {
         if (!text.trim() && !imageBase64) return;
-        playAudio('uiClick');
         const clientTimestamp = Date.now();
         const optimisticComment: TimelineComment = { 
             id: `local-${clientTimestamp}`, 
@@ -1726,7 +1828,6 @@ export const CommunityView: React.FC<{
         try {
             await deleteTimelineEvent(eventId);
             setToastNotification({ message: "Inlägget raderat.", type: 'success' });
-            playAudio('uiClick');
         } catch (error) {
             console.error(error);
             setToastNotification({ message: "Kunde inte radera inlägget.", type: 'error' });
@@ -1737,7 +1838,6 @@ export const CommunityView: React.FC<{
         const currentUserPeppkompis: Peppkompis = {
             uid: currentUser.uid,
             name: userProfile.name || "En användare",
-            email: currentUser.email || '',
             photoURL: userProfile.photoURL,
             gender: userProfile.gender,
         };
@@ -1800,6 +1900,18 @@ export const CommunityView: React.FC<{
                                 </button>
                             </div>
                         )}
+                        {activeChallenge && (
+                            <div className="mb-4">
+                                <ChallengeCard
+                                    challenge={activeChallenge}
+                                    currentUserId={currentUser.uid}
+                                    currentUserProfile={userProfile}
+                                    buddyDetails={buddyDetails}
+                                    onChallengeUpdated={onDataChanged}
+                                    setToastNotification={setToastNotification}
+                                />
+                            </div>
+                        )}
                         <CreatePostWidget 
                             currentUser={currentUser} 
                             userProfile={userProfile} 
@@ -1852,10 +1964,42 @@ export const CommunityView: React.FC<{
                                     )}
                                 </div>
                             </>
-                        ) : !isLoading && timelineEvents.length === 0 ? (
+                        ) : !isLoading && visibleEvents.length === 0 ? (
                              <div className="text-center py-16 px-4">
-                                <h3 className="text-xl font-semibold text-neutral-dark">Ditt flöde är tomt!</h3>
-                                <p className="text-neutral mt-2">Bli den första att skriva något eller lägg till fler kompisar!</p>
+                                <div className="bg-white p-8 sm:p-10 rounded-3xl border border-neutral-light shadow-soft-xl text-center max-w-lg mx-auto my-4 space-y-5 animate-fade-in">
+                                    <div className="w-16 h-16 bg-[#F6E2D9] text-[#D96E4A] rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                                        <UsersIcon className="w-8 h-8" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h3 className="text-2xl font-bold font-fraunces text-neutral-dark">Välkommen till Community-flödet</h3>
+                                        <p className="text-neutral text-sm leading-relaxed">
+                                            Här delar du och dina peppkompisar er hälsoresa, hejar på varandra och firar framsteg tillsammans dag för dag.
+                                        </p>
+                                    </div>
+                                    <div className="p-4 bg-[#F6E2D9]/30 rounded-2xl border border-[#D96E4A]/20 text-xs text-[#56524D] text-left">
+                                        💡 <strong>Tips:</strong> Bjud in dina vänner så ser ni varandras måltider, streaks och framsteg i ert gemensamma flöde!
+                                    </div>
+                                    <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center items-center">
+                                        <button
+                                            onClick={async () => {
+                                                const res = await shareAppInvite();
+                                                if (res.copied) {
+                                                    setToastNotification({ message: 'Inbjudningslänk kopierad till urklipp!', type: 'success' });
+                                                }
+                                            }}
+                                            className="w-full sm:w-auto px-6 py-3.5 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer text-sm"
+                                        >
+                                            <UserPlusIcon className="w-5 h-5" />
+                                            Bjud in kompisar
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('hantera')}
+                                            className="w-full sm:w-auto px-5 py-3.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-dark font-bold rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer text-sm"
+                                        >
+                                            Hitta kompisar
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             <div className="flex justify-center items-center py-16">

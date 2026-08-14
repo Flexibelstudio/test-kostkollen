@@ -187,8 +187,8 @@ const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToa
                     </div>
 
                     <div className="bg-white p-6 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col h-full">
-                        <div className="bg-blue-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
-                            <Users className="w-6 h-6 text-blue-600" />
+                        <div className="bg-[#F1EAE0] w-12 h-12 rounded-xl flex items-center justify-center mb-4">
+                            <Users className="w-6 h-6 text-[#56524D]" />
                         </div>
                         <h4 className="font-bold text-lg mb-2">Driv engagemang</h4>
                         <p className="text-neutral text-sm mb-4 flex-grow">
@@ -196,7 +196,7 @@ const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToa
                         </p>
                         <button 
                             onClick={() => openPostModal('Aktiviteten i communityt är något lägre än förra veckan. Skriv ett inlägg som ställer en intressant fråga eller startar en omröstning för att få igång diskussionen bland medlemmarna.')} 
-                            className="w-full py-2.5 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-2.5 bg-[#F1EAE0] text-[#56524D] font-bold rounded-xl hover:bg-[#E5DCD0] transition-colors flex items-center justify-center gap-2"
                         >
                             <Zap className="w-4 h-4" />
                             Generera inlägg
@@ -204,8 +204,8 @@ const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToa
                     </div>
 
                     <div className="bg-white p-6 rounded-2xl shadow-soft-lg border border-neutral-light flex flex-col h-full">
-                        <div className="bg-orange-100 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
-                            <Star className="w-6 h-6 text-orange-600" />
+                        <div className="bg-[#F6E2D9] w-12 h-12 rounded-xl flex items-center justify-center mb-4">
+                            <Star className="w-6 h-6 text-[#D96E4A]" />
                         </div>
                         <h4 className="font-bold text-lg mb-2">Belöna ambassadörer</h4>
                         <p className="text-neutral text-sm mb-4 flex-grow">
@@ -213,7 +213,7 @@ const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToa
                         </p>
                         <button 
                             onClick={() => openMessageModal('Dessa användare har en streak på över 7 dagar. De är superanvändare. Skriv ett meddelande där du berömmer dem för deras grymma insats och fråga om de vill rekommendera appen till en vän.', superUsers)} 
-                            className="w-full py-2.5 bg-orange-50 text-orange-600 font-bold rounded-xl hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-2.5 bg-[#F6E2D9] text-[#D96E4A] font-bold rounded-xl hover:bg-[#F1EAE0] transition-colors flex items-center justify-center gap-2"
                         >
                             <Award className="w-4 h-4" />
                             Skicka värvningslänk
@@ -263,10 +263,10 @@ const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToa
                 <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-bold flex items-center gap-2">
-                            <Star className="w-5 h-5 text-orange-500" />
+                            <Star className="w-5 h-5 text-[#D96E4A]" />
                             Potentiella Ambassadörer
                         </h3>
-                        <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2.5 py-1 rounded-full">{superUsers.length} st</span>
+                        <span className="bg-[#F6E2D9] text-[#D96E4A] text-xs font-bold px-2.5 py-1 rounded-full">{superUsers.length} st</span>
                     </div>
                     <div className="space-y-3">
                         {superUsers.length > 0 ? superUsers.map(user => (
@@ -277,14 +277,14 @@ const GrowthEngineView: React.FC<GrowthEngineViewProps> = ({ membersList, setToa
                                     </div>
                                     <div>
                                         <p className="font-bold text-sm">{user.name}</p>
-                                        <p className="text-xs text-orange-600 font-bold flex items-center gap-1">
+                                        <p className="text-xs text-[#D96E4A] font-bold flex items-center gap-1">
                                             🔥 {user.currentStreak} dagars streak
                                         </p>
                                     </div>
                                 </div>
                                 <button 
                                     onClick={() => openMessageModal(`Denna användare har en fantastisk streak på ${user.currentStreak} dagar. Beröm hen för insatsen och fråga om hen vill rekommendera appen till en vän.`, [user])} 
-                                    className="p-2 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" 
+                                    className="p-2 text-[#D96E4A] hover:bg-[#F6E2D9] rounded-lg transition-colors" 
                                     title="Gör till ambassadör"
                                 >
                                     <Award className="w-5 h-5" />

@@ -354,7 +354,7 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           {/* Debug info - only in dev if needed, or hidden */}
           {usingNative && !isLoading && !error && (
             <div className="absolute top-2 left-2 pointer-events-none opacity-50">
-              <span className="text-[10px] text-white bg-green-600/50 px-1 rounded">
+              <span className="text-[10px] text-white bg-[#2B3B2C]/50 px-1 rounded">
                 Native API
               </span>
             </div>
@@ -365,7 +365,7 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           <button
             onClick={handleAICapture}
             disabled={isLoading || isProcessingAI || !!error}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md active:scale-95 disabled:opacity-50 transition-all"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-lg shadow-md active:scale-95 disabled:opacity-50 transition-all"
           >
             <Camera className="w-5 h-5" />
             Kan inte skanna? Fota koden (AI)

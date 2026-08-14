@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle } from '../types.ts';
-import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS } from '../constants.ts';
+import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle, CommunitySharingSettings } from '../types.ts';
+import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS, DEFAULT_COMMUNITY_SHARING_SETTINGS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
-import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon } from './icons.tsx';
+import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon, UserPlusIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
 import ToastNotification from './ToastNotification';
 import ProteinInfoModal from './ProteinInfoModal';
+import { shareAppInvite } from '../utils/shareUtils.ts';
 
 
 export const Avatar: React.FC<{
@@ -57,13 +58,15 @@ interface UserProfileModalProps {
   onSave: (profile: UserProfileData, goals: GoalSettings, newPhotoDataUrl?: string | null) => void;
   onClose: () => void;
   isOnboarding: boolean;
-  onboardingStep?: 'form' | 'feedback';
+  onboardingStep?: 'form' | 'feedback' | 'invite';
   aiFeedbackLoading?: boolean;
   aiFeedbackMessage?: AIStructuredFeedbackResponse | string | null;
   aiFeedbackError?: string | null;
   onSubscribeToPush: (force?: boolean) => Promise<boolean>;
   isBootcampOnboarding?: boolean;
   isBootcampActive?: boolean;
+  onFinishOnboarding?: () => void;
+  onGoToInviteStep?: () => void;
 }
 
 const resizeImage = (file: File, maxSize: number): Promise<string> => {
@@ -175,21 +178,24 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onSubscribeToPush,
   isBootcampOnboarding = false,
   isBootcampActive = false,
+  onFinishOnboarding,
+  onGoToInviteStep,
 }) => {
 
     const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
     const [isSubscribing, setIsSubscribing] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
+    const [isInviteShared, setIsInviteShared] = useState(false);
     
     // Get Persona Details based on profile
     const coachStyle = initialProfile.coachStyle || 'balanced';
     const persona = COACH_PERSONAS[coachStyle] || COACH_PERSONAS['balanced'];
     
     // Theme colors based on coach style
-    let coachTheme = { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', iconBg: 'bg-blue-100', iconText: 'text-blue-600' };
+    let coachTheme = { bg: 'bg-[#F6E2D9]/40', border: 'border-[#F6E2D9]', text: 'text-[#D96E4A]', iconBg: 'bg-[#F6E2D9]', iconText: 'text-[#D96E4A]' };
     if (coachStyle === 'soft') {
-        coachTheme = { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-800', iconBg: 'bg-green-100', iconText: 'text-green-600' };
+        coachTheme = { bg: 'bg-[#E8EFE9]', border: 'border-[#8C9A86]/40', text: 'text-[#2B3B2C]', iconBg: 'bg-[#E8EFE9]', iconText: 'text-[#8C9A86]' };
     } else if (coachStyle === 'hard') {
         coachTheme = { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800', iconBg: 'bg-red-100', iconText: 'text-red-600' };
     }
@@ -422,6 +428,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }));
   };
 
+  const handleCommunitySharingChange = (setting: keyof CommunitySharingSettings) => {
+    setProfile(prev => {
+      const current = prev.communitySharingSettings || DEFAULT_COMMUNITY_SHARING_SETTINGS;
+      return {
+        ...prev,
+        communitySharingSettings: {
+          ...current,
+          [setting]: !current[setting]
+        }
+      };
+    });
+  };
+
   const handleToggleSound = () => {
     const newMutedState = !isSoundMuted;
     setIsSoundMuted(newMutedState);
@@ -528,7 +547,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base";
   const selectClass = inputClass;
   const compactInputClass = "w-20 text-center px-2 py-1.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-base";
-  const stepperButtonClass = "px-2.5 py-1 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary active:scale-90 text-lg font-semibold interactive-transition";
+  const stepperButtonClass = "px-2.5 py-1 text-neutral-dark bg-neutral-light hover:bg-[#E5DCD0] rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary active:scale-90 text-lg font-semibold interactive-transition";
 
   const goalTypeDisplayMap: Record<GoalType, string> = {
     lose_fat: 'Minska fettmassa / vikt',
@@ -569,11 +588,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             {isBootcampOnboarding ? 'Starta Bootcamp' :
              isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
              isOnboarding && onboardingStep === 'feedback' ? `Coach: ${persona.label}, ${persona.roleTitle}` :
+             isOnboarding && onboardingStep === 'invite' ? 'Vem ska heja på dig?' :
              'Redigera Profil'}
           </h2>
         </div>
         <button
-          onClick={onClose}
+          onClick={isOnboarding && onboardingStep === 'invite' ? (onFinishOnboarding || onClose) : onClose}
           disabled={isOnboarding && onboardingStep === 'form'}
           className="p-2 text-neutral hover:text-red-500 rounded-md hover:bg-red-100 active:scale-90 transform interactive-transition disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Stäng profilinställningar"
@@ -597,8 +617,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       )}
       
       {isBootcampOnboarding && (
-        <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl mb-6">
-          <p className="text-sm text-orange-800 font-medium">
+        <div className="bg-[#F6E2D9]/50 border border-[#D96E4A]/30 p-4 rounded-2xl mb-6">
+          <p className="text-sm text-[#56524D] font-medium">
             <strong>Viktigt:</strong> När du startar bootcampen sätts ditt mål automatiskt till "Gå ner i vikt". 
             Dina kalorier och makros kommer att räknas om baserat på dina nya värden.
           </p>
@@ -642,12 +662,73 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           
           <div className="mt-8 text-center">
             <button
-              onClick={onClose}
+              onClick={() => {
+                if (onGoToInviteStep) {
+                  onGoToInviteStep();
+                } else if (onFinishOnboarding) {
+                  onFinishOnboarding();
+                } else {
+                  onClose();
+                }
+              }}
               disabled={aiFeedbackLoading}
               className="w-full sm:w-auto px-10 py-4 bg-primary text-white text-xl font-bold rounded-2xl shadow-lg hover:bg-primary-darker focus:outline-none focus:ring-4 focus:ring-primary/30 active:scale-95 transform interactive-transition disabled:opacity-60"
             >
-              Kör igång!
+              Fortsätt
             </button>
+          </div>
+        </div>
+      ) : isOnboarding && onboardingStep === 'invite' ? (
+        <div className="animate-fade-in flex flex-col items-center text-center p-4 sm:p-6 space-y-6">
+          <div className="w-20 h-20 bg-[#F6E2D9] text-[#D96E4A] rounded-full flex items-center justify-center shadow-inner my-2">
+            <UserPlusIcon className="w-10 h-10 text-[#D96E4A]" />
+          </div>
+
+          <div className="space-y-3 max-w-md">
+            <h3 className="text-2xl sm:text-3xl font-bold text-neutral-dark">
+              Vem ska heja på dig?
+            </h3>
+            <p className="text-base text-neutral-600 leading-relaxed">
+              Resan blir betydligt lättare med någon som peppar. Bjud in en vän till Kostloggen så kan ni följa varandras framsteg och peppa varandra på vägen!
+            </p>
+          </div>
+
+          <div className="w-full max-w-sm space-y-4 pt-2">
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await shareAppInvite();
+                if (res.copied) {
+                  setToast({ message: 'Inbjudan kopierad till urklipp!', type: 'success' });
+                } else if (res.shared) {
+                  setToast({ message: 'Inbjudan delad!', type: 'success' });
+                }
+                setIsInviteShared(true);
+              }}
+              className="w-full py-4 px-6 bg-[#D96E4A] hover:bg-[#C05A38] text-white text-lg font-bold rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <UserPlusIcon className="w-6 h-6" /> Bjud in en kompis
+            </button>
+
+            {isInviteShared ? (
+              <button
+                type="button"
+                onClick={onFinishOnboarding || onClose}
+                className="w-full py-3.5 px-6 bg-[#2B3B2C] text-white text-base font-bold rounded-2xl shadow-md hover:bg-[#1f2b20] active:scale-95 transition-all"
+              >
+                Kör igång!
+              </button>
+            ) : (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={onFinishOnboarding || onClose}
+                  className="text-sm font-medium text-neutral-400 hover:text-neutral-600 underline py-2 transition-colors cursor-pointer"
+                >
+                  Hoppa över
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -658,7 +739,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <div className="flex items-center gap-5">
                         <Avatar photoURL={newPhotoDataUrl || profile.photoURL} gender={profile.gender} size={80} />
                         <div>
-                            <label htmlFor="photoUpload" className="cursor-pointer px-4 py-2 bg-neutral-light hover:bg-gray-300 text-neutral-dark font-medium rounded-md shadow-sm interactive-transition">
+                            <label htmlFor="photoUpload" className="cursor-pointer px-4 py-2 bg-neutral-light hover:bg-[#E5DCD0] text-neutral-dark font-medium rounded-md shadow-sm interactive-transition">
                                 Välj ny bild...
                             </label>
                             <input type="file" id="photoUpload" className="hidden" accept="image/png, image/jpeg" onChange={handleImageSelect} />
@@ -698,7 +779,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     onClick={() => handleProfileChange({ target: { name: 'gender', value: 'female', type: 'text' } })}
                                     className={`py-3 px-4 rounded-xl border text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                         profile.gender === 'female'
-                                            ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20 shadow-sm'
+                                            ? 'bg-[#F6E2D9] border-[#D96E4A] text-[#56524D] ring-2 ring-[#D96E4A]/20 shadow-sm'
                                             : 'bg-white border-neutral-200 text-neutral-dark hover:border-neutral-300'
                                     }`}
                                 >
@@ -709,7 +790,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     onClick={() => handleProfileChange({ target: { name: 'gender', value: 'male', type: 'text' } })}
                                     className={`py-3 px-4 rounded-xl border text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                         profile.gender === 'male'
-                                            ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20 shadow-sm'
+                                            ? 'bg-[#F6E2D9] border-[#D96E4A] text-[#56524D] ring-2 ring-[#D96E4A]/20 shadow-sm'
                                             : 'bg-white border-neutral-200 text-neutral-dark hover:border-neutral-300'
                                     }`}
                                 >
@@ -725,8 +806,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
                 
                 {(isBootcampOnboarding || isBootcampActive) && (
-                    <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start text-orange-800">
-                        <InformationCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+                    <div className="mb-4 p-3 bg-[#F6E2D9]/50 border border-[#D96E4A]/30 rounded-xl flex items-start text-[#56524D]">
+                        <InformationCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5 text-[#D96E4A]" />
                         <p className="text-sm">
                             Du deltar just nu i en bootcamp och har därför Börje som din dedikerade coach. Det går inte att byta coach under pågående bootcamp.
                         </p>
@@ -737,19 +818,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
                         const p = COACH_PERSONAS[style];
                         
-                        let colorClasses;
-                        let iconBgClass;
-                        if (style === 'soft') {
-                            colorClasses = 'bg-green-50 text-green-700 border-green-200';
-                            iconBgClass = 'bg-green-100 text-green-600';
-                        } else if (style === 'balanced') {
-                            colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
-                            iconBgClass = 'bg-blue-100 text-blue-600';
-                        } else {
-                            colorClasses = 'bg-red-50 text-red-700 border-red-200';
-                            iconBgClass = 'bg-red-100 text-red-600';
-                        }
-
                         const isSelected = profile.coachStyle === style;
                         const isDisabled = isBootcampOnboarding || isBootcampActive;
 
@@ -766,15 +834,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 }}
                                 className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center ${
                                     isSelected
-                                        ? `${colorClasses} shadow-md`
-                                        : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300 text-neutral-dark'
+                                        ? 'bg-[#F6E2D9] text-[#56524D] border-[#D96E4A] shadow-md'
+                                        : 'bg-[#FAF6EF] border-[#F1EAE0] hover:border-[#D96E4A]/50 text-[#56524D]'
                                 } ${isDisabled && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
-                                    {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover rounded-xl" /> : p.emoji}
+                                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform bg-[#F1EAE0] border border-[#FAF6EF] overflow-hidden ${isSelected ? 'ring-2 ring-[#D96E4A]' : ''}`}>
+                                    {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover" /> : p.emoji}
                                 </div>
-                                <span className="font-bold text-sm">{p.label}, {p.roleTitle}</span>
-                                <span className="text-xs opacity-80 mt-1">{p.description}</span>
+                                <span className="font-bold text-sm text-[#56524D]">{p.label}, {p.roleTitle}</span>
+                                <span className="text-xs text-[#7A756E] mt-1">{p.description}</span>
                             </button>
                         );
                     })}
@@ -1032,9 +1100,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <h3 className="text-xl font-bold text-neutral-dark px-1">Inställningar</h3>
 
                     {/* Community Card */}
-                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shadow-sm">
+                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light space-y-4">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm">
                                 <UserGroupIcon className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Community</h4>
@@ -1046,12 +1114,77 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             checked={profile.isSearchable ?? false}
                             onChange={() => setProfile(prev => ({...prev, isSearchable: !prev.isSearchable}))}
                          />
+
+                        <div className="pt-3 border-t border-neutral-light/60">
+                            <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-3 px-1">Vad som delas med dina kompisar</h5>
+                            <div className="space-y-3">
+                                <ToggleSwitch
+                                    id="share_weight"
+                                    label="Vägningsloggar (Vikt)"
+                                    description="Dela automatiskt när du loggar en ny vikt."
+                                    checked={profile.communitySharingSettings?.weight ?? false}
+                                    onChange={() => handleCommunitySharingChange('weight')}
+                                />
+                                <ToggleSwitch
+                                    id="share_achievement"
+                                    label="Bragder & Utmärkelser"
+                                    description="Dela när du låser upp utmärkelser."
+                                    checked={profile.communitySharingSettings?.achievement ?? true}
+                                    onChange={() => handleCommunitySharingChange('achievement')}
+                                />
+                                <ToggleSwitch
+                                    id="share_streak"
+                                    label="Streaks & Svit"
+                                    description="Dela när du uppnår milstolpar för streak."
+                                    checked={profile.communitySharingSettings?.streak ?? true}
+                                    onChange={() => handleCommunitySharingChange('streak')}
+                                />
+                                <ToggleSwitch
+                                    id="share_course"
+                                    label="Kurser"
+                                    description="Dela dina framsteg i utbildningar."
+                                    checked={profile.communitySharingSettings?.course ?? true}
+                                    onChange={() => handleCommunitySharingChange('course')}
+                                />
+                                <ToggleSwitch
+                                    id="share_level"
+                                    label="Nivåer"
+                                    description="Dela när du går upp i nivå."
+                                    checked={profile.communitySharingSettings?.level ?? true}
+                                    onChange={() => handleCommunitySharingChange('level')}
+                                />
+                                <ToggleSwitch
+                                    id="share_goal"
+                                    label="Mål"
+                                    description="Dela uppnådda hälsomål."
+                                    checked={profile.communitySharingSettings?.goal ?? true}
+                                    onChange={() => handleCommunitySharingChange('goal')}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-neutral-light/60">
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const res = await shareAppInvite();
+                                    if (res.copied) {
+                                        setToast({ message: 'Inbjudan kopierad till urklipp!', type: 'success' });
+                                    } else if (res.shared) {
+                                        setToast({ message: 'Inbjudan delad!', type: 'success' });
+                                    }
+                                }}
+                                className="w-full py-3 px-4 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 text-sm"
+                            >
+                                <UserPlusIcon className="w-4 h-4" /> Bjud in en kompis
+                            </button>
+                        </div>
                     </div>
 
                     {/* Sound Card */}
                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 shadow-sm">
+                            <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm">
                                 <Volume2 className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Ljud & Feedback</h4>
@@ -1059,7 +1192,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                          <ToggleSwitch
                             id="appSound"
                             label="App-ljud"
-                            description="Ljudeffekter för klick, notiser och milstolpar."
+                            description="Ljudeffekter för framgångsrik loggning och uppnådda milstolpar."
                             checked={!isSoundMuted}
                             onChange={handleToggleSound}
                          />
@@ -1068,7 +1201,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     {/* Notifications Card */}
                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600 shadow-sm">
+                            <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm">
                                 <BellIcon className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Notiser</h4>
@@ -1170,7 +1303,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                      {/* Push Notification Card */}
                      <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-600 shadow-sm">
+                            <div className="w-12 h-12 rounded-xl bg-[#E8EFE9] flex items-center justify-center text-[#8C9A86] shadow-sm">
                                 <Smartphone className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Enhet & Pushnotiser</h4>
@@ -1179,8 +1312,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                          <div className="p-4 bg-neutral-light/40 rounded-xl space-y-3">
                             {permissionStatus === 'granted' && (
                                 <div className="space-y-3">
-                                    <div className="flex items-center text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
-                                        <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0" />
+                                    <div className="flex items-center text-[#2B3B2C] bg-[#E8EFE9] p-3 rounded-lg border border-[#8C9A86]/40">
+                                        <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 text-[#8C9A86]" />
                                         <span className="font-medium">Notisrättigheter är godkända i denna webbläsare.</span>
                                     </div>
                                     <button

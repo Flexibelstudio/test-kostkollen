@@ -1,5 +1,4 @@
 
-
 import { UserProfileData, GoalSettings, LoggedMeal, PastDaysSummaryCollection, WeightLogEntry, CommonMeal, UserCourseProgress, WeeklyCalorieBank, FirestoreUserDocument, UserRole, PastDaySummary, CoachViewMember, AIStructuredFeedbackResponse } from '../types';
 import { DEFAULT_GOALS, DEFAULT_USER_PROFILE, DEFAULT_WATER_GOAL_ML } from '../constants';
 import { courseLessons } from '../courseData.ts';
@@ -42,13 +41,13 @@ twoDaysAgo.setDate(today.getDate() - 2);
 
 export const mockMealLogs: { [date: string]: LoggedMeal[] } = {
     [getDateUID(today)]: [
-        { id: 'meal1', timestamp: Date.now() - 3600000, dateString: getDateUID(today), nutritionalInfo: { foodItem: 'Äggröra och rostat bröd', calories: 350, protein: 20, carbohydrates: 30, fat: 15 } },
-        { id: 'meal2', timestamp: Date.now(), dateString: getDateUID(today), nutritionalInfo: { foodItem: 'Kycklingsallad', calories: 450, protein: 40, carbohydrates: 10, fat: 28 } },
+        { id: 'meal1', timestamp: Date.now() - 3600000, dateString: getDateUID(today), nutritionalInfo: { foodItem: 'Äggröra och rostat bröd', calories: 350, protein: 20, carbohydrates: 30, fat: 15 }, mealType: 'breakfast' },
+        { id: 'meal2', timestamp: Date.now(), dateString: getDateUID(today), nutritionalInfo: { foodItem: 'Kycklingsallad', calories: 450, protein: 40, carbohydrates: 10, fat: 28 }, mealType: 'lunch' },
     ],
     [getDateUID(yesterday)]: [
-        { id: 'meal3', timestamp: Date.now() - 86400000, dateString: getDateUID(yesterday), nutritionalInfo: { foodItem: 'Havregrynsgröt med bär', calories: 300, protein: 10, carbohydrates: 55, fat: 5 } },
-        { id: 'meal4', timestamp: Date.now() - 80000000, dateString: getDateUID(yesterday), nutritionalInfo: { foodItem: 'Lax med quinoa', calories: 600, protein: 45, carbohydrates: 40, fat: 30 } },
-        { id: 'meal5', timestamp: Date.now() - 70000000, dateString: getDateUID(yesterday), nutritionalInfo: { foodItem: 'Grekisk Yoghurt', calories: 150, protein: 15, carbohydrates: 10, fat: 5 } },
+        { id: 'meal3', timestamp: Date.now() - 86400000, dateString: getDateUID(yesterday), nutritionalInfo: { foodItem: 'Havregrynsgröt med bär', calories: 300, protein: 10, carbohydrates: 55, fat: 5 }, mealType: 'breakfast' },
+        { id: 'meal4', timestamp: Date.now() - 80000000, dateString: getDateUID(yesterday), nutritionalInfo: { foodItem: 'Lax med quinoa', calories: 600, protein: 45, carbohydrates: 40, fat: 30 }, mealType: 'dinner' },
+        { id: 'meal5', timestamp: Date.now() - 70000000, dateString: getDateUID(yesterday), nutritionalInfo: { foodItem: 'Grekisk Yoghurt', calories: 150, protein: 15, carbohydrates: 10, fat: 5 }, mealType: 'snack' },
     ]
 };
 
@@ -231,6 +230,7 @@ export const mockFirestoreUser: FirestoreUserDocument = {
     completedGoals: [],
     notificationSettings: DEFAULT_USER_PROFILE.notificationSettings,
     preferredWeighInDay: 'måndag',
+    coachStyle: 'balanced',
 };
 
 export const mockInitialState = {

@@ -1,13 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
-import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon, SmileIcon } from './icons.tsx';
+import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon, SmileIcon, BookmarkIcon } from './icons.tsx';
 import { 
   MoreHorizontal, 
   Soup, Egg, Sandwich, CupSoda, Drumstick, Beef, Fish, Salad, Carrot,
   Pizza, Coffee, Cake, Cookie, IceCream, Apple, Utensils, Croissant, Wine
 } from 'lucide-react';
-import { playAudio } from '../services/audioService.ts';
 
 interface CommonMealsListProps {
   commonMeals: CommonMeal[];
@@ -23,86 +22,87 @@ interface CommonMealsListProps {
 const getMealIcon = (name: string) => {
   const n = name.toLowerCase();
   const iconProps = { className: "w-6 h-6", strokeWidth: 2 };
+  const defaultTheme = { bg: 'bg-[#F6E2D9]', text: 'text-[#D96E4A]' };
 
   // Drinks (Coffee/Tea)
   if (n.includes('kaffe') || n.includes('te ') || n.includes('latte') || n.includes('espresso') || n.includes('cappuccino')) {
-    return { icon: <Coffee {...iconProps} />, bg: 'bg-amber-100', text: 'text-amber-700' };
+    return { icon: <Coffee {...iconProps} />, ...defaultTheme };
   }
   
   // Drinks (Cold)
   if (n.includes('smoothie') || n.includes('shake') || n.includes('dryck') || n.includes('vatten') || n.includes('juice') || n.includes('läsk') || n.includes('saft') || n.includes('mjölk')) {
-    return { icon: <CupSoda {...iconProps} />, bg: 'bg-blue-100', text: 'text-blue-600' };
+    return { icon: <CupSoda {...iconProps} />, ...defaultTheme };
   }
   
   // Alcohol
   if (n.includes('öl') || n.includes('vin') || n.includes('cider') || n.includes('bubbel')) {
-     return { icon: <Wine {...iconProps} />, bg: 'bg-purple-100', text: 'text-purple-700' };
+     return { icon: <Wine {...iconProps} />, ...defaultTheme };
   }
 
   // Breakfast / Porridge / Dairy
   if (n.includes('gröt') || n.includes('havre') || n.includes('oat') || n.includes('soppa') || n.includes('yoghurt') || n.includes('fil') || n.includes('kvarg') || n.includes('bowl') || n.includes('flingor') || n.includes('müsli')) {
-    return { icon: <Soup {...iconProps} />, bg: 'bg-pink-100', text: 'text-pink-600' }; 
+    return { icon: <Soup {...iconProps} />, ...defaultTheme }; 
   }
 
   // Eggs
   if (n.includes('ägg') || n.includes('omelett') || n.includes('kokt')) {
-    return { icon: <Egg {...iconProps} />, bg: 'bg-yellow-100', text: 'text-yellow-600' };
+    return { icon: <Egg {...iconProps} />, ...defaultTheme };
   }
 
   // Bread / Sandwiches
   if (n.includes('bröd') || n.includes('macka') || n.includes('toast') || n.includes('smörgås') || n.includes('knäcke') || n.includes('baguette') || n.includes('fralla')) {
-    return { icon: <Sandwich {...iconProps} />, bg: 'bg-orange-100', text: 'text-orange-600' };
+    return { icon: <Sandwich {...iconProps} />, ...defaultTheme };
   }
   if (n.includes('croissant') || n.includes('bulle') || n.includes('wiener')) {
-      return { icon: <Croissant {...iconProps} />, bg: 'bg-amber-100', text: 'text-amber-700' };
+      return { icon: <Croissant {...iconProps} />, ...defaultTheme };
   }
 
   // Poultry
   if (n.includes('kyckling') || n.includes('fågel') || n.includes('kalkon') || n.includes('anka')) {
-    return { icon: <Drumstick {...iconProps} />, bg: 'bg-orange-100', text: 'text-orange-700' };
+    return { icon: <Drumstick {...iconProps} />, ...defaultTheme };
   }
 
   // Meat
   if (n.includes('kött') || n.includes('biff') || n.includes('burgare') || n.includes('färs') || n.includes('korv') || n.includes('stek') || n.includes('skinka') || n.includes('bacon')) {
-    return { icon: <Beef {...iconProps} />, bg: 'bg-red-100', text: 'text-red-700' };
+    return { icon: <Beef {...iconProps} />, ...defaultTheme };
   }
 
   // Fish/Seafood
   if (n.includes('fisk') || n.includes('lax') || n.includes('torsk') || n.includes('räkor') || n.includes('skaldjur') || n.includes('tonfisk') || n.includes('sushi')) {
-    return { icon: <Fish {...iconProps} />, bg: 'bg-cyan-100', text: 'text-cyan-700' };
+    return { icon: <Fish {...iconProps} />, ...defaultTheme };
   }
 
   // Green / Veg
   if (n.includes('sallad') || n.includes('grönsak') || n.includes('vegetarisk') || n.includes('vegan') || n.includes('avokado') || n.includes('böna') || n.includes('lins')) {
-    return { icon: <Salad {...iconProps} />, bg: 'bg-green-100', text: 'text-green-600' };
+    return { icon: <Salad {...iconProps} />, ...defaultTheme };
   }
   if (n.includes('morot') || n.includes('rotfrukt') || n.includes('potatis')) {
-      return { icon: <Carrot {...iconProps} />, bg: 'bg-orange-50', text: 'text-orange-600' };
+      return { icon: <Carrot {...iconProps} />, ...defaultTheme };
   }
 
   // Pizza / Fast food
   if (n.includes('pizza') || n.includes('taco') || n.includes('kebab')) {
-    return { icon: <Pizza {...iconProps} />, bg: 'bg-yellow-100', text: 'text-yellow-700' };
+    return { icon: <Pizza {...iconProps} />, ...defaultTheme };
   }
 
   // Sweets
   if (n.includes('kaka') || n.includes('tårta') || n.includes('bakelse')) {
-    return { icon: <Cake {...iconProps} />, bg: 'bg-pink-100', text: 'text-pink-500' };
+    return { icon: <Cake {...iconProps} />, ...defaultTheme };
   }
   if (n.includes('kex') || n.includes('cookie') || n.includes('godis') || n.includes('choklad')) {
-    return { icon: <Cookie {...iconProps} />, bg: 'bg-amber-100', text: 'text-amber-800' };
+    return { icon: <Cookie {...iconProps} />, ...defaultTheme };
   }
   if (n.includes('glass') || n.includes('sorbet')) {
-      return { icon: <IceCream {...iconProps} />, bg: 'bg-purple-100', text: 'text-purple-600' };
+      return { icon: <IceCream {...iconProps} />, ...defaultTheme };
   }
 
   // Fruit
   if (n.includes('äpple') || n.includes('banan') || n.includes('frukt') || n.includes('bär') || n.includes('päron') || n.includes('apelsin')) {
-    return { icon: <Apple {...iconProps} />, bg: 'bg-green-100', text: 'text-green-700' };
+    return { icon: <Apple {...iconProps} />, ...defaultTheme };
   }
 
   // Default
-  return { icon: <Utensils {...iconProps} />, bg: 'bg-neutral-100', text: 'text-neutral-600' };
+  return { icon: <Utensils {...iconProps} />, ...defaultTheme };
 };
 
 const CommonMealCard: React.FC<{
@@ -276,13 +276,11 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
   const [mealIdToConfirmDelete, setMealIdToConfirmDelete] = useState<string | null>(null);
 
   const handleDeleteRequest = (mealId: string) => {
-    playAudio('uiClick');
     setMealIdToConfirmDelete(mealId);
   };
   
   const handleConfirmDelete = () => {
     if (mealIdToConfirmDelete) {
-      playAudio('uiClick');
       onDeleteCommonMeal(mealIdToConfirmDelete);
       setMealIdToConfirmDelete(null);
     }
@@ -290,7 +288,6 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
   
   const handleLogClick = (meal: CommonMeal) => {
     if (disabled) return;
-    playAudio('uiClick');
     onLogCommonMeal(meal);
   };
 
@@ -298,26 +295,26 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
 
   return (
     <>
-      <div className={`${isBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
+      <div className={`${isBootcamp ? 'bg-[#56524D] text-white border-[#56524D]' : 'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} p-6 rounded-[22px] shadow-soft-xl border`}>
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">📌</span>
-            <h3 className="text-lg font-bold text-neutral-dark">Mina vanliga val</h3>
+          <div className="flex items-center gap-2.5">
+            <BookmarkIcon className="w-5 h-5 text-[#D96E4A]" />
+            <h3 className="text-lg font-serif font-medium text-[#56524D] dark:text-[#FAF6EF]">Mina vanliga val</h3>
           </div>
         </div>
 
         {disabled && commonMeals.length > 0 && (
-          <p className="text-xs text-orange-500 text-center mb-4 bg-orange-50 p-2 rounded-lg border border-orange-100">
+          <p className="text-xs text-[#D96E4A] text-center mb-4 bg-[#F6E2D9] p-2.5 rounded-xl border border-[#EAC5B8]">
             Loggning av vanliga val är inaktiverad för detta datum.
           </p>
         )}
         
         {commonMeals.length === 0 ? (
-           <div className="text-center py-8 bg-neutral-light/30 rounded-2xl border border-dashed border-neutral-light">
-             <div className="text-4xl mb-2 opacity-50">🍽️</div>
-             <p className="text-sm text-neutral font-medium">Inga sparade val än.</p>
-             <p className="text-xs text-neutral-400 mt-1 px-4">
-              Spara en måltid med <span className="inline-block bg-gray-100 rounded px-1 text-black">📌</span>-knappen för att se den här.
+           <div className="text-center py-8 px-4 bg-[#FAF6EF] dark:bg-[#34302C] rounded-[22px] border border-[#F1EAE0] dark:border-[#484440]">
+             <Utensils className="w-8 h-8 text-[#D96E4A]/60 mx-auto mb-2" />
+             <p className="text-base text-[#56524D] dark:text-[#FAF6EF] font-medium">Inga sparade val än.</p>
+             <p className="text-sm text-[#7A756E] dark:text-[#C2BCB4] mt-1 max-w-xs mx-auto leading-relaxed">
+              Spara din favoritmåltid med spar-knappen när du loggat för att snabbt hitta den här igen.
             </p>
           </div>
         ) : (

@@ -7,7 +7,6 @@ import { Avatar } from './UserProfileModal';
 import { XMarkIcon, CameraIcon, CheckIcon, SmileIcon, TrashIcon, PlusIcon } from './icons';
 import { Users as UsersIcon, Image as ImageIcon, Send, ThumbsUp } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
-import { playAudio } from '../services/audioService';
 
 // ==========================================
 // 1. FLOATING REACTION PICKER (FACEBOOK STYLE)
@@ -386,7 +385,7 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
                                                 <h4 className="font-bold text-[15px] text-neutral-800 dark:text-neutral-100 flex items-center gap-1.5">
                                                     {isMe ? 'Du' : item.name}
                                                     {isFriend && (
-                                                        <span className="text-[10px] bg-green-50 dark:bg-green-950/30 text-green-600 px-1.5 py-0.5 rounded-full border border-green-100 font-bold">
+                                                        <span className="text-[10px] bg-[#84A98C]/10 dark:bg-[#84A98C]/20 text-[#84A98C] px-1.5 py-0.5 rounded-full border border-[#84A98C]/30 font-bold">
                                                             Kompis
                                                         </span>
                                                     )}
@@ -400,7 +399,7 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
                                         {/* Friend Request Trigger */}
                                         {!isMe && !isFriend && onAddFriend && (
                                             isPending ? (
-                                                <div className="flex items-center gap-1 px-3 py-1.5 bg-green-50 rounded-full text-xs font-bold text-green-600 border border-green-100">
+                                                <div className="flex items-center gap-1 px-3 py-1.5 bg-[#84A98C]/10 rounded-full text-xs font-bold text-[#84A98C] border border-[#84A98C]/30">
                                                     <CheckIcon className="w-4 h-4" />
                                                     <span>Skickad</span>
                                                 </div>
@@ -496,7 +495,6 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
         e.preventDefault();
         if ((!newComment.trim() && !commentImage) || isSubmitting) return;
         setIsSubmitting(true);
-        playAudio('uiClick');
 
         try {
             await onAddComment(event, newComment, commentImage || undefined);
@@ -652,7 +650,7 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                     </p>
                                                     {!isMyComment && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
                                                         sentFriendRequests.has(comment.authorUid) ? (
-                                                            <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-50 rounded-md text-[9px] font-bold text-green-600 border border-green-100 leading-none">
+                                                            <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-[#84A98C]/10 rounded-md text-[9px] font-bold text-[#84A98C] border border-[#84A98C]/30 leading-none">
                                                                 <CheckIcon className="w-2.5 h-2.5" />
                                                                 <span>Skickad</span>
                                                             </div>

@@ -73,7 +73,7 @@ export const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
                   disabled={item.completed}
                   className={`w-full text-left flex items-center p-3 rounded-xl transition-all duration-200 border border-transparent group
                     ${item.completed 
-                        ? 'bg-green-50/50 text-neutral-400 cursor-default' 
+                        ? 'bg-[#E8EFE9]/50 text-neutral-400 cursor-default' 
                         : 'bg-neutral-light/30 hover:bg-white hover:border-primary/20 hover:shadow-sm text-neutral-dark'
                     }`}
                 >

@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { NutritionalInfo, BarcodeScannedFoodInfo, MealType } from '../types.ts';
 import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, BarcodeIcon, PencilIcon } from './icons.tsx';
-import { playAudio } from '../services/audioService.ts';
 import MealTypeSelector from './MealTypeSelector';
 
 type Unit = 'g' | 'ml' | 'dl' | 'msk' | 'tsk' | 'st' | 'portion';
@@ -70,7 +69,6 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
 
   const handleLog = () => {
     if (!scanResult || !selectedMealType) return;
-    playAudio('uiClick');
     onLog({
       ...calculatedNutrients,
       foodItem: `${scanResult.name} (${scanResult.brand}) (${amount} ${unit})`
@@ -153,8 +151,8 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
               <div className="grid grid-cols-2 gap-x-5 gap-y-2 p-3 bg-neutral-light/70 rounded-md">
                   <div className="flex items-center"><FireIcon className="w-4 h-4 mr-1 text-red-500" /> Kalorier: {calculatedNutrients.calories} kcal</div>
                   <div className="flex items-center"><ProteinIcon className="w-4 h-4 mr-1 text-primary" /> Protein: {calculatedNutrients.protein} g</div>
-                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-yellow-500" /> Kolhydrater: {calculatedNutrients.carbohydrates} g</div>
-                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-orange-500" /> Fett: {calculatedNutrients.fat} g</div>
+                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-[#7A756E]" /> Kolhydrater: {calculatedNutrients.carbohydrates} g</div>
+                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-[#D96E4A]" /> Fett: {calculatedNutrients.fat} g</div>
               </div>
           </div>
           

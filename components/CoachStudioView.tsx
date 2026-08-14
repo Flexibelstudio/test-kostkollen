@@ -324,10 +324,10 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
 
           {/* Publish Bar (if draft exists) */}
           {currentDraft && !isGenerating && (
-            <div className="p-4 bg-emerald-50 border-t border-emerald-100 flex items-center justify-between gap-4 animate-fade-in">
+            <div className="p-4 bg-[#E8EFE9] border-t border-[#2B3B2C]/20 flex items-center justify-between gap-4 animate-fade-in">
                 <div className="flex-1">
-                    <p className="text-sm font-medium text-emerald-800">Nöjd med utkastet?</p>
-                    <p className="text-xs text-emerald-600">
+                    <p className="text-sm font-medium text-[#2B3B2C]">Nöjd med utkastet?</p>
+                    <p className="text-xs text-[#2B3B2C]/80">
                       {onPublish 
                         ? (initialTitle ? 'Dina ändringar kommer att sparas i mallen.' : 'Det kommer att sparas som en mall.') 
                         : `Det kommer att publiceras i communityt som ${COACH_PERSONAS[selectedCoach].label}.`}
@@ -336,7 +336,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
                 <button
                     onClick={handlePublish}
                     disabled={isPublishing}
-                    className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                    className="px-6 py-2.5 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
                 >
                     {isPublishing ? (
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

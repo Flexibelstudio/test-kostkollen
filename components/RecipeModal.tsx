@@ -2,7 +2,6 @@ import React, { useState, useEffect, FC, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
 import { SearchIcon, XMarkIcon, CheckIcon as LogIcon, RecipeIcon as TitleIcon, InformationCircleIcon, ShareIcon, ChevronDownIcon, BookmarkIcon, CheckIcon } from './icons';
-import { playAudio } from '../services/audioService';
 import MealTypeSelector from './MealTypeSelector';
 
 interface RecipeModalProps {
@@ -99,7 +98,6 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   };
 
   const handleRecentSearchClick = (searchTerm: string) => {
-    playAudio('uiClick');
     setQuery(searchTerm);
     if (onSearch) {
       onSearch(searchTerm);
@@ -172,7 +170,6 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       setTimeout(() => setToastNotification(null), 3000);
       return;
     }
-    playAudio('uiClick');
 
     const ingredientsText = recipe.ingredients.map(ing => `- ${ing.item}`).join('\n');
     const instructionsText = recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
@@ -410,7 +407,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         type="button"
                         onClick={() => onSaveRecipe(recipe)}
                         disabled={isLoading || isSaved}
-                        className={`h-11 w-11 flex items-center justify-center rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition ${isSaved ? 'bg-green-500 text-white' : 'bg-primary text-white'}`}
+                        className={`h-11 w-11 flex items-center justify-center rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition ${isSaved ? 'bg-[#2B3B2C] text-white' : 'bg-primary text-white'}`}
                         title={isSaved ? "Sparat" : "Spara i din receptbank"}
                         >
                           {isSaved ? <CheckIcon className="w-6 h-6" /> : <BookmarkIcon className="w-6 h-6" />}

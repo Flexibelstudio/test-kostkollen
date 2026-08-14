@@ -111,8 +111,8 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
   }, [nutritionalInfo, mealType, coachStyle]);
 
   const ratingColors = {
-    good: 'bg-green-500 text-white',
-    neutral: 'bg-yellow-500 text-white',
+    good: 'bg-[#2B3B2C] text-white',
+    neutral: 'bg-[#D96E4A] text-white',
     bad: 'bg-red-500 text-white'
   };
 
@@ -166,19 +166,19 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
         {/* Macros */}
         <div className="grid grid-cols-3 gap-2 p-6 bg-neutral-50 border-b border-neutral-light">
           <div className="text-center">
-            <div className="w-12 h-12 mx-auto rounded-full border-4 border-blue-400 flex items-center justify-center mb-1">
+            <div className="w-12 h-12 mx-auto rounded-full border-4 border-[#7A756E] flex items-center justify-center mb-1">
               <span className="text-xs font-bold text-neutral-dark">{Math.round(nutritionalInfo.carbohydrates)}g</span>
             </div>
             <span className="text-xs text-neutral-500 uppercase tracking-wide">Kolhydrater</span>
           </div>
           <div className="text-center">
-            <div className="w-12 h-12 mx-auto rounded-full border-4 border-green-400 flex items-center justify-center mb-1">
+            <div className="w-12 h-12 mx-auto rounded-full border-4 border-[#2B3B2C] flex items-center justify-center mb-1">
               <span className="text-xs font-bold text-neutral-dark">{Math.round(nutritionalInfo.protein)}g</span>
             </div>
             <span className="text-xs text-neutral-500 uppercase tracking-wide">Protein</span>
           </div>
           <div className="text-center">
-            <div className="w-12 h-12 mx-auto rounded-full border-4 border-yellow-400 flex items-center justify-center mb-1">
+            <div className="w-12 h-12 mx-auto rounded-full border-4 border-[#D96E4A] flex items-center justify-center mb-1">
               <span className="text-xs font-bold text-neutral-dark">{Math.round(nutritionalInfo.fat)}g</span>
             </div>
             <span className="text-xs text-neutral-500 uppercase tracking-wide">Fett</span>
@@ -191,7 +191,7 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
             <div className="space-y-2">
               {pros.map((pro, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm text-neutral-dark">
-                  <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-[#2B3B2C] flex-shrink-0" />
                   <span>{pro}</span>
                 </div>
               ))}

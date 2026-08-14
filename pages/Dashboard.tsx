@@ -177,12 +177,12 @@ const getGoalShortDescription = (
     desiredMuscleChange?: number
 ): string => {
     if (method === 'scale' && desiredWeightChange) {
-        return `Mål: ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange.toFixed(1).replace('.', ',')} kg`;
+        return `${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange.toFixed(1).replace('.', ',')} kg`;
     } else if (method === 'inbody') {
-        if (desiredFatChange) return `Mål: ${desiredFatChange > 0 ? '+' : ''}${desiredFatChange.toFixed(1).replace('.', ',')} kg fett`;
-        if (desiredMuscleChange) return `Mål: ${desiredMuscleChange > 0 ? '+' : ''}${desiredMuscleChange.toFixed(1).replace('.', ',')} kg muskler`;
+        if (desiredFatChange) return `${desiredFatChange > 0 ? '+' : ''}${desiredFatChange.toFixed(1).replace('.', ',')} kg fett`;
+        if (desiredMuscleChange) return `${desiredMuscleChange > 0 ? '+' : ''}${desiredMuscleChange.toFixed(1).replace('.', ',')} kg muskler`;
     }
-    return 'Mål: Bibehålla vikten';
+    return 'Bibehålla vikten';
 };
 
 interface DashboardProps {
@@ -210,6 +210,7 @@ interface DashboardProps {
 }
 
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
+import { RankBadge } from '../components/RankBadge';
 
 const Dashboard: React.FC<DashboardProps> = ({ 
     checklistState,
@@ -361,14 +362,14 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     }
 
-    let progressColor = "text-primary";
+    let progressColor = "#D96E4A";
     
     if (totalNutrients.calories < minSafeCalories) {
-        progressColor = "text-secondary"; 
+        progressColor = "#D96E4A"; 
     } else if (isNetOverBudget) {
-        progressColor = "text-secondary"; 
+        progressColor = "#C05A38"; 
     } else if (isFullyCoveredByBank) {
-        progressColor = "text-blue-500"; 
+        progressColor = "#8C9A86"; 
     }
     // --- DYNAMIC BANK CALCULATION END ---
 
@@ -405,21 +406,18 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     // Navigation Handlers
     const handlePrevWeek = () => {
-        playAudio('uiClick');
         const newDate = new Date(viewingDate);
         newDate.setDate(newDate.getDate() - 7);
         onDateSelect(newDate);
     };
 
     const handleNextWeek = () => {
-        playAudio('uiClick');
         const newDate = new Date(viewingDate);
         newDate.setDate(newDate.getDate() + 7);
         onDateSelect(newDate);
     };
 
     const handleJumpToToday = () => {
-        playAudio('uiClick');
         onDateSelect(new Date());
     };
 
@@ -724,7 +722,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         const newAmount = waterLoggedMl + amount;
         setWaterLoggedMl(newAmount);
         recalculateAndSaveSummary(dailyLog, newAmount);
-        playAudio('waterSplash');
         try {
             await setWaterLog(currentUser.uid, getDateUID(viewingDate), newAmount);
             if (checklistState && !checklistState.items.waterLogged && newAmount > 0) {
@@ -840,7 +837,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
 
     return (
-        <div className="flex flex-col gap-3 pb-0 relative">
+        <div className="flex flex-col gap-3 pb-28 sm:pb-32 relative">
             {/* Gratisperiod Nedräkningsrad */}
             {userProfile.subscriptionStatus === 'trialing' && userProfile.currentPeriodEnd && (() => {
                 const getTrialDaysLeftLocal = (endStr: string) => {
@@ -863,21 +860,21 @@ const Dashboard: React.FC<DashboardProps> = ({
                 const daysLeft = getTrialDaysLeftLocal(userProfile.currentPeriodEnd);
                 const dateStr = formatTrialEndDateLocal(userProfile.currentPeriodEnd);
                 
-                const text = daysLeft <= 4 
+                const text = daysLeft > 3 
                     ? `Gratisperiod: ${daysLeft} ${daysLeft === 1 ? 'dag' : 'dagar'} kvar`
-                    : `${daysLeft} dagar kvar av din gratisperiod · Första dragningen ${dateStr} (95 kr)`;
+                    : `${daysLeft} ${daysLeft === 1 ? 'dag' : 'dagar'} kvar av din gratisperiod · Första dragningen ${dateStr} (95 kr)`;
 
                 return (
                     <button 
                         type="button"
                         onClick={onOpenSubscription}
-                        className="w-full bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-100 dark:border-emerald-900/30 px-4 py-3.5 rounded-2xl flex items-center justify-between transition-all active:scale-[0.99] text-xs sm:text-sm font-semibold shadow-sm"
+                        className="w-full bg-[#F6E2D9] hover:bg-[#F6E2D9]/80 text-primary border border-primary/20 px-4 py-3.5 rounded-2xl flex items-center justify-between transition-all active:scale-[0.99] text-xs sm:text-sm font-semibold shadow-sm"
                     >
                         <div className="flex items-center gap-2 text-left">
-                            <span className="text-emerald-500">✨</span>
+                            <span className="text-primary">✨</span>
                             <span>{text}</span>
                         </div>
-                        <ArrowRightIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 ml-2" />
+                        <ArrowRightIcon className="w-4 h-4 text-primary flex-shrink-0 ml-2" />
                     </button>
                 );
             })()}
@@ -900,8 +897,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-[#3A4B3C] flex items-center justify-center text-white">
-                                <ShieldCheckIcon className="w-5 h-5" />
+                            <div className="w-8 h-8 rounded-full bg-[#3A4B3C] flex items-center justify-center text-white overflow-hidden p-0.5">
+                                <RankBadge rank={rankInfo.currentRank} size="sm" className="w-full h-full" />
                             </div>
                             <h3 className="text-lg font-bold text-neutral-dark dark:text-white">Bootcamp Lägesrapport</h3>
                         </div>
@@ -909,7 +906,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <span className="text-xs font-bold px-2 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 rounded-full">
                                 {activeBootcamp.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
                             </span>
-                            <span className="text-xs font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                            <span className="text-xs font-bold px-2.5 py-1 bg-[#E8EFE9] text-[#2B3B2C] rounded-full inline-flex items-center gap-1">
+                                <RankBadge rank={rankInfo.currentRank} size="sm" className="w-4 h-4" />
                                 {rankInfo.currentRank}
                             </span>
                         </div>
@@ -918,7 +916,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div>
                             <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">Streak</p>
                             <p className="text-xl font-extrabold text-neutral-dark dark:text-white flex items-center gap-1">
-                                {activeBootcamp.currentStreak} <Flame className="w-5 h-5 text-orange-500" />
+                                {activeBootcamp.currentStreak} <Flame className="w-5 h-5 text-[#D96E4A]" />
                             </p>
                         </div>
                         <div className="text-right">
@@ -930,9 +928,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </p>
                         </div>
                     </div>
-                    <div className="w-full bg-neutral-light dark:bg-[#1A2B1C] rounded-full h-2 mt-2 overflow-hidden">
+                    <div className="w-full bg-neutral-light rounded-full h-2 mt-2 overflow-hidden">
                         <div 
-                            className="bg-green-500 h-full rounded-full transition-all duration-500" 
+                            className="bg-[#D96E4A] h-full rounded-full transition-all duration-500" 
                             style={{ width: `${rankInfo.progress}%` }}
                         ></div>
                     </div>
@@ -941,10 +939,10 @@ const Dashboard: React.FC<DashboardProps> = ({
             })()}
 
             {/* Top Date & Progress Card */}
-            <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'}`}>
+            <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${activeBootcamp ? 'bg-white border-[#D96E4A]/30' : 'bg-white border-neutral-light'}`}>
                 {activeBootcamp && (
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#4A5B4C] text-white text-[10px] font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
-                        <TrophyIcon className="w-3 h-3 text-yellow-400" />
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#D96E4A] text-white text-[10px] font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
+                        <TrophyIcon className="w-3 h-3 text-[#F6E2D9]" />
                         Bootcamp Aktiv
                     </div>
                 )}
@@ -979,7 +977,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 size={180}
                                 strokeWidth={14}
                                 color={progressColor}
-                                trackColor="text-neutral-light"
+                                trackColor="#F1EAE0"
                                 centerContent={
                                     <div className="text-center">
                                         <span className="text-sm font-medium text-neutral-dark mb-1 block">
@@ -1014,8 +1012,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.carbohydrates)}/{goals.carbohydrateGoal}g
                             </p>
-                            <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-blue-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
+                            <div className="w-full bg-[#EAE0D8] rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-[#A6826B] h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                         {/* Protein */}
@@ -1036,8 +1034,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.protein)}/{goals.proteinGoal}g
                             </p>
-                            <div className="w-full bg-pink-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-pink-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
+                            <div className="w-full bg-[#F6E2D9] rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-[#D96E4A] h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                         {/* Fett */}
@@ -1046,8 +1044,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <p className="text-xs sm:text-sm text-neutral-500 mb-2">
                                 {Math.round(totalNutrients.fat)}/{goals.fatGoal}g
                             </p>
-                            <div className="w-full bg-purple-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-purple-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
+                            <div className="w-full bg-[#E8EFE9] rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-[#8C9A86] h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                     </div>
@@ -1073,8 +1071,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         <div className="flex flex-col gap-3">
                             {/* Streak Card */}
-                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
-                                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
+                            <div className={`${activeBootcamp ? 'bg-white border-[#D96E4A]/30' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
+                                <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10">
                                     <Flame className="w-6 h-6" />
                                 </div>
                                 <div className="relative z-10 flex-1">
@@ -1250,50 +1248,62 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="fixed bottom-6 right-6 z-[50] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
-                            <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Chatta med {coachName}</span>
-                                <div className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white overflow-hidden border-2 border-primary">
-                                    {coachPersona.imageUrl ? (
-                                        <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <span className="text-xl">{coachPersona.emoji}</span>
-                                    )}
+                            <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Chatta med {coachName}
+                                </span>
+                                <div className="w-12 h-12 rounded-full shadow-md flex items-center justify-center bg-white dark:bg-[#2B2825] text-[#D96E4A] border border-[#F1EAE0] group-hover:bg-[#F6E2D9] transition-colors">
+                                    <SparklesIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
-                            <button onClick={handleTakePhoto} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fota mat</span>
-                                <div className="w-12 h-12 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-secondary-darker transition-colors"><CameraIcon className="w-6 h-6" /></div>
+                            <button onClick={handleTakePhoto} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Fota mat
+                                </span>
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                    <CameraIcon className="w-6 h-6 text-[#D96E4A]" />
+                                </div>
                             </button>
-                            <button onClick={handleScanBarcode} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Skanna kod</span>
-                                <div className="w-12 h-12 bg-accent text-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent-darker transition-colors"><BarcodeIcon className="w-6 h-6" /></div>
+                            <button onClick={handleScanBarcode} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Skanna kod
+                                </span>
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                    <BarcodeIcon className="w-6 h-6 text-[#D96E4A]" />
+                                </div>
                             </button>
-                            <button onClick={handleSearchText} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Sök & logga</span>
-                                <div className="w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-colors"><SearchIcon className="w-5 h-6" /></div>
+                            <button onClick={handleSearchText} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Sök & logga
+                                </span>
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                    <SearchIcon className="w-5 h-6 text-[#D96E4A]" />
+                                </div>
                             </button>
-                            <button onClick={handleFindRecipe} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Hitta recept</span>
-                                <div className="w-12 h-12 bg-purple-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-purple-600 transition-colors"><RecipeIcon className="w-6 h-6" /></div>
+                            <button onClick={handleFindRecipe} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Hitta recept
+                                </span>
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                    <RecipeIcon className="w-6 h-6 text-[#D96E4A]" />
+                                </div>
                             </button>
-                            <button onClick={handleMyRecipes} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Mina recept</span>
-                                <div className="w-12 h-12 bg-pink-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-pink-600 transition-colors"><BookmarkIcon className="w-6 h-6" /></div>
+                            <button onClick={handleMyRecipes} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Mina recept
+                                </span>
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                    <BookmarkIcon className="w-6 h-6 text-[#D96E4A]" />
+                                </div>
                             </button>
                         </div>
                     )}
                     <button 
-                        onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
-                        className={`pointer-events-auto w-16 h-16 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 ${isSpeedDialOpen ? 'bg-neutral-dark text-white border-neutral-dark rotate-45' : 'bg-white border-primary'}`}
+                        onClick={() => { setIsSpeedDialOpen(!isSpeedDialOpen); }}
+                        className={`pointer-events-auto w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden ${isSpeedDialOpen ? 'bg-[#56524D] text-white rotate-45' : 'bg-[#D96E4A] text-white hover:bg-[#C05A38]'}`}
                         aria-label="Lägg till"
                     >
-                        {isSpeedDialOpen ? (
-                            <PlusIcon className="w-8 h-8" />
-                        ) : coachPersona.imageUrl ? (
-                            <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-full h-full object-cover" />
-                        ) : (
-                            <span className="text-3xl">{coachPersona.emoji}</span>
-                        )}
+                        <PlusIcon className="w-7 h-7" />
                     </button>
                 </div>
             )}

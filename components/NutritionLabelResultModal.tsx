@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { NutritionalInfo, MealType } from '../types.ts';
 import { CheckIcon, XMarkIcon } from './icons.tsx';
 import { FileText } from 'lucide-react';
-import { playAudio } from '../services/audioService.ts';
 import MealTypeSelector from './MealTypeSelector';
 
 type Unit = 'g' | 'ml' | 'dl' | 'msk' | 'tsk' | 'st' | 'portion';
@@ -64,7 +63,6 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
   
   const handleLog = () => {
     if (!selectedMealType) return;
-    playAudio('uiClick');
     onLog({
         ...finalNutrients,
         foodItem: `${finalNutrients.foodItem || 'Skannad produkt'} (${amountInput} ${unit})`

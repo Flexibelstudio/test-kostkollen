@@ -434,9 +434,9 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
               </div>
             </div>
             <span className={`px-3 py-1 rounded-full text-sm font-bold self-start sm:self-auto ${
-              cohort.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-              cohort.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
-              'bg-gray-100 text-gray-700'
+              cohort.status === 'active' ? 'bg-[#E8EFE9] text-[#2B3B2C]' :
+              cohort.status === 'upcoming' ? 'bg-[#F6E2D9] text-[#D96E4A]' :
+              'bg-[#F1EAE0] text-[#7A756E]'
             }`}>
               {cohort.status === 'active' ? 'Aktiv' : cohort.status === 'upcoming' ? 'Kommande' : 'Avslutad'}
             </span>
@@ -845,14 +845,14 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-neutral-dark group-hover:text-primary transition-colors">{cohort.name}</h3>
-                  <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${cohort.isPublic ? 'bg-purple-100 text-purple-700' : 'bg-neutral-200 text-neutral-700'}`}>
+                  <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${cohort.isPublic ? 'bg-[#F6E2D9] text-[#D96E4A]' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>
                     {cohort.isPublic ? 'Publik Trupp' : 'Privat Trupp'}
                   </span>
                 </div>
                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                  cohort.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                  cohort.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
-                  'bg-gray-100 text-gray-700'
+                  cohort.status === 'active' ? 'bg-[#E8EFE9] text-[#2B3B2C]' :
+                  cohort.status === 'upcoming' ? 'bg-[#F6E2D9] text-[#D96E4A]' :
+                  'bg-[#F1EAE0] text-[#7A756E]'
                 }`}>
                   {cohort.status === 'active' ? 'Aktiv' : cohort.status === 'upcoming' ? 'Kommande' : 'Avslutad'}
                 </span>
@@ -941,12 +941,12 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                         {cohort?.name || 'Solo'}
                       </td>
                       <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap inline-block ${participant.status === 'fas2' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap inline-block ${participant.status === 'fas2' ? 'bg-[#F6E2D9] text-[#D96E4A]' : 'bg-[#F1EAE0] text-[#56524D]'}`}>
                           {participant.status === 'fas2' ? 'Fas 2' : 'Fas 1'}
                         </span>
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center gap-1 font-bold text-orange-500">
+                        <div className="flex items-center gap-1 font-bold text-[#D96E4A]">
                           <FireIcon className="w-4 h-4" />
                           {participant.currentStreak}
                         </div>
@@ -958,7 +958,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                             {participant.attentionReason || 'Behöver uppmärksamhet'}
                           </span>
                         ) : (
-                          <span className="px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 flex items-center gap-1 w-max">
+                          <span className="px-2 py-1 rounded-full text-xs font-bold bg-[#84A98C]/20 text-[#56524D] flex items-center gap-1 w-max">
                             <CheckIcon className="w-3 h-3" />
                             På spår
                           </span>
@@ -1081,7 +1081,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                   {/* Vecka 6 Aggregerade Resultat */}
                   <div className="space-y-3">
                     <h3 className="text-lg font-bold text-neutral-dark flex items-center gap-2">
-                      <CheckIcon className="w-5 h-5 text-emerald-500" />
+                      <CheckIcon className="w-5 h-5 text-[#84A98C]" />
                       Efter 6 veckor (Fas 1)
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1095,7 +1095,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
 
                       <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
                         <div className="text-sm font-bold text-neutral-500 uppercase tracking-wider mb-1">Snitt-viktnedgång</div>
-                        <div className="text-3xl font-extrabold text-emerald-600">
+                        <div className="text-3xl font-extrabold text-primary">
                           {result6W.qualifiedCount > 0 ? `-${result6W.averageWeightLoss.toFixed(1).replace('.', ',')} kg` : '—'}
                         </div>
                         <p className="text-xs text-neutral-500 mt-2">Genomsnittlig viktminskning för de som gör jobbet.</p>
@@ -1116,7 +1116,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                   {/* Vecka 12 Aggregerade Resultat */}
                   <div className="space-y-3">
                     <h3 className="text-lg font-bold text-neutral-dark flex items-center gap-2">
-                      <TrophyIcon className="w-5 h-5 text-amber-500" />
+                      <TrophyIcon className="w-5 h-5 text-primary" />
                       Efter 12 veckor (Hela Bootcampet)
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1130,7 +1130,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
 
                       <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
                         <div className="text-sm font-bold text-neutral-500 uppercase tracking-wider mb-1">Snitt-viktnedgång</div>
-                        <div className="text-3xl font-extrabold text-emerald-600">
+                        <div className="text-3xl font-extrabold text-primary">
                           {result12W.qualifiedCount > 0 ? `-${result12W.averageWeightLoss.toFixed(1).replace('.', ',')} kg` : '—'}
                         </div>
                         <p className="text-xs text-neutral-500 mt-2">Genomsnittlig viktminskning för de som fullföljt och gjort jobbet.</p>
@@ -1182,12 +1182,12 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                 </td>
                                 <td className="p-3 text-neutral-600">{item.cohortName}</td>
                                 <td className="p-3 text-neutral-600 font-semibold">
-                                  <span className={item.logsCount >= minWeights6W ? 'text-emerald-600' : 'text-amber-600'}>
+                                  <span className={item.logsCount >= minWeights6W ? 'text-[#84A98C]' : 'text-neutral-500'}>
                                     {item.logsCount} st
                                   </span>
                                 </td>
                                 <td className="p-3 font-semibold text-neutral-600">
-                                  <span className={item.greenPercent >= minGreenDaysPct ? 'text-emerald-600' : 'text-amber-600'}>
+                                  <span className={item.greenPercent >= minGreenDaysPct ? 'text-[#84A98C]' : 'text-neutral-500'}>
                                     {item.greenPercent}%
                                   </span>{' '}
                                   <span className="text-[10px] text-neutral-400 font-normal">
@@ -1196,7 +1196,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                 </td>
                                 <td className="p-3 font-bold text-neutral-dark">
                                   {item.loss !== null ? (
-                                    <span className={item.loss > 0 ? "text-emerald-600" : "text-neutral-500"}>
+                                    <span className={item.loss > 0 ? "text-[#84A98C]" : "text-neutral-500"}>
                                       {item.loss > 0 ? `-${item.loss.toFixed(1).replace('.', ',')} kg` : `${Math.abs(item.loss).toFixed(1).replace('.', ',')} kg`}
                                     </span>
                                   ) : (
@@ -1205,7 +1205,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                 </td>
                                 <td className="p-3">
                                   {item.doingWork ? (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#84A98C]/20 text-[#56524D] whitespace-nowrap">
                                       Gör Jobbet
                                     </span>
                                   ) : (
@@ -1260,12 +1260,12 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                 </td>
                                 <td className="p-3 text-neutral-600">{item.cohortName}</td>
                                 <td className="p-3 text-neutral-600 font-semibold">
-                                  <span className={item.logsCount >= minWeights12W ? 'text-emerald-600' : 'text-amber-600'}>
+                                  <span className={item.logsCount >= minWeights12W ? 'text-[#84A98C]' : 'text-neutral-500'}>
                                     {item.logsCount} st
                                   </span>
                                 </td>
                                 <td className="p-3 font-semibold text-neutral-600">
-                                  <span className={item.greenPercent >= minGreenDaysPct ? 'text-emerald-600' : 'text-amber-600'}>
+                                  <span className={item.greenPercent >= minGreenDaysPct ? 'text-[#84A98C]' : 'text-neutral-500'}>
                                     {item.greenPercent}%
                                   </span>{' '}
                                   <span className="text-[10px] text-neutral-400 font-normal">
@@ -1274,7 +1274,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                 </td>
                                 <td className="p-3 font-bold text-neutral-dark">
                                   {item.loss !== null ? (
-                                    <span className={item.loss > 0 ? "text-emerald-600" : "text-neutral-500"}>
+                                    <span className={item.loss > 0 ? "text-[#84A98C]" : "text-neutral-500"}>
                                       {item.loss > 0 ? `-${item.loss.toFixed(1).replace('.', ',')} kg` : `${Math.abs(item.loss).toFixed(1).replace('.', ',')} kg`}
                                     </span>
                                   ) : (
@@ -1283,7 +1283,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                 </td>
                                 <td className="p-3">
                                   {item.doingWork ? (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#84A98C]/20 text-[#56524D] whitespace-nowrap">
                                       Gör Jobbet
                                     </span>
                                   ) : (

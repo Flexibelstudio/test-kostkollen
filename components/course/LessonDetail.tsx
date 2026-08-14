@@ -138,7 +138,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
             <div className="flex justify-between items-start mb-4">
                 <button
                     onClick={onClose}
-                    className={`p-2 -ml-2 rounded-full active:scale-95 transition-all ${isBootcamp ? 'text-neutral dark:text-neutral-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-[#2A3B2C]' : 'text-neutral hover:text-primary hover:bg-primary-50'}`}
+                    className={`p-2 -ml-2 rounded-full active:scale-95 transition-all ${isBootcamp ? 'text-neutral dark:text-neutral-400 hover:text-[#D96E4A] hover:bg-[#F6E2D9]' : 'text-neutral hover:text-primary hover:bg-primary-50'}`}
                     aria-label="Tillbaka till kursöversikt"
                 >
                     <ArrowLeftIcon className="w-8 h-8" />
@@ -146,15 +146,15 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                 <h1 className={`text-2xl sm:text-3xl font-extrabold flex-1 text-center pr-6 leading-tight ${isBootcamp ? 'text-neutral-dark dark:text-white' : 'text-neutral-dark'}`}>{lesson.title}</h1>
             </div>
            {isLoadingAi && (
-            <div className={`p-4 rounded-xl text-sm flex items-center justify-center ${isBootcamp ? 'bg-yellow-50 dark:bg-[#2A3B2C] text-yellow-800 dark:text-yellow-500' : 'bg-primary-100/60 text-primary-darker'}`}>
+            <div className={`p-4 rounded-xl text-sm flex items-center justify-center ${isBootcamp ? 'bg-[#F6E2D9] text-[#D96E4A]' : 'bg-primary-100/60 text-primary-darker'}`}>
               <SparklesIcon className="w-5 h-5 mr-2 animate-pulse" />
               Flexibot skräddarsyr din lektion...
             </div>
           )}
           {aiIntro && !isLoadingAi && (
-            <div className={`p-4 mb-4 rounded-xl border shadow-sm ${isBootcamp ? 'bg-yellow-50 dark:bg-[#2A3B2C] border-yellow-200/80 dark:border-[#4A5B4C]' : 'bg-primary-100/60 border-primary-200/80'}`}>
+            <div className={`p-4 mb-4 rounded-xl border shadow-sm ${isBootcamp ? 'bg-[#F6E2D9]/60 border-[#D96E4A]/30' : 'bg-primary-100/60 border-primary-200/80'}`}>
                 <p className={`text-base italic ${isBootcamp ? 'text-neutral-dark dark:text-neutral-300' : 'text-neutral-dark'}`}>
-                    <SparklesIcon className={`w-5 h-5 mr-2 inline-block align-text-bottom ${isBootcamp ? 'text-yellow-600 dark:text-yellow-500' : 'text-primary'}`} />
+                    <SparklesIcon className={`w-5 h-5 mr-2 inline-block align-text-bottom ${isBootcamp ? 'text-[#D96E4A]' : 'text-primary'}`} />
                     {aiIntro}
                 </p>
             </div>
@@ -189,8 +189,8 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
         )}
 
         {lesson.specialAction && (
-          <section className={`mb-10 p-6 rounded-2xl border ${isBootcamp ? 'bg-yellow-50 dark:bg-[#2A3B2C] border-yellow-200 dark:border-[#4A5B4C]' : 'bg-primary-100/70 border-primary-200'}`}>
-            <h2 className={`text-xl font-bold mb-2 ${isBootcamp ? 'text-yellow-800 dark:text-yellow-500' : 'text-primary-darker'}`}>{lesson.specialAction.prompt}</h2>
+          <section className={`mb-10 p-6 rounded-2xl border ${isBootcamp ? 'bg-[#F6E2D9]/50 border-[#D96E4A]/30' : 'bg-[#F6E2D9]/60 border-[#D96E4A]/30'}`}>
+            <h2 className={`text-xl font-bold mb-2 ${isBootcamp ? 'text-[#56524D]' : 'text-[#56524D]'}`}>{lesson.specialAction.prompt}</h2>
             {lesson.specialAction.description && <p className={`text-base mb-4 ${isBootcamp ? 'text-neutral-dark dark:text-neutral-300' : 'text-neutral-dark'}`}>{lesson.specialAction.description}</p>}
             
                  <textarea
@@ -204,7 +204,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                       }
                   }}
                   rows={5}
-                  className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 text-base ${isBootcamp ? 'bg-white dark:bg-[#1A2B1C] border-neutral-light dark:border-[#3A4B3C] focus:ring-yellow-500 dark:text-white' : 'border-neutral-light focus:ring-primary'}`}
+                  className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 text-base ${isBootcamp ? 'bg-white dark:bg-[#1A2B1C] border-neutral-light focus:ring-[#D96E4A] dark:text-white' : 'border-neutral-light focus:ring-primary'}`}
                   placeholder="Skriv dina tankar här..."
                   aria-label={lesson.specialAction.prompt}
                 />
@@ -221,16 +221,16 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                   onClick={() => onToggleFocusPoint(lesson.id, point.id)}
                   className={`flex items-center w-full p-4 rounded-xl border-2 interactive-transition active:scale-[0.98] shadow-sm
                     ${progress?.completedFocusPoints?.includes(point.id)
-                      ? (isBootcamp ? 'bg-green-50 dark:bg-[#2A3B2C] border-green-500 dark:border-green-600 text-green-800 dark:text-green-400' : 'bg-primary-100 border-primary text-primary-darker')
-                      : (isBootcamp ? 'bg-white dark:bg-[#1A2B1C] border-neutral-light dark:border-[#3A4B3C] hover:border-yellow-500/50 dark:hover:border-yellow-500/50 text-neutral-dark dark:text-white' : 'bg-white dark:bg-neutral-darker border-neutral-light hover:border-neutral-light/80 hover:bg-neutral-light/30 dark:hover:bg-neutral-dark/50 text-neutral-dark dark:text-white')
+                      ? (isBootcamp ? 'bg-[#E8EFE9] border-[#8C9A86] text-[#2B3B2C]' : 'bg-[#E8EFE9] border-[#8C9A86] text-[#2B3B2C]')
+                      : (isBootcamp ? 'bg-white border-neutral-light hover:border-[#D96E4A] text-neutral-dark' : 'bg-white dark:bg-neutral-darker border-neutral-light hover:border-[#D96E4A] text-neutral-dark dark:text-white')
                     }`}
                   aria-pressed={progress?.completedFocusPoints?.includes(point.id)}
                 >
                   <div className="flex-shrink-0 w-8 h-8 mr-4 flex items-center justify-center">
                     {progress?.completedFocusPoints?.includes(point.id) ? (
-                      <CheckCircleIcon className={`w-8 h-8 ${isBootcamp ? 'text-green-600 dark:text-green-500' : 'text-primary'}`} />
+                      <CheckCircleIcon className={`w-8 h-8 ${isBootcamp ? 'text-[#8C9A86]' : 'text-[#8C9A86]'}`} />
                     ) : (
-                      <div className={`w-6 h-6 border-2 rounded-full transition-colors ${isBootcamp ? 'border-neutral-300 dark:border-neutral-600 group-hover:border-yellow-500' : 'border-neutral-300 group-hover:border-primary'}`}></div>
+                      <div className={`w-6 h-6 border-2 rounded-full transition-colors ${isBootcamp ? 'border-neutral-300 group-hover:border-[#D96E4A]' : 'border-neutral-300 group-hover:border-[#D96E4A]'}`}></div>
                     )}
                   </div>
                   <span className="flex-grow text-left text-base sm:text-lg font-medium">{point.text}</span>
@@ -239,7 +239,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                     <div className="pl-14">
                         <button 
                             onClick={() => handleCtaClick(point.cta!.action)}
-                            className={`px-5 py-2 text-sm font-bold text-white rounded-lg shadow-md active:scale-95 transform interactive-transition flex items-center ${isBootcamp ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-secondary hover:bg-secondary-darker'}`}
+                            className={`px-5 py-2 text-sm font-bold text-white rounded-lg shadow-md active:scale-95 transform interactive-transition flex items-center ${isBootcamp ? 'bg-[#D96E4A] hover:bg-[#C05A38]' : 'bg-[#D96E4A] hover:bg-[#C05A38]'}`}
                         >
                             {point.cta.action === 'openSpeedDial' && <PlusCircleIcon className="w-4 h-4 mr-2"/>}
                             {point.cta.action === 'navigateToJourneyCalendar' && <BookOpenIcon className="w-4 h-4 mr-2"/>}
@@ -255,15 +255,15 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
         </section>
 
         {lesson.tips && lesson.tips.length > 0 && (
-          <section className={`mb-10 p-6 border rounded-2xl ${isBootcamp ? 'bg-yellow-50 dark:bg-[#2A3B2C] border-yellow-200 dark:border-[#4A5B4C]' : 'bg-amber-50 border-amber-200'}`}>
-            <h2 className={`text-xl font-bold mb-4 flex items-center ${isBootcamp ? 'text-yellow-800 dark:text-yellow-500' : 'text-amber-800'}`}>
+          <section className={`mb-10 p-6 border rounded-2xl ${isBootcamp ? 'bg-[#F6E2D9]/40 border-[#D96E4A]/30' : 'bg-[#F6E2D9]/40 border-[#D96E4A]/30'}`}>
+            <h2 className={`text-xl font-bold mb-4 flex items-center ${isBootcamp ? 'text-[#D96E4A]' : 'text-[#D96E4A]'}`}>
                 <InformationCircleIcon className="w-6 h-6 mr-2" />
                 Tips!
             </h2>
             <ul className="space-y-3">
               {lesson.tips.map(tip => (
                 <li key={tip.id} className="flex items-start">
-                  <p className={`text-base leading-relaxed ${isBootcamp ? 'text-neutral-dark dark:text-neutral-300' : 'text-amber-900'}`}>{tip.text}</p>
+                  <p className={`text-base leading-relaxed ${isBootcamp ? 'text-[#56524D]' : 'text-[#56524D]'}`}>{tip.text}</p>
                 </li>
               ))}
             </ul>
@@ -279,22 +279,22 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                 setReflectionAnswer(e.target.value);
             }}
             rows={4}
-            className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 text-base ${isBootcamp ? 'bg-white dark:bg-[#1A2B1C] border-neutral-light dark:border-[#3A4B3C] focus:ring-yellow-500 dark:text-white' : 'border-neutral-light focus:ring-primary'}`}
+            className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 text-base ${isBootcamp ? 'bg-white border-neutral-light focus:ring-[#D96E4A] dark:text-white' : 'border-neutral-light focus:ring-primary'}`}
             placeholder="Dina tankar och reflektioner..."
             aria-label={lesson.reflection.question}
           />
         </section>
         
         {progress?.isCompleted ? (
-           <div className={`mt-10 p-6 border rounded-2xl text-center ${isBootcamp ? 'bg-green-50 dark:bg-[#2A3B2C] border-green-200 dark:border-green-800' : 'bg-green-50 border-green-200'}`}>
-            <CheckCircleIcon className={`w-12 h-12 mx-auto mb-3 ${isBootcamp ? 'text-green-600 dark:text-green-500' : 'text-green-500'}`} />
-            <p className={`text-xl font-bold ${isBootcamp ? 'text-green-800 dark:text-green-400' : 'text-green-800'}`}>Bra jobbat, du har slutfört denna lektion!</p>
+           <div className={`mt-10 p-6 border rounded-2xl text-center ${isBootcamp ? 'bg-[#E8EFE9] border-[#8C9A86]/40' : 'bg-[#E8EFE9] border-[#8C9A86]/40'}`}>
+            <CheckCircleIcon className={`w-12 h-12 mx-auto mb-3 ${isBootcamp ? 'text-[#8C9A86]' : 'text-[#8C9A86]'}`} />
+            <p className={`text-xl font-bold ${isBootcamp ? 'text-[#2B3B2C]' : 'text-[#2B3B2C]'}`}>Bra jobbat, du har slutfört denna lektion!</p>
           </div>
         ) : allFocusPointsCompleted ? (
           <div className="mt-10 text-center">
             <button
               onClick={() => onMarkComplete(lesson.id)}
-              className={`px-10 py-4 text-white text-xl font-bold rounded-2xl shadow-lg focus:outline-none focus:ring-4 active:scale-95 transform interactive-transition ${isBootcamp ? 'bg-yellow-600 hover:bg-yellow-500 focus:ring-yellow-500/30' : 'bg-primary hover:bg-primary-darker focus:ring-primary/30'}`}
+              className={`px-10 py-4 text-white text-xl font-bold rounded-2xl shadow-lg focus:outline-none focus:ring-4 active:scale-95 transform interactive-transition ${isBootcamp ? 'bg-[#D96E4A] hover:bg-[#C05A38] focus:ring-[#D96E4A]/30' : 'bg-[#D96E4A] hover:bg-[#C05A38] focus:ring-[#D96E4A]/30'}`}
             >
               <CheckIcon className="w-6 h-6 inline mr-2" /> Markera lektion som slutförd
             </button>

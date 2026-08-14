@@ -254,7 +254,7 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
     return (
         <div 
             onClick={onClick}
-            className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-1 cursor-pointer hover:bg-gray-50 transition-colors ${hasUnread ? 'border-primary bg-primary-50/30' : 'border-neutral-light'}`}
+            className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-1 cursor-pointer hover:bg-[#FAF6EF] transition-colors ${hasUnread ? 'border-primary bg-primary-50/30' : 'border-neutral-light'}`}
         >
             <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2 min-w-0 pr-2">
@@ -278,9 +278,9 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
             </div>
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                    {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
-                     chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
-                     chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
+                    {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : 
+                     chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : 
+                     chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : null}
                     <p className={`text-[15px] truncate ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
                         {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : chat.lastMessage.senderName || 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
                     </p>
@@ -573,7 +573,7 @@ export const ChatWindow: React.FC<{
             onAddFriend(userId, userName);
         } else {
             try {
-                await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, userId);
+                await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare' }, userId);
                 setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
             } catch (error: any) {
                 setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
@@ -759,7 +759,7 @@ export const ChatWindow: React.FC<{
                                                     </span>
                                                 )}
                                                 {isMemberAdmin && !isMemberCoach && (
-                                                    <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                    <span className="bg-[#F6E2D9] text-[#D96E4A] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                                                         Admin
                                                     </span>
                                                 )}
@@ -769,7 +769,7 @@ export const ChatWindow: React.FC<{
                                     <div className="flex items-center gap-2">
                                         {!isMe && !isBuddy && (
                                             sentFriendRequests.has(member.uid) ? (
-                                                <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                                <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-[#E8EFE9] rounded-full text-[12px] font-bold text-[#2B3B2C] shadow-sm border border-[#8C9A86]/40">
                                                     <CheckIcon className="w-4 h-4" />
                                                     <span>Skickad</span>
                                                 </div>
@@ -990,9 +990,9 @@ export const ChatWindow: React.FC<{
                             )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                            {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
-                             chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
-                             chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
+                            {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : 
+                             chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : 
+                             chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : null}
                             <p className="text-sm text-neutral">
                                 {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'}
                                 {creatorName && ` • Skapad av ${creatorName}`}
@@ -1140,7 +1140,7 @@ export const ChatWindow: React.FC<{
                                     <span className="text-sm font-bold text-neutral-dark">{msg.senderName}</span>
                                     {msg.senderId !== currentUser.uid && !buddyDetails.some(b => b.uid === msg.senderId) && (
                                         sentFriendRequests.has(msg.senderId) ? (
-                                            <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
+                                            <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-[#E8EFE9] rounded-full text-[12px] font-bold text-[#2B3B2C] shadow-sm border border-[#2B3B2C]/20">
                                                 <CheckIcon className="w-4 h-4" />
                                                 <span>Skickad</span>
                                             </div>
@@ -1554,7 +1554,7 @@ export const CreateGroupView: React.FC<{
                 </div>
 
                 {isPublic && (
-                    <div className="mt-4 flex items-center gap-3 p-3 bg-orange-50/50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <div className="mt-4 flex items-center gap-3 p-3 bg-[#F6E2D9]/50 rounded-lg border border-[#D96E4A]/30">
                         <input 
                             type="checkbox" 
                             id="requiresApproval"
@@ -1570,7 +1570,7 @@ export const CreateGroupView: React.FC<{
                 )}
 
                 {(userProfile as any).role === 'coach' && isPublic && !hideSystemGroupOption && (
-                    <div className="mt-4 flex items-center gap-3 p-3 bg-purple-50/50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <div className="mt-4 flex items-center gap-3 p-3 bg-[#F1EAE0]/50 rounded-lg border border-neutral-light">
                         <input 
                             type="checkbox" 
                             id="isSystemGroup"

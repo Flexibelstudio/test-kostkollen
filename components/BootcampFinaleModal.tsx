@@ -1,131 +1,151 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Play, Pause, Volume2, VolumeX } from 'lucide-react';
+import { X, Download, Award, Volume2, VolumeX } from 'lucide-react';
 import { BootcampParticipant } from '../types';
-import { getBootcampRankInfo } from '../utils/bootcampUtils';
+import { getBootcampRankInfo, BORJE_EXTRA_TEXTS } from '../utils/bootcampUtils';
+import { BootcampDiplomaCard } from './BootcampDiplomaCard';
+import { downloadDiplomaImage } from '../utils/diplomaImageExporter';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 
 interface BootcampFinaleModalProps {
   participant: BootcampParticipant;
+  userName?: string;
   onClose: () => void;
   onGoToCourse: () => void;
 }
 
-export const BootcampFinaleModal: React.FC<BootcampFinaleModalProps> = ({ participant, onClose, onGoToCourse }) => {
-  const [step, setStep] = useState<'video' | 'diploma'>('video');
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+export const BootcampFinaleModal: React.FC<BootcampFinaleModalProps> = ({ participant, userName = 'Bootcamp-deltagare', onClose, onGoToCourse }) => {
   const { width, height } = useWindowSize();
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const rankInfo = getBootcampRankInfo(participant.longestStreak, participant.currentStreak, participant.status);
 
-  useEffect(() => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.play().catch(e => console.error("Video play failed:", e));
-      } else {
-        videoRef.current.pause();
-      }
-    }
-  }, [isPlaying]);
-
-  const handleVideoEnded = () => {
-    setStep('diploma');
+  // Finale rank definition with verbatim 12-week completion text
+  const finaleRankDef = {
+    ...rankInfo.rankDef,
+    quote: BORJE_EXTRA_TEXTS.FINALE
   };
 
-  const togglePlay = () => setIsPlaying(!isPlaying);
-  const toggleMute = () => setIsMuted(!isMuted);
+  const toggleSpeech = () => {
+    if (!('speechSynthesis' in window)) {
+      alert('Text-till-tal stöds inte i denna webbläsare.');
+      return;
+    }
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    } else {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(`General Börjes slutord. ${BORJE_EXTRA_TEXTS.FINALE}`);
+      utterance.lang = 'sv-SE';
+      utterance.rate = 0.95;
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      setIsSpeaking(true);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      setIsDownloading(true);
+      await downloadDiplomaImage(
+        finaleRankDef,
+        userName,
+        participant.longestStreak
+      );
+    } catch (e) {
+      console.error('Kunde inte ladda ner diplomet:', e);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
-        {step === 'diploma' && <Confetti width={width} height={height} recycle={false} numberOfPieces={500} />}
-        
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto custom-scrollbar">
+        <Confetti width={width} height={height} recycle={false} numberOfPieces={600} />
+
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative border border-neutral-800"
+          initial={{ opacity: 0, scale: 0.92, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: 20 }}
+          className="w-full max-w-xl my-auto relative flex flex-col gap-4"
         >
-          {step === 'video' ? (
-            <div className="relative aspect-[9/16] bg-black flex flex-col">
-              <video
-                ref={videoRef}
-                src="/general-avslutning.mp4"
-                className="w-full h-full object-cover"
-                playsInline
-                autoPlay
-                muted={isMuted}
-                onEnded={handleVideoEnded}
-              />
-              
-              {/* Video Controls Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none" />
-              
-              <div className="absolute top-4 right-4 flex space-x-2">
-                <button onClick={toggleMute} className="p-2 bg-black/50 hover:bg-black/70 rounded-full text-white backdrop-blur-md transition-colors pointer-events-auto">
-                  {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                </button>
-                <button onClick={() => setStep('diploma')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full text-white backdrop-blur-md transition-colors pointer-events-auto">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="absolute bottom-6 left-0 right-0 px-6 flex justify-between items-center pointer-events-auto">
-                <button onClick={togglePlay} className="p-3 bg-primary hover:bg-primary-dark rounded-full text-white shadow-lg transition-transform active:scale-95">
-                  {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-                </button>
-                <button 
-                  onClick={() => setStep('diploma')}
-                  className="px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white rounded-full font-medium transition-colors"
-                >
-                  Hoppa över
-                </button>
+          {/* Header Controls */}
+          <div className="flex items-center justify-between text-white px-2">
+            <div className="flex items-center gap-2">
+              <Award className="w-6 h-6 text-[#D96E4A]" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-[#D96E4A]">
+                  BOOTCAMP FULLFÖLJD!
+                </p>
+                <h3 className="text-lg font-extrabold font-serif">
+                  12 Veckor i Truppen
+                </h3>
               </div>
             </div>
-          ) : (
-            <div className="p-8 text-center">
-              <div className="w-24 h-24 mx-auto bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-yellow-500/30 border-4 border-neutral-800">
-                <span className="text-5xl">🎖️</span>
-              </div>
-              
-              <h2 className="text-3xl font-extrabold text-white mb-2">Bootcamp Slutförd!</h2>
-              <p className="text-neutral-400 mb-8">General Börje gör honnör för din insats.</p>
-              
-              <div className="bg-neutral-800 rounded-xl p-6 mb-8 border border-neutral-700">
-                <div className="mb-4">
-                  <p className="text-sm text-neutral-400 uppercase tracking-wider font-semibold mb-1">Din Slutgiltiga Grad</p>
-                  <p className="text-3xl font-black text-primary">{rankInfo.currentRank}</p>
-                </div>
-                
-                <div className="h-px w-full bg-neutral-700 my-4" />
-                
-                <div>
-                  <p className="text-sm text-neutral-400 uppercase tracking-wider font-semibold mb-1">Längsta Streak</p>
-                  <p className="text-2xl font-bold text-white">{participant.longestStreak} <span className="text-lg text-neutral-500 font-normal">dagar</span></p>
-                </div>
-              </div>
 
-              <div className="space-y-3">
-                <button 
-                  onClick={onGoToCourse}
-                  className="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold text-lg transition-colors shadow-lg shadow-primary/20"
-                >
-                  Gå till Praktisk Viktkontroll
-                </button>
-                <button 
-                  onClick={onClose}
-                  className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-medium transition-colors"
-                >
-                  Stäng och återgå
-                </button>
-              </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleSpeech}
+                className={`p-2.5 rounded-full transition-all flex items-center justify-center ${
+                  isSpeaking ? 'bg-[#D96E4A] text-white animate-pulse' : 'bg-white/10 hover:bg-white/20 text-white'
+                }`}
+                title={isSpeaking ? 'Tysta uppläsning' : 'Läs upp Börjes slutord'}
+              >
+                {isSpeaking ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+              </button>
+
+              <button
+                onClick={onClose}
+                className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          )}
+          </div>
+
+          {/* Diploma Card */}
+          <div className="shadow-2xl">
+            <BootcampDiplomaCard
+              rankDef={finaleRankDef}
+              userName={userName}
+              streakDays={participant.longestStreak}
+            />
+          </div>
+
+          {/* Navigation Actions */}
+          <div className="bg-[#2B2825]/90 backdrop-blur-md p-4 rounded-2xl border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-white">
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="w-full sm:w-auto px-5 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4 text-[#D96E4A]" />
+              <span>{isDownloading ? 'Genererar bild...' : 'Ladda ner som bild'}</span>
+            </button>
+
+            <button
+              onClick={onGoToCourse}
+              className="w-full sm:w-auto px-6 py-3 bg-[#D96E4A] hover:bg-[#C05A38] text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-[#D96E4A]/30 active:scale-95"
+            >
+              Gå till Praktisk Viktkontroll
+            </button>
+
+            <button
+              onClick={onClose}
+              className="w-full sm:w-auto px-6 py-3 bg-white/5 hover:bg-white/15 text-white/80 hover:text-white rounded-xl font-medium text-sm transition-colors"
+            >
+              Stäng
+            </button>
+          </div>
         </motion.div>
       </div>
     </AnimatePresence>
   );
 };
+

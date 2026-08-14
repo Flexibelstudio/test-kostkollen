@@ -222,6 +222,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       coachStyle: DEFAULT_USER_PROFILE.coachStyle || 'balanced',
     };
     await setDoc(userDocRef, newUserDoc);
+    await syncPublicProfile(fbUser.uid, fbUser.displayName || "Ny användare", fbUser.photoURL, true);
   } else {
     const existingData = userDoc.data();
     const updateData: any = { lastLoginAt: serverTimestamp() };
@@ -229,6 +230,30 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       updateData.displayName = fbUser.displayName;
     }
     await updateDoc(userDocRef, updateData);
+    if (existingData.isSearchable !== false) {
+      await syncPublicProfile(fbUser.uid, fbUser.displayName || existingData.displayName || "Ny användare", fbUser.photoURL || existingData.photoURL, true);
+    }
+  }
+}
+
+export async function syncPublicProfile(userId: string, displayName: string, photoURL?: string | null, isSearchable: boolean = true): Promise<void> {
+  if (!db) return;
+  const publicProfileRef = doc(db, 'publicProfiles', userId);
+  
+  if (isSearchable && displayName) {
+    const publicProfileData = {
+      uid: userId,
+      displayName: displayName,
+      photoURL: photoURL || null,
+      displayNameLower: displayName.toLowerCase().trim(),
+    };
+    await setDoc(publicProfileRef, cleanFirestoreData(publicProfileData));
+  } else {
+    try {
+      await deleteDoc(publicProfileRef);
+    } catch (e) {
+      console.warn("Could not delete publicProfile document", e);
+    }
   }
 }
 
@@ -781,6 +806,28 @@ export async function addTimelineEvent(
   }
   const userData = userDocSnap.data() as FirestoreUserDocument;
 
+  const sharingSettings = userData.communitySharingSettings || {
+    weight: false,
+    achievement: true,
+    streak: true,
+    course: true,
+    level: true,
+    goal: true,
+  };
+
+  let isAllowed = true;
+  if (eventData.type === 'weight' && !sharingSettings.weight) isAllowed = false;
+  else if (eventData.type === 'achievement' && !sharingSettings.achievement) isAllowed = false;
+  else if (eventData.type === 'streak' && !sharingSettings.streak) isAllowed = false;
+  else if (eventData.type === 'course' && !sharingSettings.course) isAllowed = false;
+  else if (eventData.type === 'level' && !sharingSettings.level) isAllowed = false;
+  else if ((eventData.type === 'goal' || eventData.type === 'goal_achieved' || eventData.type === 'goal_set') && !sharingSettings.goal) isAllowed = false;
+
+  if (!isAllowed) {
+    console.log(`Timeline event of type "${eventData.type}" suppressed due to community sharing settings.`);
+    return;
+  }
+
   const buddies = await fetchBuddies(userId);
   const buddyUids = buddies.map(b => b.uid);
   const visibleTo = [userId, ...buddyUids];
@@ -1028,6 +1075,7 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   }
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
+  await syncPublicProfile(userId, profile.name, profile.photoURL, profile.isSearchable !== false);
 }
 
 /* ===== Gamification: Achievements ===== */
@@ -1567,7 +1615,15 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
   if (!db) return [];
   const buddiesRef = collection(db, 'users', userId, 'buddies');
   const snapshot = await getDocsSafe(buddiesRef);
-  return snapshot.docs.map(doc => doc.data() as Peppkompis);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      uid: data.uid,
+      name: data.name || data.displayName || '',
+      photoURL: data.photoURL,
+      gender: data.gender,
+    } as Peppkompis;
+  });
 }
 
 export async function fetchUsersByUids(uids: string[]): Promise<BuddyDetails[]> {
@@ -1586,7 +1642,6 @@ export async function fetchUsersByUids(uids: string[]): Promise<BuddyDetails[]> 
       results.push({
         uid: data.uid,
         name: data.displayName,
-        email: data.email || '',
         photoURL: data.photoURL,
         role: data.role,
         goalType: data.goalType || 'maintain',
@@ -1692,29 +1747,35 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
   return results.filter((b): b is BuddyDetails => b !== null);
 }
 
-export async function searchForBuddies(currentUserId: string): Promise<Peppkompis[]> {
+export async function searchForBuddies(currentUserId: string, searchQuery: string = ''): Promise<Peppkompis[]> {
   if (!db) return [];
-  const usersRef = collection(db, "users");
-  const q = query(usersRef, where("isSearchable", "==", true));
+  const queryText = searchQuery.trim().toLowerCase();
+  if (!queryText) return [];
+
+  const publicProfilesRef = collection(db, "publicProfiles");
+  const q = query(
+    publicProfilesRef,
+    where("displayNameLower", ">=", queryText),
+    where("displayNameLower", "<=", queryText + "\uf8ff"),
+    limit(20)
+  );
   const snapshot = await getDocsSafe(q);
 
   const users: Peppkompis[] = [];
   snapshot.forEach(doc => {
-    const data = doc.data() as FirestoreUserDocument;
+    const data = doc.data();
     if (data.uid !== currentUserId) {
       users.push({
         uid: data.uid,
-        name: data.displayName,
-        email: data.email || '',
+        name: data.displayName || 'Användare',
         photoURL: data.photoURL || undefined,
-        gender: data.gender,
       });
     }
   });
   return users;
 }
 
-export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string): Promise<void> {
+export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string, toName?: string): Promise<void> {
   if (!db) return;
   const requestsRef = collection(db, 'peppkompisRequests');
   
@@ -1733,8 +1794,8 @@ export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string)
   const newRequest: Omit<PeppkompisRequest, 'id'> = {
     fromUid: fromUser.uid,
     fromName: fromUser.name,
-    fromEmail: fromUser.email,
     toUid: toUserUid,
+    toName: toName || '',
     status: 'pending',
     createdAt: Date.now(),
   };

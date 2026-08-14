@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
 import { XMarkIcon, SparklesIcon, FireIcon, ProteinIcon, LeafIcon, CheckIcon as LogIcon, InformationCircleIcon, ShareIcon } from './icons';
-import { playAudio } from '../services/audioService';
 import MealTypeSelector from './MealTypeSelector';
 
 interface IngredientRecipeResultsModalProps {
@@ -75,7 +74,6 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
 
   const handleLog = (recipe: RecipeSuggestion) => {
     if (!selectedMealTypes[recipe.title]) return; // Should be disabled, safe guard
-    playAudio('uiClick');
     const recipeBaseServings = parseServings(recipe.servings);
     const numPortionsToLog = parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") || 1;
 
@@ -96,8 +94,6 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
   };
 
   const handleShareRecipe = async (recipe: RecipeSuggestion) => {
-    playAudio('uiClick');
-
     const ingredientsText = recipe.ingredients.map(ing => `- ${ing.item}`).join('\n');
     const instructionsText = recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
     
@@ -270,7 +266,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                             <button
                               onClick={() => onSaveRecipe(recipe)}
                               disabled={savedRecipeIds.has(recipe.title)}
-                              className={`px-4 py-2 text-sm font-medium rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center ${savedRecipeIds.has(recipe.title) ? 'bg-green-500 text-white' : 'bg-primary text-white hover:bg-primary-darker'}`}
+                              className={`px-4 py-2 text-sm font-medium rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center ${savedRecipeIds.has(recipe.title) ? 'bg-[#2B3B2C] text-white' : 'bg-primary text-white hover:bg-primary-darker'}`}
                               title={savedRecipeIds.has(recipe.title) ? "Receptet är sparat" : "Spara recept"}
                             >
                               {savedRecipeIds.has(recipe.title) ? (
@@ -282,7 +278,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                           )}
                         </div>
                         {isLoggingDisabled && (
-                            <p className="text-xs text-orange-500 text-center mt-1">Loggning är endast tillgänglig för idag.</p>
+                            <p className="text-xs text-[#D96E4A] text-center mt-1">Loggning är endast tillgänglig för idag.</p>
                         )}
                       </div>
                   </div>

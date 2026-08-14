@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CameraIcon, XMarkIcon } from './icons.tsx'; 
-import { playAudio } from '../services/audioService.ts'; // Import the new audio service
 
 interface CameraModalProps {
   show: boolean;
@@ -155,12 +154,10 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
         if (resizeContext) {
             resizeContext.drawImage(canvas, 0, 0, width, height);
             const imageDataUrl = resizeCanvas.toDataURL('image/jpeg', 0.75); // 75% quality JPEG
-            playAudio('cameraShutter');
             onImageCapture(imageDataUrl.split(',')[1]);
         } else {
             // Fallback to original if resize context fails
             const imageDataUrl = canvas.toDataURL('image/jpeg', 0.85); // A bit higher quality if not resizing
-            playAudio('cameraShutter');
             onImageCapture(imageDataUrl.split(',')[1]);
         }
         // --- END OF NEW RESIZING LOGIC ---

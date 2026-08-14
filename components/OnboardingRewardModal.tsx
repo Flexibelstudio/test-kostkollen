@@ -27,7 +27,7 @@ const OnboardingRewardModal: React.FC<OnboardingRewardModalProps> = ({ show, onC
         onClick={(e) => e.stopPropagation()}
       >
         {isMuscleGain ? (
-             <div className="w-24 h-24 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4 text-orange-600">
+             <div className="w-24 h-24 bg-[#F6E2D9] rounded-full flex items-center justify-center mx-auto mb-4 text-[#D96E4A]">
                 <FireIcon className="w-12 h-12" />
              </div>
         ) : (
@@ -43,8 +43,8 @@ const OnboardingRewardModal: React.FC<OnboardingRewardModalProps> = ({ show, onC
         </p>
 
         {isMuscleGain ? (
-            <div className="bg-orange-50 p-6 rounded-xl border border-orange-200 text-center mb-2">
-                <p className="text-lg font-bold text-orange-800 leading-relaxed">
+            <div className="bg-[#F6E2D9] p-6 rounded-xl border border-[#D96E4A]/30 text-center mb-2">
+                <p className="text-lg font-bold text-[#56524D] leading-relaxed">
                     "Du har nu full koll på verktygen. Nu lägger vi i högsta växeln för att bygga din styrka!"
                 </p>
             </div>
@@ -59,7 +59,7 @@ const OnboardingRewardModal: React.FC<OnboardingRewardModalProps> = ({ show, onC
 
         <button
           onClick={onClose}
-          className={`w-full mt-8 px-6 py-3 text-white text-lg font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-opacity-50 active:scale-95 transform ${isMuscleGain ? 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500' : 'bg-primary hover:bg-primary-darker focus:ring-primary'}`}
+          className={`w-full mt-8 px-6 py-3 text-white text-lg font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-opacity-50 active:scale-95 transform ${isMuscleGain ? 'bg-[#D96E4A] hover:bg-[#C05A38] focus:ring-[#D96E4A]' : 'bg-primary hover:bg-primary-darker focus:ring-primary'}`}
         >
           Grymt, kör igång!
         </button>

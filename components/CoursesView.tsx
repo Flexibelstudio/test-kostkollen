@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserProfileData, UserCourseProgress, BootcampParticipant, GoalSettings, WeightLogEntry, WeeklyCalorieBank } from '../types';
-import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon, ArrowRightIcon, ShieldCheckIcon } from './icons';
+import { CourseIcon, SparklesIcon, CheckCircleIcon, VenusIcon, BalanceScaleIcon, InformationCircleIcon, ArrowRightIcon, ShieldCheckIcon, CoachAvatar } from './icons';
 import CourseInfoModal from './course/CourseInfoModal';
 import BootcampLandingView from './BootcampLandingView';
 import BootcampDashboard from './BootcampDashboard';
@@ -120,40 +120,39 @@ const CourseCard: React.FC<{
 }> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason, isBootcamp }) => {
 
   const baseClasses = isBootcamp 
-    ? `bg-white dark:bg-[#2A3B2C] p-6 rounded-3xl shadow-soft-xl border-2 border-yellow-500/50 dark:border-[#4A5B4C] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75 grayscale-[0.5]' : 'hover:scale-[1.01]'}`
-    : `bg-white dark:bg-neutral-darker p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75 grayscale-[0.5]' : 'hover:scale-[1.01]'}`;
+    ? `bg-[#56524D] text-white p-6 rounded-[22px] shadow-soft-xl border border-[#56524D] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75' : 'hover:scale-[1.01]'}`
+    : `bg-white dark:bg-[#2B2825] p-6 rounded-[22px] shadow-soft-xl border border-[#F1EAE0] dark:border-[#484440] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75' : 'hover:scale-[1.01]'}`;
 
-  const titleClasses = isBootcamp ? "text-2xl font-extrabold text-neutral-dark dark:text-white mb-2 uppercase tracking-widest" : "text-2xl font-extrabold text-neutral-dark mb-2";
-  const descClasses = isBootcamp ? "text-neutral dark:text-neutral-300 text-base leading-relaxed mb-4" : "text-neutral text-base leading-relaxed mb-4";
+  const titleClasses = isBootcamp ? "text-2xl font-serif font-medium text-white mb-2 tracking-tight" : "text-2xl font-serif font-medium text-[#56524D] dark:text-[#FAF6EF] mb-2";
+  const descClasses = isBootcamp ? "text-[#F1EAE0] text-base leading-relaxed mb-4" : "text-[#7A756E] dark:text-[#C2BCB4] text-base leading-relaxed mb-4";
   const iconContainerClasses = isBootcamp 
-    ? `w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner overflow-hidden ${isLocked ? 'bg-neutral-100 dark:bg-[#1A2B1C] text-neutral-500' : 'bg-yellow-50 dark:bg-[#3A4B3C] text-yellow-500'}`
-    : `w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner ${isLocked ? 'bg-neutral-light text-neutral' : 'bg-neutral-light/50 text-primary'}`;
+    ? `w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden bg-[#7A756E]/40 text-white`
+    : `w-20 h-20 rounded-2xl flex items-center justify-center ${isLocked ? 'bg-[#F1EAE0] text-[#7A756E]' : 'bg-[#F6E2D9] text-[#D96E4A]'}`;
 
   return (
     <div className={baseClasses}>
         {isBootcamp && (
-            <div className="absolute top-0 right-0 bg-yellow-500 text-black text-xs font-bold px-3 py-1 rounded-bl-xl uppercase tracking-widest">
-                Top Secret
+            <div className="absolute top-0 right-0 bg-[#D96E4A] text-white text-xs font-medium px-3.5 py-1.5 rounded-bl-xl tracking-wide">
+                12 veckor
             </div>
         )}
         <div className="flex flex-col items-center text-center flex-grow mb-6">
             <div className="relative mb-4">
-                {/* Updated Icon Container to Squircle (rounded-2xl) */}
                 <div className={iconContainerClasses}>
                     {isBootcamp ? (
-                        <img src="/coach-borje.png" alt="General Börje" className="w-full h-full object-cover" />
+                        <CoachAvatar coachKey="borje" className="w-full h-full rounded-2xl" />
                     ) : (
                         <course.Icon className="w-10 h-10" />
                     )}
                 </div>
                 {hasStarted && (
-                    <div className="absolute -bottom-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-1 shadow-sm">
-                        <CheckCircleIcon className="w-6 h-6 text-primary" />
+                    <div className="absolute -bottom-1 -right-1 bg-white dark:bg-[#2B2825] rounded-full p-1 shadow-sm">
+                        <CheckCircleIcon className="w-6 h-6 text-[#D96E4A]" />
                     </div>
                 )}
                 {isLocked && (
-                    <div className="absolute -bottom-1 -right-1 bg-white dark:bg-neutral-darker rounded-full p-1 shadow-sm">
-                        <svg className="w-6 h-6 text-neutral" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="absolute -bottom-1 -right-1 bg-white dark:bg-[#2B2825] rounded-full p-1 shadow-sm">
+                        <svg className="w-6 h-6 text-[#7A756E]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         </svg>
                     </div>
@@ -168,36 +167,32 @@ const CourseCard: React.FC<{
 
             <button
                 onClick={onShowInfo}
-                className={`text-sm font-semibold flex items-center gap-1 mt-auto interactive-transition ${isBootcamp ? 'text-yellow-500 hover:text-yellow-400' : 'text-primary hover:text-primary-darker hover:underline'}`}
+                className={`text-sm font-medium flex items-center gap-1 mt-auto interactive-transition ${isBootcamp ? 'text-[#F6E2D9] hover:text-white hover:underline' : 'text-[#D96E4A] hover:text-[#C05A38] hover:underline'}`}
             >
                 <InformationCircleIcon className="w-4 h-4"/> Läs mer om kursen
             </button>
         </div>
 
-        <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${isBootcamp ? 'border-neutral-light dark:border-[#4A5B4C]' : 'border-neutral-light/50'}`}>
+        <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${isBootcamp ? 'border-white/20' : 'border-[#F1EAE0] dark:border-[#484440]'}`}>
             {isLocked ? (
-                <div className={`w-full py-3 px-4 flex flex-col items-center justify-center text-center rounded-2xl border ${isBootcamp ? 'bg-neutral-light/30 dark:bg-[#1A2B1C] border-neutral-light dark:border-[#3A4B3C]' : 'bg-neutral-light/30 border-neutral-light'}`}>
-                    <span className={`text-sm font-bold mb-1 ${isBootcamp ? 'text-neutral-dark dark:text-white' : 'text-neutral-dark'}`}>Låst</span>
-                    <span className={`text-xs ${isBootcamp ? 'text-neutral dark:text-neutral-400' : 'text-neutral'}`}>{lockedReason}</span>
+                <div className={`w-full py-3 px-4 flex flex-col items-center justify-center text-center rounded-full border ${isBootcamp ? 'bg-white/10 border-white/20 text-white' : 'bg-[#F1EAE0] border-[#F1EAE0] text-[#7A756E]'}`}>
+                    <span className="text-sm font-bold mb-1">Låst</span>
+                    <span className="text-xs">{lockedReason}</span>
                 </div>
             ) : (
                 <button
                     onClick={onActivate}
-                    className={`w-full py-4 flex items-center justify-center gap-2 font-bold rounded-2xl shadow-md active:scale-95 transform transition-all ${
-                        hasStarted 
-                        ? (isBootcamp ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'bg-secondary hover:bg-secondary-darker text-white')
-                        : (isBootcamp ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-primary hover:bg-primary-darker text-white')
-                    }`}
+                    className="w-full py-3.5 px-6 flex items-center justify-center gap-2 font-medium rounded-full shadow-md active:scale-95 transform transition-all bg-[#D96E4A] hover:bg-[#C05A38] text-white"
                 >
                     {hasStarted ? "Fortsätt kursen" : "Starta kursen"}
                     <ArrowRightIcon className="w-5 h-5" />
                 </button>
             )}
             {hasStarted && onAbort && !isLocked && (
-                <div className="mt-4 text-center">
+                <div className="mt-2 text-center">
                     <button
                         onClick={onAbort}
-                        className={`text-xs underline transition-colors ${isBootcamp ? 'text-neutral-500 hover:text-neutral-400' : 'text-neutral-400 hover:text-neutral-500'}`}
+                        className={`text-xs underline transition-colors ${isBootcamp ? 'text-[#F1EAE0] hover:text-white' : 'text-[#7A756E] hover:text-[#56524D]'}`}
                     >
                         Avsluta {isBootcamp ? 'bootcamp' : 'kurs'}
                     </button>
@@ -293,7 +288,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
 
   return (
     <>
-        <div className="animate-fade-in flex flex-col gap-3 pb-0">
+        <div className="animate-fade-in flex flex-col gap-3 pb-28 sm:pb-32">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {ALL_COURSES.map(course => {
                 let hasStarted = false;

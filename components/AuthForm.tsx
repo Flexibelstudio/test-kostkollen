@@ -283,7 +283,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
               id="auth-feedback" 
               role="alert" 
               className={`mt-4 p-3 border rounded-lg flex items-center text-sm animate-fade-in
-                ${resetFeedback?.type === 'success' ? 'bg-green-50 border-green-300 text-green-700' : 
+                ${resetFeedback?.type === 'success' ? 'bg-[#E8EFE9] border-[#2B3B2C]/20 text-[#2B3B2C]' : 
                   resetFeedback?.type === 'error' ? 'bg-red-50 border-red-300 text-red-700' : 
                   error ? 'bg-red-50 border-red-300 text-red-700' : ''
                 }`}

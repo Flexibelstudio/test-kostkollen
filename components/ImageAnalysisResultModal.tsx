@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { NutritionalInfo, MealType } from '../types.ts';
 import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, CameraIcon, PencilIcon } from './icons.tsx'; 
-import { playAudio } from '../services/audioService.ts';
 import MealTypeSelector from './MealTypeSelector';
 
 interface ImageAnalysisResultModalProps {
@@ -63,7 +62,6 @@ const ImageAnalysisResultModal: React.FC<ImageAnalysisResultModalProps> = ({ sho
 
   const handleSubmit = () => {
     if (!selectedMealType) return;
-    playAudio('uiClick');
     const validatedInfo: NutritionalInfo = {
         ...editedInfo,
         calories: editedInfo.calories || 0,

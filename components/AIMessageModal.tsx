@@ -107,7 +107,7 @@ const AIMessageModal: React.FC<AIMessageModalProps> = ({ isOpen, onClose, onSend
                         )}
                     </div>
                     
-                    <div className="bg-blue-50 text-blue-800 p-3 rounded-xl text-xs flex items-start gap-2">
+                    <div className="bg-[#F1EAE0] text-[#56524D] p-3 rounded-xl text-xs flex items-start gap-2">
                         <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0" />
                         <p>
                             <strong>Tips:</strong> Om du skickar till flera personer kommer eventuella platshållare som [Namn] att bytas ut mot mottagarens riktiga namn.

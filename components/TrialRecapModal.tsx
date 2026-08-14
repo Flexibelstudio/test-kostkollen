@@ -36,12 +36,12 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
   const getCoachMessage = () => {
     switch (coachStyle) {
       case 'soft':
-        return 'Fortsätt lyssna på din kropp och ta en dag i taget, du gör ett fantastiskt jobb! 🌸';
+        return 'Fortsätt lyssna på din kropp och ta en dag i taget, du gör ett fantastiskt jobb!';
       case 'hard':
-        return 'Bra fart! Fortsätt fokusera på målet och låt inte uppehåll bryta din disciplin. Kör hårt! 💪';
+        return 'Bra fart! Fortsätt fokusera på målet och låt inte uppehåll bryta din disciplin. Kör hårt!';
       case 'balanced':
       default:
-        return 'Riktigt starkt jobbat! Du lägger grunden för en hälsosammare livsstil nu, steg för steg. 🚀';
+        return 'Riktigt starkt jobbat! Du lägger grunden för en hälsosammare livsstil nu, steg för steg.';
     }
   };
 
@@ -59,7 +59,7 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
           className="bg-white dark:bg-neutral-dark rounded-3xl shadow-soft-xl w-full max-w-lg overflow-hidden relative z-10 border border-neutral-light/10"
         >
           {/* Header Image/Pattern */}
-          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-6 py-8 text-white relative">
+          <div className="bg-gradient-to-br from-[#D96E4A] to-[#C05A38] px-6 py-8 text-white relative">
             <button
               onClick={onClose}
               className="absolute top-4 right-4 p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors"
@@ -75,7 +75,7 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               Hej {userName || 'vännen'}! 👋
             </h2>
-            <p className="text-emerald-100/90 text-sm sm:text-base mt-2 font-medium leading-relaxed">
+            <p className="text-[#F6E2D9] text-sm sm:text-base mt-2 font-medium leading-relaxed">
               Om 2 dagar tar din gratisperiod slut. Se efter hur mycket du redan hunnit utforska och uppnå!
             </p>
           </div>
@@ -94,12 +94,12 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
 
                 <div className="space-y-4">
                   {/* Feature 1 */}
-                  <div className="flex gap-4 items-start p-3 rounded-2xl hover:bg-neutral-light/40 dark:hover:bg-neutral-darker/40 transition-colors border border-black/5 dark:border-white/5">
-                    <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-500 flex-shrink-0">
+                  <div className="flex gap-4 items-start p-3 rounded-2xl hover:bg-neutral-light/40 transition-colors border border-black/5">
+                    <div className="w-10 h-10 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] flex-shrink-0">
                       <Camera className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-neutral-dark dark:text-white text-sm">📸 Fota din mat</h4>
+                      <h4 className="font-bold text-neutral-dark text-sm">📸 Fota din mat</h4>
                       <p className="text-xs text-neutral leading-relaxed mt-0.5">
                         Fota din tallrik så analyserar vår AI bilden och beräknar kalorier och näringsvärden direkt. Snabbt, enkelt och lärorikt!
                       </p>
@@ -107,12 +107,12 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
                   </div>
 
                   {/* Feature 2 */}
-                  <div className="flex gap-4 items-start p-3 rounded-2xl hover:bg-neutral-light/40 dark:hover:bg-neutral-darker/40 transition-colors border border-black/5 dark:border-white/5">
-                    <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-950/30 flex items-center justify-center text-violet-500 flex-shrink-0">
+                  <div className="flex gap-4 items-start p-3 rounded-2xl hover:bg-neutral-light/40 transition-colors border border-black/5">
+                    <div className="w-10 h-10 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] flex-shrink-0">
                       <MessageSquarePlus className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-neutral-dark dark:text-white text-sm">💬 Din personliga AI-Coach</h4>
+                      <h4 className="font-bold text-neutral-dark text-sm">💬 Din personliga AI-Coach</h4>
                       <p className="text-xs text-neutral leading-relaxed mt-0.5">
                         Få kostråd, smarta pepp eller skarpa tips dygnet runt. Coachen anpassar sig helt efter ditt valda coachläge!
                       </p>
@@ -120,12 +120,12 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
                   </div>
 
                   {/* Feature 3 */}
-                  <div className="flex gap-4 items-start p-3 rounded-2xl hover:bg-neutral-light/40 dark:hover:bg-neutral-darker/40 transition-colors border border-black/5 dark:border-white/5">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-500 flex-shrink-0">
+                  <div className="flex gap-4 items-start p-3 rounded-2xl hover:bg-neutral-light/40 transition-colors border border-black/5">
+                    <div className="w-10 h-10 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] flex-shrink-0">
                       <BookOpen className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-neutral-dark dark:text-white text-sm">🎓 Kurser & Utmaningar</h4>
+                      <h4 className="font-bold text-neutral-dark text-sm">🎓 Kurser & Utmaningar</h4>
                       <p className="text-xs text-neutral leading-relaxed mt-0.5">
                         Gå korta kurser om tex. klimakteriet eller viktnedgång och tävla i utmaningar för att skapa hälsosamma vanor som håller.
                       </p>
@@ -142,27 +142,27 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Streak Card */}
-                  <div className="bg-orange-50/50 dark:bg-orange-950/10 border border-orange-100/50 dark:border-orange-900/20 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
-                    <Flame className="w-7 h-7 text-orange-500 mb-1.5" />
-                    <span className="text-lg font-extrabold text-neutral-dark dark:text-white">
+                  <div className="bg-[#F6E2D9]/40 border border-[#F6E2D9] p-4 rounded-2xl text-center flex flex-col items-center justify-center">
+                    <Flame className="w-7 h-7 text-[#D96E4A] mb-1.5" />
+                    <span className="text-lg font-extrabold text-neutral-dark">
                       {currentStreak || 0} {currentStreak === 1 ? 'dag' : 'dagar'}
                     </span>
                     <span className="text-[11px] text-neutral-500 font-medium">Aktiv streak 🔥</span>
                   </div>
 
                   {/* Meals Logged Card */}
-                  <div className="bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100/50 dark:border-emerald-900/20 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
-                    <Trophy className="w-7 h-7 text-emerald-500 mb-1.5" />
-                    <span className="text-lg font-extrabold text-neutral-dark dark:text-white">
+                  <div className="bg-[#E8EFE9] border border-[#8C9A86]/40 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
+                    <Trophy className="w-7 h-7 text-[#8C9A86] mb-1.5" />
+                    <span className="text-lg font-extrabold text-neutral-dark">
                       {totalMealsLogged || 0} {totalMealsLogged === 1 ? 'måltid' : 'måltider'}
                     </span>
                     <span className="text-[11px] text-neutral-500 font-medium">Loggade måltider 🍽️</span>
                   </div>
 
                   {/* Calories Saved Card */}
-                  <div className="bg-indigo-50/50 dark:bg-indigo-950/10 border border-indigo-100/50 dark:border-indigo-900/20 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
-                    <PiggyBank className="w-7 h-7 text-indigo-500 mb-1.5" />
-                    <span className="text-lg font-extrabold text-neutral-dark dark:text-white">
+                  <div className="bg-[#F1EAE0] border border-[#E2D8CC] p-4 rounded-2xl text-center flex flex-col items-center justify-center">
+                    <PiggyBank className="w-7 h-7 text-[#56524D] mb-1.5" />
+                    <span className="text-lg font-extrabold text-neutral-dark">
                       {bankedCalories || 0} kcal
                     </span>
                     <span className="text-[11px] text-neutral-500 font-medium">Samlat i sparpotten 💰</span>
@@ -170,8 +170,8 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
                 </div>
 
                 {/* AI Coach Row */}
-                <div className="flex gap-3 bg-neutral-light/40 dark:bg-neutral-darker/40 p-4 rounded-2xl border border-black/5 dark:border-white/5 items-start mt-4">
-                  <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-emerald-700 dark:text-emerald-300 flex-shrink-0">
+                <div className="flex gap-3 bg-neutral-light/40 p-4 rounded-2xl border border-black/5 items-start mt-4">
+                  <div className="w-9 h-9 rounded-full bg-[#E8EFE9] flex items-center justify-center text-[#8C9A86] flex-shrink-0">
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
@@ -190,7 +190,7 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
                 onClick={onClose}
                 className="w-full bg-primary hover:bg-primary-darker text-white font-bold py-3.5 px-6 rounded-2xl shadow-md transition-transform active:scale-95 text-center text-sm"
               >
-                Fortsätt min resa 🚀
+                Fortsätt min resa
               </button>
 
               <div className="text-center">

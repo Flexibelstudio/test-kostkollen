@@ -45,11 +45,9 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   
   const coachStyle = analysisContext.userProfile.coachStyle || 'balanced';
 
-  // Determine Emoji and Color based on style
+  // Determine Color based on style
   const getCoachVisuals = (style: CoachStyle) => {
-      if (style === 'soft') return { emoji: COACH_PERSONAS.soft.emoji, colorClass: 'bg-green-100 text-green-600' };
-      if (style === 'hard') return { emoji: COACH_PERSONAS.hard.emoji, colorClass: 'bg-red-100 text-red-600' };
-      return { emoji: COACH_PERSONAS.balanced.emoji, colorClass: 'bg-blue-100 text-blue-600' };
+      return { emoji: COACH_PERSONAS[style]?.emoji || '', colorClass: 'bg-[#F6E2D9] text-[#D96E4A]' };
   };
 
   const { emoji: CoachEmoji, colorClass } = getCoachVisuals(coachStyle);
@@ -113,7 +111,6 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
   
   const sendMessage = async (messageText: string) => {
     if (!messageText.trim() || isLoading) return;
-    playAudio('uiClick');
 
     const userMessage: Message = { id: Date.now(), text: messageText, sender: 'user' };
     setMessages(prev => [...prev, userMessage]);

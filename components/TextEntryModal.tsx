@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { SearchedFoodInfo, MealType } from '../types.ts';
 import { getNutritionalInfoForTextSearch } from '../services/geminiService.ts';
 import { CheckIcon, XMarkIcon, SearchIcon, PencilIcon } from './icons.tsx';
-import { playAudio } from '../services/audioService.ts';
 import MealTypeSelector from './MealTypeSelector';
 
 interface TextEntryModalProps {
@@ -94,7 +93,6 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
         e.preventDefault();
         if (!query.trim()) return;
 
-        playAudio('uiClick');
         setIsLoading(true);
         setError(null);
         setSearchResult(null);
@@ -111,7 +109,6 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
     
     const handleLog = () => {
         if (!selectedMealType) return;
-        playAudio('uiClick');
         const numQuantity = parseFloat(quantity) || 0;
         const finalServingDescription = numQuantity === 1 
           ? editedServingDescription

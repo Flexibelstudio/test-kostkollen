@@ -196,6 +196,15 @@ export interface NotificationSettings {
   milestoneNudge: boolean;
 }
 
+export interface CommunitySharingSettings {
+  weight: boolean;      // vikt
+  achievement: boolean; // bragder
+  streak: boolean;      // streak
+  course: boolean;      // kurs
+  level: boolean;       // nivå
+  goal: boolean;        // mål
+}
+
 export interface UserProfileData {
   name?: string;
   hasCompletedBootcamp?: boolean;
@@ -217,6 +226,7 @@ export interface UserProfileData {
   goalCompletionDate?: string;
   goalStartDate?: string; // New field to lock the timeline start date
   isSearchable?: boolean;
+  communitySharingSettings?: CommunitySharingSettings;
   goalStartWeight?: number;
   goalStartMuscleMassKg?: number;
   goalStartFatMassKg?: number;
@@ -621,10 +631,16 @@ export interface Chat {
 
 // --- Community & Social Types ---
 
+export interface PublicProfile {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  displayNameLower: string;
+}
+
 export interface Peppkompis {
   uid: string;
   name: string;
-  email: string;
   photoURL?: string;
   gender?: Gender;
 }
@@ -633,8 +649,8 @@ export interface PeppkompisRequest {
   id: string;
   fromUid: string;
   fromName: string;
-  fromEmail: string;
   toUid: string;
+  toName?: string;
   status: "pending" | "accepted" | "declined";
   createdAt: number;
 }
@@ -713,6 +729,10 @@ export interface ScheduledPost {
   status: 'pending' | 'published';
   createdAt: number;
   createdBy: string;
+  isEditorial?: boolean;
+  senderType?: 'kostloggen' | 'coach' | 'user';
+  senderName?: string;
+  title?: string;
 }
 
 export interface Reactions {
@@ -794,6 +814,9 @@ export interface TimelineEvent {
   gender: Gender;
   visibleTo?: string[];
   isGlobal?: boolean;
+  isEditorial?: boolean;
+  senderType?: 'kostloggen' | 'coach' | 'user';
+  senderName?: string;
   
   // Historical context for posts
   streakAtPost?: number;
@@ -802,4 +825,29 @@ export interface TimelineEvent {
   goalTextAtPost?: string;
   progressAtPost?: number;
   bootcampId?: string;
+}
+
+// --- Challenge Types ---
+
+export interface ChallengeParticipant {
+  uid: string;
+  name: string;
+  photoURL?: string;
+  joinedAt: number;
+  leftAt?: number | null;
+  dailyStatus: { [dateString: string]: boolean };
+}
+
+export interface Challenge {
+  id: string;
+  createdBy: string;
+  createdByName: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  status: 'active' | 'completed';
+  participants: { [uid: string]: ChallengeParticipant };
+  participantUids: string[];
+  createdAt: number;
+  updatedAt: number;
 }

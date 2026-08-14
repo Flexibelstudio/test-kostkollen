@@ -1,0 +1,225 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== USERS =====
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId
+                  || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+                  || exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid))
+                  || resource.data.isSearchable == true;
+      
+      allow list: if request.auth.uid != null;
+      
+      allow create: if request.auth.uid == userId && request.resource.data.role == 'member';
+      
+      // FIX: Tillåt uppdatering från Webhook (auth == null) för status och roll-verifiering
+      allow update: if (request.auth.uid == userId
+                        && request.resource.data.role == resource.data.role
+                        && request.resource.data.status == resource.data.status)
+                    || (request.auth == null) // Tillåter Stripe Webhook att uppdatera status till 'approved'
+                    || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+      
+      allow delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+
+      // ===== SUBCOLLECTION: buddies =====
+      match /buddies/{buddyUid} {
+        allow read: if request.auth.uid == userId
+                    || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+                    || request.auth.uid == buddyUid;
+        allow write: if request.auth.uid == userId;
+      }
+
+      // ===== pastDaySummaries =====
+      match /pastDaySummaries/{docId} {
+        allow read, list: if request.auth.uid == userId
+                          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+                          || exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid));
+        allow write: if request.auth.uid == userId
+                   || request.auth == null;
+      }
+
+      // ===== ANDRA SUBCOLLECTIONS (timelineEvents, achievements, etc) =====
+      match /{subcollection}/{docId} {
+        allow read, list: if request.auth.uid == userId
+                          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+                          || (
+                              subcollection in [
+                                "timelineEvents",
+                                "achievements",
+                                "weightLogs",
+                                "courseProgress"
+                              ]
+                              && exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid))
+                          );
+        allow write: if request.auth.uid == userId;
+      }
+    }
+
+    // ===== PUBLIC PROFILES =====
+    match /publicProfiles/{userId} {
+      allow read, list: if request.auth.uid != null;
+      allow write: if request.auth.uid == userId;
+    }
+
+    // ===== COMMUNITYTIMELINE =====
+    match /communityTimeline/{eventId} {
+      allow get: if request.auth.uid != null;
+      allow list: if request.auth.uid != null;
+      allow create: if request.auth.uid != null;
+      
+      // UPPDATERAD: Tillåter uppdatering (t.ex. gilla/pepp) om man är författaren, 
+      // om man är taggad/buddy (finns i visibleTo), om inlägget är globalt,
+      // om man är deltagare i den bootcamp som inlägget tillhör, eller om man är coach.
+      allow update: if request.auth.uid != null && (
+        request.auth.uid == resource.data.userId ||
+        request.auth.uid in resource.data.visibleTo ||
+        'GLOBAL' in resource.data.visibleTo ||
+        resource.data.isGlobal == true ||
+        (resource.data.bootcampId != null && exists(/databases/$(database)/documents/bootcampCohorts/$(resource.data.bootcampId)/participants/$(request.auth.uid))) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+      );
+      
+      allow delete: if request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+
+      match /comments/{commentId} {
+        allow get: if request.auth.uid != null;
+        allow list: if request.auth.uid != null;
+        allow create: if request.auth.uid != null;
+        allow update, delete: if request.auth.uid == resource.data.authorUid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+
+        match /likes/{userId} {
+          allow get: if request.auth.uid != null;
+          allow list: if request.auth.uid != null;
+          allow create, delete: if request.auth.uid == userId;
+        }
+      }
+    }
+
+    // ===== PEPPKOMPIS-REQUESTS =====
+    match /peppkompisRequests/{requestId} {
+      allow read: if request.auth.uid == resource.data.toUid || request.auth.uid == resource.data.fromUid;
+      allow create: if request.auth.uid == request.resource.data.fromUid;
+      allow update: if request.auth.uid == resource.data.toUid;
+      allow delete: if request.auth.uid == resource.data.toUid || request.auth.uid == resource.data.fromUid;
+    }
+
+    // ===== CHATS =====
+    match /chats/{chatId} {
+      // Tillåt läsning om användaren är medlem ELLER om det är ett öppet rum ELLER om användaren är coach
+      allow read: if request.auth.uid != null && (
+        request.auth.uid in resource.data.members || 
+        resource.data.type == 'public_room' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+      );
+      
+      // Tillåt skapande om man är inloggad
+      allow create: if request.auth.uid != null;
+      
+      // Tillåt uppdatering om man är medlem ELLER om man går med i ett öppet rum ELLER om man är coach
+      allow update: if request.auth.uid != null && (
+        request.auth.uid in resource.data.members || 
+        (resource.data.type == 'public_room' && (
+          request.auth.uid in request.resource.data.members ||
+          ('pendingMembers' in request.resource.data && request.auth.uid in request.resource.data.pendingMembers)
+        )) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+      );
+      
+      allow delete: if request.auth.uid in resource.data.admins || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+
+      match /messages/{messageId} {
+        // Endast medlemmar eller coacher får läsa meddelanden
+        allow read: if request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members
+                    || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+        
+        // Endast medlemmar eller coacher får skicka meddelanden
+        allow create: if (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members
+                          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach')
+                      && request.auth.uid == request.resource.data.senderId;
+                      
+        allow update: if request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members
+                      || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+        allow delete: if request.auth.uid == resource.data.senderId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+      }
+    }
+
+    // ===== INTERAKTIONER (pepp/likes) =====
+    match /achievementInteractions/{userId}/{doc=**} {
+      allow read: if request.auth.uid == userId
+                  || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+                  || exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid));
+      allow write: if request.auth.uid != userId
+                   && exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid));
+    }
+
+    // ===== COLLECTION GROUP QUERIES =====
+    match /{path=**}/participants/{docId} {
+      allow read: if request.auth.uid != null && (
+        docId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+      );
+      // För collectionGroup queries måste vi tillåta list separat om vi filtrerar
+      allow list: if request.auth.uid != null;
+    }
+
+    // ===== BOOTCAMP CONTENT LIBRARY =====
+    match /postTemplates/{templateId} {
+      allow read: if request.auth.uid != null;
+      allow create, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+    }
+
+    match /scheduledPosts/{postId} {
+      allow read: if request.auth.uid != null;
+      allow create, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+    }
+
+    // ===== BOOTCAMP COHORTS =====
+    match /bootcampCohorts/{cohortId} {
+      // Alla inloggade kan läsa trupper (för att kunna gå med via kod)
+      allow read: if request.auth.uid != null;
+      // Endast coacher kan skapa och uppdatera trupper
+      allow create, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+
+      // ===== POSTS (Truppens flöde) =====
+      match /posts/{postId} {
+        // Alla inloggade kan läsa inlägg i en bootcamp (inklusive solo)
+        allow read: if request.auth.uid != null;
+        // Inloggade användare kan skapa inlägg
+        allow create: if request.auth.uid != null;
+        // Alla kan uppdatera (för att gilla/kommentera)
+        allow update: if request.auth.uid != null;
+        // Endast författaren eller coach kan ta bort
+        allow delete: if request.auth.uid == resource.data.authorUid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+      }
+
+      // ===== PARTICIPANTS =====
+      match /participants/{userId} {
+        // Coacher och deltagaren själv kan läsa
+        allow read: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+        // Deltagaren kan skapa (när de går med) och uppdatera sin egen data
+        allow create, update: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+        allow delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+
+        // ===== EVENING REPORTS =====
+        match /eveningReports/{date} {
+          allow read: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+          allow create, update: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+          allow delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+        }
+      }
+    }
+
+    // ===== CHALLENGES =====
+    match /challenges/{challengeId} {
+      // Endast deltagare i utmaningen får läsa och skriva i den
+      allow get: if request.auth.uid != null && request.auth.uid in resource.data.participantUids;
+      allow list: if request.auth.uid != null && resource.data.participantUids.hasAny([request.auth.uid]);
+      allow create: if request.auth.uid != null && request.auth.uid in request.resource.data.participantUids;
+      allow update: if request.auth.uid != null && request.auth.uid in resource.data.participantUids;
+      allow delete: if request.auth.uid != null && request.auth.uid == resource.data.createdBy;
+    }
+  }
+}

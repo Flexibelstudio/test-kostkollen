@@ -106,24 +106,24 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ show, onClose, st
 
         {message ? (
              <div className="text-center py-6 space-y-4">
-                <div className="bg-green-100 text-green-700 p-4 rounded-xl">
+                <div className="bg-[#E8EFE9] text-[#2B3B2C] p-4 rounded-xl">
                     <p className="font-medium">{message}</p>
                 </div>
-                <button onClick={onClose} className="px-6 py-2 bg-neutral-light hover:bg-gray-200 rounded-lg font-semibold">Stäng</button>
+                <button onClick={onClose} className="px-6 py-2 bg-[#F1EAE0] hover:bg-[#E5DCD0] rounded-lg font-semibold">Stäng</button>
              </div>
         ) : (
             <div className="space-y-6">
                 <div className="bg-neutral-light/30 p-4 rounded-xl border border-neutral-light">
                     <p className="text-sm font-semibold text-neutral-500 uppercase tracking-wide mb-1">Status</p>
                     <div className="flex items-center justify-between">
-                        <span className={`text-lg font-bold ${(status === 'active' || status === 'trialing') ? 'text-green-600' : 'text-orange-500'}`}>
+                        <span className={`text-lg font-bold ${(status === 'active' || status === 'trialing') ? 'text-[#2B3B2C]' : 'text-[#D96E4A]'}`}>
                             {status === 'active' ? 'Aktiv' : status === 'trialing' ? 'Gratisperiod' : status === 'canceling' ? 'Avslutas snart' : 'Avslutad'}
                         </span>
                         {status === 'active' && (
-                            <span className="text-sm bg-green-100 text-green-700 px-2 py-1 rounded-md">Förnyas automatiskt</span>
+                            <span className="text-sm bg-[#E8EFE9] text-[#2B3B2C] px-2 py-1 rounded-md">Förnyas automatiskt</span>
                         )}
                         {status === 'trialing' && (
-                            <span className="text-sm bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md font-semibold">Provperiod</span>
+                            <span className="text-sm bg-[#E8EFE9] text-[#2B3B2C] px-2 py-1 rounded-md font-semibold">Provperiod</span>
                         )}
                     </div>
                     {(status === 'active' || status === 'trialing' || status === 'canceling') && currentPeriodEnd && (
@@ -137,7 +137,7 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ show, onClose, st
                     <button 
                         onClick={handleOpenPortal}
                         disabled={isOpeningPortal}
-                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
+                        className="w-full py-3 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl shadow-md transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
                         {isOpeningPortal ? (
                             <span>Laddar...</span>

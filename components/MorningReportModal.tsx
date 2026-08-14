@@ -142,13 +142,13 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
   
   if (coachStyle === 'soft') {
       CoachEmoji = COACH_PERSONAS.soft.emoji;
-      avatarColorClass = 'text-green-600 bg-green-100';
+      avatarColorClass = 'text-[#2B3B2C] bg-[#E8EFE9]';
   } else if (coachStyle === 'hard') {
       CoachEmoji = COACH_PERSONAS.hard.emoji;
-      avatarColorClass = 'text-red-600 bg-red-100';
+      avatarColorClass = 'text-[#D96E4A] bg-[#F6E2D9]';
   } else {
       CoachEmoji = COACH_PERSONAS.balanced.emoji;
-      avatarColorClass = 'text-blue-600 bg-blue-100';
+      avatarColorClass = 'text-[#56524D] bg-[#F1EAE0]';
   }
 
   let bootcampProgressCard = null;
@@ -159,19 +159,19 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
     
     bootcampProgressCard = (
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-neutral-light flex items-center gap-4 animate-scale-in">
-          <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shadow-sm flex-shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm flex-shrink-0">
               <Target className="w-7 h-7" />
           </div>
           <div className="flex-1">
               <div className="flex justify-between items-end mb-1">
                   <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0">Bootcamp Fas 1</p>
-                  <span className="text-xs font-bold text-blue-600">{progressPercent}%</span>
+                  <span className="text-xs font-bold text-[#D96E4A]">{progressPercent}%</span>
               </div>
               <p className="text-xl font-extrabold text-neutral-dark leading-none mb-2">
                   Dag {currentBootcampStreak} <span className="text-sm font-medium text-neutral">av 14</span>
               </p>
               <div className="w-full bg-neutral-light rounded-full h-2">
-                  <div className="bg-blue-500 h-2 rounded-full transition-all duration-1000" style={{ width: `${progressPercent}%` }}></div>
+                  <div className="bg-[#D96E4A] h-2 rounded-full transition-all duration-1000" style={{ width: `${progressPercent}%` }}></div>
               </div>
           </div>
       </div>
@@ -196,7 +196,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
                     <CheckCircleIcon className="w-12 h-12 text-primary" />
                 </div>
             ) : (
-                <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center animate-scale-in">
+                <div className="w-20 h-20 bg-[#F6E2D9] rounded-full flex items-center justify-center animate-scale-in">
                     <div className="text-4xl">🌅</div>
                 </div>
             )}
@@ -213,7 +213,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
         {/* Stats Summary Cards */}
         <div className="grid grid-cols-1 gap-3 mb-6 text-left">
              <div className="bg-white p-4 rounded-2xl shadow-sm border border-neutral-light flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 ${currentStreak > 0 ? 'bg-orange-100 text-orange-600' : 'bg-neutral-light text-neutral-400'}`}>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 ${currentStreak > 0 ? 'bg-[#F6E2D9] text-[#D96E4A]' : 'bg-neutral-light text-neutral-400'}`}>
                     <Flame className="w-7 h-7" />
                 </div>
                 <div>
@@ -284,7 +284,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
           onClick={onClose}
           className="w-full px-6 py-3.5 bg-primary text-white text-lg font-semibold rounded-xl shadow-md hover:bg-primary-darker focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 active:scale-95 transform transition-all"
         >
-          Starta dagen! 🚀
+          Starta dagen
         </button>
       </div>
     </div>
