@@ -68,7 +68,7 @@ const StatCard: React.FC<{
       </div>
       <div className="text-left relative">
         <div className="flex items-center gap-1 mb-0.5">
-          <p className="text-[10px] sm:text-xs font-bold text-neutral-500 uppercase tracking-wide">{title}</p>
+          <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide">{title}</p>
           {tooltip && (
             <div 
               className="relative flex items-center"
@@ -81,7 +81,7 @@ const StatCard: React.FC<{
             >
               <InformationCircleIcon className="w-3 h-3 text-neutral-400 cursor-help hover:text-primary transition-colors" />
               {showTooltip && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-neutral-dark text-white text-[10px] sm:text-xs rounded-lg shadow-xl z-50 normal-case tracking-normal font-normal text-center pointer-events-none">
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-neutral-dark text-white text-xs rounded-lg shadow-xl z-50 normal-case tracking-normal font-normal text-center pointer-events-none">
                   {tooltip}
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-dark"></div>
                 </div>
@@ -90,7 +90,7 @@ const StatCard: React.FC<{
           )}
         </div>
         <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-tight">{value}</p>
-        {subtitle && <p className="text-[10px] sm:text-xs text-neutral font-medium mt-1">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-neutral font-medium mt-1">{subtitle}</p>}
       </div>
     </>
   );
@@ -105,7 +105,7 @@ const StatCard: React.FC<{
             </svg>
         </div>
         <div className="absolute bottom-2 right-3">
-            <span className="text-[9px] text-primary/70 font-bold uppercase tracking-wider group-hover:text-primary transition-colors">Klicka för detaljer</span>
+            <span className="text-xs text-primary/70 font-bold uppercase tracking-wider group-hover:text-primary transition-colors">Klicka för detaljer</span>
         </div>
       </button>
     );
@@ -878,7 +878,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
 
   return (
     <>
-    <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed text-neutral-dark">
+    <div className="min-h-screen bg-neutral-light bg-fixed text-neutral-dark">
       <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('members')}>
@@ -933,7 +933,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 <div className="flex w-full border-b border-neutral-light">
                     <button
                         onClick={() => setActiveTab('members')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'members' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'members' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <UsersIcon className="w-5 h-5" />
                         <span className="hidden sm:inline">Medlemsregister</span>
@@ -941,7 +941,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     </button>
                     <button
                         onClick={() => setActiveTab('growth')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'growth' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'growth' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <TrendingUp className="w-5 h-5" />
                         <span className="hidden sm:inline">Tillväxtmotor</span>
@@ -949,21 +949,21 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     </button>
                     <button
                         onClick={() => setActiveTab('studio')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'studio' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'studio' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <SparklesIcon className="w-5 h-5" />
                         <span>Studio</span>
                     </button>
                     <button
                         onClick={() => setActiveTab('bootcamp')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'bootcamp' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'bootcamp' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <TrophyIcon className="w-5 h-5" />
                         <span>Bootcamp</span>
                     </button>
                     <button
                         onClick={() => setActiveTab('editorial')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'editorial' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'editorial' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <SparklesIcon className="w-5 h-5" />
                         <span>Redaktionellt</span>
@@ -1099,7 +1099,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                             <div className="flex items-center gap-2">
                                                 <h4 className="font-bold text-neutral-dark">{chat.name}</h4>
                                                 {chat.pendingMembers && chat.pendingMembers.length > 0 && (
-                                                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                                                         {chat.pendingMembers.length} förfrågningar
                                                     </span>
                                                 )}
@@ -1283,16 +1283,16 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <h4 className="font-bold text-neutral-dark text-lg">{chat.name}</h4>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-primary-light text-primary-darker' : chat.type === 'public_room' ? 'bg-neutral-light text-neutral-dark' : 'bg-[#F6E2D9] text-[#D96E4A]'}`}>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-primary-light text-primary-darker' : chat.type === 'public_room' ? 'bg-neutral-light text-neutral-dark' : 'bg-[#F6E2D9] text-[#D96E4A]'}`}>
                                             {chat.isSystemGroup ? 'Officiell' : chat.type === 'public_room' ? 'Publik' : 'Privat'}
                                         </span>
                                         {!chat.isSystemGroup && chat.requiresApproval && (
-                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F6E2D9] text-[#D96E4A]">
+                                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#F6E2D9] text-[#D96E4A]">
                                                 Kräver godkännande
                                             </span>
                                         )}
                                         {!chat.isSystemGroup && !chat.requiresApproval && chat.type === 'public_room' && (
-                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-light text-neutral-dark">
+                                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-neutral-light text-neutral-dark">
                                                 Öppen
                                             </span>
                                         )}

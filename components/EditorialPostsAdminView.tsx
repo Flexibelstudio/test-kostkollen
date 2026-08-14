@@ -547,7 +547,7 @@ export const EditorialPostsAdminView: React.FC<EditorialPostsAdminViewProps> = (
                           <CheckCircle2 className="w-3 h-3" /> Publicerad
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#F6E2D9] text-[#D96E4A] flex items-center gap-1">
                           <Clock className="w-3 h-3" /> Schemalagd
                         </span>
                       )}

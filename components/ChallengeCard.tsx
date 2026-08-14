@@ -42,7 +42,7 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                             <h3 className="font-serif text-xl font-bold text-neutral-dark">
                                 7-dagars Matloggningsutmaning
                             </h3>
-                            <p className="text-sm text-neutral-600 mt-0.5 leading-snug">
+                            <p className="text-base text-neutral-600 mt-0.5 leading-relaxed">
                                 Utmana dina kompisar att logga maten varje dag i sju dagar. Tävla i konsekvens, inte i resultat!
                             </p>
                         </div>
@@ -50,7 +50,7 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                 </div>
 
                 <div className="pt-1 flex items-center justify-between gap-3">
-                    <p className="text-xs text-neutral-500 font-medium">
+                    <p className="text-base text-neutral-500 font-medium">
                         {buddyDetails.length === 0 
                             ? 'Bjud in kompisar först för att kunna utmana dem.' 
                             : `${buddyDetails.length} ${buddyDetails.length === 1 ? 'kompis' : 'kompisar'} tillgängliga`}
@@ -64,7 +64,7 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                             }
                             setShowCreateModal(true);
                         }}
-                        className="px-4 py-2.5 bg-[#D96E4A] hover:bg-[#C05A38] text-white text-sm font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center gap-2 cursor-pointer flex-shrink-0"
+                        className="px-4 py-2.5 bg-[#D96E4A] hover:bg-[#C05A38] text-white text-base font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center gap-2 cursor-pointer flex-shrink-0"
                     >
                         <Sparkles className="w-4 h-4" /> Starta utmaning
                     </button>
@@ -132,7 +132,7 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => setShowCreateModal(false)}
-                                    className="px-5 py-2.5 text-neutral-600 hover:text-neutral-900 text-sm font-semibold cursor-pointer"
+                                    className="px-5 py-2.5 text-neutral-600 hover:text-neutral-900 text-base font-semibold cursor-pointer"
                                 >
                                     Avbryt
                                 </button>
@@ -220,10 +220,10 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                     <button
                         type="button"
                         onClick={() => setShowLeaveConfirm(true)}
-                        className="px-3 py-1.5 text-xs font-semibold text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        className="px-3 py-1.5 text-base font-semibold text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                         title="Lämna utmaningen"
                     >
-                        <LogOut className="w-3.5 h-3.5" /> Lämna
+                        <LogOut className="w-4 h-4" /> Lämna
                     </button>
                 </div>
             </div>
@@ -235,14 +235,14 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                         <h4 className="font-serif text-xl font-bold text-neutral-dark">
                             Lämna utmaningen?
                         </h4>
-                        <p className="text-sm text-neutral-600 leading-relaxed">
+                        <p className="text-base text-neutral-600 leading-relaxed">
                             Du lämnar utmaningen utan att det visas som ett misslyckande för de andra deltagarna.
                         </p>
                         <div className="flex items-center justify-end gap-3 pt-2">
                             <button
                                 type="button"
                                 onClick={() => setShowLeaveConfirm(false)}
-                                className="px-4 py-2 text-neutral-600 text-sm font-semibold cursor-pointer"
+                                className="px-4 py-2 text-neutral-600 text-base font-semibold cursor-pointer"
                             >
                                 Avbryt
                             </button>
@@ -254,7 +254,7 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                                     setToastNotification?.({ message: 'Du har lämnat utmaningen.', type: 'info' });
                                     onChallengeUpdated?.();
                                 }}
-                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl shadow-xs cursor-pointer"
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-base font-bold rounded-xl shadow-xs cursor-pointer"
                             >
                                 Ja, lämna
                             </button>
@@ -270,7 +270,7 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                         <Sparkles className="w-5 h-5 text-[#84A98C]" />
                         Utmaningen är avslutad!
                     </div>
-                    <p className="text-sm text-[#7A756E]">
+                    <p className="text-base text-[#7A756E] leading-relaxed">
                         {completedParticipants.length > 0 ? (
                             <span>
                                 Fantastiskt jobbat! Följande deltagare klarade alla 7 dagar: {' '}
@@ -310,12 +310,12 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                                                 {participant.name} {isSelf && '(Jag)'}
                                             </span>
                                             {userDatesLoggedCount === 7 && (
-                                                <span className="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                    <Trophy className="w-3 h-3 text-amber-600" /> 7/7
+                                                <span className="text-xs bg-[#F6E2D9] text-[#D96E4A] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                    <Trophy className="w-3 h-3 text-[#D96E4A]" /> 7/7
                                                 </span>
                                             )}
                                         </div>
-                                        <p className="text-xs text-neutral-500">
+                                        <p className="text-base text-neutral-500">
                                             {userDatesLoggedCount} av 7 dagar loggade
                                         </p>
                                     </div>
@@ -333,14 +333,14 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
 
                                         return (
                                             <div key={dStr} className="flex flex-col items-center gap-1">
-                                                <span className="text-[10px] font-semibold text-neutral-400">
+                                                <span className="text-xs font-semibold text-neutral-400">
                                                     {dayName}
                                                 </span>
                                                 <div 
                                                     className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center font-bold text-xs transition-all ${
                                                         isLogged 
                                                             ? 'bg-[#D96E4A] text-white shadow-xs scale-100' 
-                                                            : isFuture 
+                                                             : isFuture 
                                                             ? 'bg-neutral-100 border border-neutral-200 text-neutral-300' 
                                                             : 'bg-neutral-50 border-2 border-dashed border-neutral-300 text-neutral-400'
                                                     }`}
@@ -349,7 +349,7 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                                                     {isLogged ? (
                                                         <CheckIcon className="w-4 h-4 text-white" />
                                                     ) : (
-                                                        <span className="text-[10px]">{idx + 1}</span>
+                                                        <span className="text-xs">{idx + 1}</span>
                                                     )}
                                                 </div>
                                             </div>

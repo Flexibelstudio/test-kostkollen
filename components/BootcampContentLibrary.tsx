@@ -321,7 +321,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                             return (
                               <div 
                                 key={post.id} 
-                                className={`text-[10px] p-1.5 rounded border ${getCategoryColor(post.category)} relative group/post shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors`}
+                                className={`text-xs p-1.5 rounded border ${getCategoryColor(post.category)} relative group/post shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors`}
                                 draggable
                                 onDragStart={(e) => {
                                   setDraggedScheduledPost(post);
@@ -335,12 +335,12 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                                 <div className="font-bold line-clamp-1 mb-0.5">{title}</div>
                                 <div className="line-clamp-2 opacity-80 leading-tight">{post.content}</div>
                                 {post.publishOnWeekday && (
-                                  <div className="text-[9px] font-bold text-[#84A98C] bg-[#84A98C]/10 border border-[#84A98C]/20 px-1 rounded mt-1 w-max flex items-center gap-0.5">
+                                  <div className="text-xs font-bold text-[#84A98C] bg-[#84A98C]/10 border border-[#84A98C]/20 px-1 rounded mt-1 w-max flex items-center gap-0.5">
                                     🗓️ {['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][post.publishOnWeekday - 1]}
                                   </div>
                                 )}
                                 {post.groupId === 'all' && post.excludedGroups && post.excludedGroups.length > 0 && (
-                                  <div className="text-[9px] font-bold text-primary bg-[#F6E2D9] px-1 rounded mt-1 w-max">
+                                  <div className="text-xs font-bold text-primary bg-[#F6E2D9] px-1 rounded mt-1 w-max">
                                     Avvikelser ({post.excludedGroups.length})
                                   </div>
                                 )}
@@ -396,7 +396,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                 onDragEnd={() => setDraggedTemplate(null)}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-semibold border ${getCategoryColor(template.category)} uppercase tracking-wider`}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${getCategoryColor(template.category)} uppercase tracking-wider`}>
                     {template.category}
                   </span>
                   <div className="flex gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 bg-white/90 rounded-md shadow-sm p-0.5">

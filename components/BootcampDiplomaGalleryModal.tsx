@@ -120,7 +120,7 @@ export const BootcampDiplomaGalleryModal: React.FC<BootcampDiplomaGalleryModalPr
                         Visa Diplom →
                       </span>
                     ) : (
-                      <span className="text-[11px] text-[#7A756E]">
+                      <span className="text-xs text-[#7A756E]">
                         Låst grad
                       </span>
                     )}

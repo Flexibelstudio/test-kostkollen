@@ -302,7 +302,7 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
                         </button>
                     </div>
-                    <p className="text-[10px] text-neutral-400 text-center uppercase tracking-wider">
+                    <p className="text-xs text-neutral-400 text-center uppercase tracking-wider">
                         Tänk på vad du delar. Dela inga känsliga personuppgifter med coachen.
                     </p>
                 </form>

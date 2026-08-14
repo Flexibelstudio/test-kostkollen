@@ -141,7 +141,7 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                         </select>
                     </div>
                     {(unit === 'portion' || unit === 'st') && (
-                        <p className="text-[10px] text-neutral-500 mt-1.5 text-center">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
+                        <p className="text-xs text-neutral-500 mt-1.5 text-center">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                     )}
                 </div>
 

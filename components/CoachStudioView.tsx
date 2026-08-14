@@ -260,12 +260,12 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
                 <div className="relative shrink-0">
                   <img src={coach.imageUrl} alt={coach.label} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-neutral-200" />
                   <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                    <span className="text-[8px] sm:text-[10px]">{coach.emoji}</span>
+                    <span className="text-xs">{coach.emoji}</span>
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <p className="font-bold text-neutral-dark text-[10px] sm:text-sm truncate">{coach.label}</p>
-                  <p className="text-[9px] sm:text-xs text-neutral capitalize truncate hidden sm:block">{coach.roleTitle}</p>
+                  <p className="font-bold text-neutral-dark text-xs sm:text-sm truncate">{coach.label}</p>
+                  <p className="text-xs text-neutral capitalize truncate hidden sm:block">{coach.roleTitle}</p>
                 </div>
               </button>
             ))}
@@ -373,7 +373,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
                 <Send className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-[10px] text-neutral-400 mt-2 text-center">
+            <p className="text-xs text-neutral-400 mt-2 text-center">
                 Tryck på Enter för att skicka, Shift + Enter för ny rad.
             </p>
           </div>

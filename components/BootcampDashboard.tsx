@@ -450,12 +450,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                   <FireIcon className="w-6 h-6 shrink-0" />
                   <span className="font-bold text-2xl leading-none">{participant.currentStreak}</span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Nuvarande</span>
+                <span className="text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Nuvarande</span>
               </div>
               
               <div className="bg-black/40 px-2 py-2.5 rounded-2xl border border-white/10 flex flex-col items-center flex-1">
                 <div className="h-3.5 mb-0.5 flex items-end justify-center">
-                  <span className="font-bold text-[11px] text-primary whitespace-nowrap leading-none">
+                  <span className="font-bold text-xs text-primary whitespace-nowrap leading-none">
                     {participant.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
                   </span>
                 </div>
@@ -469,7 +469,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                     {getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).currentRank}
                   </span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Rang</span>
+                <span className="text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Rang</span>
               </div>
 
               <div className="bg-black/40 px-2 py-2.5 rounded-2xl border border-white/10 flex flex-col items-center flex-1">
@@ -480,7 +480,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                     {getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).nextRank ? getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).daysToNext : 0}
                   </span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Dagar Kvar</span>
+                <span className="text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Dagar Kvar</span>
               </div>
             </div>
           </div>

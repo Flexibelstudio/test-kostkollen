@@ -67,7 +67,7 @@ const AIPostModal: React.FC<AIPostModalProps> = ({ isOpen, onClose, onSend, cont
                         </div>
                         <div>
                             <h3 className="text-xl font-bold">AI-Communityinlägg</h3>
-                            <p className="text-white/80 text-sm">
+                            <p className="text-white/80 text-base">
                                 Skapa ett inlägg för att driva engagemang
                             </p>
                         </div>
@@ -77,13 +77,13 @@ const AIPostModal: React.FC<AIPostModalProps> = ({ isOpen, onClose, onSend, cont
                 {/* Content */}
                 <div className="p-6 space-y-4">
                     <div className="flex justify-between items-center">
-                        <label className="text-sm font-bold text-neutral-dark">Granska och redigera inlägget:</label>
+                        <label className="text-base font-bold text-neutral-dark">Granska och redigera inlägget:</label>
                         <button 
                             onClick={generateDraft}
                             disabled={isGenerating || isSending}
-                            className="text-xs text-primary font-bold flex items-center gap-1 hover:text-primary-darker transition-colors disabled:opacity-50"
+                            className="text-base text-primary font-bold flex items-center gap-1 hover:text-primary-darker transition-colors disabled:opacity-50"
                         >
-                            <Sparkles className="w-3 h-3" />
+                            <Sparkles className="w-4 h-4" />
                             Generera om
                         </button>
                     </div>
@@ -92,13 +92,13 @@ const AIPostModal: React.FC<AIPostModalProps> = ({ isOpen, onClose, onSend, cont
                         {isGenerating ? (
                             <div className="w-full h-40 bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center justify-center text-neutral">
                                 <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
-                                <p className="text-sm">AI skriver ett utkast...</p>
+                                <p className="text-base">AI skriver ett utkast...</p>
                             </div>
                         ) : (
                             <textarea
                                 value={postDraft}
                                 onChange={(e) => setPostDraft(e.target.value)}
-                                className="w-full h-40 p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none text-neutral-dark"
+                                className="w-full h-40 p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none text-neutral-dark text-base"
                                 placeholder="Skriv ditt inlägg här..."
                             />
                         )}
@@ -110,14 +110,14 @@ const AIPostModal: React.FC<AIPostModalProps> = ({ isOpen, onClose, onSend, cont
                     <button 
                         onClick={onClose}
                         disabled={isSending}
-                        className="px-6 py-2.5 text-neutral-dark font-bold hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50"
+                        className="px-6 py-2.5 text-neutral-dark font-bold hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50 text-base"
                     >
                         Avbryt
                     </button>
                     <button 
                         onClick={handleSend}
                         disabled={isGenerating || isSending || !postDraft.trim()}
-                        className="px-6 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors flex items-center gap-2 disabled:opacity-50"
+                        className="px-6 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary-darker transition-colors flex items-center gap-2 disabled:opacity-50 text-base"
                     >
                         {isSending ? (
                             <>

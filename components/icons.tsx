@@ -434,7 +434,7 @@ export const KostloggenLogo: React.FC<{ className?: string; size?: number }> = (
       <span className="font-serif font-medium text-xl text-[#56524D] dark:text-[#FAF6EF] tracking-tight leading-none">
         Kostloggen<span className="text-[#D96E4A]">.se</span>
       </span>
-      <span className="text-[11px] font-sans text-[#7A756E] dark:text-[#C2BCB4] tracking-widest uppercase mt-0.5">
+      <span className="text-xs font-sans text-[#7A756E] dark:text-[#C2BCB4] tracking-widest uppercase mt-0.5">
         Din hälsoresa
       </span>
     </div>

@@ -127,7 +127,7 @@ export const BootcampDiplomaCard: React.FC<BootcampDiplomaCardProps> = ({
 
         {/* Quote / Börjes Text */}
         <div className={`p-4 sm:p-5 rounded-xl my-2 text-left relative ${style.quoteBoxBg}`}>
-          <div className="absolute -top-2.5 left-4 px-2 text-[10px] uppercase font-bold tracking-wider bg-inherit rounded text-[#D96E4A]">
+          <div className="absolute -top-2.5 left-4 px-2 text-xs uppercase font-bold tracking-wider bg-inherit rounded text-[#D96E4A]">
             Börjes Order & Vitsord
           </div>
           <p className="text-base sm:text-lg leading-relaxed font-normal italic pt-1">
@@ -153,7 +153,7 @@ export const BootcampDiplomaCard: React.FC<BootcampDiplomaCardProps> = ({
                 />
               )}
             </div>
-            <p className={`font-semibold text-[11px] ${style.mutedText} mt-1`}>
+            <p className={`font-semibold text-xs ${style.mutedText} mt-1`}>
               General Börje, Högkvarteret
             </p>
           </div>

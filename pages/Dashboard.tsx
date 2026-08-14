@@ -20,6 +20,7 @@ import {
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
+import MacroCard from '../components/MacroCard';
 import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon, BookmarkIcon, ShieldCheckIcon } from '../components/icons';
 import { PiggyBank, Coffee, Sandwich, CookingPot, Apple, Flame } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
@@ -941,7 +942,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             {/* Top Date & Progress Card */}
             <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${activeBootcamp ? 'bg-white border-[#D96E4A]/30' : 'bg-white border-neutral-light'}`}>
                 {activeBootcamp && (
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#D96E4A] text-white text-[10px] font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#D96E4A] text-white text-xs font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
                         <TrophyIcon className="w-3 h-3 text-[#F6E2D9]" />
                         Bootcamp Aktiv
                     </div>
@@ -1005,49 +1006,33 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
 
                     {/* Macros Integrated */}
-                    <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full px-4 sm:px-6">
-                        {/* Kolhydrater */}
-                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
-                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Kolhydrater</p>
-                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
-                                {Math.round(totalNutrients.carbohydrates)}/{goals.carbohydrateGoal}g
-                            </p>
-                            <div className="w-full bg-[#EAE0D8] rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-[#A6826B] h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
-                            </div>
-                        </div>
-                        {/* Protein */}
-                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
-                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider flex items-center justify-center">
-                                Protein
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowProteinInfoModal(true)}
-                                    className="ml-1 text-neutral-400 hover:text-primary transition-colors"
-                                    aria-label="Information om proteinmål"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-                                      <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
-                                    </svg>
-                                </button>
-                            </p>
-                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
-                                {Math.round(totalNutrients.protein)}/{goals.proteinGoal}g
-                            </p>
-                            <div className="w-full bg-[#F6E2D9] rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-[#D96E4A] h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
-                            </div>
-                        </div>
-                        {/* Fett */}
-                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
-                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Fett</p>
-                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
-                                {Math.round(totalNutrients.fat)}/{goals.fatGoal}g
-                            </p>
-                            <div className="w-full bg-[#E8EFE9] rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-[#8C9A86] h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full px-4 sm:px-6 items-stretch">
+                        <MacroCard 
+                            label="Kolhydrater"
+                            current={totalNutrients.carbohydrates}
+                            goal={goals.carbohydrateGoal}
+                            trackColor="#EAE0D8"
+                            barColor="#A6826B"
+                            isBootcamp={!!activeBootcamp}
+                        />
+                        <MacroCard 
+                            label="Protein"
+                            current={totalNutrients.protein}
+                            goal={goals.proteinGoal}
+                            trackColor="#F6E2D9"
+                            barColor="#D96E4A"
+                            isBootcamp={!!activeBootcamp}
+                            onInfoClick={() => setShowProteinInfoModal(true)}
+                            infoAriaLabel="Information om proteinmål"
+                        />
+                        <MacroCard 
+                            label="Fett"
+                            current={totalNutrients.fat}
+                            goal={goals.fatGoal}
+                            trackColor="#E8EFE9"
+                            barColor="#8C9A86"
+                            isBootcamp={!!activeBootcamp}
+                        />
                     </div>
                 </div>
             </div>

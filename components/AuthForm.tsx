@@ -197,7 +197,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
 
   return (
     <>
-      <div className="min-h-screen flex items-start sm:items-center justify-center bg-neutral-light bg-dotted-pattern bg-dotted-size p-4 pt-12 sm:pt-4">
+      <div className="min-h-screen flex items-start sm:items-center justify-center bg-neutral-light p-4 pt-12 sm:pt-4">
         <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-soft-xl w-full max-w-md animate-scale-in border border-neutral-light/50">
           <div className="text-center mb-6">
             <img src="/favicon.png" alt="Kostloggen.se logo" className="h-20 w-20 mx-auto mb-3 drop-shadow-sm" />

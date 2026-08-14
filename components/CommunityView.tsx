@@ -232,7 +232,7 @@ export const CreatePostWidget: FC<{
                 className="bg-white dark:bg-neutral-darker rounded-2xl shadow-sm border border-neutral-light p-3 mb-6 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-dark transition-colors active:scale-[0.99] select-none"
             >
                 <Avatar photoURL={displayPhotoURL} gender={userProfile.gender} size={40} className="flex-shrink-0" />
-                <div className="flex-grow bg-[#ffffff] rounded-full px-4 py-2.5 text-[#6B7280] text-sm font-medium border border-[#E5E7EB]">
+                <div className="flex-grow bg-[#ffffff] rounded-full px-4 py-2.5 text-[#6B7280] text-base font-medium border border-[#E5E7EB]">
                     Vad tänker du på? Dela med dig...
                 </div>
             </div>
@@ -252,13 +252,13 @@ export const CreatePostWidget: FC<{
             <div className="flex gap-3">
                 <Avatar photoURL={displayPhotoURL} gender={userProfile.gender} size={48} className="flex-shrink-0" />
                 <div className="flex-grow">
-                    <p className="font-bold text-sm text-neutral-dark dark:text-white mb-2">{displayName}</p>
+                    <p className="font-bold text-base text-neutral-dark dark:text-white mb-2">{displayName}</p>
                     <textarea
                         autoFocus
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         placeholder="Vad tänker du på? Dela med dig till dina kompisar..."
-                        className="w-full bg-[#ffffff] rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3bab5a] min-h-[100px] resize-none pr-8 text-[#000000] border border-[#E5E7EB] placeholder-[#9CA3AF]"
+                        className="w-full bg-[#ffffff] rounded-xl p-3 text-base focus:outline-none focus:ring-2 focus:ring-[#3bab5a] min-h-[100px] resize-none pr-8 text-[#000000] border border-[#E5E7EB] placeholder-[#9CA3AF]"
                     />
                     {image && (
                         <div className="relative mt-2 inline-block bg-white rounded-lg p-1 border border-neutral-light">
@@ -273,12 +273,12 @@ export const CreatePostWidget: FC<{
                     )}
                     
                     {activeBootcamp && !isCoach && (
-                        <div className="mt-3 flex items-center gap-2 text-sm">
+                        <div className="mt-3 flex items-center gap-2 text-base">
                             <span className="text-neutral-500 font-medium">Synligt för:</span>
                             <select
                                 value={visibility}
                                 onChange={(e) => setVisibility(e.target.value as any)}
-                                className="bg-neutral-50 border border-neutral-200 text-neutral-dark rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                className="bg-neutral-50 border border-neutral-200 text-neutral-dark rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/50 text-base"
                             >
                                 <option value="friends">Mina kompisar</option>
                                 <option value="bootcamp">Bara bootcamp</option>
@@ -295,7 +295,7 @@ export const CreatePostWidget: FC<{
                         <button
                             key={cat.id}
                             onClick={() => toggleCategory(cat.id)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap border ${
+                            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap border ${
                                 category === cat.id 
                                     ? 'bg-primary-100 border-primary text-primary-darker' 
                                     : 'bg-white dark:bg-neutral-darker border-neutral-light text-neutral hover:bg-neutral-light dark:hover:bg-neutral-dark'
@@ -321,7 +321,7 @@ export const CreatePostWidget: FC<{
                     <button 
                         onClick={handleSubmit}
                         disabled={(!text.trim() && !image) || isSubmitting}
-                        className="px-5 py-2 bg-primary text-white text-sm font-bold rounded-full shadow-md hover:bg-primary-darker active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-2"
+                        className="px-5 py-2 bg-primary text-white text-base font-bold rounded-full shadow-md hover:bg-primary-darker active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-2"
                     >
                         {isSubmitting ? <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent" /> : <Send className="w-4 h-4" />}
                         Publicera
@@ -389,7 +389,7 @@ const BuddyCard: FC<{
                                     {getBootcampRankInfo(Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0), 0, 'fas1').currentRank && (
                                         <>
                                             <span className="text-neutral-300 shrink-0">|</span>
-                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-[#E8EFE9] text-[#2B3B2C] rounded-full inline-flex items-center gap-1">
+                                            <span className="text-xs font-bold px-2 py-0.5 bg-[#E8EFE9] text-[#2B3B2C] rounded-full inline-flex items-center gap-1">
                                                 <RankBadge rank={getBootcampRankInfo(Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0), 0, 'fas1').currentRank} size="sm" className="w-3.5 h-3.5" />
                                                 {getBootcampRankInfo(Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0), 0, 'fas1').currentRank}
                                             </span>
@@ -418,7 +418,7 @@ const BuddyCard: FC<{
                         <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-neutral-darker rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
                             <button 
                                 onClick={(e) => { e.stopPropagation(); setShowMenu(false); onRemove(); }}
-                                className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                className="w-full text-left px-3 py-2.5 text-base text-red-600 hover:bg-red-50 flex items-center gap-2"
                             >
                                 <TrashIcon className="w-4 h-4" /> Ta bort
                             </button>
@@ -434,7 +434,7 @@ const BuddyCard: FC<{
                 <div className="w-full bg-neutral-light dark:bg-neutral-dark rounded-full h-2.5 shadow-inner">
                     <div className="bg-primary h-2.5 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
                 </div>
-                <p className="text-right text-sm font-semibold text-primary-darker mt-1">{progressPercentage.toFixed(0)}%</p>
+                <p className="text-right text-base font-semibold text-primary-darker mt-1">{progressPercentage.toFixed(0)}%</p>
             </div>
         </div>
     );
@@ -659,36 +659,36 @@ export const TimelineEventCard: FC<{
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col min-w-0 flex-1">
-                        <p className="text-[15px] text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1">
+                        <p className="text-base text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1.5">
                             <span className="font-bold">{displayName}</span>
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 sentFriendRequests.has(event.userId) ? (
-                                    <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-[#E8EFE9] rounded-full text-[12px] font-bold text-[#2B3B2C] shadow-sm border border-[#8C9A86]/40">
-                                        <CheckIcon className="w-4 h-4" />
+                                    <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-[#E8EFE9] rounded-full text-xs font-bold text-[#2B3B2C] shadow-sm border border-[#8C9A86]/40">
+                                        <CheckIcon className="w-3.5 h-3.5" />
                                         <span>Skickad</span>
                                     </div>
                                 ) : (
                                     <button 
                                         onClick={() => onAddFriend(event.userId, event.userName)}
-                                        className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-[#F6E2D9] hover:bg-[#D96E4A]/20 rounded-full text-[12px] font-bold text-[#D96E4A] transition-colors cursor-pointer shadow-sm"
+                                        className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-[#F6E2D9] hover:bg-[#D96E4A]/20 rounded-full text-xs font-bold text-[#D96E4A] transition-colors cursor-pointer shadow-sm"
                                         title="Lägg till kompis"
                                     >
-                                        <UsersIcon className="w-4 h-4" />
+                                        <UsersIcon className="w-3.5 h-3.5" />
                                         <span>+</span>
                                     </button>
                                 )
                             )}
                             {isEditorial ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#F6E2D9] text-[#D96E4A] border border-[#D96E4A]/20">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#F6E2D9] text-[#D96E4A] border border-[#D96E4A]/20">
                                     ✨ Redaktionellt
                                 </span>
                             ) : isGlobalPost && !event.bootcampId ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#F6E2D9] text-[#D96E4A]">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-[#F6E2D9] text-[#D96E4A]">
                                     Officiellt
                                 </span>
                             ) : null}
                             {event.bootcampId && event.type === 'user_post' && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#F6E2D9] text-[#D96E4A]">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-[#F6E2D9] text-[#D96E4A]">
                                     🎖️ General Börjes Bootcamp
                                 </span>
                             )}
@@ -740,7 +740,7 @@ export const TimelineEventCard: FC<{
                                         {hasHighestStreak && rankName && (
                                             <>
                                                 {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak) && <span className="text-neutral-300 shrink-0">|</span>}
-                                                <span className="text-[11px] font-bold px-2 py-0.5 bg-[#E8EFE9] text-[#2B3B2C] rounded-full whitespace-nowrap shrink-0 inline-flex items-center gap-1">
+                                                <span className="text-xs font-bold px-2 py-0.5 bg-[#E8EFE9] text-[#2B3B2C] rounded-full whitespace-nowrap shrink-0 inline-flex items-center gap-1">
                                                     <RankBadge rank={rankName} size="sm" className="w-3.5 h-3.5" />
                                                     {rankName}
                                                 </span>
@@ -765,7 +765,7 @@ export const TimelineEventCard: FC<{
                     </div>
 
                     <div className="flex items-start gap-2 ml-2">
-                        <span className="text-[13px] text-neutral whitespace-nowrap mt-0.5">
+                        <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
                             {new Date(event.timestamp).toLocaleString('sv-SE', {
                                 ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
                                     ? { hour: '2-digit', minute: '2-digit' } 
@@ -794,7 +794,7 @@ export const TimelineEventCard: FC<{
                 </div>
                 
                 {event.category && event.type === 'user_post' && (
-                    <span className="inline-block px-2 py-0.5 mt-1 rounded text-[10px] font-semibold bg-neutral-light dark:bg-neutral-dark text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
+                    <span className="inline-block px-2.5 py-0.5 mt-1 rounded text-xs font-semibold bg-neutral-light dark:bg-neutral-dark text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
                         {event.icon} {event.category === 'workout' ? 'Träning' : event.category === 'food' ? 'Mat' : event.category === 'pepp' ? 'Pepp' : event.category === 'question' ? 'Fråga' : 'Allmänt'}
                     </span>
                 )}
@@ -859,14 +859,14 @@ export const TimelineEventCard: FC<{
                                         onOpenReactions?.(event);
                                     }}>
                                         {activeEmojis.slice(0, 3).map(emoji => (
-                                            <span key={emoji} className="text-[11px] bg-white dark:bg-neutral-800 rounded-full px-0.5 border border-neutral-200/50 dark:border-neutral-700 shadow-sm">
+                                            <span key={emoji} className="text-xs bg-white dark:bg-neutral-800 rounded-full px-0.5 border border-neutral-200/50 dark:border-neutral-700 shadow-sm">
                                                 {emoji}
                                             </span>
                                         ))}
                                     </div>
                                 )}
                                 {/* Total Reactions Count */}
-                                <span className="text-[13px] font-bold text-neutral-700 dark:text-neutral-200">
+                                <span className="text-base font-bold text-neutral-700 dark:text-neutral-200">
                                     {totalReactionsCount > 0 ? totalReactionsCount : 'Gilla'}
                                 </span>
                             </button>
@@ -912,7 +912,7 @@ export const TimelineEventCard: FC<{
                         {/* Reactors text shown on larger screens next to the pill */}
                         {totalReactionsCount > 0 && (
                             <span 
-                                className="hidden sm:inline text-xs text-neutral-400 hover:underline cursor-pointer font-semibold truncate max-w-[150px]"
+                                className="hidden sm:inline text-base text-neutral-400 hover:underline cursor-pointer font-semibold truncate max-w-[150px]"
                                 onClick={() => onOpenReactions?.(event)}
                             >
                                 {getAllReactorsText()}
@@ -926,11 +926,11 @@ export const TimelineEventCard: FC<{
                             e.preventDefault();
                             onOpenComments?.(event);
                         }}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 dark:bg-neutral-800/60 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 text-neutral-600 dark:text-neutral-300 border border-neutral-200/30 rounded-full text-[13px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer hover:border-neutral-400/30"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 dark:bg-neutral-800/60 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 text-neutral-600 dark:text-neutral-300 border border-neutral-200/30 rounded-full text-base font-bold shadow-sm transition-all active:scale-95 cursor-pointer hover:border-neutral-400/30"
                         title="Kommentera"
                     >
                         <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
-                        <span className="text-[13px] font-bold text-neutral-700 dark:text-neutral-200">
+                        <span className="text-base font-bold text-neutral-700 dark:text-neutral-200">
                             {commentCount > 0 ? (commentCount === 1 ? '1 kommentar' : `${commentCount} kommentarer`) : 'Kommentera'}
                         </span>
                     </button>
@@ -1127,17 +1127,17 @@ const FriendManagementView: FC<{
                         {buddyDetails.length < 3 && (
                             <div className="bg-[#F6E2D9]/60 border border-[#D96E4A]/30 p-4 rounded-xl flex items-center justify-between gap-4">
                                 <div>
-                                    <p className="text-sm font-bold text-[#56524D]">
+                                    <p className="text-base font-bold text-[#56524D]">
                                         Du har {buddyDetails.length === 0 ? 'inga' : buddyDetails.length} {buddyDetails.length === 1 ? 'kompis' : 'kompisar'} ännu
                                     </p>
-                                    <p className="text-xs text-neutral-600 mt-0.5">
+                                    <p className="text-base text-neutral-600 mt-0.5">
                                         Det är betydligt roligare och lättare att nå sina mål tillsammans! Bjud in minst 3 vänner för att peppa varandra.
                                     </p>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => setShowInviteOptionsModal(true)}
-                                    className="flex-shrink-0 px-3.5 py-2 bg-[#D96E4A] hover:bg-[#C05A38] text-white text-xs font-bold rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                                    className="flex-shrink-0 px-4 py-2 bg-[#D96E4A] hover:bg-[#C05A38] text-white text-base font-bold rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
                                 >
                                     <UserPlusIcon className="w-4 h-4" /> Bjud in
                                 </button>
@@ -1149,12 +1149,12 @@ const FriendManagementView: FC<{
                                 type="search" 
                                 value={buddySearchQuery} 
                                 onChange={e => setBuddySearchQuery(e.target.value)} 
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker text-base"
                                 placeholder="Sök bland dina kompisar..."
                             />
                         </div>
                         {filteredBuddyDetails.length === 0 ? (
-                            <p className="text-sm text-neutral text-center py-8">
+                            <p className="text-base text-neutral text-center py-8">
                                 {buddySearchQuery ? 'Inga kompisar matchade din sökning.' : 'Du har inga kompisar än.'}
                             </p>
                         ) : (
@@ -1181,14 +1181,14 @@ const FriendManagementView: FC<{
                                 type="search" 
                                 value={searchQuery} 
                                 onChange={e => setSearchQuery(e.target.value)} 
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker text-base"
                                 placeholder="Sök bland användare..."
                                 autoFocus
                             />
                         </div>
                         <div className="space-y-2">
                             {isSearching ? (
-                                <p className="text-sm text-neutral text-center py-4">Söker...</p>
+                                <p className="text-base text-neutral text-center py-4">Söker...</p>
                             ) : searchResults.map(user => {
                                 const isBuddy = buddyDetails.some(b => b.uid === user.uid);
                                 const hasPendingRequest = outgoingRequests.some(r => r.toUid === user.uid);
@@ -1196,7 +1196,7 @@ const FriendManagementView: FC<{
                                     <div key={user.uid} className="flex items-center justify-between bg-white dark:bg-neutral-darker p-2 rounded-md border border-neutral-light">
                                         <div className="flex items-center gap-2">
                                             <Avatar photoURL={user.photoURL} gender={user.gender} size={32} />
-                                            <p className="font-semibold text-neutral-dark text-sm">{user.name}</p>
+                                            <p className="font-semibold text-neutral-dark text-base">{user.name}</p>
                                         </div>
                                         {isBuddy ? ( <span className="text-xs font-semibold text-[#D96E4A] px-2 py-1 bg-[#F6E2D9] rounded-full">Kompis</span>
                                         ) : hasPendingRequest ? ( <span className="text-xs font-semibold text-[#D96E4A] px-2 py-1 bg-[#F6E2D9] rounded-full">Väntar</span>
@@ -1205,7 +1205,7 @@ const FriendManagementView: FC<{
                                 );
                             })}
                              {searchQuery && !isSearching && searchResults.length === 0 && (
-                                <p className="text-sm text-neutral text-center py-4">Inga användare matchade din sökning.</p>
+                                <p className="text-base text-neutral text-center py-4">Inga användare matchade din sökning.</p>
                             )}
                         </div>
                     </div>
@@ -1213,23 +1213,23 @@ const FriendManagementView: FC<{
             case 'requests':
                 return (
                     <div className="space-y-4 bg-white dark:bg-neutral-darker p-4 rounded-lg border border-neutral-light">
-                        <h4 className="font-semibold">Inkommande ({requests.length})</h4>
+                        <h4 className="font-semibold text-base">Inkommande ({requests.length})</h4>
                         {requests.length > 0 ? requests.map(req => (
                             <div key={req.id} className="flex items-center justify-between bg-neutral-light dark:bg-neutral-dark p-2 rounded-lg">
-                                <p className="font-semibold text-sm">{req.fromName}</p>
+                                <p className="font-semibold text-base">{req.fromName}</p>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => handleRequestAction(req, 'declined')} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><XMarkIcon className="w-5 h-5" /></button>
                                     <button onClick={() => handleRequestAction(req, 'accepted')} className="p-2 text-[#D96E4A] hover:bg-[#F6E2D9] rounded-full"><CheckIcon className="w-5 h-5" /></button>
                                 </div>
                             </div>
-                        )) : <p className="text-sm text-neutral">Inga nya förfrågningar.</p>}
-                         <h4 className="font-semibold pt-2 border-t">Utgående ({outgoingRequests.length})</h4>
+                        )) : <p className="text-base text-neutral">Inga nya förfrågningar.</p>}
+                         <h4 className="font-semibold text-base pt-2 border-t">Utgående ({outgoingRequests.length})</h4>
                         {outgoingRequests.length > 0 ? outgoingRequests.map(req => (
                             <div key={req.id} className="flex items-center justify-between bg-neutral-light dark:bg-neutral-dark p-2 rounded-lg">
-                                <p className="font-semibold text-sm">{req.toName || 'Utgående förfrågan'}</p>
+                                <p className="font-semibold text-base">{req.toName || 'Utgående förfrågan'}</p>
                                 <button onClick={() => handleCancelRequest(req.id)} className="text-xs font-semibold text-red-600 px-2 py-1 bg-red-100 rounded-full hover:bg-red-200">Avbryt</button>
                             </div>
-                        )) : <p className="text-sm text-neutral">Inga utgående förfrågningar.</p>}
+                        )) : <p className="text-base text-neutral">Inga utgående förfrågningar.</p>}
                     </div>
                 );
         }
@@ -1239,9 +1239,9 @@ const FriendManagementView: FC<{
         <div className="flex flex-col h-full w-full">
             <div className="flex-shrink-0 px-4 pt-4">
                 <nav className="flex -mb-px border-b border-neutral-light">
-                    <button onClick={() => setActiveTab('buddies')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'buddies' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina kompisar ({buddyDetails.length})</button>
-                    <button onClick={() => setActiveTab('search')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'search' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Hitta kompisar</button>
-                    <button onClick={() => setActiveTab('requests')} className={`relative py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'requests' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>
+                    <button onClick={() => setActiveTab('buddies')} className={`py-2 px-4 font-medium text-base border-b-2 ${activeTab === 'buddies' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina kompisar ({buddyDetails.length})</button>
+                    <button onClick={() => setActiveTab('search')} className={`py-2 px-4 font-medium text-base border-b-2 ${activeTab === 'search' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Hitta kompisar</button>
+                    <button onClick={() => setActiveTab('requests')} className={`relative py-2 px-4 font-medium text-base border-b-2 ${activeTab === 'requests' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>
                         Förfrågningar
                         {requests.length > 0 && <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">{requests.length}</span>}
                     </button>
@@ -1250,15 +1250,15 @@ const FriendManagementView: FC<{
             
             {(activeTab === 'buddies' || activeTab === 'search') && (
                 <div className="flex-shrink-0 w-full bg-gradient-to-r from-primary to-primary-darker text-white flex items-center justify-between px-4 py-2.5 shadow-sm mt-0">
-                    <div className="flex flex-col text-sm">
+                    <div className="flex flex-col text-base">
                         <span className="font-medium">Bjud in en kompis! 🎁</span>
-                        <span className="text-primary-50 text-xs mt-0.5">
+                        <span className="text-primary-50 text-base mt-0.5">
                             De får automatiskt 7 dagar gratis
                         </span>
                     </div>
                     <button 
                         onClick={() => setShowInviteOptionsModal(true)}
-                        className="whitespace-nowrap px-3 py-1.5 bg-white text-primary text-xs font-bold rounded shadow-sm hover:bg-gray-50 transition-colors"
+                        className="whitespace-nowrap px-3.5 py-2 bg-white text-primary text-base font-bold rounded shadow-sm hover:bg-gray-50 transition-colors"
                     >
                         Bjud in
                     </button>
@@ -1276,10 +1276,10 @@ const FriendManagementView: FC<{
                 >
                     <div className="bg-white dark:bg-neutral-darker p-6 rounded-lg shadow-soft-xl w-full max-w-sm animate-scale-in" onClick={(e) => e.stopPropagation()}>
                         <h3 id="confirm-remove-buddy-title" className="text-lg font-semibold text-neutral-dark mb-4">Bekräfta borttagning</h3>
-                        <p className="text-neutral mb-6">Är du säker på att du vill ta bort <strong>{buddyToRemove.name}</strong> som Peppkompis?</p>
+                        <p className="text-neutral text-base mb-6">Är du säker på att du vill ta bort <strong>{buddyToRemove.name}</strong> som Peppkompis?</p>
                         <div className="flex justify-end space-x-3">
-                            <button onClick={() => setBuddyToRemove(null)} className="px-4 py-2 text-neutral-dark dark:text-white bg-neutral-light dark:bg-neutral-dark hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md active:scale-95 interactive-transition">Avbryt</button>
-                            <button onClick={confirmRemoveBuddy} className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md active:scale-95 interactive-transition">Ja, ta bort</button>
+                            <button onClick={() => setBuddyToRemove(null)} className="px-4 py-2 text-base text-neutral-dark dark:text-white bg-neutral-light dark:bg-neutral-dark hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md active:scale-95 interactive-transition">Avbryt</button>
+                            <button onClick={confirmRemoveBuddy} className="px-4 py-2 text-base text-white bg-red-600 hover:bg-red-700 rounded-md active:scale-95 interactive-transition">Ja, ta bort</button>
                         </div>
                     </div>
                 </div>
@@ -1295,7 +1295,7 @@ const FriendManagementView: FC<{
                             <button onClick={handleShareViaApp} className="w-full flex items-center justify-center px-4 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm">
                                 <ShareIcon className="w-5 h-5 mr-2" /> Dela via app
                             </button>
-                             <p className="text-xs text-neutral text-center">Obs: Vissa appar som Messenger kan ignorera texten.</p>
+                             <p className="text-base text-neutral text-center">Obs: Vissa appar som Messenger kan ignorera texten.</p>
                             <button
                                 onClick={handleCopyToClipboard}
                                 disabled={isCopied}
@@ -1304,7 +1304,7 @@ const FriendManagementView: FC<{
                                 <PencilIcon className="w-5 h-5 mr-2" /> {isCopied ? 'Kopierad!' : 'Kopiera inbjudningstext'}
                             </button>
                         </div>
-                         <button onClick={() => setShowInviteOptionsModal(false)} className="mt-4 w-full py-2 text-sm text-neutral hover:underline">
+                         <button onClick={() => setShowInviteOptionsModal(false)} className="mt-4 w-full py-2 text-base text-neutral hover:underline">
                             Stäng
                         </button>
                     </div>
@@ -1378,13 +1378,13 @@ const ShareModal: FC<{
                         value={customMessage}
                         onChange={(e) => setCustomMessage(e.target.value)}
                         placeholder="Skriv ett meddelande (frivilligt)..."
-                        className="w-full p-3 rounded-xl border border-neutral-light focus:border-primary focus:ring-1 focus:ring-primary resize-none text-sm"
+                        className="w-full p-3 rounded-xl border border-neutral-light focus:border-primary focus:ring-1 focus:ring-primary resize-none text-base"
                         rows={2}
                     />
                 </div>
                 <div className="p-4 overflow-y-auto flex-1">
                     {chats.length === 0 ? (
-                        <p className="text-center text-neutral py-8">Du är inte med i några chattar än.</p>
+                        <p className="text-center text-neutral text-base py-8">Du är inte med i några chattar än.</p>
                     ) : (
                         <div className="space-y-2">
                             {chats.map(chat => (
@@ -1392,9 +1392,9 @@ const ShareModal: FC<{
                                     key={chat.id}
                                     onClick={() => handleShare(chat)}
                                     disabled={isSharing}
-                                    className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-light hover:border-primary hover:bg-primary-50/30 transition-colors text-left disabled:opacity-50"
+                                    className="w-full flex items-center justify-between p-3 rounded-xl border border-neutral-light hover:border-primary hover:bg-primary-50/30 transition-colors text-left disabled:opacity-50 text-base"
                                 >
-                                    <span className="font-semibold text-neutral-dark truncate pr-4">{chat.name || 'Gruppchatt'}</span>
+                                    <span className="font-semibold text-neutral-dark truncate pr-4 text-base">{chat.name || 'Gruppchatt'}</span>
                                     <ShareIcon className="w-5 h-5 text-primary flex-shrink-0" />
                                 </button>
                             ))}
@@ -1868,7 +1868,7 @@ export const CommunityView: React.FC<{
     
     const TabButton: FC<{ tab: typeof tabs[0], isActive: boolean, onClick: () => void }> = ({ tab, isActive, onClick }) => (
         <button onClick={onClick} className={`relative flex-1 py-4 px-1 text-center font-semibold border-b-4 transition-colors ${isActive ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary-lighter'}`}>
-            <span className="text-sm">{tab.label}</span>
+            <span className="text-base">{tab.label}</span>
             {tab.notificationCount > 0 && <span className="absolute top-2 right-2 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center ring-2 ring-white">{tab.notificationCount > 9 ? '9+' : tab.notificationCount}</span>}
         </button>
     );
@@ -1888,13 +1888,13 @@ export const CommunityView: React.FC<{
                             <div className="flex bg-neutral-100 p-1 rounded-xl mb-4">
                                 <button
                                     onClick={() => setFeedFilter('all')}
-                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-colors ${feedFilter === 'all' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-base transition-colors ${feedFilter === 'all' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
                                 >
                                     Alla inlägg
                                 </button>
                                 <button
                                     onClick={() => setFeedFilter('bootcamp')}
-                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-colors ${feedFilter === 'bootcamp' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-base transition-colors ${feedFilter === 'bootcamp' ? 'bg-white text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
                                 >
                                     Bootcamp-gruppen
                                 </button>
@@ -1954,13 +1954,13 @@ export const CommunityView: React.FC<{
                                         <button 
                                             onClick={loadMoreEvents} 
                                             disabled={isLoadingMore}
-                                            className="px-6 py-2 bg-white dark:bg-neutral-darker border border-neutral-light text-neutral-dark font-semibold rounded-full shadow-sm hover:bg-gray-50 dark:hover:bg-neutral-dark active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 mx-auto"
+                                            className="px-6 py-2.5 bg-white dark:bg-neutral-darker border border-neutral-light text-neutral-dark font-semibold rounded-full shadow-sm hover:bg-gray-50 dark:hover:bg-neutral-dark active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 mx-auto text-base"
                                         >
                                             {isLoadingMore ? <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" /> : <RefreshCw className="w-4 h-4" />}
                                             Ladda fler
                                         </button>
                                     ) : (
-                                        <p className="text-sm text-neutral">Du har nått slutet på flödet.</p>
+                                        <p className="text-base text-neutral">Du har nått slutet på flödet.</p>
                                     )}
                                 </div>
                             </>
@@ -1972,11 +1972,11 @@ export const CommunityView: React.FC<{
                                     </div>
                                     <div className="space-y-2">
                                         <h3 className="text-2xl font-bold font-fraunces text-neutral-dark">Välkommen till Community-flödet</h3>
-                                        <p className="text-neutral text-sm leading-relaxed">
+                                        <p className="text-neutral text-base leading-relaxed">
                                             Här delar du och dina peppkompisar er hälsoresa, hejar på varandra och firar framsteg tillsammans dag för dag.
                                         </p>
                                     </div>
-                                    <div className="p-4 bg-[#F6E2D9]/30 rounded-2xl border border-[#D96E4A]/20 text-xs text-[#56524D] text-left">
+                                    <div className="p-4 bg-[#F6E2D9]/30 rounded-2xl border border-[#D96E4A]/20 text-base text-[#56524D] text-left">
                                         💡 <strong>Tips:</strong> Bjud in dina vänner så ser ni varandras måltider, streaks och framsteg i ert gemensamma flöde!
                                     </div>
                                     <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center items-center">
@@ -1987,14 +1987,14 @@ export const CommunityView: React.FC<{
                                                     setToastNotification({ message: 'Inbjudningslänk kopierad till urklipp!', type: 'success' });
                                                 }
                                             }}
-                                            className="w-full sm:w-auto px-6 py-3.5 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer text-sm"
+                                            className="w-full sm:w-auto px-6 py-3.5 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer text-base"
                                         >
                                             <UserPlusIcon className="w-5 h-5" />
                                             Bjud in kompisar
                                         </button>
                                         <button
                                             onClick={() => setActiveTab('hantera')}
-                                            className="w-full sm:w-auto px-5 py-3.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-dark font-bold rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer text-sm"
+                                            className="w-full sm:w-auto px-5 py-3.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-dark font-bold rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer text-base"
                                         >
                                             Hitta kompisar
                                         </button>

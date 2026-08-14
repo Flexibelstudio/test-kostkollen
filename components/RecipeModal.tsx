@@ -313,8 +313,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
           )}
 
           {recipe && recipe.error && (
-             <div className="p-4 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-center">
-                <p className="font-medium">Förtydliga din fråga:</p>
+             <div className="p-4 bg-[#F6E2D9] text-[#56524D] border border-[#D96E4A]/30 rounded-xl text-center">
+                <p className="font-medium text-[#D96E4A]">Förtydliga din fråga:</p>
                 <p>{recipe.error}</p>
             </div>
           )}
@@ -463,7 +463,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                     </div>
                 </div>
                 <div className="flex items-center justify-end mt-1">
-                    <p className="text-[10px] text-neutral-500">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
+                    <p className="text-xs text-neutral-500">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                 </div>
             </div>
           </div>

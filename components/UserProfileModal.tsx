@@ -1328,7 +1328,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                             <><BellIcon className="w-4 h-4 mr-2" /> Registrera denna enhet på nytt</>
                                         )}
                                     </button>
-                                    <p className="text-[11px] text-neutral-400 text-center leading-normal">
+                                    <p className="text-xs text-neutral-400 text-center leading-normal">
                                         Klicka här om du har bytt enhet eller inte får dina notiser. Det tvingar webbläsaren att registrera din mottagare i databasen på nytt.
                                     </p>
                                 </div>

@@ -354,7 +354,7 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           {/* Debug info - only in dev if needed, or hidden */}
           {usingNative && !isLoading && !error && (
             <div className="absolute top-2 left-2 pointer-events-none opacity-50">
-              <span className="text-[10px] text-white bg-[#2B3B2C]/50 px-1 rounded">
+              <span className="text-xs text-white bg-[#2B3B2C]/50 px-1.5 py-0.5 rounded">
                 Native API
               </span>
             </div>

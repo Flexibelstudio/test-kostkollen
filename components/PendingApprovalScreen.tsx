@@ -126,7 +126,7 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
 
   if (isSuccessMode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-light bg-dotted-pattern bg-dotted-size p-4">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-light p-4">
         <div className="bg-white p-10 rounded-3xl shadow-soft-xl w-full max-w-lg text-center animate-scale-in border border-neutral-light/50">
           <div className="w-24 h-24 bg-[#E8EFE9] rounded-full flex items-center justify-center mx-auto mb-6 animate-check-pop-in">
             <CheckCircleIcon className="w-14 h-14 text-[#2B3B2C]" />
@@ -168,7 +168,7 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-light bg-dotted-pattern bg-dotted-size p-4">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-light p-4">
       <div className="bg-white p-8 sm:p-10 rounded-3xl shadow-soft-xl w-full max-w-lg text-center animate-scale-in border border-neutral-light/50 relative overflow-hidden">
         
         {/* Decorational background blob */}
@@ -185,7 +185,7 @@ const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({ onLogout,
             </p>
             
             <div className="bg-primary-50 border border-primary-100 rounded-2xl p-6 mb-8 text-left relative overflow-hidden">
-                <div className="absolute top-0 right-0 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">PREMIUM</div>
+                <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-2 py-1 rounded-bl-lg">PREMIUM</div>
                 <h3 className="font-bold text-primary-darker text-lg mb-2 flex items-center gap-2">
                     <SparklesIcon className="w-5 h-5 text-primary" /> Allt detta ingår:
                 </h3>

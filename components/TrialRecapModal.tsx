@@ -147,7 +147,7 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
                     <span className="text-lg font-extrabold text-neutral-dark">
                       {currentStreak || 0} {currentStreak === 1 ? 'dag' : 'dagar'}
                     </span>
-                    <span className="text-[11px] text-neutral-500 font-medium">Aktiv streak 🔥</span>
+                    <span className="text-xs text-neutral-500 font-medium">Aktiv streak 🔥</span>
                   </div>
 
                   {/* Meals Logged Card */}
@@ -156,7 +156,7 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
                     <span className="text-lg font-extrabold text-neutral-dark">
                       {totalMealsLogged || 0} {totalMealsLogged === 1 ? 'måltid' : 'måltider'}
                     </span>
-                    <span className="text-[11px] text-neutral-500 font-medium">Loggade måltider 🍽️</span>
+                    <span className="text-xs text-neutral-500 font-medium">Loggade måltider 🍽️</span>
                   </div>
 
                   {/* Calories Saved Card */}
@@ -165,7 +165,7 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
                     <span className="text-lg font-extrabold text-neutral-dark">
                       {bankedCalories || 0} kcal
                     </span>
-                    <span className="text-[11px] text-neutral-500 font-medium">Samlat i sparpotten 💰</span>
+                    <span className="text-xs text-neutral-500 font-medium">Samlat i sparpotten 💰</span>
                   </div>
                 </div>
 
@@ -196,7 +196,7 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
               <div className="text-center">
                 <button
                   onClick={handleCancelClick}
-                  className="text-[11px] text-neutral-500 hover:text-red-500 underline transition-colors"
+                  className="text-xs text-neutral-500 hover:text-red-500 underline transition-colors"
                 >
                   Vill du inte fortsätta? Avsluta här – inga frågor, inget krångel.
                 </button>

@@ -243,7 +243,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                                     placeholder="1"
                                     disabled={isLoggingDisabled}
                                 />
-                                <p className="text-[10px] text-neutral-500 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
+                                <p className="text-xs text-neutral-500 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                             </div>
                         </div>
 

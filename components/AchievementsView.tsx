@@ -16,7 +16,7 @@ const AchievementsView: React.FC<AchievementsViewProps> = ({
 }) => {
   
   const getAchievementIcon = (achievement: Achievement, isUnlocked: boolean) => {
-    const className = `w-6 h-6 ${isUnlocked ? 'text-amber-700' : 'text-gray-400'}`;
+    const className = `w-6 h-6 ${isUnlocked ? 'text-[#D96E4A]' : 'text-neutral-400'}`;
     
     if (achievement.type === 'course') return <BookOpenIcon className={className} />;
     if (achievement.type === 'goal') return <TrophyIcon className={className} />;
@@ -49,14 +49,14 @@ const AchievementsView: React.FC<AchievementsViewProps> = ({
                 key={ach.id} 
                 className={`flex flex-row items-center p-4 rounded-2xl border transition-all duration-200
                     ${isUnlocked 
-                        ? 'bg-amber-50/50 border-amber-200 shadow-sm' 
+                        ? 'bg-[#F6E2D9]/30 border-[#D96E4A]/30 shadow-sm' 
                         : 'bg-white border-neutral-light opacity-70 grayscale'
                     }`}
               >
                 {/* Icon Box */}
                 <div className={`h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 mr-4 shadow-sm
                     ${isUnlocked 
-                        ? 'bg-amber-100' 
+                        ? 'bg-[#F6E2D9]' 
                         : 'bg-neutral-light' 
                     }`}
                 >
@@ -66,11 +66,11 @@ const AchievementsView: React.FC<AchievementsViewProps> = ({
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
-                        <h4 className={`text-base font-bold truncate ${isUnlocked ? 'text-neutral-dark' : 'text-gray-500'}`}>
+                        <h4 className={`text-base font-bold truncate ${isUnlocked ? 'text-neutral-dark' : 'text-neutral-500'}`}>
                             {ach.name}
                         </h4>
                         {isUnlocked && (
-                            <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-md">
+                            <span className="text-xs font-bold uppercase tracking-wide text-[#D96E4A] bg-[#F6E2D9] px-2 py-0.5 rounded-md">
                                 Klarad
                             </span>
                         )}

@@ -167,7 +167,7 @@ const GoalTimeline: React.FC<{
                                     <span className={`text-sm font-bold ${milestone.isFinal ? 'text-primary-darker' : 'text-neutral-dark'}`}>
                                         {milestone.dateString}
                                     </span>
-                                    {milestone.isFinal && <span className="text-[10px] bg-primary-100 text-primary-darker px-1.5 py-0.5 rounded uppercase font-bold tracking-wide">Mål</span>}
+                                    {milestone.isFinal && <span className="text-xs bg-primary-100 text-primary-darker px-2 py-0.5 rounded uppercase font-bold tracking-wide">Mål</span>}
                                 </div>
                                 <p className="text-xs text-neutral">
                                     {milestone.targetDescription}

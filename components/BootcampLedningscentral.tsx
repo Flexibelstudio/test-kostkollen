@@ -845,7 +845,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-neutral-dark group-hover:text-primary transition-colors">{cohort.name}</h3>
-                  <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${cohort.isPublic ? 'bg-[#F6E2D9] text-[#D96E4A]' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>
+                  <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${cohort.isPublic ? 'bg-[#F6E2D9] text-[#D96E4A]' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>
                     {cohort.isPublic ? 'Publik Trupp' : 'Privat Trupp'}
                   </span>
                 </div>
@@ -1026,7 +1026,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                   onChange={(e) => setMinGreenDaysPct(Number(e.target.value))}
                   className="w-full accent-primary bg-neutral-100 h-2 rounded-lg cursor-pointer"
                 />
-                <p className="text-[11px] text-neutral-500">Andel av kvällsrapporterna som måste vara "Grön dag".</p>
+                <p className="text-xs text-neutral-500">Andel av kvällsrapporterna som måste vara "Grön dag".</p>
               </div>
 
               {/* Slider 2: Weight logs 6W */}
@@ -1044,7 +1044,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                   onChange={(e) => setMinWeights6W(Number(e.target.value))}
                   className="w-full accent-primary bg-neutral-100 h-2 rounded-lg cursor-pointer"
                 />
-                <p className="text-[11px] text-neutral-500">Antal invägningar under de första 6 veckorna (motsvarar varje vecka).</p>
+                <p className="text-xs text-neutral-500">Antal invägningar under de första 6 veckorna (motsvarar varje vecka).</p>
               </div>
 
               {/* Slider 3: Weight logs 12W */}
@@ -1062,7 +1062,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                   onChange={(e) => setMinWeights12W(Number(e.target.value))}
                   className="w-full accent-primary bg-neutral-100 h-2 rounded-lg cursor-pointer"
                 />
-                <p className="text-[11px] text-neutral-500">Antal invägningar under de 12 veckorna.</p>
+                <p className="text-xs text-neutral-500">Antal invägningar under de 12 veckorna.</p>
               </div>
             </div>
           </div>
@@ -1160,7 +1160,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse text-xs md:text-sm">
                           <thead>
-                            <tr className="bg-neutral-50/50 border-b border-neutral-light text-[11px] text-neutral-500 uppercase tracking-wider">
+                            <tr className="bg-neutral-50/50 border-b border-neutral-light text-xs text-neutral-500 uppercase tracking-wider">
                               <th className="p-3 font-bold">Namn</th>
                               <th className="p-3 font-bold">Trupp</th>
                               <th className="p-3 font-bold">Invägningar (v1-v6)</th>
@@ -1178,7 +1178,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                               >
                                 <td className="p-3">
                                   <div className="font-bold text-neutral-dark">{item.name}</div>
-                                  <div className="text-[11px] text-neutral-500">{item.email}</div>
+                                  <div className="text-xs text-neutral-500">{item.email}</div>
                                 </td>
                                 <td className="p-3 text-neutral-600">{item.cohortName}</td>
                                 <td className="p-3 text-neutral-600 font-semibold">
@@ -1190,7 +1190,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                   <span className={item.greenPercent >= minGreenDaysPct ? 'text-[#84A98C]' : 'text-neutral-500'}>
                                     {item.greenPercent}%
                                   </span>{' '}
-                                  <span className="text-[10px] text-neutral-400 font-normal">
+                                  <span className="text-xs text-neutral-400 font-normal">
                                     ({item.greenCount}/{item.totalReports})
                                   </span>
                                 </td>
@@ -1205,11 +1205,11 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                 </td>
                                 <td className="p-3">
                                   {item.doingWork ? (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#84A98C]/20 text-[#56524D] whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#84A98C]/20 text-[#56524D] whitespace-nowrap">
                                       Gör Jobbet
                                     </span>
                                   ) : (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-500 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-neutral-100 text-neutral-500 whitespace-nowrap">
                                       Ej tillräckligt engagemang
                                     </span>
                                   )}
@@ -1238,7 +1238,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse text-xs md:text-sm">
                           <thead>
-                            <tr className="bg-neutral-50/50 border-b border-neutral-light text-[11px] text-neutral-500 uppercase tracking-wider">
+                            <tr className="bg-neutral-50/50 border-b border-neutral-light text-xs text-neutral-500 uppercase tracking-wider">
                               <th className="p-3 font-bold">Namn</th>
                               <th className="p-3 font-bold">Trupp</th>
                               <th className="p-3 font-bold">Invägningar (v1-v12)</th>
@@ -1256,7 +1256,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                               >
                                 <td className="p-3">
                                   <div className="font-bold text-neutral-dark">{item.name}</div>
-                                  <div className="text-[11px] text-neutral-500">{item.email}</div>
+                                  <div className="text-xs text-neutral-500">{item.email}</div>
                                 </td>
                                 <td className="p-3 text-neutral-600">{item.cohortName}</td>
                                 <td className="p-3 text-neutral-600 font-semibold">
@@ -1268,7 +1268,7 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                   <span className={item.greenPercent >= minGreenDaysPct ? 'text-[#84A98C]' : 'text-neutral-500'}>
                                     {item.greenPercent}%
                                   </span>{' '}
-                                  <span className="text-[10px] text-neutral-400 font-normal">
+                                  <span className="text-xs text-neutral-400 font-normal">
                                     ({item.greenCount}/{item.totalReports})
                                   </span>
                                 </td>
@@ -1283,11 +1283,11 @@ export const BootcampLedningscentral: React.FC<BootcampLedningscentralProps> = (
                                 </td>
                                 <td className="p-3">
                                   {item.doingWork ? (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#84A98C]/20 text-[#56524D] whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#84A98C]/20 text-[#56524D] whitespace-nowrap">
                                       Gör Jobbet
                                     </span>
                                   ) : (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-500 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-neutral-100 text-neutral-500 whitespace-nowrap">
                                       Ej tillräckligt engagemang
                                     </span>
                                   )}

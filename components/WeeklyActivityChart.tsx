@@ -187,7 +187,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 >
                     <div className="relative w-full flex flex-col items-center justify-end h-full pb-6">
                         {isOverGoal && !showSpinner && (
-                            <span className="absolute -top-6 text-[10px] sm:text-xs font-bold text-[#C05A38] animate-fade-in">
+                            <span className="absolute -top-6 text-xs font-bold text-[#C05A38] animate-fade-in">
                                 +{surplus.toFixed(0)}
                             </span>
                         )}
