@@ -1043,8 +1043,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 {/* Left Column */}
                 <div className="flex flex-col gap-3">
                     {/* Water & Streak/Bank */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div ref={waterLoggerRef} className="h-full">
+                    <div className="grid grid-cols-2 gap-3 items-stretch">
+                        <div ref={waterLoggerRef} className="h-full flex flex-col">
                             <WaterLogger
                                 currentWaterMl={waterLoggedMl}
                                 waterGoalMl={DEFAULT_WATER_GOAL_ML}
@@ -1054,40 +1054,29 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isBootcamp={!!activeBootcamp}
                             />
                         </div>
-                        <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-3 h-full justify-between">
                             {/* Streak Card */}
-                            <div className={`${activeBootcamp ? 'bg-white border-[#D96E4A]/30' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
-                                <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10">
-                                    <Flame className="w-6 h-6" />
+                            <div className={`${activeBootcamp ? 'bg-white border-[#D96E4A]/30' : 'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
+                                    <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                                 </div>
-                                <div className="relative z-10 flex-1">
-                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Streak</p>
-                                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
+                                <div className="relative z-10 flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Streak</p>
+                                    <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-none truncate">
                                         {streakData.currentStreak} 
-                                        <span className="text-sm font-medium text-neutral ml-1">dagar</span>
+                                        <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
                                     </p>
                                 </div>
                             </div>
 
                             {/* Goal Progress Card */}
-                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
-                                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10 shrink-0">
-                                    <TrophyIcon className="w-6 h-6" />
+                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
+                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${activeBootcamp ? 'bg-[#E8EFE9] text-[#2B3B2C]' : 'bg-primary-100 text-primary-darker'} flex items-center justify-center shadow-sm relative z-10 shrink-0`}>
+                                    <TrophyIcon className="w-5 h-5 sm:w-6 sm:h-6" />
                                 </div>
-                                <div className="relative z-10 flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-0.5">
-                                        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ditt Mål</p>
-                                        <span className="text-xs font-bold text-primary whitespace-nowrap">
-                                            {`${Math.round(calculateProgressPercentage(
-                                                userProfile.measurementMethod,
-                                                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                                                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                                                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                                                userProfile.mainGoalCompleted
-                                            ))}%`} klart
-                                        </span>
-                                    </div>
-                                    <p className="text-sm font-bold text-neutral-dark leading-tight line-clamp-2 mb-1.5">
+                                <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
+                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Ditt Mål</p>
+                                    <p className="text-sm font-bold text-neutral-dark leading-tight truncate">
                                         {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
                                             userProfile.measurementMethod,
                                             userProfile.desiredWeightChangeKg,
@@ -1095,6 +1084,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                                             userProfile.desiredMuscleMassChangeKg
                                         )}
                                     </p>
+                                    <div className="flex items-center justify-between text-xs font-bold text-primary mt-1 mb-1">
+                                        <span className="whitespace-nowrap">
+                                            {`${Math.round(calculateProgressPercentage(
+                                                userProfile.measurementMethod,
+                                                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                                userProfile.mainGoalCompleted
+                                            ))}% klart`}
+                                        </span>
+                                    </div>
                                     <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
                                         <div 
                                             className="bg-primary h-full rounded-full transition-all duration-500" 
