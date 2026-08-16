@@ -4,6 +4,7 @@ import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, Recip
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
 import { auth, firebaseConfig, appCheck } from '../firebase.ts'; // Lagt till appCheck i importen
 import { getToken } from "firebase/app-check"; // Importera getToken för App Check
+import { runPlateauAnalysis } from '../utils/plateauAnalysis';
 
 // -- SECURE PROXY SETUP --
 // We route all Gemini API calls through our Firebase Cloud Function Proxy.
@@ -76,6 +77,7 @@ export const ai = new GoogleGenAI({
 
 export interface AIDataForMorningBriefing {
   userProfile: UserProfileData;
+  goals?: GoalSettings;
   summary: PastDaySummary;
   currentStreak: number;
   yesterdayMeals?: any[];
@@ -191,10 +193,44 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text. Bör
 };
 
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
-  const { userProfile, summary, currentStreak, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs } = data;
+  const { userProfile, goals, summary, currentStreak, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs } = data;
   const style = userProfile.coachStyle || 'balanced';
   const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
   const name = userProfile.name || 'du';
+
+  // Run Plateau Analysis if data is available
+  let plateauContext = '';
+  let plateauAnalysisResult = null;
+  if (pastDaysSummary && weightLogs && goals) {
+    try {
+      plateauAnalysisResult = runPlateauAnalysis({
+        userProfile,
+        goals,
+        pastDaysSummary,
+        weightLogs,
+        recentMealLogs: data.yesterdayMeals || []
+      });
+
+      if (plateauAnalysisResult) {
+        plateauContext = `
+PLATÅ-ANALYS OCH STATUS (VIKTIGT):
+- Status: ${plateauAnalysisResult.status}
+- Mätmetod: ${plateauAnalysisResult.measurementMethod}
+- Är platå: ${plateauAnalysisResult.isPlateau ? 'JA' : 'NEJ'}
+- Loggningsgrad under 21 dagar: ${plateauAnalysisResult.loggingPercentage}%
+- Tränar/Coachens slutsats och analys:
+"${plateauAnalysisResult.coachBriefingText}"
+
+VIKTIGA REGLER FÖR PLATÅ-COACHING:
+- Inga emojis.
+- Ingen skuldbeläggning. Skriv ALDRIG att användaren "gör fel", "fuskar" eller borde skämmas. Formulera allt som gemensam felsökning och fakta.
+- Väv in denna platå-analys naturligt i din morgonbriefing till användaren enligt din persona (${persona.label}).
+- Föreslå ALDRIG att sänka kalorier under användarens BMR.`;
+      }
+    } catch (e) {
+      console.warn("Kunde inte köra platåanalys:", e);
+    }
+  }
 
   let bootcampContext = '';
   let missingReportInstruction = '';
@@ -355,6 +391,7 @@ BOOTCAMP-RAPPORT IGÅR:
 ` : ''}
 ${bootcampContext}
 ${recentContext}
+${plateauContext}
 
 INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.

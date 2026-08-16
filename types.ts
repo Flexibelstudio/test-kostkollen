@@ -239,6 +239,7 @@ export interface UserProfileData {
   courseInterest?: boolean;
   coachStyle: CoachStyle; // New field for coaching style
   highestBootcampStreak?: number; // New field for lifetime bootcamp streak
+  plateauAnalysis?: PlateauAnalysisState;
   
   // Subscription fields
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
@@ -286,6 +287,91 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, "name"> {
   lastFoodReminderSent?: string;
   lastInactivityReminderSent?: string;
   lastMilestoneNudgeSentFor?: string;
+  plateauAnalysis?: PlateauAnalysisState;
+}
+
+// --- Plateau Analysis Types ---
+
+export type PlateauAnalysisStatus =
+  | 'not_enough_data'
+  | 'low_logging_rate'
+  | 'recomposition_progress'
+  | 'fat_loss_steady'
+  | 'measuring_week_in_progress'
+  | 'measuring_week_recommended'
+  | 'adjustment_recommended'
+  | 'intake_too_low'
+  | 'human_handover';
+
+export interface PlateauLoggingGapAnalysis {
+  lowIntakeDaysCount: number; // Dagar med < 60% av BMR
+  weekendVsWeekdayDifference: {
+    hasSignificantDifference: boolean;
+    weekdayAvgCalories: number;
+    weekendAvgCalories: number;
+    diffKcal: number;
+  };
+  missingDinnerDaysCount: number;
+  missingDrinksCount: number;
+  totalDays: number;
+  loggedDays: number;
+  loggingPercentage: number;
+}
+
+export interface PlateauAlternativeAction {
+  id: 'steps' | 'protein' | 'strength' | 'diet_break';
+  title: string;
+  description: string;
+  rationale: string;
+}
+
+export interface PlateauAdjustment {
+  currentCalorieGoal: number;
+  proposedCalorieGoal: number;
+  reductionAmountKcal: number;
+  isFloorReached: boolean;
+  bmr: number;
+  hardFloor: number;
+  reductionsRemaining: number;
+}
+
+export interface PlateauAnalysisResult {
+  date: string; // YYYY-MM-DD
+  status: PlateauAnalysisStatus;
+  measurementMethod: 'inbody' | 'scale';
+  isPlateau: boolean;
+  periodDays: number;
+  loggingPercentage: number;
+  
+  startRollingAvgWeight?: number;
+  endRollingAvgWeight?: number;
+  weightDeltaKg?: number;
+
+  startRollingAvgFatKg?: number;
+  endRollingAvgFatKg?: number;
+  fatDeltaKg?: number;
+
+  startRollingAvgMuscleKg?: number;
+  endRollingAvgMuscleKg?: number;
+  muscleDeltaKg?: number;
+
+  loggingGaps?: PlateauLoggingGapAnalysis;
+  adjustment?: PlateauAdjustment;
+  alternatives?: PlateauAlternativeAction[];
+  handoverReason?: 'max_reductions_reached' | 'intake_already_low' | 'scale_needs_inbody';
+  suggestInBody?: boolean;
+
+  coachBriefingText: string;
+  disclaimer: string;
+}
+
+export interface PlateauAnalysisState {
+  lastPlateauAnalysisDate?: string; // YYYY-MM-DD
+  plateauReductionCount?: number; // 0, 1, 2
+  measuringWeekActive?: boolean;
+  measuringWeekStartDate?: string; // YYYY-MM-DD
+  measuringWeekCompletedDate?: string; // YYYY-MM-DD
+  lastPlateauResult?: PlateauAnalysisResult;
 }
 
 // --- Gamification & Achievements ---

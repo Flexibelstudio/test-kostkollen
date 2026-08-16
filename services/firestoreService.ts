@@ -383,6 +383,7 @@ export async function fetchInitialAppData(userId: string) {
       subscriptionStatus: userDocData.subscriptionStatus,
       currentPeriodEnd: userDocData.currentPeriodEnd,
       highestBootcampStreak: highestBootcampStreak,
+      plateauAnalysis: userDocData.plateauAnalysis ?? undefined,
       role: userDocData.role,
       createdAt: userDocData.createdAt,
     };
@@ -464,6 +465,27 @@ export async function fetchMealLogsForDate(userId: string, dateUID: string): Pro
   const q = query(mealLogsRef, where("dateString", "==", dateUID), orderBy("timestamp", "desc"));
   const querySnapshot = await getDocsSafe(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoggedMeal[];
+}
+
+export async function fetchMealLogsForDateRange(userId: string, startDateUID: string, endDateUID: string): Promise<LoggedMeal[]> {
+  if (!db) return [];
+  const mealLogsRef = collection(db, 'users', userId, 'mealLogs');
+  const q = query(
+    mealLogsRef,
+    where("dateString", ">=", startDateUID),
+    where("dateString", "<=", endDateUID),
+    orderBy("dateString", "desc")
+  );
+  const querySnapshot = await getDocsSafe(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoggedMeal[];
+}
+
+export async function updateUserPlateauAnalysis(userId: string, plateauData: any) {
+  if (!db) return;
+  const userDocRef = doc(db, 'users', userId);
+  await updateDoc(userDocRef, {
+    plateauAnalysis: cleanFirestoreData(plateauData)
+  });
 }
 
 /* ===== Timeline Helper ===== */

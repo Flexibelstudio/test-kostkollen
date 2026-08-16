@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { PastDaySummary, UserProfileData, LoggedMeal, WeightLogEntry } from '../types';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { PastDaySummary, UserProfileData, LoggedMeal, WeightLogEntry, GoalSettings, PlateauAnalysisResult } from '../types';
 import { CheckCircleIcon, XCircleIcon, TrophyIcon, SparklesIcon } from './icons';
 import { getMorningBriefingText, getMorningBriefingAudio } from '../services/geminiService';
 import { COACH_PERSONAS } from '../constants';
 import { Volume2, VolumeX, PiggyBank, Flame, Loader2, Target } from 'lucide-react';
+import { runPlateauAnalysis, getTodayKeySE } from '../utils/plateauAnalysis';
+import PlateauAnalysisCard from './PlateauAnalysisCard';
 
 interface MorningReportModalProps {
   show: boolean;
@@ -11,6 +13,10 @@ interface MorningReportModalProps {
   summary: PastDaySummary;
   currentStreak: number;
   userProfile: UserProfileData;
+  goals?: GoalSettings;
+  onUpdateGoals?: (profile: UserProfileData, newGoals: GoalSettings) => Promise<void> | void;
+  onUpdateProfile?: (profile: UserProfileData, newGoals?: GoalSettings) => Promise<void> | void;
+  onDiscussWithCoach?: () => void;
   yesterdayMeals?: LoggedMeal[];
   yesterdayBootcampReport?: any;
   activeBootcamp?: any;
@@ -45,7 +51,22 @@ const decodePCM = (base64: string, ctx: AudioContext): AudioBuffer => {
   return buffer;
 };
 
-const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, summary, currentStreak, userProfile, yesterdayMeals, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs }) => {
+const MorningReportModal: React.FC<MorningReportModalProps> = ({ 
+  show, 
+  onClose, 
+  summary, 
+  currentStreak, 
+  userProfile, 
+  goals,
+  onUpdateGoals,
+  onUpdateProfile,
+  onDiscussWithCoach,
+  yesterdayMeals, 
+  yesterdayBootcampReport, 
+  activeBootcamp, 
+  pastDaysSummary, 
+  weightLogs 
+}) => {
   const [briefingText, setBriefingText] = useState<string | null>(null);
   const [isLoadingBriefing, setIsLoadingBriefing] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -54,11 +75,88 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const cachedAudioBufferRef = useRef<AudioBuffer | null>(null);
 
+  // Compute plateau analysis if data is available
+  const plateauResult: PlateauAnalysisResult | null = useMemo(() => {
+    if (!show || !pastDaysSummary || !weightLogs || !goals) return null;
+    return runPlateauAnalysis({
+      userProfile,
+      goals,
+      pastDaysSummary,
+      weightLogs,
+      recentMealLogs: yesterdayMeals || []
+    });
+  }, [show, userProfile, goals, pastDaysSummary, weightLogs, yesterdayMeals]);
+
+  const handleStartMeasuringWeek = async () => {
+    if (!onUpdateProfile) return;
+    const todayStr = getTodayKeySE();
+    const updatedProfile: UserProfileData = {
+      ...userProfile,
+      plateauAnalysis: {
+        ...(userProfile.plateauAnalysis || {
+          lastPlateauAnalysisDate: todayStr,
+          plateauReductionCount: 0,
+          measuringWeekActive: false
+        }),
+        measuringWeekActive: true,
+        measuringWeekStartDate: todayStr
+      }
+    };
+    await onUpdateProfile(updatedProfile);
+  };
+
+  const handleAcceptAdjustment = async (proposedCalorieGoal: number) => {
+    if (!onUpdateGoals || !goals) return;
+    const todayStr = getTodayKeySE();
+    
+    const newCal = proposedCalorieGoal;
+    const proteinGrams = goals.proteinGoal || Math.round((userProfile.currentWeightKg || 70) * 1.8);
+    const proteinKcal = proteinGrams * 4;
+    const remainingKcal = Math.max(0, newCal - proteinKcal);
+    const fatGrams = Math.round((remainingKcal * 0.35) / 9);
+    const carbGrams = Math.round((remainingKcal * 0.65) / 4);
+
+    const updatedGoals: GoalSettings = {
+      ...goals,
+      calorieGoal: newCal,
+      proteinGoal: proteinGrams,
+      carbohydrateGoal: carbGrams,
+      fatGoal: fatGrams
+    };
+
+    const currentReductionCount = userProfile.plateauAnalysis?.plateauReductionCount || 0;
+    const updatedProfile: UserProfileData = {
+      ...userProfile,
+      plateauAnalysis: {
+        ...(userProfile.plateauAnalysis || {
+          lastPlateauAnalysisDate: todayStr,
+          plateauReductionCount: 0,
+          measuringWeekActive: false
+        }),
+        lastPlateauAnalysisDate: todayStr,
+        plateauReductionCount: currentReductionCount + 1,
+        measuringWeekActive: false
+      }
+    };
+
+    await onUpdateGoals(updatedProfile, updatedGoals);
+  };
+
   useEffect(() => {
     if (show) {
       const fetchBriefing = async () => {
         setIsLoadingBriefing(true);
-        const text = await getMorningBriefingText({ userProfile, summary, currentStreak, yesterdayMeals, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs });
+        const text = await getMorningBriefingText({ 
+          userProfile, 
+          goals,
+          summary, 
+          currentStreak, 
+          yesterdayMeals, 
+          yesterdayBootcampReport, 
+          activeBootcamp, 
+          pastDaysSummary, 
+          weightLogs 
+        });
         setBriefingText(text);
         setIsLoadingBriefing(false);
       };
@@ -68,7 +166,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
         stopAudio();
         cachedAudioBufferRef.current = null;
     }
-  }, [show, summary, currentStreak, userProfile, yesterdayMeals, yesterdayBootcampReport, activeBootcamp]);
+  }, [show, summary, currentStreak, userProfile, goals, yesterdayMeals, yesterdayBootcampReport, activeBootcamp]);
 
   const stopAudio = () => {
       if (audioSourceRef.current) {
@@ -244,7 +342,7 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
         <hr className="border-neutral-light/60 mb-6" />
 
         {/* Coach Briefing */}
-        <div className="text-left mb-8">
+        <div className="text-left mb-6">
             <h3 className="text-sm font-bold text-neutral-dark mb-3 uppercase tracking-wide opacity-70">Hälsning från {persona.label}, {persona.roleTitle}</h3>
             <div className="flex gap-4">
                 <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center shadow-sm ${avatarColorClass}`}>
@@ -279,6 +377,20 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({ show, onClose, 
                 </div>
             </div>
         </div>
+
+        {/* Plateau Analysis Card if active */}
+        {plateauResult && goals && (
+            <div className="mb-6">
+                <PlateauAnalysisCard 
+                    result={plateauResult}
+                    userProfile={userProfile}
+                    goals={goals}
+                    onStartMeasuringWeek={handleStartMeasuringWeek}
+                    onAcceptAdjustment={handleAcceptAdjustment}
+                    onDiscussWithCoach={onDiscussWithCoach}
+                />
+            </div>
+        )}
 
         <button
           onClick={onClose}

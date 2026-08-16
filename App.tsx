@@ -2350,11 +2350,32 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         {showOnboardingRewardModal && <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} goalType={userProfile.goalType} />}
         {dayToPotentiallySave && <UseStreakSaverModal show={!!dayToPotentiallySave} onClose={() => setDayToPotentiallySave(null)} onConfirm={handleUseStreakSaver} daySummary={dayToPotentiallySave} />}
         {showMotivationModal && <MotivationModal show={!!showMotivationModal} onClose={() => setShowMotivationModal(null)} daySummary={showMotivationModal} />}
-        {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => {
-            setMorningReportData(null);
-            const todayUID = dayKeySE(new Date());
-            localStorage.setItem('lastSeenMorningReport', todayUID);
-        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} yesterdayMeals={morningReportData.yesterdayMeals} yesterdayBootcampReport={morningReportData.yesterdayBootcampReport} activeBootcamp={effectiveActiveBootcamp} pastDaysSummary={Object.values(pastDaysSummary)} weightLogs={weightLogs} />}
+        {morningReportData && (
+          <MorningReportModal 
+            show={!!morningReportData} 
+            onClose={() => {
+              setMorningReportData(null);
+              const todayUID = dayKeySE(new Date());
+              localStorage.setItem('lastSeenMorningReport', todayUID);
+            }} 
+            summary={morningReportData.summary} 
+            currentStreak={morningReportData.currentStreak} 
+            userProfile={userProfile} 
+            goals={goals}
+            onUpdateGoals={handleSaveProfileAndGoals}
+            onUpdateProfile={async (updatedProfile) => { handleSaveProfileAndGoals(updatedProfile, goals); }}
+            onDiscussWithCoach={() => {
+              setMorningReportData(null);
+              setCoachInitialContext({ type: 'from_analysis' });
+              setShowAICoachModal(true);
+            }}
+            yesterdayMeals={morningReportData.yesterdayMeals} 
+            yesterdayBootcampReport={morningReportData.yesterdayBootcampReport} 
+            activeBootcamp={effectiveActiveBootcamp} 
+            pastDaysSummary={Object.values(pastDaysSummary)} 
+            weightLogs={weightLogs} 
+          />
+        )}
         {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
         {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} isBootcampActive={!!effectiveActiveBootcamp} onFinishOnboarding={handleFinishOnboarding} onGoToInviteStep={() => setOnboardingStep('invite')} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
