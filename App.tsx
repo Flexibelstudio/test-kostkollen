@@ -88,7 +88,7 @@ import {
   BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon, CreditCardIcon, UserPlusIcon
 } from './components/icons.tsx';
 import { shareAppInvite } from './utils/shareUtils';
-import { Home, Footprints, Users, GraduationCap, Moon, Sun } from "lucide-react";
+import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 import Dashboard from './pages/Dashboard';
 
 /* ===========================
@@ -327,23 +327,16 @@ export const App = () => {
   const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'admin'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-      if (typeof window !== 'undefined') {
-          return localStorage.getItem('theme') === 'dark' || 
-              (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      }
-      return false;
-  });
 
+  // Appen kör alltid ljust läge – säkerställ att klassen dark aldrig sätts och rensa eventuellt tema i localStorage
   useEffect(() => {
-      if (isDarkMode) {
-          document.documentElement.classList.add('dark');
-          localStorage.setItem('theme', 'dark');
-      } else {
-          document.documentElement.classList.remove('dark');
-          localStorage.setItem('theme', 'light');
-      }
-  }, [isDarkMode]);
+    document.documentElement.classList.remove('dark');
+    try {
+      localStorage.removeItem('theme');
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     const handleOpenLogWeightModal = () => {
@@ -1156,6 +1149,21 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         updatedProfile.goalStartWeight = updatedProfile.currentWeightKg;
         updatedProfile.goalStartFatMassKg = updatedProfile.bodyFatMassKg;
         updatedProfile.goalStartMuscleMassKg = updatedProfile.skeletalMuscleMassKg;
+        updatedProfile.plateauAnalysis = {
+            ...(updatedProfile.plateauAnalysis || {}),
+            plateauReductionCount: 0,
+            lastPlateauAnalysisDate: undefined,
+            measuringWeekActive: false,
+            measuringWeekStartDate: undefined,
+        };
+    } else if (isExplicitlyNewGoal || goalChanged) {
+        updatedProfile.plateauAnalysis = {
+            ...(updatedProfile.plateauAnalysis || {}),
+            plateauReductionCount: 0,
+            lastPlateauAnalysisDate: undefined,
+            measuringWeekActive: false,
+            measuringWeekStartDate: undefined,
+        };
     }
 
     // Upload image to Firebase Storage if it's a new base64 image
@@ -2169,17 +2177,6 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                                     label="Information"
                                     onClick={() => {
                                         handleOpenInfoModal();
-                                        setShowProfileDropdown(false);
-                                    }}
-                                />
-                                
-                                <div className="my-1 border-t border-neutral-light/70"></div>
-                                
-                                <DropdownMenuItem
-                                    icon={isDarkMode ? <Sun className="w-5 h-5 text-neutral" /> : <Moon className="w-5 h-5 text-neutral" />}
-                                    label={isDarkMode ? "Ljust läge" : "Mörkt läge"}
-                                    onClick={() => {
-                                        setIsDarkMode(!isDarkMode);
                                         setShowProfileDropdown(false);
                                     }}
                                 />

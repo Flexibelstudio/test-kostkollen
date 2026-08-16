@@ -26,7 +26,8 @@ import CoachStudioView from './CoachStudioView';
 import { EditorialPostsAdminView } from './EditorialPostsAdminView';
 import { BootcampLedningscentral } from './BootcampLedningscentral';
 import { Avatar } from './UserProfileModal';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, FlaskConical } from 'lucide-react';
+import DevelopmentTestingTool from './DevelopmentTestingTool';
 
 type SortableKeys = keyof CoachViewMember;
 
@@ -688,7 +689,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CoachViewMember | null>(null);
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio' | 'bootcamp' | 'editorial'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio' | 'bootcamp' | 'editorial' | 'tests'>('members');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [myChats, setMyChats] = useState<Chat[]>([]);
   const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
@@ -968,6 +969,13 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         <SparklesIcon className="w-5 h-5" />
                         <span>Redaktionellt</span>
                     </button>
+                    <button
+                        onClick={() => setActiveTab('tests')}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'tests' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                    >
+                        <FlaskConical className="w-5 h-5 text-[#D96E4A]" />
+                        <span>Testverktyg</span>
+                    </button>
                 </div>
             </div>
         )}
@@ -1030,6 +1038,12 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 userRole={userRole}
                 setToastNotification={setToastNotification}
             />
+        ) : activeTab === 'tests' ? (
+            <div className="max-w-4xl mx-auto">
+                <DevelopmentTestingTool 
+                    userProfile={userProfile}
+                />
+            </div>
         ) : (
             <>
                 <GroupInsights 

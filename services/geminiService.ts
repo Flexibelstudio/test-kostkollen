@@ -192,6 +192,12 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text. Bör
   }
 };
 
+const FIXED_PLATEAU_REFERRAL: Record<CoachStyle, string> = {
+  soft: 'Jag har en viktig analys till dig i dag. Läs den i kortet nedan, den är värd din tid.',
+  balanced: 'Jag har gjort en analys av din utveckling som du bör läsa. Den finns i kortet nedan.',
+  hard: 'Jag har en analys till dig. Läs kortet nedan innan du gör något annat.',
+};
+
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
   const { userProfile, goals, summary, currentStreak, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs } = data;
   const style = userProfile.coachStyle || 'balanced';
@@ -200,10 +206,10 @@ export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Pr
 
   // Run Plateau Analysis if data is available
   let plateauContext = '';
-  let plateauAnalysisResult = null;
+  let isSafetyPlateauStatus = false;
   if (pastDaysSummary && weightLogs && goals) {
     try {
-      plateauAnalysisResult = runPlateauAnalysis({
+      const plateauAnalysisResult = runPlateauAnalysis({
         userProfile,
         goals,
         pastDaysSummary,
@@ -212,7 +218,12 @@ export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Pr
       });
 
       if (plateauAnalysisResult) {
-        plateauContext = `
+        if (plateauAnalysisResult.status === 'human_handover' || plateauAnalysisResult.status === 'intake_too_low') {
+          isSafetyPlateauStatus = true;
+          // coachBriefingText skickas INTE till Gemini alls för dessa säkerhetskänsliga statusar
+          plateauContext = '';
+        } else {
+          plateauContext = `
 PLATÅ-ANALYS OCH STATUS (VIKTIGT):
 - Status: ${plateauAnalysisResult.status}
 - Mätmetod: ${plateauAnalysisResult.measurementMethod}
@@ -226,6 +237,7 @@ VIKTIGA REGLER FÖR PLATÅ-COACHING:
 - Ingen skuldbeläggning. Skriv ALDRIG att användaren "gör fel", "fuskar" eller borde skämmas. Formulera allt som gemensam felsökning och fakta.
 - Väv in denna platå-analys naturligt i din morgonbriefing till användaren enligt din persona (${persona.label}).
 - Föreslå ALDRIG att sänka kalorier under användarens BMR.`;
+        }
       }
     } catch (e) {
       console.warn("Kunde inte köra platåanalys:", e);
@@ -416,10 +428,20 @@ INSTRUKTIONER:
     if (!text || text.trim().length === 0) {
         throw new Error("Empty response from AI");
     }
-    return text.trim();
+    const trimmed = text.trim();
+    if (isSafetyPlateauStatus) {
+      const fixedSentence = FIXED_PLATEAU_REFERRAL[style] || FIXED_PLATEAU_REFERRAL.balanced;
+      return `${trimmed} ${fixedSentence}`;
+    }
+    return trimmed;
   } catch (error) {
     console.error("Error generating morning briefing text:", error);
-    return `God morgon ${name}! Hoppas du får en bra dag. Vi kör på!`;
+    const fallback = `God morgon ${name}! Hoppas du får en bra dag. Vi kör på!`;
+    if (isSafetyPlateauStatus) {
+      const fixedSentence = FIXED_PLATEAU_REFERRAL[style] || FIXED_PLATEAU_REFERRAL.balanced;
+      return `${fallback} ${fixedSentence}`;
+    }
+    return fallback;
   }
 };
 

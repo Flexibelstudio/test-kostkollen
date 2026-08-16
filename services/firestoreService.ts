@@ -480,14 +480,6 @@ export async function fetchMealLogsForDateRange(userId: string, startDateUID: st
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoggedMeal[];
 }
 
-export async function updateUserPlateauAnalysis(userId: string, plateauData: any) {
-  if (!db) return;
-  const userDocRef = doc(db, 'users', userId);
-  await updateDoc(userDocRef, {
-    plateauAnalysis: cleanFirestoreData(plateauData)
-  });
-}
-
 /* ===== Timeline Helper ===== */
 
 // Helper to fetch sub-collections (comments/likes) for events
@@ -1078,6 +1070,15 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   if (goalChanged) {
     // Reset goal completion status
     dataToUpdate.mainGoalCompleted = false;
+
+    // Reset plateau analysis state for the new goal
+    dataToUpdate.plateauAnalysis = {
+      ...(profile.plateauAnalysis || {}),
+      plateauReductionCount: 0,
+      lastPlateauAnalysisDate: null,
+      measuringWeekActive: false,
+      measuringWeekStartDate: null,
+    };
 
     // Fetch the latest weight log to set as the new start value
     try {
