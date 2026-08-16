@@ -47,7 +47,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
   };
 
   /**
-   * Genererar syntetisk logghistorik för ett givet antal dagar med specificerad loggningsgrad och kalorier.
+   * Genererar deterministisk syntetisk logghistorik för ett givet antal dagar utan slumpmässigt brus.
    */
   const generatePastDays = (
     count: number,
@@ -57,17 +57,19 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     proteinGoal: number = 130
   ): PastDaySummary[] => {
     const list: PastDaySummary[] = [];
+    const unloggedFrequency = logRatio < 1 ? Math.max(2, Math.round(1 / (1 - logRatio))) : 0;
+
     for (let i = count; i >= 1; i--) {
       const dateStr = getDateDaysAgo(i);
-      // Avgör om denna dag är loggad baserat på ratio
-      const isLogged = (i % Math.max(1, Math.round(1 / (1 - logRatio || 0.01)))) !== 0 || logRatio >= 1;
+      // Deterministisk fördelning av loggade vs ologgade dagar utan slump
+      const isLogged = logRatio >= 1 || (unloggedFrequency > 0 && i % unloggedFrequency !== 0);
       
       if (isLogged) {
         list.push({
           date: dateStr,
           goalMet: true,
-          consumedCalories: dailyCalories + (Math.floor(Math.random() * 60) - 30),
-          consumedProtein: proteinGoal + (Math.floor(Math.random() * 10) - 5),
+          consumedCalories: dailyCalories,
+          consumedProtein: proteinGoal,
           proteinGoalMet: true,
           consumedCarbohydrates: 150,
           consumedFat: 55,
@@ -99,7 +101,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
   };
 
   /**
-   * Genererar syntetiska viktloggar.
+   * Genererar deterministiska syntetiska viktloggar utan slumpmässigt brus.
    */
   const generateWeightLogs = (
     count: number,
@@ -115,8 +117,8 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     const msPerDay = 24 * 60 * 60 * 1000;
 
     for (let i = count; i >= 0; i -= 2) { // Vägning varannan dag
-      const fraction = (count - i) / count;
-      const weight = startWeight + (endWeight - startWeight) * fraction + ((Math.random() * 0.2) - 0.1);
+      const fraction = count > 0 ? (count - i) / count : 1;
+      const weight = startWeight + (endWeight - startWeight) * fraction;
       const fat = startFat !== undefined && endFat !== undefined 
         ? startFat + (endFat - startFat) * fraction 
         : undefined;
@@ -137,7 +139,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
 
   // --- TESTFALL 1: Intag nära BMR ---
   const runTestCase1 = () => {
-    // Kvinna, 35 år, 168 cm, 70 kg -> BMR = 1435 kcal
+    // Kvinna, 35 år, 168 cm, 70 kg -> BMR = 1414 kcal
     // Dagligt mål satt till 1450 kcal (nära BMR och nära absolut golv 1400)
     // 21+ dagars stabil vikt, 95% loggningsgrad, mätvecka genomförd
     const profile: UserProfileData = {
@@ -172,14 +174,14 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     };
 
     const mockGoals: GoalSettings = {
-      calorieGoal: 1450, // Nära BMR (1435 kcal)
+      calorieGoal: 1450, // Nära BMR (1414 kcal)
       proteinGoal: 120,
       carbohydrateGoal: 130,
       fatGoal: 45
     };
 
     const pastDays = generatePastDays(24, 1440, 0.95, 1450, 120);
-    const weightLogs = generateWeightLogs(24, 70.0, 70.1); // Stabil vikt (ingen nedgång)
+    const weightLogs = generateWeightLogs(24, 70.0, 70.0); // Fast stabil vikt 70.0 kg
 
     const result = runPlateauAnalysis({
       userProfile: profile,
@@ -192,7 +194,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     setActiveScenarioResult({
       scenarioId: 1,
       scenarioTitle: 'Fall 1 – "Intag nära BMR"',
-      description: 'Profil där dagligt mål (1450 kcal) ligger strax över beräknad BMR (1435 kcal), 21+ dagars stabil vikt, hög loggningsgrad (95%). Förväntat: status intake_too_low, INGET sänkningsförslag oavsett räknare.',
+      description: 'Profil där dagligt mål (1450 kcal) ligger strax över beräknad BMR (1414 kcal), 21+ dagars stabil vikt, hög loggningsgrad (95%). Förväntat: status intake_too_low, INGET sänkningsförslag oavsett räknare.',
       expectedStatus: 'intake_too_low (Inget sänkningsförslag)',
       profile,
       goals: mockGoals,
@@ -207,7 +209,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
   // --- TESTFALL 2: Taket nått (Max 2 sänkningar) ---
   const runTestCase2 = () => {
     // plateauReductionCount satt till 2
-    // 21+ dagars stabil vikt, hög loggningsgrad, intag med god marginal över BMR (t.ex. 2000 kcal för man)
+    // 21+ dagars stabil vikt, hög loggningsgrad, intag med god marginal över BMR (t.ex. 2050 kcal för man)
     const profile: UserProfileData = {
       name: 'Johan (Testfall 2)',
       gender: 'male',
@@ -240,14 +242,14 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     };
 
     const mockGoals: GoalSettings = {
-      calorieGoal: 2050, // God marginal över BMR (ca 1850)
+      calorieGoal: 2050, // God marginal över BMR (1885 kcal)
       proteinGoal: 160,
       carbohydrateGoal: 200,
       fatGoal: 65
     };
 
     const pastDays = generatePastDays(25, 2030, 0.95, 2050, 160);
-    const weightLogs = generateWeightLogs(25, 92.0, 92.1); // Stabil vikt
+    const weightLogs = generateWeightLogs(25, 92.0, 92.0); // Fast stabil vikt 92.0 kg
 
     const result = runPlateauAnalysis({
       userProfile: profile,
@@ -275,7 +277,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
   // --- TESTFALL 3: Rekomposition (InBody) ---
   const runTestCase3 = () => {
     // measurementMethod: 'inbody'
-    // Vikten står stilla (75 kg -> 75 kg), men bodyFatMassKg minskar med -1.2 kg och skelettmuskelmassa ökar med +0.8 kg
+    // Vikten står stilla (75.0 kg -> 75.0 kg), men bodyFatMassKg minskar med -1.5 kg (tydligt > 0.2 kg marginal) och skelettmuskelmassa ökar med +1.0 kg
     // Hög loggningsgrad
     const profile: UserProfileData = {
       name: 'Sara (Testfall 3)',
@@ -316,9 +318,9 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
       fatGoal: 60
     };
 
-    const pastDays = generatePastDays(25, 1820, 0.92, 1850, 140);
-    // 25 dagar: Vikt 75.0 -> 75.0 kg, Fett 22.2 -> 21.0 kg (-1.2 kg), Muskler 27.7 -> 28.5 kg (+0.8 kg)
-    const weightLogs = generateWeightLogs(25, 75.0, 75.0, 22.2, 21.0, 27.7, 28.5);
+    const pastDays = generatePastDays(25, 1820, 0.95, 1850, 140);
+    // 25 dagar: Fast vikt 75.0 -> 75.0 kg, Fett 22.5 -> 21.0 kg (-1.5 kg fettminskning), Muskler 27.5 -> 28.5 kg (+1.0 kg muskelökning)
+    const weightLogs = generateWeightLogs(25, 75.0, 75.0, 22.5, 21.0, 27.5, 28.5);
 
     const result = runPlateauAnalysis({
       userProfile: profile,
@@ -331,7 +333,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     setActiveScenarioResult({
       scenarioId: 3,
       scenarioTitle: 'Fall 3 – "Rekomposition (InBody)"',
-      description: 'measurementMethod är "inbody". Vikten har stått helt stilla på 75 kg, men fettmassan har minskat med -1.2 kg och muskelmassan ökat med +0.8 kg över 25 dagar. Förväntat: isPlateau: false, status recomposition_progress, positiv feedback på kroppsrekomposition.',
+      description: 'measurementMethod är "inbody". Vikten har stått helt stilla på 75.0 kg, men fettmassan har minskat med -1.5 kg (tydlig marginal över 0.2 kg) och muskelmassan ökat med +1.0 kg över 25 dagar. Förväntat: isPlateau: false, status recomposition_progress, positiv feedback på kroppsrekomposition.',
       expectedStatus: 'recomposition_progress (isPlateau: false, Ren rekomposition)',
       profile,
       goals: mockGoals,
@@ -346,7 +348,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
   // --- TESTFALL 4: Äkta platå (våg) -> Föreslå Mätvecka först ---
   const runTestCase4 = () => {
     // measurementMethod: 'scale'
-    // 21+ dagars stabil vikt, hög loggningsgrad (> 80%), Mätvecka EJ genomförd tidigare
+    // 21+ dagars stabil vikt (0.0 kg förändring, tydligt inom gränsen för platå), hög loggningsgrad (> 80%), Mätvecka EJ genomförd tidigare
     // Förväntat: isPlateau: true, status measuring_week_recommended (föreslå mätvecka och alternativa åtgärder innan kalorisänkning)
     const profile: UserProfileData = {
       name: 'Maria (Testfall 4)',
@@ -382,14 +384,14 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     };
 
     const mockGoals: GoalSettings = {
-      calorieGoal: 1850, // BMR ca 1470 kcal
+      calorieGoal: 1850, // BMR 1470 kcal
       proteinGoal: 130,
       carbohydrateGoal: 180,
       fatGoal: 60
     };
 
-    const pastDays = generatePastDays(24, 1840, 0.90, 1850, 130);
-    const weightLogs = generateWeightLogs(24, 78.1, 78.2); // Vikten står still
+    const pastDays = generatePastDays(24, 1840, 0.95, 1850, 130);
+    const weightLogs = generateWeightLogs(24, 78.0, 78.0); // Fast stabil vikt 78.0 kg (0.0 kg delta, tydligt platå)
 
     const result = runPlateauAnalysis({
       userProfile: profile,
@@ -402,7 +404,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     setActiveScenarioResult({
       scenarioId: 4,
       scenarioTitle: 'Fall 4 – "Äkta platå (våg)"',
-      description: 'measurementMethod är "scale". 21+ dagars stabil vikt, 90% loggningsgrad, ingen mätvecka genomförd än. Förväntat: isPlateau: true, status measuring_week_recommended, coach föreslår en 7 dagars Mätvecka och alternativa strategier (steg, protein, diet break) innan kalorisänkning.',
+      description: 'measurementMethod är "scale". 21+ dagars stabil vikt (0.0 kg förändring), 95% loggningsgrad, ingen mätvecka genomförd än. Förväntat: isPlateau: true, status measuring_week_recommended, coach föreslår en 7 dagars Mätvecka och alternativa strategier (steg, protein, diet break) innan kalorisänkning.',
       expectedStatus: 'measuring_week_recommended (Föreslå Mätvecka & Alternativ)',
       profile,
       goals: mockGoals,
@@ -455,9 +457,9 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
       fatGoal: 65
     };
 
-    // Endast ~55% loggade dagar (13 av 24 dagar)
+    // Deterministiskt ~50-55% loggade dagar
     const pastDays = generatePastDays(24, 2050, 0.55, 2100, 150);
-    const weightLogs = generateWeightLogs(24, 88.0, 88.2);
+    const weightLogs = generateWeightLogs(24, 88.0, 88.0); // Fast stabil vikt 88.0 kg
 
     const result = runPlateauAnalysis({
       userProfile: profile,

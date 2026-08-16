@@ -29,6 +29,12 @@ import { Avatar } from './UserProfileModal';
 import { TrendingUp, FlaskConical } from 'lucide-react';
 import DevelopmentTestingTool from './DevelopmentTestingTool';
 
+const TESTING_TOOL_ALLOWED_HOSTNAMES = [
+  'staging-kostloggen.netlify.app',
+  'localhost',
+  '127.0.0.1',
+];
+
 type SortableKeys = keyof CoachViewMember;
 
 // --- UI COMPONENTS ---
@@ -704,6 +710,8 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
 
+  const isTestingToolEnabled = typeof window !== 'undefined' && TESTING_TOOL_ALLOWED_HOSTNAMES.includes(window.location.hostname);
+
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
           if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
@@ -969,13 +977,15 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         <SparklesIcon className="w-5 h-5" />
                         <span>Redaktionellt</span>
                     </button>
-                    <button
-                        onClick={() => setActiveTab('tests')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'tests' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
-                    >
-                        <FlaskConical className="w-5 h-5 text-[#D96E4A]" />
-                        <span>Testverktyg</span>
-                    </button>
+                    {isTestingToolEnabled && (
+                        <button
+                            onClick={() => setActiveTab('tests')}
+                            className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'tests' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        >
+                            <FlaskConical className="w-5 h-5 text-[#D96E4A]" />
+                            <span>Testverktyg</span>
+                        </button>
+                    )}
                 </div>
             </div>
         )}
@@ -1038,7 +1048,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 userRole={userRole}
                 setToastNotification={setToastNotification}
             />
-        ) : activeTab === 'tests' ? (
+        ) : activeTab === 'tests' && isTestingToolEnabled ? (
             <div className="max-w-4xl mx-auto">
                 <DevelopmentTestingTool 
                     userProfile={userProfile}
