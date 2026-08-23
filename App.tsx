@@ -97,6 +97,14 @@ import {
 import { shareAppInvite } from './utils/shareUtils';
 import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 import Dashboard from './pages/Dashboard';
+import {
+  initAppHistory,
+  pushViewState,
+  replaceViewState,
+  pushModalState,
+  closeModalState,
+  subscribeToHistory
+} from './utils/navigationHistory';
 
 /* ===========================
    Daily Summary Helpers
@@ -345,8 +353,93 @@ export const App = () => {
     }
   }, []);
 
+  // Initial history setup & popstate subscription
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    let initView: ViewMode = 'main';
+    let initJourneyTab: 'calendar' | 'profile' | 'achievements' | undefined;
+    let initCommunityTab: 'flode' | 'hantera' | 'chatt' | undefined;
+    let initCommunitySubTab: 'buddies' | 'search' | 'requests' | undefined;
+
+    if (viewParam === 'community') {
+      initView = 'community';
+      const tabParam = params.get('tab');
+      if (tabParam === 'requests') {
+        initCommunityTab = 'hantera';
+        initCommunitySubTab = 'requests';
+      } else {
+        initCommunityTab = 'flode';
+      }
+    } else if (viewParam === 'chat') {
+      initView = 'community';
+      initCommunityTab = 'chatt';
+    } else if (params.get('payment_success') === 'true' || window.location.pathname.endsWith('/success')) {
+      initView = 'coursesView';
+    }
+
+    initAppHistory({
+      view: initView,
+      journeyTab: initJourneyTab,
+      communityTab: initCommunityTab,
+      communitySubTab: initCommunitySubTab
+    });
+
+    const unsubscribe = subscribeToHistory((historyState) => {
+      if (historyState.view) {
+        setViewMode(historyState.view);
+      }
+      if (historyState.journeyTab) {
+        setJourneyInitialTab(historyState.journeyTab);
+      }
+      if (historyState.communityTab) {
+        setCommunityInitialTab(historyState.communityTab);
+      }
+      if (historyState.communitySubTab) {
+        setCommunityInitialSubTab(historyState.communitySubTab);
+      }
+      if (historyState.courseId) {
+        const found = ALL_COURSES.find(c => c.id === historyState.courseId) || null;
+        setActiveCourse(found);
+      } else if (historyState.view !== 'courseOverview' && historyState.view !== 'lessonDetail') {
+        setActiveCourse(null);
+      }
+      if (historyState.lessonId) {
+        setCurrentLessonId(historyState.lessonId);
+      } else if (historyState.view !== 'lessonDetail') {
+        setCurrentLessonId(null);
+      }
+
+      // Sync Modals
+      setShowAICoachModal(historyState.modal === 'aiCoach');
+      setShowUserProfileModal(historyState.modal === 'userProfile');
+      setShowLogWeightModal(historyState.modal === 'logWeight');
+      setShowSubscriptionModal(historyState.modal === 'subscription');
+      setShowGraduationModal(historyState.modal === 'bootcampGraduation');
+      setShowFinaleModal(historyState.modal === 'bootcampFinale');
+      setShowTrialRecapModal(historyState.modal === 'trialRecap');
+      setShowInfoModal(historyState.modal === 'info');
+      setShowGamificationModal(historyState.modal === 'gamification');
+      setShowMentalWellbeingModal(historyState.modal === 'mentalWellbeing');
+      setShowLatestUpdateView(historyState.modal === 'latestUpdate');
+      setShowOnboardingRewardModal(historyState.modal === 'onboardingReward');
+      setShowAIFeedbackModal(historyState.modal === 'aiFeedback');
+
+      if (historyState.modal !== 'levelUp') setShowLevelUpModal(null);
+      if (historyState.modal !== 'goalMet') setShowGoalMetModalData(null);
+      if (historyState.modal !== 'motivation') setShowMotivationModal(null);
+      if (historyState.modal !== 'streakSaver') setDayToPotentiallySave(null);
+      if (historyState.modal !== 'morningReport') setMorningReportData(null);
+      if (historyState.modal !== 'diploma') setPromotionDiplomaModalData(null);
+      if (historyState.modal !== 'newLessonUnlocked') setNewlyUnlockedLesson(null);
+    });
+
+    return unsubscribe;
+  }, []);
+
   useEffect(() => {
     const handleOpenLogWeightModal = () => {
+      pushModalState('logWeight');
       setShowLogWeightModal(true);
     };
     window.addEventListener('open-log-weight-modal', handleOpenLogWeightModal);
@@ -1111,7 +1204,7 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
       }
       // Fördröj städningen av URL:en så att en eventuell Service Worker-omladdning inte tappar bort parametern
       setTimeout(() => {
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.replaceState(window.history.state, '', window.location.pathname);
       }, 5000);
     } else if (viewParam === 'chat') {
       setViewMode('community');
@@ -1122,7 +1215,7 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
       }
       // Fördröj städningen av URL:en
       setTimeout(() => {
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.replaceState(window.history.state, '', window.location.pathname);
       }, 5000);
     }
     
@@ -1159,17 +1252,19 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         // ----------------------------------
 
         setOpenBootcampDirectly(true);
+        pushViewState({ view: 'coursesView' });
         setViewMode('coursesView');
 
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
         newUrl.searchParams.delete('session_id');
         const newPath = newUrl.pathname.endsWith('/success') ? '/' : newUrl.pathname;
-        window.history.replaceState({}, '', newPath + newUrl.search);
+        window.history.replaceState(window.history.state, '', newPath + newUrl.search);
     }
   }, [userStatus, setToastNotification, activeBootcamp]);
 
   const handleNavigateToCourses = () => {
+    pushViewState({ view: 'coursesView' });
     setViewMode('coursesView');
     setShowLatestUpdateView(false);
   };
@@ -1373,8 +1468,11 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   const handleOnboardingNavigate = (view: 'journey' | 'community') => {
     if (view === 'community') {
          updateChecklistItem('communityViewed');
+         pushViewState({ view: 'community', communityTab: 'flode' });
+         setCommunityInitialTab('flode');
     } else { 
         updateChecklistItem('journeyViewed');
+        pushViewState({ view: 'journey', journeyTab: 'calendar' });
         setJourneyInitialTab('calendar');
     }
     setViewMode(view);
@@ -1394,7 +1492,12 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
 
   const handleOpenInfoModal = () => {
-    openModal(setShowInfoModal);
+    pushModalState('info');
+    setShowInfoModal(true);
+  };
+
+  const handleCloseInfoModal = () => {
+    closeModalState('info', () => setShowInfoModal(false));
   };
   
   const handleNavigateToCourse = async (courseId: CourseInfo['id']) => {
@@ -1443,16 +1546,24 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
     }
 
     setActiveCourse(course);
+    pushViewState({ view: 'courseOverview', courseId: course.id });
     setViewMode('courseOverview');
   };
 
   const handleCloseLessonDetail = () => {
-    setViewMode('courseOverview');
+    if (activeCourse) {
+      pushViewState({ view: 'courseOverview', courseId: activeCourse.id });
+      setViewMode('courseOverview');
+    } else {
+      pushViewState({ view: 'coursesView' });
+      setViewMode('coursesView');
+    }
     setCurrentLessonId(null);
   };
 
   const handleSelectLesson = (lessonId: string) => {
     setCurrentLessonId(lessonId);
+    pushViewState({ view: 'lessonDetail', courseId: activeCourse?.id, lessonId });
     setViewMode('lessonDetail');
   };
 
@@ -1529,21 +1640,98 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
 
   const handleOpenSpeedDial = () => {
+    pushViewState({ view: 'main' });
     setViewMode('main'); 
   };
 
   const handleNavigateToJourney = (tab: 'calendar' | 'profile' | 'achievements') => {
     setJourneyInitialTab(tab);
+    pushViewState({ view: 'journey', journeyTab: tab });
     setViewMode('journey');
   };
 
   const handleOpenLogWeightModal = () => {
-    openModal(setShowLogWeightModal);
+    pushModalState('logWeight');
+    setShowLogWeightModal(true);
+  };
+
+  const handleCloseLogWeightModal = () => {
+    closeModalState('logWeight', () => setShowLogWeightModal(false));
   };
   
   const handleNavigateToMainWithDate = (date: Date) => {
     setViewingDate(date);
+    pushViewState({ view: 'main' });
     setViewMode('main');
+  };
+
+  const handleOpenAICoachModal = (context?: any) => {
+    pushModalState('aiCoach');
+    setCoachInitialContext(context || null);
+    setShowAICoachModal(true);
+  };
+
+  const handleCloseAICoachModal = () => {
+    closeModalState('aiCoach', () => {
+      setShowAICoachModal(false);
+      setCoachInitialContext(null);
+    });
+  };
+
+  const handleOpenUserProfileModal = (isOnboarding = false) => {
+    setIsProfileModalOnboarding(isOnboarding);
+    pushModalState('userProfile');
+    setShowUserProfileModal(true);
+  };
+
+  const handleCloseUserProfileModal = () => {
+    if (isProfileModalOnboarding && onboardingStep === 'invite') {
+      handleFinishOnboarding();
+    } else if (isProfileModalOnboarding && onboardingStep === 'feedback') {
+      setOnboardingStep('invite');
+    } else {
+      closeModalState('userProfile', () => {
+        setShowUserProfileModal(false);
+        setIsProfileModalOnboarding(false);
+        setOnboardingStep('form');
+      });
+    }
+  };
+
+  const handleOpenSubscriptionModal = () => {
+    pushModalState('subscription');
+    setShowSubscriptionModal(true);
+  };
+
+  const handleCloseSubscriptionModal = () => {
+    closeModalState('subscription', () => setShowSubscriptionModal(false));
+  };
+
+  const handleOpenGraduationModal = () => {
+    pushModalState('bootcampGraduation');
+    setShowGraduationModal(true);
+  };
+
+  const handleCloseGraduationModal = () => {
+    closeModalState('bootcampGraduation', () => setShowGraduationModal(false));
+  };
+
+  const handleOpenGamificationModal = () => {
+    pushModalState('gamification');
+    setShowGamificationModal(true);
+  };
+
+  const handleCloseGamificationModal = () => {
+    closeModalState('gamification', () => setShowGamificationModal(false));
+  };
+
+  const handleOpenMentalWellbeingModal = () => {
+    pushModalState('mentalWellbeing');
+    setShowMentalWellbeingModal(true);
+  };
+
+  const handleCloseMentalWellbeingModal = () => {
+    closeModalState('mentalWellbeing', () => setShowMentalWellbeingModal(false));
   };
 
   const handleUseStreakSaver = async () => {
@@ -1667,26 +1855,11 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   const handleSaveWellbeingAndProceed = async (data: MentalWellbeingData) => {
       if(!currentUser) return;
       try {
-          // You might want to save this to Firestore here as well, 
-          // but based on App.tsx, the saving logic seems to be missing or implied.
-          // Assuming `addMentalWellbeingLog` is available or similar.
-          // For now, just close modal and open weight log as requested.
-          setShowMentalWellbeingModal(false);
-          setShowLogWeightModal(true); // Chain to weight log
+          closeModalState('mentalWellbeing', () => setShowMentalWellbeingModal(false));
+          handleOpenLogWeightModal(); // Chain to weight log
       } catch(e) {
           console.error(e);
       }
-  };
-
-  const handleCloseUserProfileModal = () => {
-    if (isProfileModalOnboarding && onboardingStep === 'invite') {
-        handleFinishOnboarding();
-    } else if (isProfileModalOnboarding && onboardingStep === 'feedback') {
-        setOnboardingStep('invite');
-    } else {
-        setShowUserProfileModal(false);
-        setOnboardingStep('form');
-    }
   };
 
 const ensureWeeklyBankReset = useCallback(async () => {
@@ -2212,10 +2385,10 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
   const mainContentMaxWidth = 'max-w-7xl';
     
   const navItems = [
-    { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { setViewMode('main'); setCurrentLessonId(null); } },
-    { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { setJourneyInitialTab('calendar'); setViewMode('journey'); } },
-    { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { setViewMode('coursesView');} },
-    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setCommunityInitialTab('flode'); setViewMode('community'); }, notificationCount: pendingRequestsCount + newEventsCount + unreadChatsCount },
+    { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { pushViewState({ view: 'main' }); setViewMode('main'); setCurrentLessonId(null); } },
+    { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { pushViewState({ view: 'journey', journeyTab: 'calendar' }); setJourneyInitialTab('calendar'); setViewMode('journey'); } },
+    { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { pushViewState({ view: 'coursesView' }); setViewMode('coursesView');} },
+    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { pushViewState({ view: 'community', communityTab: 'flode' }); setCommunityInitialTab('flode'); setViewMode('community'); }, notificationCount: pendingRequestsCount + newEventsCount + unreadChatsCount },
   ];
 
   const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
@@ -2234,7 +2407,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
       <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} bg-neutral-light dark:bg-neutral-darker bg-fixed flex flex-col items-center pb-0`}>
        <header className="w-full bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
-                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => { pushViewState({ view: 'main' }); setViewMode('main'); }}>
                     <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
                 </div>
                 <div className="flex flex-wrap justify-end items-center gap-1">
@@ -2357,7 +2530,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 formattedViewingDate={formattedViewingDate}
                 ensureYesterdayProcessed={ensureYesterdayProcessed}
                 setToastNotification={setToastNotification}
-                onOpenAICoach={() => { setShowAICoachModal(true); setCoachInitialContext(null); }}
+                onOpenAICoach={() => handleOpenAICoachModal()}
                 isSummarizingYesterday={isSummarizingYesterday}
                 isAICoachOpen={showAICoachModal}
                 isProfileOpen={showUserProfileModal}
@@ -2366,22 +2539,24 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 hasCompletedTodaysReport={recentBootcampReports.some(report => report.date === dayKeySE(new Date()))}
                 onOpenBootcamp={() => {
                     setOpenBootcampDirectly(true);
+                    pushViewState({ view: 'coursesView' });
                     setViewMode('coursesView');
                 }}
                 onShareRecipe={(recipeText) => {
+                    pushViewState({ view: 'community', communityTab: 'flode' });
                     setCommunityInitialTab('flode');
                     setInitialPostText(recipeText);
                     setViewMode('community');
                 }}
                 onOpenSubscription={() => {
                   if (isReadOnly) {
-                    setShowGraduationModal(true);
+                    handleOpenGraduationModal();
                   } else {
-                    setShowSubscriptionModal(true);
+                    handleOpenSubscriptionModal();
                   }
                 }}
                 isReadOnly={isReadOnly}
-                onOpenGraduationOffer={() => setShowGraduationModal(true)}
+                onOpenGraduationOffer={() => handleOpenGraduationModal()}
             />
          )}
          {viewMode === 'journey' && (
@@ -2492,9 +2667,11 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
           <MorningReportModal 
             show={!!morningReportData} 
             onClose={() => {
-              setMorningReportData(null);
-              const todayUID = dayKeySE(new Date());
-              localStorage.setItem('lastSeenMorningReport', todayUID);
+              closeModalState('morningReport', () => {
+                setMorningReportData(null);
+                const todayUID = dayKeySE(new Date());
+                localStorage.setItem('lastSeenMorningReport', todayUID);
+              });
             }} 
             summary={morningReportData.summary} 
             currentStreak={morningReportData.currentStreak} 
@@ -2505,6 +2682,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             onDiscussWithCoach={() => {
               setMorningReportData(null);
               setCoachInitialContext({ type: 'from_analysis' });
+              pushModalState('aiCoach');
               setShowAICoachModal(true);
             }}
             yesterdayMeals={morningReportData.yesterdayMeals} 
@@ -2514,19 +2692,19 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             weightLogs={weightLogs} 
           />
         )}
-        {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
+        {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseInfoModal}><InfoModal onClose={handleCloseInfoModal} userName={userProfile.name} /></div>}
         {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} isBootcampActive={!!effectiveActiveBootcamp} onFinishOnboarding={handleFinishOnboarding} onGoToInviteStep={() => setOnboardingStep('invite')} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
-        {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />}
-        {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
-        {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
-        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
-        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark/40 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} activeBootcamp={effectiveActiveBootcamp} weightLogs={weightLogs} /></div>}
-        {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
+        {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => closeModalState('levelUp', () => setShowLevelUpModal(null))} />}
+        {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => closeModalState('goalMet', () => setShowGoalMetModalData(null))} />}
+        {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => closeModalState('newLessonUnlocked', () => setNewlyUnlockedLesson(null))} />}
+        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { closeModalState('aiFeedback', () => setShowAIFeedbackModal(false)); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); pushViewState({ view: 'journey' }); pushModalState('aiCoach'); setViewMode('journey'); setShowAICoachModal(true); }} />}
+        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark/40 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseLogWeightModal}><LogWeightModal show={showLogWeightModal} onClose={handleCloseLogWeightModal} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} activeBootcamp={effectiveActiveBootcamp} weightLogs={weightLogs} /></div>}
+        {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={handleCloseMentalWellbeingModal} onSave={handleSaveWellbeingAndProceed} />}
         {/* Pass userCourseProgress to AI Coach Modal */}
         <AICoachModal 
             show={showAICoachModal} 
-            onClose={() => { setShowAICoachModal(false); setCoachInitialContext(null); }} 
+            onClose={handleCloseAICoachModal} 
             analysisContext={{ 
                 userProfile, 
                 goals, 
@@ -2544,7 +2722,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         {showGamificationModal && (
             <GamificationModal
                 show={showGamificationModal}
-                onClose={() => closeModal(setShowGamificationModal)}
+                onClose={handleCloseGamificationModal}
                 currentStreak={streakData.currentStreak}
                 highestStreak={highestStreak}
                 highestLevelId={highestLevelId}
@@ -2553,7 +2731,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         {showSubscriptionModal && (
             <SubscriptionModal 
                 show={showSubscriptionModal} 
-                onClose={() => setShowSubscriptionModal(false)} 
+                onClose={handleCloseSubscriptionModal} 
                 status={userProfile.subscriptionStatus || 'active'} 
                 currentPeriodEnd={userProfile.currentPeriodEnd}
                 onCancelSuccess={() => {
@@ -2568,15 +2746,20 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             <TrialRecapModal 
                 show={showTrialRecapModal}
                 onClose={() => {
-                    setShowTrialRecapModal(false);
-                    localStorage.setItem(`hasSeenTrialRecapDialog_${currentUser.uid}`, 'true');
+                    closeModalState('trialRecap', () => {
+                      setShowTrialRecapModal(false);
+                      localStorage.setItem(`hasSeenTrialRecapDialog_${currentUser.uid}`, 'true');
+                    });
                 }}
                 userName={userProfile.name || currentUser.displayName || ''}
                 currentStreak={streakData.currentStreak}
                 totalMealsLogged={totalMealsCount}
                 bankedCalories={weeklyBank?.bankedCalories || 0}
                 coachStyle={userProfile.coachStyle || 'balanced'}
-                onOpenSubscription={() => setShowSubscriptionModal(true)}
+                onOpenSubscription={() => {
+                  setShowTrialRecapModal(false);
+                  handleOpenSubscriptionModal();
+                }}
                 hasLowUsage={Object.keys(pastDaysSummary).length < 3}
             />
         )}
@@ -2585,13 +2768,18 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 participant={unseenFinale}
                 userName={userProfile.name || currentUser.displayName || ''}
                 onClose={() => {
-                    setShowFinaleModal(false);
-                    markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                    closeModalState('bootcampFinale', () => {
+                      setShowFinaleModal(false);
+                      markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                    });
                 }}
                 onGoToCourse={() => {
-                    setShowFinaleModal(false);
-                    markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
-                    setViewMode('coursesView');
+                    closeModalState('bootcampFinale', () => {
+                      setShowFinaleModal(false);
+                      markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                      pushViewState({ view: 'coursesView' });
+                      setViewMode('coursesView');
+                    });
                 }}
             />
         )}
@@ -2607,7 +2795,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 streakDays={Math.max(streakData.currentStreak, userProfile.highestBootcampStreak || 0, activeBootcamp?.longestStreak || 0)}
                 onAcceptSubscription={handleAcceptGraduationSubscription}
                 onDecline={handleDeclineGraduationSubscription}
-                onClose={() => setShowGraduationModal(false)}
+                onClose={handleCloseGraduationModal}
             />
         )}
 
@@ -2617,10 +2805,12 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 userName={promotionDiplomaModalData.userName}
                 streakDays={promotionDiplomaModalData.streakDays}
                 onClose={() => {
-                    if (currentUser && promotionDiplomaModalData) {
-                      localStorage.setItem(`seenRankPromo_${promotionDiplomaModalData.rankDef.req}_${currentUser.uid}`, 'true');
-                    }
-                    setPromotionDiplomaModalData(null);
+                    closeModalState('diploma', () => {
+                      if (currentUser && promotionDiplomaModalData) {
+                        localStorage.setItem(`seenRankPromo_${promotionDiplomaModalData.rankDef.req}_${currentUser.uid}`, 'true');
+                      }
+                      setPromotionDiplomaModalData(null);
+                    });
                 }}
                 onShareInFeed={async (data) => {
                     if (currentUser) {

@@ -46,6 +46,7 @@ import { shareAppInvite } from '../utils/shareUtils';
 import { ChallengeCard } from './ChallengeCard';
 import { listenToUserChallenges, syncUserChallengeStatus } from '../services/challengeService';
 import type { Challenge } from '../types';
+import { pushViewState, subscribeToHistory } from '../utils/navigationHistory';
 
 // --- HELPER FUNCTIONS ---
 
@@ -1482,6 +1483,22 @@ export const CommunityView: React.FC<{
     setActiveTab(initialTab);
   }, [initialTab]);
 
+  useEffect(() => {
+    const unsubscribe = subscribeToHistory((state) => {
+      if (state.view === 'community' && state.tab && (state.tab === 'flode' || state.tab === 'hantera' || state.tab === 'chatt')) {
+        setActiveTab(state.tab as 'flode' | 'hantera' | 'chatt');
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleTabChange = (tabKey: 'flode' | 'hantera' | 'chatt') => {
+    if (tabKey !== activeTab) {
+      pushViewState({ view: 'community', tab: tabKey });
+      setActiveTab(tabKey);
+    }
+  };
+
   const [lightboxImage, setLightboxImage] = useState<{ src: string, alt: string } | null>(null);
   const [shareEvent, setShareEvent] = useState<TimelineEvent | null>(null);
   const [selectedCommentsEvent, setSelectedCommentsEvent] = useState<TimelineEvent | null>(null);
@@ -1877,7 +1894,7 @@ export const CommunityView: React.FC<{
         <div className="flex flex-col flex-grow w-full h-full bg-transparent">
             <header className="flex-shrink-0 bg-white dark:bg-neutral-darker shadow-md z-10 sticky top-0">
                 <nav className="flex items-center justify-around">
-                    {tabs.map(tab => <TabButton key={tab.key} tab={tab} isActive={activeTab === tab.key} onClick={() => setActiveTab(tab.key as any)} />)}
+                    {tabs.map(tab => <TabButton key={tab.key} tab={tab} isActive={activeTab === tab.key} onClick={() => handleTabChange(tab.key as any)} />)}
                 </nav>
             </header>
             

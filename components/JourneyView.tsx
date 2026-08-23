@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, Reactions, AIDataForJourneyAnalysis, StreakSaver, BootcampParticipant } from '../types';
 import { PencilIcon, TrophyIcon, SparklesIcon, PlusIcon, ScaleIcon, ExclamationTriangleIcon } from './icons';
 import { Dumbbell, PieChart, Target } from 'lucide-react';
@@ -8,6 +8,7 @@ import GoalTimeline from './JourneyGoalTimeline.tsx';
 import ProfileAndGoalEditor from './JourneyProfileEditor.tsx';
 import AchievementsView from './AchievementsView.tsx';
 import { COACH_PERSONAS } from '../constants';
+import { pushViewState, subscribeToHistory } from '../utils/navigationHistory';
 
 interface JourneyViewProps {
   pastDaysData: PastDaysSummaryCollection;
@@ -54,6 +55,22 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     if(initialTab === 'achievements') return 'achievements';
     return 'goals'; 
   });
+
+  useEffect(() => {
+    const unsubscribe = subscribeToHistory((state) => {
+      if (state.view === 'journey' && state.tab && (state.tab === 'goals' || state.tab === 'achievements')) {
+        setActiveTab(state.tab as Tab);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleTabChange = (tab: Tab) => {
+    if (tab !== activeTab) {
+      pushViewState({ view: 'journey', tab });
+      setActiveTab(tab);
+    }
+  };
 
   const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
   
@@ -414,13 +431,13 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             <div className="bg-white dark:bg-neutral-darker p-2 rounded-2xl shadow-soft-lg border border-neutral-light">
                 <div className="flex p-1 bg-neutral-light/50 rounded-xl">
                     <button
-                        onClick={() => setActiveTab('goals')}
+                        onClick={() => handleTabChange('goals')}
                         className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'goals' ? 'bg-white dark:bg-neutral-dark text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark dark:hover:text-white'}`}
                     >
                         Mål & Framsteg
                     </button>
                     <button
-                        onClick={() => setActiveTab('achievements')}
+                        onClick={() => handleTabChange('achievements')}
                         className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'achievements' ? 'bg-white dark:bg-neutral-dark text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark dark:hover:text-white'}`}
                     >
                         Bragder

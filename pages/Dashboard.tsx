@@ -51,6 +51,7 @@ import {
 import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
 import { recordModalRenderStart, recordFirestoreSaveStart, finishPhotoPipeline } from '../utils/photoPipelineProfiler';
 import PhotoTimingPanel from '../components/PhotoTimingPanel';
+import { pushModalState, replaceModalState, closeModalState, subscribeToHistory } from '../utils/navigationHistory';
 
 // Modaler
 import CameraModal from '../components/CameraModal';
@@ -363,6 +364,30 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const bankRef = useRef<HTMLDivElement>(null);
     const waterLoggerRef = useRef<HTMLDivElement>(null);
+
+    // Sync modal state with history popstate
+    useEffect(() => {
+        const unsubscribe = subscribeToHistory((state) => {
+            setShowCameraModal(state.modal === 'camera');
+            setShowImageAnalysisResultModal(state.modal === 'imageAnalysis');
+            setShowTextEntryModal(state.modal === 'textEntry');
+            setShowRecipeChoiceModal(state.modal === 'recipeChoice');
+            setShowRecipeModal(state.modal === 'recipe');
+            setShowMyRecipesModal(state.modal === 'myRecipes');
+            setShowIngredientCaptureModal(state.modal === 'ingredientCapture');
+            setShowIngredientRecipeResultsModal(state.modal === 'ingredientResults');
+            setShowBarcodeScannerModal(state.modal === 'barcodeScanner');
+            setShowBarcodeSearchResultModal(state.modal === 'barcodeResult');
+            setShowNutritionLabelResultModal(state.modal === 'nutritionLabel');
+            setShowFoodRatingModal(state.modal === 'foodRating');
+            setShowProteinInfoModal(state.modal === 'proteinInfo');
+            if (state.modal !== 'saveCommonMeal') {
+                setMealToSaveAsCommon(null);
+                setShowSaveCommonMealModal(false);
+            }
+        });
+        return unsubscribe;
+    }, []);
 
     // Derived values
     const isViewingToday = useMemo(() => {
@@ -704,6 +729,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             } else {
                 // Show Food Rating Modal instead of just toast
                 setFoodRatingData({ nutritionalInfo: newMeal.nutritionalInfo, mealType: newMeal.mealType });
+                pushModalState('foodRating');
                 setShowFoodRatingModal(true);
             }
             playAudio('logSuccess');
@@ -847,7 +873,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     };
 
-    const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType | null = null) => {
+    const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, modalName?: string, type: MealType | null = null) => {
         if (!hasAppAccess(userProfile)) {
             onOpenSubscription?.();
             return;
@@ -855,21 +881,24 @@ const Dashboard: React.FC<DashboardProps> = ({
         const typeToUse = type || activeMealSection || getSuggestedMealType();
         setDefaultMealTypeForModal(typeToUse);
         setActiveMealSection(null);
+        if (modalName) {
+            pushModalState(modalName);
+        }
         setter(true);
         setIsSpeedDialOpen(false);
     }
 
-    const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal);
-    const handleSearchText = () => openModalWithType(setShowTextEntryModal);
+    const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal, 'barcodeScanner');
+    const handleSearchText = () => openModalWithType(setShowTextEntryModal, 'textEntry');
     const handleTakePhoto = () => {
         setCameraMode('mealAnalysis'); 
-        openModalWithType(setShowCameraModal);
+        openModalWithType(setShowCameraModal, 'camera');
     };
     const handleFindRecipe = () => {
         setSearchedRecipe(null);
-        openModalWithType(setShowRecipeChoiceModal); 
+        openModalWithType(setShowRecipeChoiceModal, 'recipeChoice'); 
     };
-    const handleMyRecipes = () => openModalWithType(setShowMyRecipesModal);
+    const handleMyRecipes = () => openModalWithType(setShowMyRecipesModal, 'myRecipes');
 
     const handleSaveRecipe = async (recipe: RecipeSuggestion) => {
         if (!currentUser) return;
@@ -1107,7 +1136,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             trackColor="#F6E2D9"
                             barColor="#D96E4A"
                             isBootcamp={!!activeBootcamp}
-                            onInfoClick={() => setShowProteinInfoModal(true)}
+                            onInfoClick={() => { pushModalState('proteinInfo'); setShowProteinInfoModal(true); }}
                             infoAriaLabel="Information om proteinmål"
                         />
                         <MacroCard 
@@ -1232,6 +1261,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         onUpdateCommonMeal={handleUpdateCommonMeal}
                         onShowRating={(nutritionalInfo) => {
                             setFoodRatingData({ nutritionalInfo, mealType: 'snack' }); // default to snack for rating display
+                            pushModalState('foodRating');
                             setShowFoodRatingModal(true);
                         }}
                         disabled={!isEditableView}
@@ -1250,7 +1280,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 meals={mealsBySection.breakfast} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
                                 isEditable={isEditableView}
                                 isOpen={activeMealSection === 'breakfast'}
                                 onOpen={() => setActiveMealSection('breakfast')}
@@ -1264,7 +1294,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 meals={mealsBySection.lunch} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
                                 isEditable={isEditableView}
                                 isOpen={activeMealSection === 'lunch'}
                                 onOpen={() => setActiveMealSection('lunch')}
@@ -1278,7 +1308,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 meals={mealsBySection.dinner} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
                                 isEditable={isEditableView}
                                 isOpen={activeMealSection === 'dinner'}
                                 onOpen={() => setActiveMealSection('dinner')}
@@ -1292,7 +1322,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 meals={mealsBySection.snack} 
                                 onDeleteMeal={handleDeleteMeal}
                                 onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
+                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
                                 isEditable={isEditableView}
                                 isOpen={activeMealSection === 'snack'}
                                 onOpen={() => setActiveMealSection('snack')}
@@ -1470,7 +1500,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             {showCameraModal && (
                 <CameraModal 
                     show={showCameraModal} 
-                    onClose={() => setShowCameraModal(false)} 
+                    onClose={() => closeModalState('camera', () => setShowCameraModal(false))} 
                     onImageCapture={async (imgData) => { 
                         setShowCameraModal(false); 
                         if (cameraMode === 'mealAnalysis') {
@@ -1480,6 +1510,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 const result = await analyzeFoodImage(imgData); 
                                 setImageAnalysisResult(result); 
                                 recordModalRenderStart();
+                                replaceModalState('imageAnalysis');
                                 setShowImageAnalysisResultModal(true); 
                             } catch (e: any) { 
                                 alert(e.message); 
@@ -1488,12 +1519,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                             }
                         } else if (cameraMode === 'ingredientCapture') {
                             setIngredientImages(prev => [...prev, `data:image/jpeg;base64,${imgData}`]);
+                            replaceModalState('ingredientCapture');
                             setShowIngredientCaptureModal(true); 
                         } else if (cameraMode === 'nutritionLabel') {
                             setAppStatus('analyzing');
                             try {
                                 const result = await analyzeNutritionLabelImage(imgData);
                                 setNutritionLabelResult(result);
+                                replaceModalState('nutritionLabel');
                                 setShowNutritionLabelResultModal(true);
                             } catch (e: any) {
                                 alert(e.message);
@@ -1505,35 +1538,36 @@ const Dashboard: React.FC<DashboardProps> = ({
                     onCameraError={(err) => alert(err)} 
                 />
             )}
-            {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => setShowTextEntryModal(false)} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
-            {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => setShowRecipeChoiceModal(false)} onChooseSearch={() => { setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
-            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => { setShowRecipeModal(false); setIsRecipeSaved(false); }} onSearch={async (q) => { setAppStatus('searching_recipe'); setIsRecipeSaved(false); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching_recipe'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} onSaveRecipe={handleSaveRecipe} isSaved={isRecipeSaved} onShareRecipe={onShareRecipe} />}
-            {showMyRecipesModal && <MyRecipesModal show={showMyRecipesModal} onClose={() => setShowMyRecipesModal(false)} onShareRecipe={onShareRecipe} onLogRecipe={handleAddMealToLog} />}
+            {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => closeModalState('textEntry', () => setShowTextEntryModal(false))} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => closeModalState('recipeChoice', () => setShowRecipeChoiceModal(false))} onChooseSearch={() => { replaceModalState('recipe'); setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { replaceModalState('ingredientCapture'); setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { replaceModalState('ingredientCapture'); setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
+            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => closeModalState('recipe', () => { setShowRecipeModal(false); setIsRecipeSaved(false); })} onSearch={async (q) => { setAppStatus('searching_recipe'); setIsRecipeSaved(false); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching_recipe'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} onSaveRecipe={handleSaveRecipe} isSaved={isRecipeSaved} onShareRecipe={onShareRecipe} />}
+            {showMyRecipesModal && <MyRecipesModal show={showMyRecipesModal} onClose={() => closeModalState('myRecipes', () => setShowMyRecipesModal(false))} onShareRecipe={onShareRecipe} onLogRecipe={handleAddMealToLog} />}
             {showIngredientCaptureModal && (
                 <IngredientCaptureModal 
                     show={showIngredientCaptureModal} 
-                    onClose={() => setShowIngredientCaptureModal(false)} 
+                    onClose={() => closeModalState('ingredientCapture', () => setShowIngredientCaptureModal(false))} 
                     images={ingredientImages} 
                     onRemoveImage={(i) => setIngredientImages(prev => prev.filter((_, idx) => idx !== i))} 
                     onUploadImages={async (files) => { for(let i=0; i<files.length; i++) { const base64 = await resizeImageForLog(files[i], 800); setIngredientImages(prev => [...prev, base64]); } }} 
                     openCameraModal={() => { 
                         setCameraMode('ingredientCapture'); 
+                        replaceModalState('camera');
                         setShowIngredientCaptureModal(false); 
                         setShowCameraModal(true); 
                     }} 
-                    onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} 
+                    onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); replaceModalState('ingredientResults'); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} 
                 />
             )}
-            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} onSaveRecipe={handleSaveRecipe} savedRecipeIds={savedRecipeIds} />}
-            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setCameraMode('nutritionLabel'); setShowCameraModal(true); }} />}
-            {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
-            {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
-            {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
-            {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => setShowNutritionLabelResultModal(false)} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => closeModalState('ingredientResults', () => setShowIngredientRecipeResultsModal(false))} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} onSaveRecipe={handleSaveRecipe} savedRecipeIds={savedRecipeIds} />}
+            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => closeModalState('barcodeScanner', () => setShowBarcodeScannerModal(false))} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); replaceModalState('barcodeResult'); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setCameraMode('nutritionLabel'); replaceModalState('camera'); setShowBarcodeScannerModal(false); setShowCameraModal(true); }} />}
+            {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => closeModalState('barcodeResult', () => setShowBarcodeSearchResultModal(false))} defaultMealType={defaultMealTypeForModal} />}
+            {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => closeModalState('imageAnalysis', () => setShowImageAnalysisResultModal(false))} defaultMealType={defaultMealTypeForModal} />}
+            {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => closeModalState('saveCommonMeal', () => { setMealToSaveAsCommon(null); setShowSaveCommonMealModal(false); })} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); closeModalState('saveCommonMeal', () => { setMealToSaveAsCommon(null); setShowSaveCommonMealModal(false); }); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
+            {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => closeModalState('nutritionLabel', () => setShowNutritionLabelResultModal(false))} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
             {showFoodRatingModal && foodRatingData && userProfile && (
                 <FoodRatingModal 
                     show={showFoodRatingModal} 
-                    onClose={() => setShowFoodRatingModal(false)} 
+                    onClose={() => closeModalState('foodRating', () => setShowFoodRatingModal(false))} 
                     nutritionalInfo={foodRatingData.nutritionalInfo} 
                     mealType={foodRatingData.mealType} 
                     userProfile={userProfile} 
@@ -1541,9 +1575,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
             
             {showProteinInfoModal && (
-                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => closeModalState('proteinInfo', () => setShowProteinInfoModal(false))}>
                     <div onClick={e => e.stopPropagation()}>
-                        <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+                        <ProteinInfoModal onClose={() => closeModalState('proteinInfo', () => setShowProteinInfoModal(false))} />
                     </div>
                 </div>
             )}
