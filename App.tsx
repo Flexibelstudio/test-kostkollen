@@ -83,6 +83,9 @@ import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
 import { uploadImageToStorage, uploadBase64ToStorage, base64ToBlob } from './utils/storageUtils';
 import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports, getUnseenBootcampFinale, markBootcampFinaleAsSeen } from './services/bootcampService.ts';
+import { completeBootcampOnboardingTask, grantBootcampAccess } from './services/bootcampAccessService.ts';
+import { hasAppAccess } from './utils/accessControl.ts';
+import AccessGateView from './components/AccessGateView.tsx';
 import {
   InformationCircleIcon, AICoachIcon,
   PencilIcon,
@@ -1572,6 +1575,15 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
              }
         }
 
+        // Grundutbildning inmönstrings-uppgift
+        if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
+            completeBootcampOnboardingTask(currentUser.uid, 'weigh_in_and_goal', userProfile).then(updated => {
+                if (updated) {
+                    setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+                }
+            });
+        }
+
     } catch (error) {
         setToastNotification({ message: "Kunde inte spara mätningen.", type: 'error' });
     }
@@ -2051,6 +2063,50 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
               setToastNotification={setToastNotification}
               onToggleInterface={toggleInterfaceView}
             />;
+  }
+
+  // Central åtkomstgrind via hasAppAccess:
+  // Enda avgörande faktorn för om användaren får tillgång till appens funktioner och loggning.
+  const effectiveUserProfile = { ...userProfile, role: userRole || userProfile.role };
+  const userHasAccess = hasAppAccess(effectiveUserProfile);
+
+  if (!userHasAccess) {
+    return (
+      <>
+        <AccessGateView 
+          userProfile={userProfile}
+          onGrantBootcampAccess={async () => {
+            if (!currentUser) return;
+            const newAccess = await grantBootcampAccess(currentUser.uid);
+            setUserProfile(prev => ({ ...prev, bootcampAccess: newAccess }));
+            setToastNotification({ message: 'Välkommen till General Börjes Bootcamp!', type: 'success' });
+          }}
+          onOpenSubscriptionModal={() => setShowSubscriptionModal(true)}
+          onLogout={handleLogout}
+        />
+        {showSubscriptionModal && (
+          <SubscriptionModal 
+            show={showSubscriptionModal} 
+            onClose={() => setShowSubscriptionModal(false)} 
+            status={userProfile.subscriptionStatus || 'inactive'} 
+            currentPeriodEnd={userProfile.currentPeriodEnd}
+            onCancelSuccess={() => {
+              setUserProfile(prev => ({ ...prev, subscriptionStatus: 'canceling' }));
+            }}
+            onUndoCancelSuccess={() => {
+              setUserProfile(prev => ({ ...prev, subscriptionStatus: 'active' }));
+            }}
+          />
+        )}
+        {toastNotification && (
+          <ToastNotification 
+            message={toastNotification.message} 
+            type={toastNotification.type} 
+            onClose={() => setToastNotification(null)} 
+          />
+        )}
+      </>
+    );
   }
 
   const DropdownMenuItem: React.FC<{

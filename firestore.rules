@@ -14,11 +14,10 @@ service cloud.firestore {
       
       allow create: if request.auth.uid == userId && request.resource.data.role == 'member';
       
-      // FIX: Tillåt uppdatering från Webhook (auth == null) för status och roll-verifiering
+      // Webhooken skriver via Admin SDK och går förbi dessa regler – ingen auth==null-gren behövs
       allow update: if (request.auth.uid == userId
                         && request.resource.data.role == resource.data.role
                         && request.resource.data.status == resource.data.status)
-                    || (request.auth == null) // Tillåter Stripe Webhook att uppdatera status till 'approved'
                     || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
       
       allow delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
@@ -36,8 +35,7 @@ service cloud.firestore {
         allow read, list: if request.auth.uid == userId
                           || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
                           || exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid));
-        allow write: if request.auth.uid == userId
-                   || request.auth == null;
+        allow write: if request.auth.uid == userId;
       }
 
       // ===== ANDRA SUBCOLLECTIONS (timelineEvents, achievements, etc) =====

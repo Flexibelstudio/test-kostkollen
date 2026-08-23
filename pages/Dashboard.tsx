@@ -74,6 +74,10 @@ import MealStructureGuide from '../components/MealStructureGuide';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import CoinFallEffect from '../components/CoinFallEffect';
 import CommonMealsList from '../components/CommonMealsList';
+import BootcampOnboardingCard from '../components/BootcampOnboardingCard';
+import { completeBootcampOnboardingTask, checkAndAdvanceBootcampAccess } from '../services/bootcampAccessService';
+import { hasAppAccess } from '../utils/accessControl';
+import { BootcampOnboardingTaskId } from '../types';
 
 // Helper function for image resizing
 const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
@@ -246,6 +250,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         currentUser,
         goals,
         userProfile,
+        setUserProfile,
         dailyLog,
         setDailyLog,
         waterLoggedMl,
@@ -270,6 +275,47 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Modal states
     const [showCameraModal, setShowCameraModal] = useState(false);
     const [showTextEntryModal, setShowTextEntryModal] = useState(false);
+
+    // Auto-advance Bootcamp Grundutbildning om 3 dygn passerat
+    useEffect(() => {
+        if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
+            checkAndAdvanceBootcampAccess(currentUser.uid, userProfile).then(res => {
+                if (res.updated && res.bootcampAccess) {
+                    setUserProfile(prev => ({ ...prev, bootcampAccess: res.bootcampAccess! }));
+                }
+            });
+        }
+    }, [currentUser, userProfile?.bootcampAccess, setUserProfile]);
+
+    const handleBootcampOnboardingTaskAction = (taskId: BootcampOnboardingTaskId) => {
+        switch (taskId) {
+            case 'log_meal_photo':
+                handleTakePhoto();
+                break;
+            case 'log_meal_search':
+                handleSearchText();
+                break;
+            case 'log_water':
+                handleLogWater(250);
+                if (waterLoggerRef.current) {
+                    waterLoggerRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+                break;
+            case 'weigh_in_and_goal':
+                window.dispatchEvent(new CustomEvent('open-log-weight-modal'));
+                break;
+            case 'read_morning_briefing':
+                onOpenAICoach();
+                if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
+                    completeBootcampOnboardingTask(currentUser.uid, 'read_morning_briefing', userProfile).then(updated => {
+                        if (updated) {
+                            setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+                        }
+                    });
+                }
+                break;
+        }
+    };
     const [showRecipeChoiceModal, setShowRecipeChoiceModal] = useState(false);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
     const [showMyRecipesModal, setShowMyRecipesModal] = useState(false);
@@ -579,6 +625,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean; portionMultiplier?: number }
     ) => {
         if (!currentUser) return;
+        if (!hasAppAccess(userProfile)) {
+            onOpenSubscription?.();
+            return;
+        }
         
         const timestamp = Date.now();
         const mealType = options?.mealType || defaultMealTypeForModal || 'breakfast'; 
@@ -657,6 +707,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                 onChecklistUpdate('mealLogged');
             }
 
+            // Grundutbildning inmönstrings-uppgifter
+            if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
+                const isPhoto = Boolean(newMeal.imageUrl || (newMeal.nutritionalInfo && (newMeal.nutritionalInfo as any).source === 'camera') || cameraMode === 'mealAnalysis');
+                const taskId: BootcampOnboardingTaskId = isPhoto ? 'log_meal_photo' : 'log_meal_search';
+                completeBootcampOnboardingTask(currentUser.uid, taskId, userProfile).then(updated => {
+                    if (updated) {
+                        setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+                    }
+                });
+            }
+
         } catch (error) {
             console.error("Error adding meal:", error);
             setToastNotification({ message: 'Kunde inte spara måltiden.', type: 'error' });
@@ -703,6 +764,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const handleLogWater = async (amount: number) => {
         if (!currentUser) return;
+        if (!hasAppAccess(userProfile)) {
+            onOpenSubscription?.();
+            return;
+        }
         const newAmount = waterLoggedMl + amount;
         setWaterLoggedMl(newAmount);
         recalculateAndSaveSummary(dailyLog, newAmount);
@@ -710,6 +775,13 @@ const Dashboard: React.FC<DashboardProps> = ({
             await setWaterLog(currentUser.uid, getDateUID(viewingDate), newAmount);
             if (checklistState && !checklistState.items.waterLogged && newAmount > 0) {
                 onChecklistUpdate('waterLogged');
+            }
+            if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate && newAmount > 0) {
+                completeBootcampOnboardingTask(currentUser.uid, 'log_water', userProfile).then(updated => {
+                    if (updated) {
+                        setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+                    }
+                });
             }
         } catch (error) {
             console.error("Error logging water:", error);
@@ -771,6 +843,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     };
 
     const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType | null = null) => {
+        if (!hasAppAccess(userProfile)) {
+            onOpenSubscription?.();
+            return;
+        }
         const typeToUse = type || activeMealSection || getSuggestedMealType();
         setDefaultMealTypeForModal(typeToUse);
         setActiveMealSection(null);
@@ -822,6 +898,14 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     return (
         <div className="flex flex-col gap-3 pb-28 sm:pb-32 relative">
+            {/* Börjes Grundutbildning Kort under inmönstring */}
+            {userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate && (
+                <BootcampOnboardingCard 
+                    userProfile={userProfile}
+                    onActionClick={handleBootcampOnboardingTaskAction}
+                />
+            )}
+
             {/* Gratisperiod Nedräkningsrad */}
             {userProfile.subscriptionStatus === 'trialing' && userProfile.currentPeriodEnd && (() => {
                 const getTrialDaysLeftLocal = (endStr: string) => {

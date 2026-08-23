@@ -382,6 +382,7 @@ export async function fetchInitialAppData(userId: string) {
       coachStyle: ((userDocData.coachStyle as string) === 'tough' ? 'hard' : userDocData.coachStyle) || DEFAULT_USER_PROFILE.coachStyle,
       subscriptionStatus: userDocData.subscriptionStatus,
       currentPeriodEnd: userDocData.currentPeriodEnd,
+      bootcampAccess: userDocData.bootcampAccess ?? undefined,
       highestBootcampStreak: highestBootcampStreak,
       plateauAnalysis: userDocData.plateauAnalysis ?? undefined,
       role: userDocData.role,

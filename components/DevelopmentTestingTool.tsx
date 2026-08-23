@@ -33,6 +33,26 @@ import {
   resolveUpdatedNutrients
 } from '../utils/nutritionTotals';
 import { getPhotoMetricsHistory, PhotoPipelineMetrics } from '../utils/photoPipelineProfiler';
+import { auth } from '../firebase';
+import { 
+  hasAppAccess, 
+  getBootcampAccessDetails, 
+  ALL_BOOTCAMP_ONBOARDING_TASKS, 
+  BOOTCAMP_ONBOARDING_TASKS_META, 
+  BOOTCAMP_PRICE_LABEL 
+} from '../utils/accessControl';
+import { 
+  grantBootcampAccess, 
+  completeBootcampOnboardingTask, 
+  completeAllBootcampOnboardingTasks, 
+  checkAndAdvanceBootcampAccess, 
+  setBootcampAccessProgramDay, 
+  resetBootcampAccess 
+} from '../services/bootcampAccessService';
+import { updateUserDocument } from '../services/firestoreService';
+import { BootcampOnboardingTaskId } from '../types';
+import { useUserContext } from '../context/UserContext';
+import { DEFAULT_USER_PROFILE } from '../constants';
 
 interface DevelopmentTestingToolProps {
   onSimulateSuccessfulDay?: () => void;
@@ -147,6 +167,141 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
       preRoundedMultiplied: number;
     };
   } | null>(null);
+
+  // --- BOOTCAMP & ÅTKOMST TESTMOTOR ---
+  const userContext = (() => {
+    try {
+      return useUserContext();
+    } catch {
+      return null;
+    }
+  })();
+
+  const currentUid = auth.currentUser?.uid || userContext?.currentUser?.uid || 'dev_user_simulation';
+  const effectiveProfile: UserProfileData = userContext?.userProfile || userProfile || DEFAULT_USER_PROFILE;
+
+  const [bootcampActionLoading, setBootcampActionLoading] = useState<string | null>(null);
+  const [bootcampTestMsg, setBootcampTestMsg] = useState<string | null>(null);
+
+  const bootcampDetails = getBootcampAccessDetails(effectiveProfile);
+  const hasAppAccessResult = hasAppAccess(effectiveProfile);
+
+  const handleSimulatePurchase = async () => {
+    setBootcampActionLoading('purchase');
+    try {
+      const newAccess = await grantBootcampAccess(currentUid);
+      if (userContext?.setUserProfile) {
+        userContext.setUserProfile(prev => ({ ...prev, bootcampAccess: newAccess }));
+      }
+      setBootcampTestMsg('Köp på 995 kr beviljat! Grundutbildning (max 3 dygn) har startat.');
+    } catch (e: any) {
+      setBootcampTestMsg(`Fel vid simulerat köp: ${e.message}`);
+    } finally {
+      setBootcampActionLoading(null);
+    }
+  };
+
+  const handleSimulateTask = async (taskId: BootcampOnboardingTaskId) => {
+    setBootcampActionLoading(taskId);
+    try {
+      const updated = await completeBootcampOnboardingTask(currentUid, taskId, effectiveProfile);
+      if (updated && userContext?.setUserProfile) {
+        userContext.setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+      }
+      const isComplete = Boolean(updated?.onboardingCompletedDate);
+      setBootcampTestMsg(isComplete ? 'Alla 5 uppgifter klara! Bootcampens 12 veckor har startat!' : `Uppgift "${BOOTCAMP_ONBOARDING_TASKS_META[taskId].title}" registrerad som klar.`);
+    } catch (e: any) {
+      setBootcampTestMsg(`Fel: ${e.message}`);
+    } finally {
+      setBootcampActionLoading(null);
+    }
+  };
+
+  const handleSimulateCompleteAllTasks = async () => {
+    setBootcampActionLoading('all_tasks');
+    try {
+      const updated = await completeAllBootcampOnboardingTasks(currentUid, effectiveProfile);
+      if (updated && userContext?.setUserProfile) {
+        userContext.setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+      }
+      setBootcampTestMsg('Grundutbildning slutförd! 12 veckors Bootcamp startad (84 dagar).');
+    } catch (e: any) {
+      setBootcampTestMsg(`Fel vid slutförande: ${e.message}`);
+    } finally {
+      setBootcampActionLoading(null);
+    }
+  };
+
+  const handleSimulate3DaysPassed = async () => {
+    setBootcampActionLoading('3days');
+    try {
+      const threeDaysAgo = new Date(Date.now() - (3 * 24 * 60 * 60 * 1000) - 1000).toISOString();
+      const simAccess = {
+        ...(effectiveProfile.bootcampAccess || {
+          purchaseDate: threeDaysAgo,
+          onboardingCompletedDate: null,
+          bootcampStartDate: null,
+          accessExpiresDate: null,
+          onboardingTasksCompleted: [],
+        }),
+        purchaseDate: threeDaysAgo,
+      };
+      const res = await checkAndAdvanceBootcampAccess(currentUid, { ...effectiveProfile, bootcampAccess: simAccess });
+      if (res.bootcampAccess && userContext?.setUserProfile) {
+        userContext.setUserProfile(prev => ({ ...prev, bootcampAccess: res.bootcampAccess! }));
+      }
+      setBootcampTestMsg('3 dygn har passerat: Grundutbildningen auto-stängdes och 12 veckor startades!');
+    } catch (e: any) {
+      setBootcampTestMsg(`Fel: ${e.message}`);
+    } finally {
+      setBootcampActionLoading(null);
+    }
+  };
+
+  const handleSimulateJumpDay = async (day: number) => {
+    setBootcampActionLoading(`day_${day}`);
+    try {
+      const updated = await setBootcampAccessProgramDay(currentUid, effectiveProfile, day);
+      if (userContext?.setUserProfile) {
+        userContext.setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+      }
+      setBootcampTestMsg(`Tidsresa genomförd! Profilen är nu på Dag ${day} av 84.`);
+    } catch (e: any) {
+      setBootcampTestMsg(`Fel vid tidsresa: ${e.message}`);
+    } finally {
+      setBootcampActionLoading(null);
+    }
+  };
+
+  const handleToggleSubscription = async (status: 'active' | 'inactive') => {
+    setBootcampActionLoading(`sub_${status}`);
+    try {
+      await updateUserDocument(currentUid, { subscriptionStatus: status });
+      if (userContext?.setUserProfile) {
+        userContext.setUserProfile(prev => ({ ...prev, subscriptionStatus: status }));
+      }
+      setBootcampTestMsg(`Abonnemang simulerat som "${status}".`);
+    } catch (e: any) {
+      setBootcampTestMsg(`Fel: ${e.message}`);
+    } finally {
+      setBootcampActionLoading(null);
+    }
+  };
+
+  const handleResetAccess = async () => {
+    setBootcampActionLoading('reset');
+    try {
+      await resetBootcampAccess(currentUid);
+      if (userContext?.setUserProfile) {
+        userContext.setUserProfile(prev => ({ ...prev, bootcampAccess: undefined }));
+      }
+      setBootcampTestMsg('Bootcamp-åtkomst nollställd.');
+    } catch (e: any) {
+      setBootcampTestMsg(`Fel vid nollställning: ${e.message}`);
+    } finally {
+      setBootcampActionLoading(null);
+    }
+  };
 
   /**
    * Kör ett automatiserat självtest för kaloriberäkningar och aritmetisk precision.
@@ -1479,6 +1634,238 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* NY AFFÄRSMODELL: BOOTCAMP (995 KR) & ÅTKOMSTTESTER */}
+      <div className="bg-white p-5 rounded-2xl border border-emerald-500/30 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-100 pb-3 gap-2">
+          <div>
+            <h3 className="font-bold text-neutral-800 text-base flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+              Ny Affärsmodell: Bootcamp ({BOOTCAMP_PRICE_LABEL}) & Åtkomstsimulator
+            </h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Bootcampen är nu huvudprodukt. Testa köp, grundutbildning, tidsförskjutning och abonnemangsscenarier.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-mono px-3 py-1 rounded-full font-bold border ${
+              hasAppAccessResult 
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                : 'bg-red-50 text-red-800 border-red-200'
+            }`}>
+              Total Appåtkomst: {hasAppAccessResult ? 'Beviljad ✅' : 'Nekad ❌'}
+            </span>
+          </div>
+        </div>
+
+        {/* Live Statusöversikt */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
+          <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+            <span className="text-neutral-500 block text-[10px] uppercase font-sans font-bold">Abonnemang</span>
+            <strong className="text-neutral-800 text-sm font-bold block">
+              {effectiveProfile.subscriptionStatus || 'Inget abonnemang'}
+            </strong>
+            <span className="text-[10px] text-neutral-400 font-sans block">
+              {effectiveProfile.subscriptionStatus === 'active' || effectiveProfile.subscriptionStatus === 'trialing' ? 'Ger full åtkomst oberoende av bootcamp' : 'Kräver giltig Bootcamp'}
+            </span>
+          </div>
+
+          <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+            <span className="text-neutral-500 block text-[10px] uppercase font-sans font-bold">Bootcamp-köp</span>
+            <strong className="text-neutral-800 text-sm font-bold block">
+              {bootcampDetails.hasBootcamp ? 'KÖPT (995 kr) ✅' : 'EJ KÖPT ❌'}
+            </strong>
+            <span className="text-[10px] text-neutral-400 font-sans block">
+              {bootcampDetails.purchaseDate ? `Köp: ${bootcampDetails.purchaseDate.split('T')[0]}` : 'Ingen aktiv köporder'}
+            </span>
+          </div>
+
+          <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+            <span className="text-neutral-500 block text-[10px] uppercase font-sans font-bold">Grundutbildning</span>
+            <strong className={`${bootcampDetails.isOnboarding ? 'text-amber-700' : (bootcampDetails.hasBootcamp ? 'text-emerald-700' : 'text-neutral-600')} text-sm font-bold block`}>
+              {bootcampDetails.isOnboarding ? `Pågår (${bootcampDetails.onboardingTasksCompleted.length}/5 klara)` : (bootcampDetails.hasBootcamp ? 'Slutförd ✓' : '-')}
+            </strong>
+            <span className="text-[10px] text-neutral-400 font-sans block">
+              {bootcampDetails.isOnboarding ? `${bootcampDetails.onboardingDaysLeft} dygn kvar innan auto-start` : (bootcampDetails.hasBootcamp ? '12 veckor aktiva' : '-')}
+            </span>
+          </div>
+
+          <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+            <span className="text-neutral-500 block text-[10px] uppercase font-sans font-bold">Programlängd & Utgång</span>
+            <strong className="text-neutral-800 text-sm font-bold block">
+              {bootcampDetails.daysRemaining != null ? `${bootcampDetails.daysRemaining} dagar kvar` : (bootcampDetails.isOnboarding ? 'Börjar efter inmönstring' : '-')}
+            </strong>
+            <span className="text-[10px] text-neutral-400 font-sans block">
+              {bootcampDetails.accessExpiresDate ? `Utgår: ${bootcampDetails.accessExpiresDate}` : 'Datum sätts vid start'}
+            </span>
+          </div>
+        </div>
+
+        {/* Grundutbildningens Uppgiftsstatus */}
+        <div className="p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold text-neutral-700">
+            <span>Grundutbildning (Inmönstring) - 5 uppgifter:</span>
+            <span className="text-neutral-500 font-mono">{bootcampDetails.onboardingTasksCompleted.length} av 5 klara ({bootcampDetails.onboardingProgressPercent}%)</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+            {ALL_BOOTCAMP_ONBOARDING_TASKS.map((taskId) => {
+              const meta = BOOTCAMP_ONBOARDING_TASKS_META[taskId];
+              const isDone = bootcampDetails.onboardingTasksCompleted.includes(taskId);
+              return (
+                <button
+                  key={taskId}
+                  onClick={() => handleSimulateTask(taskId)}
+                  disabled={bootcampActionLoading !== null}
+                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                    isDone 
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900' 
+                      : 'bg-white border-neutral-200 hover:border-amber-400 text-neutral-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{isDone ? 'Klar ✓' : 'Ej gjord'}</span>
+                    {isDone ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <div className="w-2 h-2 rounded-full bg-amber-400" />}
+                  </div>
+                  <p className="text-xs font-bold leading-snug">{meta.title}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Interaktiva Handlingsknappar */}
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-neutral-700 block">Simulera händelser & övergångar:</span>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+            {/* 1. Simulera köp */}
+            <button
+              onClick={handleSimulatePurchase}
+              disabled={bootcampActionLoading !== null}
+              className="p-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition-all text-left flex flex-col justify-between active:scale-95"
+            >
+              <span className="text-[10px] uppercase tracking-wider text-emerald-200">1. Köp Bootcamp</span>
+              <span className="text-sm">Simulera köp (995 kr)</span>
+              <span className="text-[10px] text-emerald-100 font-normal mt-1">Beviljar åtkomst och startar 3-dagars inmönstring</span>
+            </button>
+
+            {/* 2. Slutför alla uppgifter */}
+            <button
+              onClick={handleSimulateCompleteAllTasks}
+              disabled={bootcampActionLoading !== null}
+              className="p-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-sm transition-all text-left flex flex-col justify-between active:scale-95"
+            >
+              <span className="text-[10px] uppercase tracking-wider text-amber-200">2. Inmönstring Klar</span>
+              <span className="text-sm">Klarmarkera alla 5</span>
+              <span className="text-[10px] text-amber-100 font-normal mt-1">Startar 12-veckors Bootcamp direkt (84 dagar)</span>
+            </button>
+
+            {/* 3. 3 dygn passerat (auto-start) */}
+            <button
+              onClick={handleSimulate3DaysPassed}
+              disabled={bootcampActionLoading !== null}
+              className="p-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition-all text-left flex flex-col justify-between active:scale-95"
+            >
+              <span className="text-[10px] uppercase tracking-wider text-blue-200">3. Tidsfrist 3 dygn</span>
+              <span className="text-sm">Simulera 3 dygn passerat</span>
+              <span className="text-[10px] text-blue-100 font-normal mt-1">Auto-startar Bootcamp även om uppgifter ej är klara</span>
+            </button>
+
+            {/* 4. Nollställ */}
+            <button
+              onClick={handleResetAccess}
+              disabled={bootcampActionLoading !== null}
+              className="p-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold rounded-xl border border-neutral-300 transition-all text-left flex flex-col justify-between active:scale-95"
+            >
+              <span className="text-[10px] uppercase tracking-wider text-neutral-500">Nollställ</span>
+              <span className="text-sm">Rensa Bootcamp-åtkomst</span>
+              <span className="text-[10px] text-neutral-500 font-normal mt-1">Tar bort bootcampAccess från profilen</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Tidsresor i programmet */}
+        <div className="p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 space-y-2">
+          <span className="text-xs font-bold text-neutral-700 block">Tidsresor under de 12 veckorna:</span>
+          <div className="flex flex-wrap gap-2 text-xs font-mono">
+            <button
+              onClick={() => handleSimulateJumpDay(1)}
+              disabled={bootcampActionLoading !== null}
+              className="px-3 py-1.5 bg-white hover:bg-neutral-100 border border-neutral-300 rounded-lg font-bold text-neutral-800 active:scale-95"
+            >
+              Dag 1 (Vecka 1 start)
+            </button>
+            <button
+              onClick={() => handleSimulateJumpDay(14)}
+              disabled={bootcampActionLoading !== null}
+              className="px-3 py-1.5 bg-white hover:bg-neutral-100 border border-neutral-300 rounded-lg font-bold text-neutral-800 active:scale-95"
+            >
+              Dag 14 (Vecka 2)
+            </button>
+            <button
+              onClick={() => handleSimulateJumpDay(42)}
+              disabled={bootcampActionLoading !== null}
+              className="px-3 py-1.5 bg-white hover:bg-neutral-100 border border-neutral-300 rounded-lg font-bold text-neutral-800 active:scale-95"
+            >
+              Dag 42 (Vecka 6 / Halvvägs)
+            </button>
+            <button
+              onClick={() => handleSimulateJumpDay(80)}
+              disabled={bootcampActionLoading !== null}
+              className="px-3 py-1.5 bg-white hover:bg-neutral-100 border border-neutral-300 rounded-lg font-bold text-neutral-800 active:scale-95"
+            >
+              Dag 80 (Vecka 12 / Slutspurt)
+            </button>
+            <button
+              onClick={() => handleSimulateJumpDay(85)}
+              disabled={bootcampActionLoading !== null}
+              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-300 rounded-lg font-bold text-red-800 active:scale-95"
+            >
+              Dag 85 (Åtkomst Utgången ❌)
+            </button>
+          </div>
+        </div>
+
+        {/* Abonnemangsväxlare (för att testa befintliga abonnenter) */}
+        <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-xs">
+          <div>
+            <span className="font-bold text-neutral-800">Testa abonnent-scenarier:</span>
+            <span className="text-neutral-500 block text-[11px]">Växla abonnemangsstatus för att verifiera att befintliga abonnenter inte blockeras.</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleToggleSubscription('active')}
+              disabled={bootcampActionLoading !== null}
+              className={`px-3 py-1.5 rounded-lg font-bold border transition-all ${
+                effectiveProfile.subscriptionStatus === 'active' 
+                  ? 'bg-emerald-600 text-white border-emerald-600' 
+                  : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100'
+              }`}
+            >
+              Aktivt abonnemang
+            </button>
+            <button
+              onClick={() => handleToggleSubscription('inactive')}
+              disabled={bootcampActionLoading !== null}
+              className={`px-3 py-1.5 rounded-lg font-bold border transition-all ${
+                effectiveProfile.subscriptionStatus === 'inactive' || !effectiveProfile.subscriptionStatus 
+                  ? 'bg-neutral-800 text-white border-neutral-800' 
+                  : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100'
+              }`}
+            >
+              Inget abonnemang
+            </button>
+          </div>
+        </div>
+
+        {/* Meddelanderad */}
+        {bootcampTestMsg && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-medium flex items-center justify-between animate-fade-in">
+            <span>ℹ️ {bootcampTestMsg}</span>
+            <button onClick={() => setBootcampTestMsg(null)} className="text-emerald-700 hover:text-emerald-900 font-bold ml-2">×</button>
           </div>
         )}
       </div>

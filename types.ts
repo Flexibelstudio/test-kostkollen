@@ -205,6 +205,21 @@ export interface CommunitySharingSettings {
   goal: boolean;        // mål
 }
 
+export type BootcampOnboardingTaskId =
+  | 'log_meal_photo'
+  | 'log_meal_search'
+  | 'log_water'
+  | 'weigh_in_and_goal'
+  | 'read_morning_briefing';
+
+export interface BootcampAccess {
+  purchaseDate: string;
+  onboardingCompletedDate: string | null;
+  bootcampStartDate: string | null;
+  accessExpiresDate: string | null;
+  onboardingTasksCompleted: BootcampOnboardingTaskId[];
+}
+
 export interface UserProfileData {
   name?: string;
   hasCompletedBootcamp?: boolean;
@@ -241,6 +256,9 @@ export interface UserProfileData {
   highestBootcampStreak?: number; // New field for lifetime bootcamp streak
   plateauAnalysis?: PlateauAnalysisState;
   
+  // Bootcamp Access
+  bootcampAccess?: BootcampAccess;
+
   // Subscription fields
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
   currentPeriodEnd?: string; // ISO date string
@@ -640,6 +658,7 @@ export interface CoachViewMember {
   };
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
   stripeCustomerId?: string | null;
+  bootcampAccess?: BootcampAccess;
   weeklyWeightChange?: number;
   ageYears?: number;
   gender: Gender;

@@ -14,6 +14,7 @@ import { WeightLogEntry } from '../types';
 import ProteinInfoModal from './ProteinInfoModal';
 import { InformationCircleIcon } from './icons';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { BOOTCAMP_PRICE_LABEL } from '../constants/pricing';
 
 interface BootcampLandingViewProps {
   onBack: () => void;
@@ -156,7 +157,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
           <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-2xl inline-block">
              <p className="text-sm text-primary-light font-bold uppercase tracking-wider mb-1">Introduktionspris (Beta)</p>
              <div className="flex items-baseline gap-2">
-                 <span className="text-4xl font-extrabold text-white">395 kr</span>
+                 <span className="text-4xl font-extrabold text-white">{BOOTCAMP_PRICE_LABEL}</span>
                  <span className="text-sm text-neutral-400 font-medium">engångsbetalning</span>
              </div>
           </div>
