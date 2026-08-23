@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle, CommunitySharingSettings } from '../types.ts';
 import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS, DEFAULT_COMMUNITY_SHARING_SETTINGS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
+import { getBootcampAccessDetails } from '../utils/accessControl.ts';
 import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon, UserPlusIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
 import ToastNotification from './ToastNotification';
@@ -188,15 +189,59 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
     const [isInviteShared, setIsInviteShared] = useState(false);
     
+    // Kontrollera om coachen är låst under pågående bootcamp (eller grundutbildning).
+    // Möjligheten att välja coach öppnas efter fullföljd Bootcamp (examen) eller för användare med abonnemang.
+    const bootcampDetails = getBootcampAccessDetails(initialProfile);
+    const isCoachLocked = isBootcampOnboarding || isBootcampActive || (bootcampDetails.hasBootcamp && !bootcampDetails.isExpired);
+
+    const getInitialProfileForState = useCallback(() => {
+      const details = getBootcampAccessDetails(initialProfile);
+      const isOngoingBootcamp = isBootcampOnboarding || isBootcampActive || (details.hasBootcamp && !details.isExpired);
+
+      // Vid onboarding får bootcamp-användare alltid Börje ('hard') från start
+      if (isOnboarding) {
+        return {
+          name: initialProfile?.name || undefined,
+          photoURL: initialProfile?.photoURL || undefined,
+          currentWeightKg: initialProfile?.currentWeightKg || undefined,
+          heightCm: initialProfile?.heightCm || undefined,
+          ageYears: initialProfile?.ageYears || undefined,
+          gender: initialProfile?.gender || DEFAULT_USER_PROFILE.gender,
+          activityLevel: initialProfile?.activityLevel || DEFAULT_USER_PROFILE.activityLevel,
+          goalType: initialProfile?.goalType || deriveEffectiveGoalType({}),
+          measurementMethod: initialProfile?.measurementMethod || 'inbody',
+          desiredWeightChangeKg: initialProfile?.desiredWeightChangeKg || undefined,
+          skeletalMuscleMassKg: initialProfile?.skeletalMuscleMassKg || undefined,
+          bodyFatMassKg: initialProfile?.bodyFatMassKg || undefined,
+          desiredFatMassChangeKg: initialProfile?.desiredFatMassChangeKg || undefined,
+          desiredMuscleMassChangeKg: initialProfile?.desiredMuscleMassChangeKg || undefined,
+          goalCompletionDate: initialProfile?.goalCompletionDate || undefined,
+          isCourseActive: false,
+          courseInterest: false,
+          isSearchable: true, // Default to searchable for new users
+          notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
+          coachStyle: initialProfile?.coachStyle || 'hard',
+        } as UserProfileData;
+      }
+      // Vid redigering: behåll befintligt sparat värde för användaren, eller standardvärde om låst
+      return {
+          ...DEFAULT_USER_PROFILE,
+          ...(initialProfile || {}),
+          coachStyle: initialProfile?.coachStyle || (isOngoingBootcamp ? 'hard' : DEFAULT_USER_PROFILE.coachStyle)
+      } as UserProfileData;
+    }, [isOnboarding, initialProfile, isBootcampOnboarding, isBootcampActive]);
+
+    const [profile, setProfile] = useState<UserProfileData>(getInitialProfileForState());
+
     // Get Persona Details based on profile
-    const coachStyle = initialProfile.coachStyle || 'balanced';
-    const persona = COACH_PERSONAS[coachStyle] || COACH_PERSONAS['balanced'];
+    const activeCoachStyle = isCoachLocked ? 'hard' : (profile.coachStyle || initialProfile?.coachStyle || (isOnboarding ? 'hard' : 'balanced'));
+    const persona = COACH_PERSONAS[activeCoachStyle] || COACH_PERSONAS['hard'];
     
     // Theme colors based on coach style
     let coachTheme = { bg: 'bg-[#F6E2D9]/40', border: 'border-[#F6E2D9]', text: 'text-[#D96E4A]', iconBg: 'bg-[#F6E2D9]', iconText: 'text-[#D96E4A]' };
-    if (coachStyle === 'soft') {
+    if (activeCoachStyle === 'soft') {
         coachTheme = { bg: 'bg-[#E8EFE9]', border: 'border-[#8C9A86]/40', text: 'text-[#2B3B2C]', iconBg: 'bg-[#E8EFE9]', iconText: 'text-[#8C9A86]' };
-    } else if (coachStyle === 'hard') {
+    } else if (activeCoachStyle === 'hard') {
         coachTheme = { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800', iconBg: 'bg-red-100', iconText: 'text-red-600' };
     }
 
@@ -220,80 +265,43 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         setIsSubscribing(false);
     };
 
-  const activityLevelOptions: { value: ActivityLevel; emoji: string; label: string; description: string; example: string }[] = [
-    {
-      value: 'sedentary',
-      emoji: '🪑',
-      label: 'Stillasittande',
-      description: 'Lite vardagsrörelse och ingen eller mycket lite träning.',
-      example: 'Exempel: stillasittande jobb, bilpendling, ingen träning i veckan.'
-    },
-    {
-      value: 'light',
-      emoji: '🚶',
-      label: 'Lätt aktiv',
-      description: 'Viss vardagsrörelse och/eller träning 1–3 gånger per vecka.',
-      example: 'Exempel: promenader, hushållsarbete, cykel till jobbet eller kortare träningspass ibland.'
-    },
-    {
-      value: 'moderate',
-      emoji: '🧘',
-      label: 'Medelaktiv',
-      description: 'Regelbunden rörelse och träning 3–5 gånger per vecka.',
-      example: 'Exempel: styrketräning, gruppträning, yoga, cykling eller aktiv fritid.'
-    },
-    {
-      value: 'active',
-      emoji: '🏋️',
-      label: 'Högaktiv',
-      description: 'Daglig träning eller ett aktivt arbete där du står, går eller rör dig mycket.',
-      example: 'Exempel: 6–7 träningspass i veckan, eller jobb som pedagog, PT eller inom vård och omsorg.'
-    },
-    {
-      value: 'very_active',
-      emoji: '🔥',
-      label: 'Extremt aktiv',
-      description: 'Hård träning och/eller fysiskt krävande arbete – ofta flera pass per dag.',
-      example: 'Exempel: idrottare, byggarbetare som tränar tungt, dubbelpass eller mycket hög träningsvolym.'
-    }
-  ];
-
-  const getInitialProfileForState = useCallback(() => {
-    // For onboarding, we want to use any pre-filled data (like weight from Bootcamp onboarding)
-    // but ensure we have sensible defaults for other fields.
-    if (isOnboarding) {
-      return {
-        name: initialProfile?.name || undefined,
-        photoURL: initialProfile?.photoURL || undefined,
-        currentWeightKg: initialProfile?.currentWeightKg || undefined,
-        heightCm: initialProfile?.heightCm || undefined,
-        ageYears: initialProfile?.ageYears || undefined,
-        gender: initialProfile?.gender || DEFAULT_USER_PROFILE.gender,
-        activityLevel: initialProfile?.activityLevel || DEFAULT_USER_PROFILE.activityLevel,
-        goalType: initialProfile?.goalType || deriveEffectiveGoalType({}),
-        measurementMethod: initialProfile?.measurementMethod || 'inbody',
-        desiredWeightChangeKg: initialProfile?.desiredWeightChangeKg || undefined,
-        skeletalMuscleMassKg: initialProfile?.skeletalMuscleMassKg || undefined,
-        bodyFatMassKg: initialProfile?.bodyFatMassKg || undefined,
-        desiredFatMassChangeKg: initialProfile?.desiredFatMassChangeKg || undefined,
-        desiredMuscleMassChangeKg: initialProfile?.desiredMuscleMassChangeKg || undefined,
-        goalCompletionDate: initialProfile?.goalCompletionDate || undefined,
-        isCourseActive: false,
-        courseInterest: false,
-        isSearchable: true, // Default to searchable for new users
-        notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
-        coachStyle: isBootcampOnboarding ? 'hard' : (initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle),
-      } as UserProfileData;
-    }
-    // For editing, use the complete existing profile but ensure defaults for new fields
-    return {
-        ...DEFAULT_USER_PROFILE,
-        ...(initialProfile || {}),
-        coachStyle: (isBootcampActive || isBootcampOnboarding) ? 'hard' : (initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle)
-    } as UserProfileData;
-  }, [isOnboarding, initialProfile, isBootcampOnboarding, isBootcampActive]);
-
-  const [profile, setProfile] = useState<UserProfileData>(getInitialProfileForState());
+    const activityLevelOptions: { value: ActivityLevel; emoji: string; label: string; description: string; example: string }[] = [
+      {
+        value: 'sedentary',
+        emoji: '🪑',
+        label: 'Stillasittande',
+        description: 'Lite vardagsrörelse och ingen eller mycket lite träning.',
+        example: 'Exempel: stillasittande jobb, bilpendling, ingen träning i veckan.'
+      },
+      {
+        value: 'light',
+        emoji: '🚶',
+        label: 'Lätt aktiv',
+        description: 'Viss vardagsrörelse och/eller träning 1–3 gånger per vecka.',
+        example: 'Exempel: promenader, hushållsarbete, cykel till jobbet eller kortare träningspass ibland.'
+      },
+      {
+        value: 'moderate',
+        emoji: '🧘',
+        label: 'Medelaktiv',
+        description: 'Regelbunden rörelse och träning 3–5 gånger per vecka.',
+        example: 'Exempel: styrketräning, gruppträning, yoga, cykling eller aktiv fritid.'
+      },
+      {
+        value: 'active',
+        emoji: '🏋️',
+        label: 'Högaktiv',
+        description: 'Daglig träning eller ett aktivt arbete där du står, går eller rör dig mycket.',
+        example: 'Exempel: 6–7 träningspass i veckan, eller jobb som pedagog, PT eller inom vård och omsorg.'
+      },
+      {
+        value: 'very_active',
+        emoji: '🔥',
+        label: 'Extremt aktiv',
+        description: 'Hård träning och/eller fysiskt krävande arbete – ofta flera pass per dag.',
+        example: 'Exempel: idrottare, byggarbetare som tränar tungt, dubbelpass eller mycket hög träningsvolym.'
+      }
+    ];
   const [newPhotoDataUrl, setNewPhotoDataUrl] = useState<string | null>(null);
   const [isSoundMuted, setIsSoundMuted] = useState<boolean>(() => {
     try {
@@ -560,7 +568,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     ? (
         !!profile.name?.trim() &&
         !!profile.gender &&
-        (isBootcampOnboarding || !!profile.coachStyle) &&
         (profile.currentWeightKg || 0) > 0 && 
         (profile.heightCm || 0) > 0 && 
         (profile.ageYears || 0) > 0
@@ -802,52 +809,72 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </section>
             )}
             
-            <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
-                
-                {(isBootcampOnboarding || isBootcampActive) && (
-                    <div className="mb-4 p-3 bg-[#F6E2D9]/50 border border-[#D96E4A]/30 rounded-xl flex items-start text-[#56524D]">
-                        <InformationCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5 text-[#D96E4A]" />
-                        <p className="text-sm">
-                            Du deltar just nu i en bootcamp och har därför Börje som din dedikerade coach. Det går inte att byta coach under pågående bootcamp.
-                        </p>
-                    </div>
-                )}
+            {/* COACH SELECTION: Only show when NOT onboarding */}
+            {!isOnboarding && (
+                <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                    {isCoachLocked ? (
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 id="coach-style-heading" className="text-xl sm:text-2xl font-semibold text-neutral-dark">Din Coach</h4>
+                                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#F6E2D9] text-[#D96E4A] border border-[#D96E4A]/30">
+                                    Bootcamp
+                                </span>
+                            </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
-                        const p = COACH_PERSONAS[style];
-                        
-                        const isSelected = profile.coachStyle === style;
-                        const isDisabled = isBootcampOnboarding || isBootcampActive;
-
-                        return (
-                            <button
-                                type="button"
-                                key={style}
-                                onClick={() => {
-                                    if (isDisabled) {
-                                        setToast({ message: "Du kan inte byta coach under en pågående bootcamp.", type: 'error' });
-                                        return;
-                                    }
-                                    setProfile(prev => ({ ...prev, coachStyle: style }));
-                                }}
-                                className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center ${
-                                    isSelected
-                                        ? 'bg-[#F6E2D9] text-[#56524D] border-[#D96E4A] shadow-md'
-                                        : 'bg-[#FAF6EF] border-[#F1EAE0] hover:border-[#D96E4A]/50 text-[#56524D]'
-                                } ${isDisabled && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform bg-[#F1EAE0] border border-[#FAF6EF] overflow-hidden ${isSelected ? 'ring-2 ring-[#D96E4A]' : ''}`}>
-                                    {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover" /> : p.emoji}
+                            <div className="p-4 bg-[#FAF6EF] border border-[#F1EAE0] rounded-2xl flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                                <div className="w-16 h-16 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[#F1EAE0] border-2 border-[#D96E4A] shadow-sm">
+                                    {COACH_PERSONAS.hard.imageUrl ? (
+                                        <img src={COACH_PERSONAS.hard.imageUrl} alt={COACH_PERSONAS.hard.label} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-2xl">{COACH_PERSONAS.hard.emoji}</span>
+                                    )}
                                 </div>
-                                <span className="font-bold text-sm text-[#56524D]">{p.label}, {p.roleTitle}</span>
-                                <span className="text-xs text-[#7A756E] mt-1">{p.description}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </section>
+                                <div className="flex-1 text-center sm:text-left">
+                                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                        <span className="font-bold text-base text-[#56524D]">{COACH_PERSONAS.hard.label}, {COACH_PERSONAS.hard.roleTitle}</span>
+                                    </div>
+                                    <p className="text-sm text-[#7A756E] mt-1.5 leading-relaxed">
+                                        Under din 12-veckors Bootcamp är General Börje din fasta coach. Möjligheten att välja mellan Maja, Erik och Börje öppnas efter examen i samband med ditt fortsatta abonnemang.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
+                            <p className="text-sm text-neutral-600 mb-4">
+                                Välj den personlighet som passar dig bäst. Du kan byta coach när du vill i ditt abonnemang.
+                            </p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
+                                    const p = COACH_PERSONAS[style];
+                                    const isSelected = (profile.coachStyle || initialProfile?.coachStyle || 'balanced') === style;
+
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={style}
+                                            onClick={() => setProfile(prev => ({ ...prev, coachStyle: style }))}
+                                            className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center cursor-pointer ${
+                                                isSelected
+                                                    ? 'bg-[#F6E2D9] text-[#56524D] border-[#D96E4A] shadow-md'
+                                                    : 'bg-[#FAF6EF] border-[#F1EAE0] hover:border-[#D96E4A]/50 text-[#56524D]'
+                                            }`}
+                                        >
+                                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform bg-[#F1EAE0] border border-[#FAF6EF] overflow-hidden ${isSelected ? 'ring-2 ring-[#D96E4A]' : ''}`}>
+                                                {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover" /> : p.emoji}
+                                            </div>
+                                            <span className="font-bold text-sm text-[#56524D]">{p.label}, {p.roleTitle}</span>
+                                            <span className="text-xs text-[#7A756E] mt-1">{p.description}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </section>
+            )}
 
             {isOnboarding && (
                 <>

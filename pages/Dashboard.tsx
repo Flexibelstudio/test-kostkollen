@@ -75,8 +75,9 @@ import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import CoinFallEffect from '../components/CoinFallEffect';
 import CommonMealsList from '../components/CommonMealsList';
 import BootcampOnboardingCard from '../components/BootcampOnboardingCard';
+import ReadOnlyBanner from '../components/ReadOnlyBanner';
 import { completeBootcampOnboardingTask, checkAndAdvanceBootcampAccess } from '../services/bootcampAccessService';
-import { hasAppAccess } from '../utils/accessControl';
+import { hasAppAccess, isReadOnlyUser } from '../utils/accessControl';
 import { BootcampOnboardingTaskId } from '../types';
 
 // Helper function for image resizing
@@ -219,6 +220,8 @@ interface DashboardProps {
     onShareRecipe?: (recipeText: string) => void;
     onOpenBootcamp?: () => void;
     onOpenSubscription?: () => void;
+    isReadOnly?: boolean;
+    onOpenGraduationOffer?: () => void;
 }
 
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
@@ -244,7 +247,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     hasCompletedTodaysReport,
     onShareRecipe,
     onOpenBootcamp,
-    onOpenSubscription
+    onOpenSubscription,
+    isReadOnly = false,
+    onOpenGraduationOffer,
 }) => {
     const {
         currentUser,
@@ -898,6 +903,19 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     return (
         <div className="flex flex-col gap-3 pb-28 sm:pb-32 relative">
+            {/* Läsläge Banner */}
+            {isReadOnly && (
+                <ReadOnlyBanner 
+                    onOpenOffer={() => {
+                        if (onOpenGraduationOffer) {
+                            onOpenGraduationOffer();
+                        } else {
+                            onOpenSubscription?.();
+                        }
+                    }} 
+                />
+            )}
+
             {/* Börjes Grundutbildning Kort under inmönstring */}
             {userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate && (
                 <BootcampOnboardingCard 

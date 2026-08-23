@@ -69,21 +69,21 @@ export const PlateauAnalysisCard: React.FC<PlateauAnalysisCardProps> = ({
     switch (result.status) {
       case 'recomposition_progress':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#E8EFE9] text-[#2D5A3C]">
             <CheckCircle2 className="w-3.5 h-3.5" />
             Kroppsrekomposition
           </span>
         );
       case 'fat_loss_steady':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#E8EFE9] text-[#2D5A3C]">
             <TrendingDown className="w-3.5 h-3.5" />
             Stabil fettminskning
           </span>
         );
       case 'low_logging_rate':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#F1EAE0] text-[#7A756E]">
             <AlertCircle className="w-3.5 h-3.5" />
             Underlag saknas ({result.loggingPercentage}%)
           </span>
@@ -97,28 +97,28 @@ export const PlateauAnalysisCard: React.FC<PlateauAnalysisCardProps> = ({
         );
       case 'measuring_week_in_progress':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#F1EAE0] text-[#56524D]">
             <Calendar className="w-3.5 h-3.5" />
             Mätvecka pågår
           </span>
         );
       case 'adjustment_recommended':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#F6E2D9] text-[#D96E4A]">
             <Sparkles className="w-3.5 h-3.5" />
             Justeringsförslag (-{result.adjustment?.reductionAmountKcal} kcal)
           </span>
         );
       case 'intake_too_low':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700">
             <ShieldAlert className="w-3.5 h-3.5" />
             Basal energigräns nådd
           </span>
         );
       case 'human_handover':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#F1EAE0] text-[#56524D]">
             <HeartHandshake className="w-3.5 h-3.5" />
             Mänsklig coachkontakt
           </span>
@@ -168,7 +168,7 @@ export const PlateauAnalysisCard: React.FC<PlateauAnalysisCardProps> = ({
           <p className="text-sm sm:text-base font-extrabold text-neutral-dark">
             {result.endRollingAvgWeight !== undefined ? `${result.endRollingAvgWeight} kg` : '-'}
             {result.weightDeltaKg !== undefined && (
-              <span className={`text-xs ml-1 font-semibold ${result.weightDeltaKg <= 0 ? 'text-green-600' : 'text-neutral-500'}`}>
+              <span className={`text-xs ml-1 font-semibold ${result.weightDeltaKg <= 0 ? 'text-[#2D5A3C]' : 'text-neutral-500'}`}>
                 ({result.weightDeltaKg > 0 ? `+${result.weightDeltaKg}` : `${result.weightDeltaKg}`} kg)
               </span>
             )}
@@ -180,7 +180,7 @@ export const PlateauAnalysisCard: React.FC<PlateauAnalysisCardProps> = ({
             <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-0.5">7-d Fettmassa</p>
             <p className="text-sm sm:text-base font-extrabold text-neutral-dark">
               {result.endRollingAvgFatKg !== undefined ? `${result.endRollingAvgFatKg} kg` : '-'}
-              <span className={`text-xs ml-1 font-semibold ${result.fatDeltaKg <= 0 ? 'text-green-600' : 'text-amber-600'}`}>
+              <span className={`text-xs ml-1 font-semibold ${result.fatDeltaKg <= 0 ? 'text-[#2D5A3C]' : 'text-[#D96E4A]'}`}>
                 ({result.fatDeltaKg > 0 ? `+${result.fatDeltaKg}` : `${result.fatDeltaKg}`} kg)
               </span>
             </p>
@@ -192,7 +192,7 @@ export const PlateauAnalysisCard: React.FC<PlateauAnalysisCardProps> = ({
             <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-0.5">7-d Muskelmassa</p>
             <p className="text-sm sm:text-base font-extrabold text-neutral-dark">
               {result.endRollingAvgMuscleKg !== undefined ? `${result.endRollingAvgMuscleKg} kg` : '-'}
-              <span className={`text-xs ml-1 font-semibold ${result.muscleDeltaKg >= 0 ? 'text-green-600' : 'text-neutral-500'}`}>
+              <span className={`text-xs ml-1 font-semibold ${result.muscleDeltaKg >= 0 ? 'text-[#2D5A3C]' : 'text-neutral-500'}`}>
                 ({result.muscleDeltaKg > 0 ? `+${result.muscleDeltaKg}` : `${result.muscleDeltaKg}`} kg)
               </span>
             </p>
@@ -232,14 +232,14 @@ export const PlateauAnalysisCard: React.FC<PlateauAnalysisCardProps> = ({
 
       {/* Justeringsförslag Action */}
       {result.status === 'adjustment_recommended' && result.adjustment && onAcceptAdjustment && (
-        <div className="mb-4 bg-emerald-50/70 border border-emerald-200 rounded-xl p-4">
+        <div className="mb-4 bg-[#F6E2D9]/40 border border-[#F6E2D9] rounded-xl p-4">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
-              <h5 className="text-sm font-bold text-emerald-950">Föreslagen justering</h5>
-              <p className="text-xs text-emerald-800 leading-relaxed">
+              <h5 className="text-sm font-bold text-[#56524D]">Föreslagen justering</h5>
+              <p className="text-xs text-[#56524D] leading-relaxed">
                 Från {result.adjustment.currentCalorieGoal} kcal till <strong>{result.adjustment.proposedCalorieGoal} kcal/dag</strong> (-{result.adjustment.reductionAmountKcal} kcal).
               </p>
-              <p className="text-xs text-emerald-700 mt-1">
+              <p className="text-xs text-[#7A756E] mt-1">
                 Tryggt över ditt beräknade BMR på {result.adjustment.bmr} kcal ({result.adjustment.reductionsRemaining} säkra justeringar kvar).
               </p>
             </div>
@@ -247,7 +247,7 @@ export const PlateauAnalysisCard: React.FC<PlateauAnalysisCardProps> = ({
           <button
             onClick={handleAcceptAdjustmentClick}
             disabled={isActionLoading}
-            className="w-full py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-lg shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="w-full py-2.5 px-4 bg-[#D96E4A] hover:bg-[#C05A38] active:bg-[#B04E2E] text-white text-sm font-bold rounded-lg shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
           >
             {isActionLoading ? 'Uppdaterar...' : `Acceptera förslag (${result.adjustment.proposedCalorieGoal} kcal)`}
             <ArrowRight className="w-4 h-4" />
@@ -275,9 +275,9 @@ export const PlateauAnalysisCard: React.FC<PlateauAnalysisCardProps> = ({
                 <div key={alt.id} className="bg-neutral-50 rounded-xl p-3 border border-neutral-100 text-left">
                   <div className="flex items-center gap-2 mb-1">
                     {alt.id === 'steps' && <Footprints className="w-4 h-4 text-[#D96E4A]" />}
-                    {alt.id === 'protein' && <Apple className="w-4 h-4 text-emerald-600" />}
-                    {alt.id === 'strength' && <Dumbbell className="w-4 h-4 text-indigo-600" />}
-                    {alt.id === 'diet_break' && <Calendar className="w-4 h-4 text-purple-600" />}
+                    {alt.id === 'protein' && <Apple className="w-4 h-4 text-[#D96E4A]" />}
+                    {alt.id === 'strength' && <Dumbbell className="w-4 h-4 text-[#D96E4A]" />}
+                    {alt.id === 'diet_break' && <Calendar className="w-4 h-4 text-[#D96E4A]" />}
                     <h6 className="text-xs font-bold text-neutral-dark">{alt.title}</h6>
                   </div>
                   <p className="text-xs text-neutral-700 font-medium mb-1">{alt.description}</p>

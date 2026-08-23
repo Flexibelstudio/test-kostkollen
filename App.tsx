@@ -22,7 +22,8 @@ import {
   UserRole,
   GoalSettings,
   LoggedMeal,
-  PastDaysSummaryCollection
+  PastDaysSummaryCollection,
+  CoachStyle
 } from './types.ts';
 
 import {
@@ -75,6 +76,7 @@ import GamificationModal from './components/GamificationModal.tsx';
 import SubscriptionModal from './components/SubscriptionModal.tsx';
 import { TrialRecapModal } from './components/TrialRecapModal.tsx';
 import { BootcampFinaleModal } from './components/BootcampFinaleModal.tsx';
+import { BootcampGraduationModal } from './components/BootcampGraduationModal.tsx';
 import { BootcampDiplomaModal } from './components/BootcampDiplomaModal.tsx';
 import { BOOTCAMP_RANKS, BootcampRankDef } from './utils/bootcampUtils.ts';
 
@@ -83,8 +85,9 @@ import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
 import { uploadImageToStorage, uploadBase64ToStorage, base64ToBlob } from './utils/storageUtils';
 import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports, getUnseenBootcampFinale, markBootcampFinaleAsSeen } from './services/bootcampService.ts';
-import { completeBootcampOnboardingTask, grantBootcampAccess } from './services/bootcampAccessService.ts';
-import { hasAppAccess } from './utils/accessControl.ts';
+import { completeBootcampOnboardingTask, grantBootcampAccess, startBootcampCheckout, startSubscriptionCheckout, recordBootcampGraduation } from './services/bootcampAccessService.ts';
+import { isTestingToolAllowed } from './utils/testingToolHostnames.ts';
+import { hasAppAccess, isReadOnlyUser } from './utils/accessControl.ts';
 import AccessGateView from './components/AccessGateView.tsx';
 import {
   InformationCircleIcon, AICoachIcon,
@@ -355,6 +358,7 @@ export const App = () => {
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [unseenFinale, setUnseenFinale] = useState<any>(null);
   const [showFinaleModal, setShowFinaleModal] = useState(false);
+  const [showGraduationModal, setShowGraduationModal] = useState(false);
   const [promotionDiplomaModalData, setPromotionDiplomaModalData] = useState<{
     rankDef: BootcampRankDef;
     userName: string;
@@ -947,6 +951,77 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
 
     checkAndLoadTrialRecap();
   }, [isInitialDataLoaded, currentUser, userProfile.subscriptionStatus, userProfile.currentPeriodEnd]);
+
+  // Examensflöde utlösning: När Bootcamp-perioden (accessExpiresDate) nås ska examensflödet visas en gång
+  useEffect(() => {
+    if (!currentUser || !isInitialDataLoaded) return;
+    const access = userProfile.bootcampAccess;
+    if (access && access.accessExpiresDate) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const expiryStr = access.accessExpiresDate.split('T')[0];
+      const isExpired = todayStr > expiryStr;
+      
+      if (isExpired && !access.graduationSeen) {
+        setShowGraduationModal(true);
+      }
+    }
+  }, [currentUser, isInitialDataLoaded, userProfile.bootcampAccess]);
+
+  const isBootcampCompleted = useMemo(() => {
+    return (
+      (userProfile.highestBootcampStreak || 0) >= 80 ||
+      streakData.currentStreak >= 80 ||
+      userProfile.hasCompletedBootcamp === true ||
+      activeBootcamp?.status === 'completed' ||
+      (activeBootcamp?.longestStreak || 0) >= 80
+    );
+  }, [userProfile.highestBootcampStreak, streakData.currentStreak, userProfile.hasCompletedBootcamp, activeBootcamp]);
+
+  const handleAcceptGraduationSubscription = async (chosenCoach: CoachStyle) => {
+    if (!currentUser) return;
+    try {
+      const updatedAccess = await recordBootcampGraduation(currentUser.uid, userProfile.bootcampAccess, 'accepted', chosenCoach);
+      setUserProfile(prev => ({
+        ...prev,
+        bootcampAccess: updatedAccess,
+        coachStyle: chosenCoach
+      }));
+      setShowGraduationModal(false);
+
+      // Starta abonnemangsbetalning via Stripe
+      try {
+        await startSubscriptionCheckout(currentUser.uid, chosenCoach);
+      } catch (err: any) {
+        setToastNotification({
+          message: `Du har valt ${COACH_PERSONAS[chosenCoach]?.label || 'coach'}! Betalningsintegration är inte konfigurerad ännu.`,
+          type: 'success'
+        });
+      }
+    } catch (e: any) {
+      console.error('Kunde inte spara examensval:', e);
+      setToastNotification({ message: 'Ett fel uppstod vid sparande av ditt val.', type: 'error' });
+    }
+  };
+
+  const handleDeclineGraduationSubscription = async (chosenCoach: CoachStyle) => {
+    if (!currentUser) return;
+    try {
+      const updatedAccess = await recordBootcampGraduation(currentUser.uid, userProfile.bootcampAccess, 'declined', chosenCoach);
+      setUserProfile(prev => ({
+        ...prev,
+        bootcampAccess: updatedAccess,
+        coachStyle: chosenCoach
+      }));
+      setShowGraduationModal(false);
+      setToastNotification({
+        message: 'Dina resultat och din historik är sparade för alltid i läsläget.',
+        type: 'success'
+      });
+    } catch (e: any) {
+      console.error('Kunde inte spara examensval:', e);
+      setShowGraduationModal(false);
+    }
+  };
 
   useEffect(() => {
       if (currentUser) {
@@ -2065,21 +2140,27 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             />;
   }
 
-  // Central åtkomstgrind via hasAppAccess:
-  // Enda avgörande faktorn för om användaren får tillgång till appens funktioner och loggning.
+  // Central åtkomstgrind via hasAppAccess & isReadOnlyUser:
+  // hasAppAccess ger full tillgång till loggning och verktyg.
+  // isReadOnlyUser ger visningsåtkomst till tidigare loggade data och historik utan ny loggning.
   const effectiveUserProfile = { ...userProfile, role: userRole || userProfile.role };
   const userHasAccess = hasAppAccess(effectiveUserProfile);
+  const isReadOnly = isReadOnlyUser(effectiveUserProfile);
 
-  if (!userHasAccess) {
+  if (!userHasAccess && !isReadOnly) {
     return (
       <>
         <AccessGateView 
           userProfile={userProfile}
-          onGrantBootcampAccess={async () => {
+          onStartBootcampCheckout={async () => {
             if (!currentUser) return;
+            await startBootcampCheckout(currentUser.uid);
+          }}
+          onSimulatedGrant={async () => {
+            if (!currentUser || !isTestingToolAllowed()) return;
             const newAccess = await grantBootcampAccess(currentUser.uid);
             setUserProfile(prev => ({ ...prev, bootcampAccess: newAccess }));
-            setToastNotification({ message: 'Välkommen till General Börjes Bootcamp!', type: 'success' });
+            setToastNotification({ message: 'Simulerad Bootcamp-åtkomst beviljad (Testläge)!', type: 'success' });
           }}
           onOpenSubscriptionModal={() => setShowSubscriptionModal(true)}
           onLogout={handleLogout}
@@ -2292,7 +2373,15 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                     setInitialPostText(recipeText);
                     setViewMode('community');
                 }}
-                onOpenSubscription={() => setShowSubscriptionModal(true)}
+                onOpenSubscription={() => {
+                  if (isReadOnly) {
+                    setShowGraduationModal(true);
+                  } else {
+                    setShowSubscriptionModal(true);
+                  }
+                }}
+                isReadOnly={isReadOnly}
+                onOpenGraduationOffer={() => setShowGraduationModal(true)}
             />
          )}
          {viewMode === 'journey' && (
@@ -2504,6 +2593,21 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                     markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
                     setViewMode('coursesView');
                 }}
+            />
+        )}
+
+        {showGraduationModal && currentUser && (
+            <BootcampGraduationModal
+                show={showGraduationModal}
+                isCompleted={isBootcampCompleted}
+                userProfile={userProfile}
+                pastDaysSummary={pastDaysSummary}
+                weightLogs={weightLogs}
+                totalMealsCount={totalMealsCount}
+                streakDays={Math.max(streakData.currentStreak, userProfile.highestBootcampStreak || 0, activeBootcamp?.longestStreak || 0)}
+                onAcceptSubscription={handleAcceptGraduationSubscription}
+                onDecline={handleDeclineGraduationSubscription}
+                onClose={() => setShowGraduationModal(false)}
             />
         )}
 

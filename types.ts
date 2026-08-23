@@ -218,6 +218,9 @@ export interface BootcampAccess {
   bootcampStartDate: string | null;
   accessExpiresDate: string | null;
   onboardingTasksCompleted: BootcampOnboardingTaskId[];
+  graduationSeen?: boolean;
+  graduationSeenAt?: string | null;
+  graduationDecision?: 'accepted' | 'declined' | 'dismissed' | null;
 }
 
 export interface UserProfileData {

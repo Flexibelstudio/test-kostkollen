@@ -119,6 +119,21 @@ export interface BootcampAccessDetails {
   onboardingTasksCompleted: BootcampOnboardingTaskId[];
   onboardingProgressPercent: number;
   onboardingDaysLeft: number;
+  graduationSeen: boolean;
+  graduationSeenAt: string | null;
+  graduationDecision: 'accepted' | 'declined' | 'dismissed' | null;
+}
+
+/**
+ * Returnerar true om användaren är i läsläge (Read-only mode).
+ * Läsläget gäller när användaren INTE har full åtkomst (hasAppAccess === false),
+ * men har köpt/påbörjat en Bootcamp tidigare (bootcampAccess.purchaseDate finns).
+ * Användare i läsläge kan se all historik, statistik och diplom, men kan inte logga nya måltider/vikt.
+ */
+export function isReadOnlyUser(userProfile?: UserProfileData | null): boolean {
+  if (!userProfile) return false;
+  if (hasAppAccess(userProfile)) return false;
+  return Boolean(userProfile.bootcampAccess?.purchaseDate);
 }
 
 /**
@@ -140,6 +155,9 @@ export function getBootcampAccessDetails(userProfile?: UserProfileData | null): 
     onboardingTasksCompleted: [],
     onboardingProgressPercent: 0,
     onboardingDaysLeft: 0,
+    graduationSeen: false,
+    graduationSeenAt: null,
+    graduationDecision: null,
   };
 
   if (!userProfile?.bootcampAccess?.purchaseDate) {
@@ -193,5 +211,8 @@ export function getBootcampAccessDetails(userProfile?: UserProfileData | null): 
     onboardingTasksCompleted: completedTasks,
     onboardingProgressPercent: progressPercent,
     onboardingDaysLeft,
+    graduationSeen: Boolean(access.graduationSeen),
+    graduationSeenAt: access.graduationSeenAt || null,
+    graduationDecision: access.graduationDecision || null,
   };
 }
