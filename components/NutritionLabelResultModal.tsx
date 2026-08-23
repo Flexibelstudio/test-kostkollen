@@ -53,10 +53,10 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
         
         setFinalNutrients({
           foodItem: analysisResult.foodItem,
-          calories: Math.round((analysisResult.calories || 0) * multiplier),
-          protein: Number(((analysisResult.protein || 0) * multiplier).toFixed(1)),
-          carbohydrates: Number(((analysisResult.carbohydrates || 0) * multiplier).toFixed(1)),
-          fat: Number(((analysisResult.fat || 0) * multiplier).toFixed(1)),
+          calories: (analysisResult.calories || 0) * multiplier,
+          protein: (analysisResult.protein || 0) * multiplier,
+          carbohydrates: (analysisResult.carbohydrates || 0) * multiplier,
+          fat: (analysisResult.fat || 0) * multiplier,
         });
     }
   }, [amountInput, unit, analysisResult]);
@@ -148,10 +148,10 @@ const NutritionLabelResultModal: React.FC<NutritionLabelResultModalProps> = ({ s
                 <div className="pt-4 mt-2 border-t border-neutral-light/60">
                     <h4 className="font-semibold text-neutral-dark mb-2 text-center">Totalt för din portion:</h4>
                     <div className="grid grid-cols-2 gap-x-5 gap-y-2 p-3 bg-primary-100/60 rounded-md text-lg">
-                        <div className="font-semibold flex items-center">🔥 Kalorier: <span className="ml-2 font-bold">{finalNutrients.calories} kcal</span></div>
-                        <div className="font-semibold flex items-center">💪 Protein: <span className="ml-2 font-bold">{finalNutrients.protein} g</span></div>
-                        <div className="font-semibold flex items-center">🍞 Kolhydrater: <span className="ml-2 font-bold">{finalNutrients.carbohydrates} g</span></div>
-                        <div className="font-semibold flex items-center">🥑 Fett: <span className="ml-2 font-bold">{finalNutrients.fat} g</span></div>
+                        <div className="font-semibold flex items-center">🔥 Kalorier: <span className="ml-2 font-bold">{Math.round(finalNutrients.calories)} kcal</span></div>
+                        <div className="font-semibold flex items-center">💪 Protein: <span className="ml-2 font-bold">{finalNutrients.protein.toFixed(1)} g</span></div>
+                        <div className="font-semibold flex items-center">🍞 Kolhydrater: <span className="ml-2 font-bold">{finalNutrients.carbohydrates.toFixed(1)} g</span></div>
+                        <div className="font-semibold flex items-center">🥑 Fett: <span className="ml-2 font-bold">{finalNutrients.fat.toFixed(1)} g</span></div>
                     </div>
                 </div>
             </div>

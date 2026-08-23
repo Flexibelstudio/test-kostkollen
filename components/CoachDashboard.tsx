@@ -28,12 +28,7 @@ import { BootcampLedningscentral } from './BootcampLedningscentral';
 import { Avatar } from './UserProfileModal';
 import { TrendingUp, FlaskConical } from 'lucide-react';
 import DevelopmentTestingTool from './DevelopmentTestingTool';
-
-const TESTING_TOOL_ALLOWED_HOSTNAMES = [
-  'staging-kostloggen.netlify.app',
-  'localhost',
-  '127.0.0.1',
-];
+import { isTestingToolAllowed, TESTING_TOOL_ALLOWED_HOSTNAMES } from '../utils/testingToolHostnames';
 
 type SortableKeys = keyof CoachViewMember;
 
@@ -710,7 +705,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
 
-  const isTestingToolEnabled = typeof window !== 'undefined' && TESTING_TOOL_ALLOWED_HOSTNAMES.includes(window.location.hostname);
+  const isTestingToolEnabled = isTestingToolAllowed();
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {

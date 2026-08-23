@@ -13,6 +13,7 @@ import LogWeightModal from './LogWeightModal';
 import UserProfileModal from './UserProfileModal';
 import { InformationCircleIcon } from './icons';
 import { getDateUID } from '../utils/dateUtils';
+import { sumMealNutrients } from '../utils/nutritionTotals';
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
 import { BootcampDiplomaGalleryModal } from './BootcampDiplomaGalleryModal';
 import { RankBadge } from './RankBadge';
@@ -113,8 +114,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           fetchWaterLog(auth.currentUser!.uid, targetDateStr)
         ]);
         
-        const totalProtein = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.protein, 0);
-        const totalCalories = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.calories, 0);
+        const { calories: totalCalories, protein: totalProtein } = sumMealNutrients(meals);
         
         // Kcal-kravet: Får inte gå över målet (0 kcal marginal, men sparpott får användas).
         // Får ligga under målet, men max 20% under (för att bygga sparpott utan att svälta).

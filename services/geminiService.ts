@@ -5,6 +5,8 @@ import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../co
 import { auth, firebaseConfig, appCheck } from '../firebase.ts'; // Lagt till appCheck i importen
 import { getToken } from "firebase/app-check"; // Importera getToken för App Check
 import { runPlateauAnalysis } from '../utils/plateauAnalysis';
+import { calculateWeeklyTotals } from '../utils/nutritionTotals';
+import { recordUploadStart, recordUploadEnd, recordGeminiCallTiming } from '../utils/photoPipelineProfiler.ts';
 
 // -- SECURE PROXY SETUP --
 // We route all Gemini API calls through our Firebase Cloud Function Proxy.
@@ -293,10 +295,8 @@ PÅGÅENDE BOOTCAMP (FAS 2):
   let recentContext = '';
   if (pastDaysSummary && pastDaysSummary.length > 0) {
     const last7Days = pastDaysSummary.slice(-7);
-    const totalConsumed = last7Days.reduce((sum, day) => sum + day.consumedCalories, 0);
-    const totalGoal = last7Days.reduce((sum, day) => sum + day.calorieGoal, 0);
-    const avgConsumed = totalConsumed / last7Days.length;
-    const avgGoal = totalGoal / last7Days.length;
+    const weeklyTotals = calculateWeeklyTotals(last7Days);
+    const { totalConsumed, totalGoal, averageDailyConsumed: avgConsumed, averageDailyGoal: avgGoal } = weeklyTotals;
     
     // Check if user has been good (consumed <= goal + small buffer)
     const hasBeenGood = avgConsumed <= avgGoal + 50;
@@ -473,6 +473,8 @@ export const getMorningBriefingAudio = async (text: string, style: CoachStyle): 
 };
 
 export const analyzeFoodImage = async (base64ImageData: string): Promise<NutritionalInfo> => {
+  // Steg 3: Mät förberedelse och paketering av bilduppladdning / payload
+  recordUploadStart();
   const imagePart = {
     inlineData: {
       mimeType: 'image/jpeg', 
@@ -498,6 +500,10 @@ Se till att alla näringsvärden är numeriska och representerar en rimlig näri
 Till exempel, för en ostpizzabit: {"foodItem": "Ostpizzabit", "calories": 280, "protein": 12, "carbohydrates": 35, "fat": 10}
 För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein": 30, "carbohydrates": 10, "fat": 20}`
   };
+  recordUploadEnd();
+
+  // Steg 4: Anropet till Gemini för bildanalys, från skickat till mottaget svar
+  const tGeminiStart = performance.now();
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
@@ -508,6 +514,10 @@ För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein
         temperature: 0.2, 
       },
     });
+    const tGeminiEnd = performance.now();
+
+    // Steg 5: Tolkning av svaret till näringsvärden
+    const tParseStart = performance.now();
 
     let jsonStr = response.text?.trim();
     if (!jsonStr) throw new Error("No text response");
@@ -531,6 +541,18 @@ För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein
     parsedData.protein = Math.max(0, parsedData.protein);
     parsedData.carbohydrates = Math.max(0, parsedData.carbohydrates);
     parsedData.fat = Math.max(0, parsedData.fat);
+
+    const tParseEnd = performance.now();
+
+    // Registrera mätvärden för Steg 4 och Steg 5
+    recordGeminiCallTiming({
+      tGeminiStart,
+      tGeminiEnd,
+      tParseStart,
+      tParseEnd,
+      foodItem: parsedData.foodItem,
+      calories: parsedData.calories,
+    });
 
     return parsedData;
 

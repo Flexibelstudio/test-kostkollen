@@ -154,10 +154,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
       const loggedNutritionalInfo: NutritionalInfo = {
         foodItem: `${title} (${numPortionsToLog.toLocaleString('sv-SE')} port.)`,
-        calories: Math.round(extractNumber(totalNutritionalInfo.calories) * numPortionsToLog),
-        protein: Math.round(extractNumber(totalNutritionalInfo.protein) * numPortionsToLog),
-        carbohydrates: Math.round(extractNumber(totalNutritionalInfo.carbohydrates) * numPortionsToLog),
-        fat: Math.round(extractNumber(totalNutritionalInfo.fat) * numPortionsToLog),
+        calories: extractNumber(totalNutritionalInfo.calories) * numPortionsToLog,
+        protein: extractNumber(totalNutritionalInfo.protein) * numPortionsToLog,
+        carbohydrates: extractNumber(totalNutritionalInfo.carbohydrates) * numPortionsToLog,
+        fat: extractNumber(totalNutritionalInfo.fat) * numPortionsToLog,
       };
       onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealType });
       onClose(); // Close modal immediately after logging

@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { LoggedMeal, NutritionalInfo } from '../types';
 import MealItemCard from './MealItemCard';
 import { XMarkIcon } from './icons';
+import { sumMealNutrients } from '../utils/nutritionTotals';
 
 interface MealSectionCardProps {
   title: string;
@@ -34,15 +35,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
   isBootcamp = false
 }) => {
   // Calculate totals for this specific meal section
-  const totals = useMemo(() => meals.reduce((acc, meal) => {
-    const count = meal.count || 1;
-    return {
-        calories: acc.calories + (meal.nutritionalInfo.calories * count),
-        protein: acc.protein + (meal.nutritionalInfo.protein * count),
-        carbs: acc.carbs + (meal.nutritionalInfo.carbohydrates * count),
-        fat: acc.fat + (meal.nutritionalInfo.fat * count),
-    };
-  }, { calories: 0, protein: 0, carbs: 0, fat: 0 }), [meals]);
+  const totals = useMemo(() => sumMealNutrients(meals), [meals]);
 
   const isEmpty = meals.length === 0;
 
@@ -105,7 +98,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
                     <div className="bg-white dark:bg-[#2B2825] p-3 rounded-2xl border border-[#F1EAE0] dark:border-[#484440] shadow-sm flex flex-col items-center justify-center text-center">
                         <span className="text-xs font-semibold text-[#D96E4A] uppercase mb-1">Kolhydrater</span>
                         <div className="flex items-center gap-1 text-[#56524D] dark:text-[#FAF6EF]">
-                            <span className="text-lg font-bold">{Math.round(totals.carbs)}</span>
+                            <span className="text-lg font-bold">{Math.round(totals.carbohydrates)}</span>
                             <span className="text-xs font-medium">g</span>
                         </div>
                     </div>

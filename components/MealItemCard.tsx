@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LoggedMeal, NutritionalInfo } from '../types.ts';
 import { TrashIcon, PencilIcon, CheckIcon, XMarkIcon, ChevronDownIcon, ChevronUpIcon, BookmarkIcon } from './icons.tsx';
 import { Flame, Dumbbell, Wheat, Droplet } from 'lucide-react';
+import { resolveUpdatedNutrients } from '../utils/nutritionTotals.ts';
 
 interface MealItemCardProps {
   meal: LoggedMeal;
@@ -34,13 +35,13 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
 
   const handleSave = () => {
     if (isReadOnly) return;
-    const updatedInfo: NutritionalInfo = {
-      foodItem: editedFoodItem.trim(),
-      calories: Math.round(parseFloat(editedCalories) || 0),
-      protein: Math.round(parseFloat(editedProtein) || 0),
-      carbohydrates: Math.round(parseFloat(editedCarbohydrates) || 0),
-      fat: Math.round(parseFloat(editedFat) || 0),
-    };
+    const updatedInfo: NutritionalInfo = resolveUpdatedNutrients(meal.nutritionalInfo, {
+      foodItem: editedFoodItem,
+      calories: editedCalories,
+      protein: editedProtein,
+      carbohydrates: editedCarbohydrates,
+      fat: editedFat,
+    });
     onUpdate(meal.id, updatedInfo);
     setIsEditing(false);
   };
@@ -51,13 +52,13 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
   
   const createNumericHandler = (setter: React.Dispatch<React.SetStateAction<string>>) => {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { value } = e.target;
+        const value = e.target.value.replace(',', '.');
         if (value === '') {
             setter('0');
             return;
         }
-        if (/^\d+$/.test(value)) {
-            setter(String(parseInt(value, 10)));
+        if (/^\d*\.?\d*$/.test(value)) {
+            setter(value);
         }
     };
   };
@@ -96,28 +97,28 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
           <div>
             <label htmlFor={`calories-${meal.id}`} className="block text-sm font-medium text-[#56524D] dark:text-[#FAF6EF]">Kalorier (kcal)</label>
              <div className="relative">
-                <input type="number" id={`calories-${meal.id}`} value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Kalorier" readOnly={isReadOnly}/>
+                <input type="number" id={`calories-${meal.id}`} value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="any" className={`${inputClass} pr-8`} aria-label="Kalorier" readOnly={isReadOnly}/>
                 <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-[#7A756E] pointer-events-none" />
             </div>
           </div>
           <div>
             <label htmlFor={`protein-${meal.id}`} className="block text-sm font-medium text-[#56524D] dark:text-[#FAF6EF]">Protein (g)</label>
              <div className="relative">
-                <input type="number" id={`protein-${meal.id}`} value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Protein" readOnly={isReadOnly}/>
+                <input type="number" id={`protein-${meal.id}`} value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="any" className={`${inputClass} pr-8`} aria-label="Protein" readOnly={isReadOnly}/>
                 <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-[#7A756E] pointer-events-none" />
             </div>
           </div>
           <div>
             <label htmlFor={`carbs-${meal.id}`} className="block text-sm font-medium text-[#56524D] dark:text-[#FAF6EF]">Kolhydrater (g)</label>
              <div className="relative">
-                <input type="number" id={`carbs-${meal.id}`} value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Kolhydrater" readOnly={isReadOnly}/>
+                <input type="number" id={`carbs-${meal.id}`} value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="any" className={`${inputClass} pr-8`} aria-label="Kolhydrater" readOnly={isReadOnly}/>
                 <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-[#7A756E] pointer-events-none" />
             </div>
           </div>
           <div>
             <label htmlFor={`fat-${meal.id}`} className="block text-sm font-medium text-[#56524D] dark:text-[#FAF6EF]">Fett (g)</label>
              <div className="relative">
-                <input type="number" id={`fat-${meal.id}`} value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="1" className={`${inputClass} pr-8`} aria-label="Fett" readOnly={isReadOnly}/>
+                <input type="number" id={`fat-${meal.id}`} value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="any" className={`${inputClass} pr-8`} aria-label="Fett" readOnly={isReadOnly}/>
                 <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-[#7A756E] pointer-events-none" />
             </div>
           </div>

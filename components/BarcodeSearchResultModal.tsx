@@ -44,10 +44,10 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
       }
 
       setCalculatedNutrients({
-        calories: Math.round(scanResult.nutrientsPer100g.calories * multiplier),
-        protein: Number((scanResult.nutrientsPer100g.protein * multiplier).toFixed(1)),
-        carbohydrates: Number((scanResult.nutrientsPer100g.carbohydrates * multiplier).toFixed(1)),
-        fat: Number((scanResult.nutrientsPer100g.fat * multiplier).toFixed(1)),
+        calories: scanResult.nutrientsPer100g.calories * multiplier,
+        protein: scanResult.nutrientsPer100g.protein * multiplier,
+        carbohydrates: scanResult.nutrientsPer100g.carbohydrates * multiplier,
+        fat: scanResult.nutrientsPer100g.fat * multiplier,
       });
     }
   }, [amount, unit, scanResult]);
@@ -149,10 +149,10 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
           <div className="pt-4 mt-2 border-t border-neutral-light/60">
               <h4 className="font-semibold text-neutral-dark mb-2">Beräknat näringsinnehåll:</h4>
               <div className="grid grid-cols-2 gap-x-5 gap-y-2 p-3 bg-neutral-light/70 rounded-md">
-                  <div className="flex items-center"><FireIcon className="w-4 h-4 mr-1 text-red-500" /> Kalorier: {calculatedNutrients.calories} kcal</div>
-                  <div className="flex items-center"><ProteinIcon className="w-4 h-4 mr-1 text-primary" /> Protein: {calculatedNutrients.protein} g</div>
-                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-[#7A756E]" /> Kolhydrater: {calculatedNutrients.carbohydrates} g</div>
-                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-[#D96E4A]" /> Fett: {calculatedNutrients.fat} g</div>
+                  <div className="flex items-center"><FireIcon className="w-4 h-4 mr-1 text-red-500" /> Kalorier: {Math.round(calculatedNutrients.calories)} kcal</div>
+                  <div className="flex items-center"><ProteinIcon className="w-4 h-4 mr-1 text-primary" /> Protein: {calculatedNutrients.protein.toFixed(1)} g</div>
+                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-[#7A756E]" /> Kolhydrater: {calculatedNutrients.carbohydrates.toFixed(1)} g</div>
+                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-[#D96E4A]" /> Fett: {calculatedNutrients.fat.toFixed(1)} g</div>
               </div>
           </div>
           

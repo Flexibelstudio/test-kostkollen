@@ -4,6 +4,7 @@ import { SearchedFoodInfo, MealType } from '../types.ts';
 import { getNutritionalInfoForTextSearch } from '../services/geminiService.ts';
 import { CheckIcon, XMarkIcon, SearchIcon, PencilIcon } from './icons.tsx';
 import MealTypeSelector from './MealTypeSelector';
+import { resolveNutritionalFieldValue } from '../utils/nutritionTotals.ts';
 
 interface TextEntryModalProps {
   show: boolean;
@@ -114,13 +115,18 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
           ? editedServingDescription
           : `${numQuantity.toLocaleString('sv-SE')} × ${baseValues?.servingDescription || editedServingDescription}`;
     
+        const baseCalories = (baseValues?.calories || 0) * numQuantity;
+        const baseProtein = (baseValues?.protein || 0) * numQuantity;
+        const baseCarbs = (baseValues?.carbohydrates || 0) * numQuantity;
+        const baseFat = (baseValues?.fat || 0) * numQuantity;
+
         const dataToLog: SearchedFoodInfo = {
           foodItem: editedFoodItem,
           servingDescription: finalServingDescription, 
-          calories: Math.round(parseFloat(editedCalories) || 0),
-          protein: Math.round(parseFloat(editedProtein) || 0),
-          carbohydrates: Math.round(parseFloat(editedCarbohydrates) || 0),
-          fat: Math.round(parseFloat(editedFat) || 0),
+          calories: baseValues ? resolveNutritionalFieldValue(baseCalories, editedCalories) : (parseFloat(editedCalories.replace(',', '.')) || 0),
+          protein: baseValues ? resolveNutritionalFieldValue(baseProtein, editedProtein) : (parseFloat(editedProtein.replace(',', '.')) || 0),
+          carbohydrates: baseValues ? resolveNutritionalFieldValue(baseCarbs, editedCarbohydrates) : (parseFloat(editedCarbohydrates.replace(',', '.')) || 0),
+          fat: baseValues ? resolveNutritionalFieldValue(baseFat, editedFat) : (parseFloat(editedFat.replace(',', '.')) || 0),
         };
         onLog(dataToLog, { saveAsCommon, mealType: selectedMealType }); 
         handleClose();
@@ -144,13 +150,13 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
     
     const createNumericHandler = (setter: React.Dispatch<React.SetStateAction<string>>) => {
         return (e: React.ChangeEvent<HTMLInputElement>) => {
-            const { value } = e.target;
-            if (value === '') {
+            const val = e.target.value.replace(',', '.');
+            if (val === '') {
                 setter('0');
                 return;
             }
-            if (/^\d+$/.test(value)) {
-                setter(String(parseInt(value, 10)));
+            if (/^\d*\.?\d*$/.test(val)) {
+                setter(val);
             }
         };
     };
@@ -264,28 +270,28 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
                                 <div>
                                     <label htmlFor="caloriesTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span>Kalorier (kcal)</label>
                                     <div className="relative">
-                                        <input type="number" id="caloriesTextModal" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                        <input type="number" id="caloriesTextModal" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="any" className={`${inputClass} pr-8`} />
                                         <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                                     </div>
                                 </div>
                                 <div>
                                     <label htmlFor="proteinTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Protein">💪</span>Protein (g)</label>
                                      <div className="relative">
-                                        <input type="number" id="proteinTextModal" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                        <input type="number" id="proteinTextModal" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="any" className={`${inputClass} pr-8`} />
                                         <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                                     </div>
                                 </div>
                                 <div>
                                     <label htmlFor="carbohydratesTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span>Kolhydrater (g)</label>
                                     <div className="relative">
-                                        <input type="number" id="carbohydratesTextModal" value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                        <input type="number" id="carbohydratesTextModal" value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="any" className={`${inputClass} pr-8`} />
                                         <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                                     </div>
                                 </div>
                                 <div>
                                     <label htmlFor="fatTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Fett">🥑</span>Fett (g)</label>
                                     <div className="relative">
-                                        <input type="number" id="fatTextModal" value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                        <input type="number" id="fatTextModal" value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="any" className={`${inputClass} pr-8`} />
                                         <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                                     </div>
                                 </div>

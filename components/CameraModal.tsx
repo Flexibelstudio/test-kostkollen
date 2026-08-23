@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CameraIcon, XMarkIcon } from './icons.tsx'; 
+import { startPhotoCapture, recordCaptureAndCompression } from '../utils/photoPipelineProfiler.ts'; 
 
 interface CameraModalProps {
   show: boolean;
@@ -122,6 +123,10 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
   }, [show, onCameraError]);
 
   const handleCapture = () => {
+    // Starta mätning av Steg 1: Från att användaren trycker på kameraknappen till att bilden är tagen
+    startPhotoCapture();
+    const tCaptureStart = performance.now();
+
     if (videoRef.current && activeStream && activeStream.active && videoRef.current.readyState >= videoRef.current.HAVE_CURRENT_DATA ) {
       const canvas = document.createElement('canvas');
       canvas.width = videoRef.current.videoWidth;
@@ -129,6 +134,8 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
       const context = canvas.getContext('2d');
       if (context) {
         context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const tCaptureEnd = performance.now();
+        const rawImageSizeBytes = canvas.width * canvas.height * 4; // Rå oberoende bitmap-storlek (RGBA) i bytes
         
         // --- START OF NEW RESIZING LOGIC ---
         const MAX_SIZE = 800; // Max width/height
@@ -154,11 +161,37 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
         if (resizeContext) {
             resizeContext.drawImage(canvas, 0, 0, width, height);
             const imageDataUrl = resizeCanvas.toDataURL('image/jpeg', 0.75); // 75% quality JPEG
-            onImageCapture(imageDataUrl.split(',')[1]);
+            const tCompressEnd = performance.now();
+            const base64Data = imageDataUrl.split(',')[1] || '';
+            const compressedImageSizeBytes = Math.round(base64Data.length * 0.75);
+
+            recordCaptureAndCompression({
+              tCaptureEnd,
+              tCompressEnd,
+              rawDimensions: { width: canvas.width, height: canvas.height },
+              rawImageSizeBytes,
+              compressedDimensions: { width, height },
+              compressedImageSizeBytes,
+            });
+
+            onImageCapture(base64Data);
         } else {
             // Fallback to original if resize context fails
             const imageDataUrl = canvas.toDataURL('image/jpeg', 0.85); // A bit higher quality if not resizing
-            onImageCapture(imageDataUrl.split(',')[1]);
+            const tCompressEnd = performance.now();
+            const base64Data = imageDataUrl.split(',')[1] || '';
+            const compressedImageSizeBytes = Math.round(base64Data.length * 0.75);
+
+            recordCaptureAndCompression({
+              tCaptureEnd,
+              tCompressEnd,
+              rawDimensions: { width: canvas.width, height: canvas.height },
+              rawImageSizeBytes,
+              compressedDimensions: { width: canvas.width, height: canvas.height },
+              compressedImageSizeBytes,
+            });
+
+            onImageCapture(base64Data);
         }
         // --- END OF NEW RESIZING LOGIC ---
       } else {

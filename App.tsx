@@ -43,6 +43,7 @@ import {
 
 import { subscribeToUserChats } from './services/chatService.ts';
 import { listenToUserChallenges, syncUserChallengeStatus, getDateUID_SE } from './services/challengeService.ts';
+import { sumMealNutrients } from './utils/nutritionTotals.ts';
 
 // Context
 import { useUserContext } from './context/UserContext';
@@ -1651,12 +1652,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
         const mealsToProcess = manualLogOverride || yesterdayMeals;
 
-        const totals = mealsToProcess.reduce((acc, meal) => ({
-            calories: acc.calories + meal.nutritionalInfo.calories,
-            protein: acc.protein + meal.nutritionalInfo.protein,
-            carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
-            fat: acc.fat + meal.nutritionalInfo.fat,
-        }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+        const totals = sumMealNutrients(mealsToProcess);
 
         const minSafe = (goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
         

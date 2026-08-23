@@ -7,6 +7,7 @@ import {
   Soup, Egg, Sandwich, CupSoda, Drumstick, Beef, Fish, Salad, Carrot,
   Pizza, Coffee, Cake, Cookie, IceCream, Apple, Utensils, Croissant, Wine
 } from 'lucide-react';
+import { resolveUpdatedNutrients } from '../utils/nutritionTotals.ts';
 
 interface CommonMealsListProps {
   commonMeals: CommonMeal[];
@@ -119,30 +120,34 @@ const CommonMealCard: React.FC<{
 
   // Edit state
   const [editedName, setEditedName] = useState(meal.name);
-  const [editedCalories, setEditedCalories] = useState(meal.nutritionalInfo.calories.toString());
-  const [editedProtein, setEditedProtein] = useState(meal.nutritionalInfo.protein.toString());
-  const [editedCarbs, setEditedCarbs] = useState(meal.nutritionalInfo.carbohydrates.toString());
-  const [editedFat, setEditedFat] = useState(meal.nutritionalInfo.fat.toString());
+  const [editedCalories, setEditedCalories] = useState(Math.round(meal.nutritionalInfo.calories).toString());
+  const [editedProtein, setEditedProtein] = useState(Math.round(meal.nutritionalInfo.protein).toString());
+  const [editedCarbs, setEditedCarbs] = useState(Math.round(meal.nutritionalInfo.carbohydrates).toString());
+  const [editedFat, setEditedFat] = useState(Math.round(meal.nutritionalInfo.fat).toString());
 
   useEffect(() => {
     if (!isEditing) {
       setEditedName(meal.name);
-      setEditedCalories(meal.nutritionalInfo.calories.toString());
-      setEditedProtein(meal.nutritionalInfo.protein.toString());
-      setEditedCarbs(meal.nutritionalInfo.carbohydrates.toString());
-      setEditedFat(meal.nutritionalInfo.fat.toString());
+      setEditedCalories(Math.round(meal.nutritionalInfo.calories).toString());
+      setEditedProtein(Math.round(meal.nutritionalInfo.protein).toString());
+      setEditedCarbs(Math.round(meal.nutritionalInfo.carbohydrates).toString());
+      setEditedFat(Math.round(meal.nutritionalInfo.fat).toString());
     }
   }, [isEditing, meal]);
 
   const handleSave = () => {
+    const updatedNutrients = resolveUpdatedNutrients(meal.nutritionalInfo, {
+      foodItem: meal.nutritionalInfo.foodItem,
+      calories: editedCalories,
+      protein: editedProtein,
+      carbohydrates: editedCarbs,
+      fat: editedFat,
+    });
     const updatedData = {
       name: editedName.trim(),
       nutritionalInfo: {
+        ...updatedNutrients,
         foodItem: editedName.trim(),
-        calories: Math.round(parseFloat(editedCalories) || 0),
-        protein: Math.round(parseFloat(editedProtein) || 0),
-        carbohydrates: Math.round(parseFloat(editedCarbs) || 0),
-        fat: Math.round(parseFloat(editedFat) || 0),
       },
     };
     onUpdate(meal.id, updatedData);
@@ -152,9 +157,9 @@ const CommonMealCard: React.FC<{
 
   const createNumericHandler = (setter: React.Dispatch<React.SetStateAction<string>>) => {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
-      const { value } = e.target;
-      if (value === '') { setter('0'); return; }
-      if (/^\d+$/.test(value)) { setter(String(parseInt(value, 10))); }
+      const val = e.target.value.replace(',', '.');
+      if (val === '') { setter('0'); return; }
+      if (/^\d*\.?\d*$/.test(val)) { setter(val); }
     };
   };
 
@@ -181,19 +186,19 @@ const CommonMealCard: React.FC<{
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-xs font-medium text-neutral">Kcal</label>
-            <input type="number" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} className={inputClass} />
+            <input type="number" min="0" step="any" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} className={inputClass} />
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral">Protein</label>
-            <input type="number" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} className={inputClass} />
+            <input type="number" min="0" step="any" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} className={inputClass} />
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral">Kolh</label>
-            <input type="number" value={editedCarbs} onChange={createNumericHandler(setEditedCarbs)} className={inputClass} />
+            <input type="number" min="0" step="any" value={editedCarbs} onChange={createNumericHandler(setEditedCarbs)} className={inputClass} />
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral">Fett</label>
-            <input type="number" value={editedFat} onChange={createNumericHandler(setEditedFat)} className={inputClass} />
+            <input type="number" min="0" step="any" value={editedFat} onChange={createNumericHandler(setEditedFat)} className={inputClass} />
           </div>
         </div>
         <div className="flex justify-between items-center mt-2">

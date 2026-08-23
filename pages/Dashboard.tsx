@@ -27,6 +27,11 @@ import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
 import { getDateUID, getSuggestedMealType } from '../utils/dateUtils';
 import { 
+    sumMealNutrients, 
+    calculateRemainingCalories, 
+    getMealDateUID 
+} from '../utils/nutritionTotals';
+import { 
     addMealLog as addMealLogFirestore, 
     setWaterLog, 
     addCommonMeal, 
@@ -44,6 +49,8 @@ import {
     analyzeNutritionLabelImage 
 } from '../services/geminiService';
 import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
+import { recordModalRenderStart, recordFirestoreSaveStart, finishPhotoPipeline } from '../utils/photoPipelineProfiler';
+import PhotoTimingPanel from '../components/PhotoTimingPanel';
 
 // Modaler
 import CameraModal from '../components/CameraModal';
@@ -330,48 +337,32 @@ const Dashboard: React.FC<DashboardProps> = ({
         return viewingDate.getDay() === 1;
     }, [viewingDate]);
 
-    const totalNutrients = useMemo(() => dailyLog.reduce(
-        (acc, meal) => {
-            acc.calories += meal.nutritionalInfo.calories;
-            acc.protein += meal.nutritionalInfo.protein;
-            acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
-            acc.fat += meal.nutritionalInfo.fat;
-            return acc;
-        },
-        { calories: 0, protein: 0, carbohydrates: 0, fat: 0 }
-    ), [dailyLog]);
+    const totalNutrients = useMemo(() => sumMealNutrients(dailyLog), [dailyLog]);
 
     // --- DYNAMIC BANK CALCULATION START ---
     const availableBank = isViewingMonday ? 0 : weeklyBank.bankedCalories;
-    const rawCaloriesOver = Math.max(0, totalNutrients.calories - goals.calorieGoal);
-    const calculatedBankUsage = Math.min(rawCaloriesOver, availableBank);
-    const netCaloriesOver = Math.max(0, rawCaloriesOver - calculatedBankUsage);
-    const remainingBankDisplay = Math.max(0, availableBank - calculatedBankUsage);
-    const minSafeCalories = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
-    const caloriesRemaining = Math.max(0, goals.calorieGoal - totalNutrients.calories);
-    
-    const isOverBudget = rawCaloriesOver > 0;
-    const isFullyCoveredByBank = isOverBudget && netCaloriesOver === 0;
-    const isNetOverBudget = netCaloriesOver > 0;
+    const remainingCalc = useMemo(() => {
+        return calculateRemainingCalories(
+            goals.calorieGoal,
+            totalNutrients.calories,
+            availableBank,
+            userProfile?.goalType
+        );
+    }, [goals.calorieGoal, totalNutrients.calories, availableBank, userProfile?.goalType]);
 
-    let currentGoalMet = false;
-    if (totalNutrients.calories >= minSafeCalories) {
-        if (userProfile?.goalType === 'gain_muscle') {
-            currentGoalMet = totalNutrients.calories >= (goals.calorieGoal - 300);
-        } else {
-            currentGoalMet = totalNutrients.calories <= (goals.calorieGoal + availableBank);
-        }
-    }
-
-    let progressColor = "#D96E4A";
-    
-    if (totalNutrients.calories < minSafeCalories) {
-        progressColor = "#D96E4A"; 
-    } else if (isNetOverBudget) {
-        progressColor = "#C05A38"; 
-    } else if (isFullyCoveredByBank) {
-        progressColor = "#8C9A86"; 
-    }
+    const {
+        rawCaloriesOver,
+        calculatedBankUsage,
+        netCaloriesOver,
+        remainingBankDisplay,
+        minSafeCalories,
+        caloriesRemaining,
+        isOverBudget,
+        isFullyCoveredByBank,
+        isNetOverBudget,
+        goalMet: currentGoalMet,
+        progressColor
+    } = remainingCalc;
     // --- DYNAMIC BANK CALCULATION END ---
 
     const groupedMeals = useMemo(() => {
@@ -429,23 +420,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         const viewingUID = getDateUID(viewingDate);
         const currentUID = getDateUID(currentDate);
 
-        const totals = currentLogs.reduce((acc, meal) => ({
-            calories: acc.calories + meal.nutritionalInfo.calories,
-            protein: acc.protein + meal.nutritionalInfo.protein,
-            carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
-            fat: acc.fat + meal.nutritionalInfo.fat,
-        }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
-
-        const minSafe = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
-        let goalMet = false;
-        
-        if (totals.calories >= minSafe) {
-            if (userProfile.goalType === 'gain_muscle') {
-                goalMet = totals.calories >= (goals.calorieGoal - 300);
-            } else {
-                goalMet = totals.calories <= (goals.calorieGoal + availableBank);
-            }
-        }
+        const totals = sumMealNutrients(currentLogs);
+        const { goalMet } = calculateRemainingCalories(
+            goals.calorieGoal,
+            totals.calories,
+            availableBank,
+            userProfile.goalType
+        );
 
         // --- STREAK LOGIC: Check previous day to determine new streak ---
         const dayBefore = new Date(viewingDate);
@@ -576,7 +557,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
 
         // 3. Räkna ut "Sanningen" från loggen
-        const actualCalories = dailyLog.reduce((acc, m) => acc + m.nutritionalInfo.calories, 0);
+        const actualCalories = sumMealNutrients(dailyLog).calories;
         
         // 4. Hämta nuvarande status
         const summary = pastDaysSummary[viewingUID];
@@ -631,10 +612,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (multiplier !== 1) {
             newMeal.nutritionalInfo = {
                 ...newMeal.nutritionalInfo,
-                calories: Math.round(newMeal.nutritionalInfo.calories * multiplier),
-                protein: Math.round(newMeal.nutritionalInfo.protein * multiplier),
-                carbohydrates: Math.round(newMeal.nutritionalInfo.carbohydrates * multiplier),
-                fat: Math.round(newMeal.nutritionalInfo.fat * multiplier),
+                calories: newMeal.nutritionalInfo.calories * multiplier,
+                protein: newMeal.nutritionalInfo.protein * multiplier,
+                carbohydrates: newMeal.nutritionalInfo.carbohydrates * multiplier,
+                fat: newMeal.nutritionalInfo.fat * multiplier,
             };
         }
 
@@ -659,7 +640,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                 }]); 
             }
 
+            recordFirestoreSaveStart();
             await addMealLogFirestore(currentUser.uid, newMeal.id, newMeal); 
+            finishPhotoPipeline(); 
             
             if (options?.skipRatingModal) {
                 setToastNotification({ message: 'Måltid loggad!', type: 'success' });
@@ -1394,6 +1377,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             try { 
                                 const result = await analyzeFoodImage(imgData); 
                                 setImageAnalysisResult(result); 
+                                recordModalRenderStart();
                                 setShowImageAnalysisResultModal(true); 
                             } catch (e: any) { 
                                 alert(e.message); 
@@ -1463,6 +1447,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
 
             {appStatus !== 'idle' && appStatus !== 'searching_recipe' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
+            
+            {/* Diskret tidsmätningspanel (endast synlig under TESTING_TOOL_ALLOWED_HOSTNAMES) */}
+            <PhotoTimingPanel />
         </div>
     );
 };

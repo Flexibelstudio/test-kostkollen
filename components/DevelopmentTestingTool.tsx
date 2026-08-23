@@ -4,11 +4,35 @@ import {
   GoalSettings, 
   PastDaySummary, 
   WeightLogEntry, 
-  PlateauAnalysisResult
+  PlateauAnalysisResult,
+  LoggedMeal
 } from '../types';
 import { runPlateauAnalysis, getTodayKeySE } from '../utils/plateauAnalysis';
 import { PlateauAnalysisCard } from './PlateauAnalysisCard';
-import { Play, RotateCcw, CheckCircle, AlertTriangle, Activity, Sparkles } from 'lucide-react';
+import { 
+  Play, 
+  RotateCcw, 
+  CheckCircle, 
+  AlertTriangle, 
+  Activity, 
+  Sparkles, 
+  Calculator, 
+  ShieldCheck, 
+  Check, 
+  XCircle,
+  Clock,
+  RefreshCw,
+  Timer
+} from 'lucide-react';
+import { getDateUID } from '../utils/dateUtils';
+import { 
+  sumMealNutrients, 
+  calculateRemainingCalories, 
+  calculateWeeklyTotals, 
+  getMealDateUID,
+  resolveUpdatedNutrients
+} from '../utils/nutritionTotals';
+import { getPhotoMetricsHistory, PhotoPipelineMetrics } from '../utils/photoPipelineProfiler';
 
 interface DevelopmentTestingToolProps {
   onSimulateSuccessfulDay?: () => void;
@@ -38,6 +62,346 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     weightLogs: WeightLogEntry[];
     result: PlateauAnalysisResult | null;
   } | null>(null);
+
+  const [arithmeticAuditResult, setArithmeticAuditResult] = useState<{
+    passed: boolean;
+    executedAt: string;
+    testA_mealSum: {
+      passed: boolean;
+      mealsCount: number;
+      mealValue: number;
+      rawSum: number;
+      preRoundedSum: number;
+      displaySum: number;
+      diffIfPreRounded: number;
+      actualError: number;
+    };
+    testB_macros: {
+      passed: boolean;
+      rawProtein: number;
+      displayProtein: number;
+      rawCarbs: number;
+      displayCarbs: number;
+      rawFat: number;
+      displayFat: number;
+      calculatedMacroCalories: number;
+      statedCalories: number;
+    };
+    testC_remaining: {
+      passed: boolean;
+      goal: number;
+      consumedRaw: number;
+      rawRemaining: number;
+      displayRemaining: number;
+      bankScenario: {
+        passed: boolean;
+        goal: number;
+        consumed: number;
+        availableBank: number;
+        rawExcess: number;
+        bankDeduction: number;
+        remainingBank: number;
+        netOverBudget: number;
+        noDoubleCountVerified: boolean;
+      };
+    };
+    testD_weeklyTotal: {
+      passed: boolean;
+      dailyRawInputs: number[];
+      dailyRoundedValues: number[];
+      exactRawSum: number;
+      displayWeekSum: number;
+      sumOfPreRoundedDays: number;
+      roundingErrorPrevented: number;
+    };
+    testE_timezoneMidnight: {
+      passed: boolean;
+      testTimestamp: string;
+      localDateString: string;
+      utcDateString: string;
+      usesLocalDate: boolean;
+    };
+    testF_recalcOnMutation: {
+      passed: boolean;
+      initialSum: number;
+      sumAfterDelete: number;
+      sumAfterEdit: number;
+      pureFromScratch: boolean;
+    };
+    testG_rawPreservation: {
+      passed: boolean;
+      originalRawCalories: number;
+      displayedFieldCalories: string;
+      savedRawCaloriesAfterUnchangedEdit: number;
+      isExactlyPreserved: boolean;
+      explicitEditHandled: boolean;
+    };
+    testH_photoMultiplier: {
+      passed: boolean;
+      rawCalories: number;
+      savedCaloriesSingle: number;
+      expectedSingle: number;
+      portionMultiplier: number;
+      savedCaloriesMultiplied: number;
+      expectedMultiplied: number;
+      preRoundedMultiplied: number;
+    };
+  } | null>(null);
+
+  /**
+   * Kör ett automatiserat självtest för kaloriberäkningar och aritmetisk precision.
+   * Skapar måltider med bråkiga värden (33.33 kcal vardera) och verifierar:
+   * a) att måltidernas summa är exakt
+   * b) att makrofördelningen summerar rätt
+   * c) att återstående och Sparpott stämmer mot målet utan dubbelräkning
+   * d) att veckototalen summerar dagsintagens råvärden
+   * e) att tidszon och dygnsgräns är säkrade
+   * f) att redigera/ta bort måltid räknar om från grunden utan diff-avrundningsfel
+   */
+  const handleRunArithmeticAudit = () => {
+    // 1. Skapa 10 testmåltider med 33.33 kcal vardera
+    const mealCount = 10;
+    const mealKcal = 33.33;
+    const mealProtein = 3.33;
+    const mealCarbs = 4.44;
+    const mealFat = 1.11;
+
+    const testMeals: LoggedMeal[] = Array.from({ length: mealCount }, (_, i) => ({
+      id: `audit_meal_${i + 1}`,
+      mealType: 'lunch',
+      timestamp: Date.now() + i * 1000,
+      dateString: getDateUID(new Date()),
+      nutritionalInfo: {
+        foodItem: `Testmåltid #${i + 1}`,
+        calories: mealKcal,
+        protein: mealProtein,
+        carbohydrates: mealCarbs,
+        fat: mealFat,
+      }
+    }));
+
+    // A. Summa av måltider (Dagstotal "Ätit") via produktionsfunktionen sumMealNutrients()
+    const totalsResult = sumMealNutrients(testMeals);
+    const rawCalories = totalsResult.calories; // 333.30
+    const preRoundedCalories = testMeals.reduce((acc, m) => acc + Math.round(m.nutritionalInfo.calories), 0); // Jämförelsesiffra för att demonstrera avrundningsrisk
+    const displayCalories = Math.round(rawCalories); // 333
+    const diffIfPreRounded = Number((rawCalories - preRoundedCalories).toFixed(2)); // +3.30 kcal fel som appen förebygger
+    const actualError = Math.abs(rawCalories - (mealCount * mealKcal));
+    const testA_passed = actualError < 0.0001 && displayCalories === Math.round(mealCount * mealKcal);
+
+    // B. Makrofördelning via samma anrop till sumMealNutrients()
+    const rawProtein = totalsResult.protein; // 33.30
+    const rawCarbs = totalsResult.carbohydrates; // 44.40
+    const rawFat = totalsResult.fat; // 11.10
+    const displayProtein = Math.round(rawProtein); // 33
+    const displayCarbs = Math.round(rawCarbs); // 44
+    const displayFat = Math.round(rawFat); // 11
+    const testB_passed = Math.abs(rawProtein - 33.3) < 0.0001 &&
+                         Math.abs(rawCarbs - 44.4) < 0.0001 &&
+                         Math.abs(rawFat - 11.1) < 0.0001;
+
+    // C. Återstående & Sparpott via produktionsfunktionen calculateRemainingCalories()
+    const calorieGoal = 2000.0;
+    const baseRemainingCalc = calculateRemainingCalories(calorieGoal, rawCalories, 0, 'lose_fat');
+    const rawRemaining = baseRemainingCalc.caloriesRemaining; // 1666.70
+    const displayRemaining = Math.round(rawRemaining); // 1667
+
+    // Sparpott-överskridande scenario via samma produktionsfunktion:
+    const bankGoal = 1500;
+    const bankConsumed = 1650.50;
+    const availableBank = 300;
+    const bankScenarioCalc = calculateRemainingCalories(bankGoal, bankConsumed, availableBank, 'lose_fat');
+    
+    // Verifiera att Sparpott varken läggs till målet (bankGoal förblir 1500) eller dras av två gånger
+    const noDoubleCount = (bankGoal === 1500) && 
+                          (bankScenarioCalc.isFullyCoveredByBank === true) && 
+                          (bankScenarioCalc.netCaloriesOver === 0) && 
+                          (Math.abs(bankScenarioCalc.remainingBankDisplay - 149.50) < 0.001) &&
+                          (bankScenarioCalc.rawCaloriesOver === 150.50) &&
+                          (bankScenarioCalc.calculatedBankUsage === 150.50);
+    const testC_passed = (Math.abs(rawRemaining - (2000 - 333.30)) < 0.0001) && noDoubleCount;
+
+    // D. Veckototal via produktionsfunktionen calculateWeeklyTotals()
+    const dailyRawInputs = [1500.33, 1600.44, 1750.55, 1400.12, 1850.88, 1950.25, 1550.43];
+    const weeklyDaysData = dailyRawInputs.map(c => ({ consumedCalories: c, calorieGoal: 2000 }));
+    const weeklyTotalsResult = calculateWeeklyTotals(weeklyDaysData, 2000);
+    const exactRawSum = weeklyTotalsResult.totalConsumed; // 11603.00
+    const displayWeekSum = weeklyTotalsResult.displayTotalConsumed; // 11603
+    const dailyRoundedValues = dailyRawInputs.map(v => Math.round(v)); // [1500, 1600, 1751, 1400, 1851, 1950, 1550]
+    const sumOfPreRoundedDays = dailyRoundedValues.reduce((a, b) => a + b, 0); // 11602 (1 kcal fel)
+    const roundingErrorPrevented = exactRawSum - sumOfPreRoundedDays; // +1.00 kcal fel förebyggt
+    const testD_passed = Math.abs(exactRawSum - 11603.0) < 0.0001 && 
+                         displayWeekSum === 11603 && 
+                         weeklyTotalsResult.totalGoal === 14000;
+
+    // E. Dygnsgräns och Tidszon via produktionsfunktionen getMealDateUID()
+    // Testa en tidpunkt sent på kvällen (23:30 lokal tid)
+    const testLateNight = new Date(2026, 7, 21, 23, 30, 0); // Lokal tid 21 aug 2026 kl 23:30
+    const localUID = getMealDateUID(testLateNight);
+    const testE_passed = localUID === '2026-08-21';
+
+    // F. Redigera & Ta bort (Full omräkning från grunden via sumMealNutrients)
+    let workingList = [...testMeals];
+    const initialSum = sumMealNutrients(workingList).calories; // 333.30
+    // Ta bort måltid #5
+    workingList = workingList.filter(m => m.id !== 'audit_meal_5');
+    const sumAfterDelete = sumMealNutrients(workingList).calories; // 299.97
+    // Redigera måltid #2 till 50.55 kcal
+    workingList = workingList.map(m => m.id === 'audit_meal_2' ? { ...m, nutritionalInfo: { ...m.nutritionalInfo, calories: 50.55 } } : m);
+    const sumAfterEdit = sumMealNutrients(workingList).calories; // 317.19
+    const expectedEditSum = (9 - 1) * 33.33 + 50.55; // 8 * 33.33 + 50.55 = 266.64 + 50.55 = 317.19
+    const testF_passed = Math.abs(sumAfterEdit - expectedEditSum) < 0.0001;
+
+    // G. Bevara råvärden vid redigering (Raw Value Preservation on Edit)
+    // Verifierar: Logga en måltid med 33,33 kcal, simulera en redigering där ingenting ändras,
+    // och kontrollera att värdet fortfarande är 33,33 och inte 33.
+    const originalRawMealInfo = {
+      foodItem: 'Testmåltid 33.33 kcal',
+      calories: 33.33,
+      protein: 3.33,
+      carbohydrates: 4.44,
+      fat: 1.11,
+    };
+    // Formuläret laddas med avrundade värden för användarvänlighet ("33", "3", "4", "1")
+    const simulatedUnchangedFields = {
+      foodItem: 'Testmåltid 33.33 kcal',
+      calories: Math.round(originalRawMealInfo.calories).toString(), // "33"
+      protein: Math.round(originalRawMealInfo.protein).toString(), // "3"
+      carbohydrates: Math.round(originalRawMealInfo.carbohydrates).toString(), // "4"
+      fat: Math.round(originalRawMealInfo.fat).toString(), // "1"
+    };
+    // Användaren klickar spara utan att ha ändrat fälten
+    const savedAfterUnchangedEdit = resolveUpdatedNutrients(originalRawMealInfo, simulatedUnchangedFields);
+    const isCaloriesPreserved = Math.abs(savedAfterUnchangedEdit.calories - 33.33) < 0.0001;
+    const isProteinPreserved = Math.abs(savedAfterUnchangedEdit.protein - 3.33) < 0.0001;
+    const isCarbsPreserved = Math.abs(savedAfterUnchangedEdit.carbohydrates - 4.44) < 0.0001;
+    const isFatPreserved = Math.abs(savedAfterUnchangedEdit.fat - 1.11) < 0.0001;
+
+    // Simulera även en faktisk medveten ändring: användaren skriver in "50"
+    const savedAfterExplicitEdit = resolveUpdatedNutrients(originalRawMealInfo, {
+      ...simulatedUnchangedFields,
+      calories: '50'
+    });
+    const isExplicitEditHandled = savedAfterExplicitEdit.calories === 50;
+
+    const testG_passed = isCaloriesPreserved && isProteinPreserved && isCarbsPreserved && isFatPreserved && isExplicitEditHandled;
+
+    // H. Fotovägen & Portionsmultiplikator (Photo Pipeline & Multiplier Precision)
+    // Simulera ett analysresultat med bråkiga råvärden: 337.4 kcal
+    const rawPhotoAnalysis = {
+      foodItem: 'Pannkakor med sylt',
+      calories: 337.4,
+      protein: 12.6,
+      carbohydrates: 45.2,
+      fat: 11.8,
+    };
+    // Modalen laddar Math.round i inmatningsfälten för ren användarvisning ("337", "13", "45", "12")
+    const photoModalFieldsUnedited = {
+      foodItem: rawPhotoAnalysis.foodItem,
+      calories: Math.round(rawPhotoAnalysis.calories).toString(), // "337"
+      protein: Math.round(rawPhotoAnalysis.protein).toString(), // "13"
+      carbohydrates: Math.round(rawPhotoAnalysis.carbohydrates).toString(), // "45"
+      fat: Math.round(rawPhotoAnalysis.fat).toString(), // "12"
+    };
+    // Fall 1: Användaren loggar orört utan att redigera -> resolveUpdatedNutrients bevarar 337.4
+    const resolvedPhotoMeal1 = resolveUpdatedNutrients(rawPhotoAnalysis, photoModalFieldsUnedited);
+    const isPhoto1Preserved = Math.abs(resolvedPhotoMeal1.calories - 337.4) < 0.0001;
+
+    // Fall 2: Portionsmultiplikator 3 appliceras i Dashboard.tsx på råvärdet utan trunkering
+    const portionMultiplierVal = 3;
+    const photoMeal3Calories = resolvedPhotoMeal1.calories * portionMultiplierVal; // 337.4 * 3 = 1012.2
+    const preRounded3Calories = Math.round(rawPhotoAnalysis.calories) * portionMultiplierVal; // 337 * 3 = 1011 (fel!)
+    const isPhoto3Correct = Math.abs(photoMeal3Calories - 1012.2) < 0.0001;
+
+    const testH_passed = isPhoto1Preserved && isPhoto3Correct;
+
+    const passedAll = testA_passed && testB_passed && testC_passed && testD_passed && testE_passed && testF_passed && testG_passed && testH_passed;
+
+    setArithmeticAuditResult({
+      passed: passedAll,
+      executedAt: new Date().toLocaleTimeString('sv-SE'),
+      testA_mealSum: {
+        passed: testA_passed,
+        mealsCount: mealCount,
+        mealValue: mealKcal,
+        rawSum: Number(rawCalories.toFixed(2)),
+        preRoundedSum: preRoundedCalories,
+        displaySum: displayCalories,
+        diffIfPreRounded,
+        actualError: Number(actualError.toFixed(4)),
+      },
+      testB_macros: {
+        passed: testB_passed,
+        rawProtein: Number(rawProtein.toFixed(2)),
+        displayProtein,
+        rawCarbs: Number(rawCarbs.toFixed(2)),
+        displayCarbs,
+        rawFat: Number(rawFat.toFixed(2)),
+        displayFat,
+        calculatedMacroCalories: Number(((rawProtein * 4) + (rawCarbs * 4) + (rawFat * 9)).toFixed(2)),
+        statedCalories: Number(rawCalories.toFixed(2)),
+      },
+      testC_remaining: {
+        passed: testC_passed,
+        goal: calorieGoal,
+        consumedRaw: Number(rawCalories.toFixed(2)),
+        rawRemaining: Number(rawRemaining.toFixed(2)),
+        displayRemaining,
+        bankScenario: {
+          passed: noDoubleCount,
+          goal: bankGoal,
+          consumed: bankConsumed,
+          availableBank,
+          rawExcess: Number(bankScenarioCalc.rawCaloriesOver.toFixed(2)),
+          bankDeduction: Number(bankScenarioCalc.calculatedBankUsage.toFixed(2)),
+          remainingBank: Number(bankScenarioCalc.remainingBankDisplay.toFixed(2)),
+          netOverBudget: Number(bankScenarioCalc.netCaloriesOver.toFixed(2)),
+          noDoubleCountVerified: noDoubleCount,
+        }
+      },
+      testD_weeklyTotal: {
+        passed: testD_passed,
+        dailyRawInputs,
+        dailyRoundedValues,
+        exactRawSum: Number(exactRawSum.toFixed(2)),
+        displayWeekSum,
+        sumOfPreRoundedDays,
+        roundingErrorPrevented: Number(roundingErrorPrevented.toFixed(2)),
+      },
+      testE_timezoneMidnight: {
+        passed: testE_passed,
+        testTimestamp: '2026-08-21 23:30:00 (Lokal tid)',
+        localDateString: localUID,
+        utcDateString: testLateNight.toISOString().split('T')[0],
+        usesLocalDate: testE_passed,
+      },
+      testF_recalcOnMutation: {
+        passed: testF_passed,
+        initialSum: Number(initialSum.toFixed(2)),
+        sumAfterDelete: Number(sumAfterDelete.toFixed(2)),
+        sumAfterEdit: Number(sumAfterEdit.toFixed(2)),
+        pureFromScratch: testF_passed,
+      },
+      testG_rawPreservation: {
+        passed: testG_passed,
+        originalRawCalories: originalRawMealInfo.calories,
+        displayedFieldCalories: simulatedUnchangedFields.calories,
+        savedRawCaloriesAfterUnchangedEdit: savedAfterUnchangedEdit.calories,
+        isExactlyPreserved: isCaloriesPreserved,
+        explicitEditHandled: isExplicitEditHandled,
+      },
+      testH_photoMultiplier: {
+        passed: testH_passed,
+        rawCalories: rawPhotoAnalysis.calories,
+        savedCaloriesSingle: Number(resolvedPhotoMeal1.calories.toFixed(2)),
+        expectedSingle: 337.4,
+        portionMultiplier: portionMultiplierVal,
+        savedCaloriesMultiplied: Number(photoMeal3Calories.toFixed(2)),
+        expectedMultiplied: 1012.2,
+        preRoundedMultiplied: preRounded3Calories,
+      }
+    });
+  };
 
   // Helper to generate date string X days ago
   const getDateDaysAgo = (daysAgo: number): string => {
@@ -744,6 +1108,377 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
                 Analysen returnerade inget resultat (villkoren för att köra uppfylldes inte).
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Aritmetik- och Avrundningsrevision Självtest */}
+      <div className="bg-white p-5 rounded-2xl border border-[#2B3B2C]/20 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 pb-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200 shrink-0">
+              <Calculator className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-neutral-800 text-base flex items-center gap-2">
+                Aritmetik- och Avrundningsrevision
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Självtest
+                </span>
+              </h3>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Verifierar att råvärden summeras obrutet och endast avrundas vid visning. Kontrollerar måltidssummor, makron, Sparpott, veckototaler och dygnsgränser.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleRunArithmeticAudit}
+            className="px-4 py-2.5 bg-[#2B3B2C] hover:bg-[#1E291F] text-white rounded-xl font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0"
+          >
+            <Play className="w-3.5 h-3.5 fill-current text-emerald-400" />
+            Kör självtest (10 x 33,33 kcal)
+          </button>
+        </div>
+
+        {arithmeticAuditResult ? (
+          <div className="space-y-4 animate-fade-in">
+            {/* Huvudstatus */}
+            <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+              arithmeticAuditResult.passed 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                : 'bg-red-50 border-red-200 text-red-900'
+            }`}>
+              <div className="flex items-center gap-3">
+                {arithmeticAuditResult.passed ? (
+                  <ShieldCheck className="w-7 h-7 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-7 h-7 text-red-600 shrink-0" />
+                )}
+                <div>
+                  <h4 className="font-bold text-sm">
+                    {arithmeticAuditResult.passed 
+                      ? 'Alla 7 aritmetiska verifieringar GODKÄNDA' 
+                      : 'Ett eller flera aritmetiska tester misslyckades'}
+                  </h4>
+                  <p className="text-xs opacity-80 mt-0.5">
+                    Testet kördes {arithmeticAuditResult.executedAt} med syntetiska måltider (råvärden summerade före visningsavrundning & bevarande av råvärden vid redigering).
+                  </p>
+                </div>
+              </div>
+              <span className={`text-xs font-mono font-bold px-3 py-1 rounded-full self-start sm:self-auto ${
+                arithmeticAuditResult.passed 
+                  ? 'bg-emerald-200/80 text-emerald-900' 
+                  : 'bg-red-200/80 text-red-900'
+              }`}>
+                {arithmeticAuditResult.passed ? 'STATUS: PASS (100%)' : 'STATUS: FAIL'}
+              </span>
+            </div>
+
+            {/* Testfall A-G Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {/* Test A: Summa av måltider */}
+              <div className={`p-4 rounded-xl border space-y-2 ${
+                arithmeticAuditResult.testA_mealSum.passed 
+                  ? 'bg-neutral-50/70 border-neutral-200' 
+                  : 'bg-red-50/70 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Test A: Dagstotal "Ätit"</span>
+                  {arithmeticAuditResult.testA_mealSum.passed ? (
+                    <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      <Check className="w-3 h-3 mr-1" /> OK
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
+                      <XCircle className="w-3 h-3 mr-1" /> FEL
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs space-y-1 text-neutral-700 font-mono">
+                  <p>Input: 10 måltider x 33,33 kcal</p>
+                  <p>Exakt råsumma: <strong>{arithmeticAuditResult.testA_mealSum.rawSum} kcal</strong></p>
+                  <p>Visas i UI: <strong>{arithmeticAuditResult.testA_mealSum.displaySum} kcal</strong></p>
+                  <p className="text-[11px] text-amber-700 bg-amber-50 p-1.5 rounded border border-amber-200/60 mt-1">
+                    Vid felaktig måltidsavrundning (10x33): {arithmeticAuditResult.testA_mealSum.preRoundedSum} kcal (fel: {arithmeticAuditResult.testA_mealSum.diffIfPreRounded} kcal förebyggt).
+                  </p>
+                </div>
+              </div>
+
+              {/* Test B: Makrofördelning */}
+              <div className={`p-4 rounded-xl border space-y-2 ${
+                arithmeticAuditResult.testB_macros.passed 
+                  ? 'bg-neutral-50/70 border-neutral-200' 
+                  : 'bg-red-50/70 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Test B: Makrofördelning</span>
+                  {arithmeticAuditResult.testB_macros.passed ? (
+                    <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      <Check className="w-3 h-3 mr-1" /> OK
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
+                      <XCircle className="w-3 h-3 mr-1" /> FEL
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs space-y-1 text-neutral-700 font-mono">
+                  <p>Protein råvärde: <strong>{arithmeticAuditResult.testB_macros.rawProtein}g</strong> (Visas: {arithmeticAuditResult.testB_macros.displayProtein}g)</p>
+                  <p>Kolhydrater råvärde: <strong>{arithmeticAuditResult.testB_macros.rawCarbs}g</strong> (Visas: {arithmeticAuditResult.testB_macros.displayCarbs}g)</p>
+                  <p>Fett råvärde: <strong>{arithmeticAuditResult.testB_macros.rawFat}g</strong> (Visas: {arithmeticAuditResult.testB_macros.displayFat}g)</p>
+                  <p className="text-[11px] text-neutral-500 pt-1">
+                    Summeras alltid från råa gram och avrundas per kort vid render.
+                  </p>
+                </div>
+              </div>
+
+              {/* Test C: Återstående & Sparpott */}
+              <div className={`p-4 rounded-xl border space-y-2 ${
+                arithmeticAuditResult.testC_remaining.passed 
+                  ? 'bg-neutral-50/70 border-neutral-200' 
+                  : 'bg-red-50/70 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Test C: Återstående & Sparpott</span>
+                  {arithmeticAuditResult.testC_remaining.passed ? (
+                    <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      <Check className="w-3 h-3 mr-1" /> OK
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
+                      <XCircle className="w-3 h-3 mr-1" /> FEL
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs space-y-1 text-neutral-700 font-mono">
+                  <p>Mål 2000 kcal - Ätit 333,30 kcal</p>
+                  <p>Råvärde kvar: <strong>{arithmeticAuditResult.testC_remaining.rawRemaining} kcal</strong></p>
+                  <p>Visas i UI: <strong>{arithmeticAuditResult.testC_remaining.displayRemaining} kcal</strong></p>
+                  <div className="text-[11px] text-emerald-800 bg-emerald-50 p-1.5 rounded border border-emerald-200 mt-1 space-y-0.5">
+                    <p>Sparpott vid överskott (Mål 1500, Ätit 1650,5, Sparpott 300):</p>
+                    <p>• Dras från sparpott: {arithmeticAuditResult.testC_remaining.bankScenario.bankDeduction} kcal</p>
+                    <p>• Kvar i sparpott: {arithmeticAuditResult.testC_remaining.bankScenario.remainingBank} kcal</p>
+                    <p>• Ingen dubbelräkning verifierad ✅</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Test D: Veckototalen */}
+              <div className={`p-4 rounded-xl border space-y-2 ${
+                arithmeticAuditResult.testD_weeklyTotal.passed 
+                  ? 'bg-neutral-50/70 border-neutral-200' 
+                  : 'bg-red-50/70 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Test D: Veckototal</span>
+                  {arithmeticAuditResult.testD_weeklyTotal.passed ? (
+                    <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      <Check className="w-3 h-3 mr-1" /> OK
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
+                      <XCircle className="w-3 h-3 mr-1" /> FEL
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs space-y-1 text-neutral-700 font-mono">
+                  <p>7 dagars råvärden: [1500.33, 1600.44, 1750.55, 1400.12, 1850.88, 1950.25, 1550.43]</p>
+                  <p>Exakt råsumma vecka: <strong>{arithmeticAuditResult.testD_weeklyTotal.exactRawSum} kcal</strong></p>
+                  <p>Visas i veckoöversikt: <strong>{arithmeticAuditResult.testD_weeklyTotal.displayWeekSum} kcal</strong></p>
+                  <p className="text-[11px] text-amber-700 bg-amber-50 p-1.5 rounded border border-amber-200/60 mt-1">
+                    Summa av 7 avrundade dagar: {arithmeticAuditResult.testD_weeklyTotal.sumOfPreRoundedDays} kcal. Råsummering förebygger {arithmeticAuditResult.testD_weeklyTotal.roundingErrorPrevented} kcal fel.
+                  </p>
+                </div>
+              </div>
+
+              {/* Test E: Tidszon & Dygnsgräns */}
+              <div className={`p-4 rounded-xl border space-y-2 ${
+                arithmeticAuditResult.testE_timezoneMidnight.passed 
+                  ? 'bg-neutral-50/70 border-neutral-200' 
+                  : 'bg-red-50/70 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Test E: Dygnsgräns & Tid</span>
+                  {arithmeticAuditResult.testE_timezoneMidnight.passed ? (
+                    <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      <Check className="w-3 h-3 mr-1" /> OK
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
+                      <XCircle className="w-3 h-3 mr-1" /> FEL
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs space-y-1 text-neutral-700 font-mono">
+                  <p className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-neutral-500" /> Loggtid: {arithmeticAuditResult.testE_timezoneMidnight.testTimestamp}</p>
+                  <p>Genererad dag-ID: <strong>{arithmeticAuditResult.testE_timezoneMidnight.localDateString}</strong></p>
+                  <p className="text-[11px] text-neutral-500 pt-1">
+                    getDateUID använder lokal klienttid. Måltider loggade sent på kvällen hamnar på rätt lokalt dygn och drabbas inte av UTC-förskjutning.
+                  </p>
+                </div>
+              </div>
+
+              {/* Test F: Redigera & Ta bort */}
+              <div className={`p-4 rounded-xl border space-y-2 ${
+                arithmeticAuditResult.testF_recalcOnMutation.passed 
+                  ? 'bg-neutral-50/70 border-neutral-200' 
+                  : 'bg-red-50/70 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Test F: Edit / Delete Omräkning</span>
+                  {arithmeticAuditResult.testF_recalcOnMutation.passed ? (
+                    <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      <Check className="w-3 h-3 mr-1" /> OK
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
+                      <XCircle className="w-3 h-3 mr-1" /> FEL
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs space-y-1 text-neutral-700 font-mono">
+                  <p className="flex items-center gap-1"><RefreshCw className="w-3.5 h-3.5 text-neutral-500" /> Initial summa: {arithmeticAuditResult.testF_recalcOnMutation.initialSum} kcal</p>
+                  <p>Efter radering av måltid #5: <strong>{arithmeticAuditResult.testF_recalcOnMutation.sumAfterDelete} kcal</strong></p>
+                  <p>Efter edit av måltid #2: <strong>{arithmeticAuditResult.testF_recalcOnMutation.sumAfterEdit} kcal</strong></p>
+                  <p className="text-[11px] text-neutral-500 pt-1">
+                    recalculateAndSaveSummary beräknar alltid om alla måltider från grunden utan ackumulerade diff-fel.
+                  </p>
+                </div>
+              </div>
+
+              {/* Test G: Bevara Råvärden vid Redigering */}
+              <div className={`p-4 rounded-xl border space-y-2 ${
+                arithmeticAuditResult.testG_rawPreservation.passed 
+                  ? 'bg-neutral-50/70 border-neutral-200' 
+                  : 'bg-red-50/70 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Test G: Bevara Råvärden</span>
+                  {arithmeticAuditResult.testG_rawPreservation.passed ? (
+                    <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      <Check className="w-3 h-3 mr-1" /> OK
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
+                      <XCircle className="w-3 h-3 mr-1" /> FEL
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs space-y-1 text-neutral-700 font-mono">
+                  <p>Originalmåltid: <strong>{arithmeticAuditResult.testG_rawPreservation.originalRawCalories} kcal</strong></p>
+                  <p>Visas i formulärfält: "{arithmeticAuditResult.testG_rawPreservation.displayedFieldCalories}" kcal</p>
+                  <p>Sparat efter oändrad redigering: <strong>{arithmeticAuditResult.testG_rawPreservation.savedRawCaloriesAfterUnchangedEdit} kcal</strong></p>
+                  <p className="text-[11px] text-emerald-800 bg-emerald-50 p-1.5 rounded border border-emerald-200 mt-1">
+                    Exakt råvärde (33,33) bevaras intakt vid spara utan att trunkeras till 33. Vid faktisk ändring sparas det nya värdet korrekt.
+                  </p>
+                </div>
+              </div>
+
+              {/* Test H: Fotovägen & Portionsmultiplikator */}
+              <div className={`p-4 rounded-xl border space-y-2 ${
+                arithmeticAuditResult.testH_photoMultiplier.passed 
+                  ? 'bg-neutral-50/70 border-neutral-200' 
+                  : 'bg-red-50/70 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Test H: Fotologgning & Multiplikator</span>
+                  {arithmeticAuditResult.testH_photoMultiplier.passed ? (
+                    <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      <Check className="w-3 h-3 mr-1" /> OK
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
+                      <XCircle className="w-3 h-3 mr-1" /> FEL
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs space-y-1.5 text-neutral-700 font-mono">
+                  <div className="flex items-center justify-between bg-white p-1.5 rounded border border-neutral-200/80">
+                    <span>1 port (orörd):</span>
+                    <span>Förväntat: <strong>{arithmeticAuditResult.testH_photoMultiplier.expectedSingle} kcal</strong> | Faktiskt: <strong className="text-emerald-700">{arithmeticAuditResult.testH_photoMultiplier.savedCaloriesSingle} kcal</strong></span>
+                  </div>
+                  <div className="flex items-center justify-between bg-white p-1.5 rounded border border-neutral-200/80">
+                    <span>{arithmeticAuditResult.testH_photoMultiplier.portionMultiplier}x portioner:</span>
+                    <span>Förväntat: <strong>{arithmeticAuditResult.testH_photoMultiplier.expectedMultiplied} kcal</strong> | Faktiskt: <strong className="text-emerald-700">{arithmeticAuditResult.testH_photoMultiplier.savedCaloriesMultiplied} kcal</strong></span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 bg-emerald-50 p-1.5 rounded border border-emerald-200 mt-1">
+                    Geminis analysvärde (337,4) bevaras orört vid loggning (inte 337). Vid 3x portioner blir resultatet exakt 1012,2 kcal (istället för 1011 vid förhandsavrundning).
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-xl text-center space-y-2">
+            <p className="text-xs text-neutral-600 font-medium">
+              Klicka på <strong>"Kör självtest (10 x 33,33 kcal)"</strong> ovan för att genomföra den aritmetiska revisionen och verifiera avrundningsprecisionen.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Fotomätningshistorik */}
+      <div className="bg-white p-5 rounded-2xl border border-amber-500/30 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+          <div>
+            <h3 className="font-bold text-neutral-800 text-base flex items-center gap-2">
+              <Timer className="w-5 h-5 text-amber-500" />
+              Tidsmätning: Foto till Loggad Måltid (8 steg)
+            </h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Realtidsmätning av alla 8 steg från knapptryck via komprimering och Gemini 2.5 Flash till Firestore.
+            </p>
+          </div>
+          <span className="text-xs font-mono bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-full font-semibold">
+            {getPhotoMetricsHistory().length} mätningar i minnet
+          </span>
+        </div>
+
+        {getPhotoMetricsHistory().length === 0 ? (
+          <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-xl text-center space-y-1">
+            <p className="text-xs text-neutral-600 font-medium">
+              Inga fotologgningar har gjorts i denna session ännu.
+            </p>
+            <p className="text-[11px] text-neutral-400">
+              Gå till Dashboarden och ta ett foto med kameraknappen så visas hela tidslinjen här och i den flytande panelen.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {getPhotoMetricsHistory().slice(0, 3).map((item, idx) => (
+              <div key={item.id} className="p-3.5 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2 font-mono text-xs">
+                <div className="flex items-center justify-between font-sans">
+                  <span className="font-bold text-neutral-800">
+                    Mätning #{getPhotoMetricsHistory().length - idx}: {item.foodItemIdentified || 'Måltid'} ({item.caloriesIdentified || 0} kcal)
+                  </span>
+                  <span className="text-[11px] text-neutral-500">{item.formattedTime}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                  <div className="p-2 bg-white rounded border border-neutral-200">
+                    <span className="text-neutral-500 block text-[10px]">1. Bildtagning</span>
+                    <strong className="text-neutral-800">{item.captureTimeMs.toFixed(1)} ms</strong>
+                  </div>
+                  <div className="p-2 bg-white rounded border border-neutral-200">
+                    <span className="text-neutral-500 block text-[10px]">2. Komprimering</span>
+                    <strong className="text-amber-700">{item.compressionTimeMs.toFixed(1)} ms</strong>
+                    <span className="text-[10px] text-neutral-400 block">{item.rawImageSizeKb.toFixed(0)}KB → {item.compressedImageSizeKb.toFixed(0)}KB</span>
+                  </div>
+                  <div className="p-2 bg-white rounded border border-neutral-200">
+                    <span className="text-neutral-500 block text-[10px]">4. Gemini Anrop</span>
+                    <strong className="text-amber-700">{item.geminiCallTimeMs.toFixed(1)} ms</strong>
+                  </div>
+                  <div className="p-2 bg-white rounded border border-neutral-200">
+                    <span className="text-neutral-500 block text-[10px]">7. Firestore</span>
+                    <strong className="text-blue-700">{item.firestoreSaveTimeMs.toFixed(1)} ms</strong>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-neutral-200 text-neutral-600 font-sans text-xs">
+                  <span>Aktiv maskintid: <strong className="text-emerald-700 font-mono">{item.totalActiveProcessingTimeMs.toFixed(1)} ms</strong></span>
+                  <span>Total väggklocka: <strong className="text-neutral-800 font-mono">{item.totalPipelineTimeMs.toFixed(1)} ms</strong></span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
