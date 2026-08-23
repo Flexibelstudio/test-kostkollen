@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User } from 'firebase/auth';
-import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings } from '../types';
+import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings, ChatMemberUser } from '../types';
 import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleReactionMessage, approveMember, rejectMember, leaveChat } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon, SmileIcon, CheckIcon } from './icons';
@@ -319,7 +319,7 @@ export const ChatWindow: React.FC<{
     const [showAdminMenu, setShowAdminMenu] = useState(false);
     const [showPendingMembers, setShowPendingMembers] = useState(false);
     const [showMembersList, setShowMembersList] = useState(false);
-    const [allMemberDetails, setAllMemberDetails] = useState<BuddyDetails[]>([]);
+    const [allMemberDetails, setAllMemberDetails] = useState<ChatMemberUser[]>([]);
     const [isLoadingMembers, setIsLoadingMembers] = useState(false);
     const [newChatName, setNewChatName] = useState(chat.name || '');
     const [optimisticName, setOptimisticName] = useState(chat.name || '');
@@ -740,7 +740,7 @@ export const ChatWindow: React.FC<{
                     ) : (
                         allMemberDetails.map(member => {
                             const isMemberAdmin = chat.admins?.includes(member.uid) || chat.createdBy === member.uid;
-                            const isMemberCoach = member.role === 'coach';
+                            const isMemberCoach = member.isCoach === true;
                             const isMe = member.uid === currentUser.uid;
                             const isBuddy = buddyDetails.some(b => b.uid === member.uid);
 

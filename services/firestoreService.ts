@@ -57,7 +57,9 @@ import type {
     Reactions,
     PostCategory,
     Achievement,
-    SavedRecipe
+    SavedRecipe,
+    PublicProfile,
+    ChatMemberUser
 } from '../types';
 import { DEFAULT_GOALS, DEFAULT_USER_PROFILE } from '../constants';
 import { courseLessons, menopauseCourseLessons } from '../courseData.ts';
@@ -222,7 +224,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       coachStyle: DEFAULT_USER_PROFILE.coachStyle || 'balanced',
     };
     await setDoc(userDocRef, newUserDoc);
-    await syncPublicProfile(fbUser.uid, fbUser.displayName || "Ny användare", fbUser.photoURL, true);
+    await syncPublicProfile(fbUser.uid, fbUser.displayName || "Ny användare", fbUser.photoURL, true, newUserDoc.role === 'coach');
   } else {
     const existingData = userDoc.data();
     const updateData: any = { lastLoginAt: serverTimestamp() };
@@ -231,21 +233,28 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
     }
     await updateDoc(userDocRef, updateData);
     if (existingData.isSearchable !== false) {
-      await syncPublicProfile(fbUser.uid, fbUser.displayName || existingData.displayName || "Ny användare", fbUser.photoURL || existingData.photoURL, true);
+      await syncPublicProfile(fbUser.uid, fbUser.displayName || existingData.displayName || "Ny användare", fbUser.photoURL || existingData.photoURL, true, existingData.role === 'coach');
     }
   }
 }
 
-export async function syncPublicProfile(userId: string, displayName: string, photoURL?: string | null, isSearchable: boolean = true): Promise<void> {
+export async function syncPublicProfile(
+  userId: string, 
+  displayName: string, 
+  photoURL?: string | null, 
+  isSearchable: boolean = true,
+  isCoach: boolean = false
+): Promise<void> {
   if (!db) return;
   const publicProfileRef = doc(db, 'publicProfiles', userId);
   
   if (isSearchable && displayName) {
-    const publicProfileData = {
+    const publicProfileData: PublicProfile = {
       uid: userId,
       displayName: displayName,
-      photoURL: photoURL || null,
+      photoURL: photoURL || undefined,
       displayNameLower: displayName.toLowerCase().trim(),
+      isCoach: isCoach === true,
     };
     await setDoc(publicProfileRef, cleanFirestoreData(publicProfileData));
   } else {
@@ -1099,7 +1108,7 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   }
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
-  await syncPublicProfile(userId, profile.name, profile.photoURL, profile.isSearchable !== false);
+  await syncPublicProfile(userId, profile.name, profile.photoURL, profile.isSearchable !== false, profile.role === 'coach');
 }
 
 /* ===== Gamification: Achievements ===== */
@@ -1583,8 +1592,11 @@ export async function updateUserRole(memberId: string, newRole: UserRole) {
   const userDocRef = doc(db, 'users', memberId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
-    const { status } = userDoc.data();
-    await updateDoc(userDocRef, { role: newRole, status });
+    const data = userDoc.data();
+    await updateDoc(userDocRef, { role: newRole, status: data.status });
+    if (data.isSearchable !== false) {
+      await syncPublicProfile(memberId, data.displayName || 'Användare', data.photoURL, true, newRole === 'coach');
+    }
   }
 }
 export async function bulkApproveMembers(memberIds: string[]) {
@@ -1607,8 +1619,11 @@ export async function bulkUpdateUserRole(memberIds: string[], role: UserRole) {
     const userDocRef = doc(db, 'users', id);
     const userDoc = await getDoc(userDocRef);
     if (userDoc.exists()) {
-      const { status } = userDoc.data();
-      batch.update(userDocRef, { role, status });
+      const data = userDoc.data();
+      batch.update(userDocRef, { role, status: data.status });
+      if (data.isSearchable !== false) {
+        await syncPublicProfile(id, data.displayName || 'Användare', data.photoURL, true, role === 'coach');
+      }
     }
   }
   await batch.commit();
@@ -1650,26 +1665,24 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
   });
 }
 
-export async function fetchUsersByUids(uids: string[]): Promise<BuddyDetails[]> {
+export async function fetchUsersByUids(uids: string[]): Promise<ChatMemberUser[]> {
   if (!db || uids.length === 0) return [];
   
-  const results: BuddyDetails[] = [];
+  const results: ChatMemberUser[] = [];
   // Firestore 'in' queries support max 10 items
   for (let i = 0; i < uids.length; i += 10) {
     const chunk = uids.slice(i, i + 10);
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('uid', 'in', chunk));
+    const publicProfilesRef = collection(db, 'publicProfiles');
+    const q = query(publicProfilesRef, where('uid', 'in', chunk));
     const snapshot = await getDocsSafe(q);
     
     snapshot.forEach(doc => {
-      const data = doc.data() as FirestoreUserDocument;
+      const data = doc.data() as PublicProfile;
       results.push({
         uid: data.uid,
-        name: data.displayName,
-        photoURL: data.photoURL,
-        role: data.role,
-        goalType: data.goalType || 'maintain',
-        unlockedAchievements: {}
+        name: data.displayName || 'Användare',
+        photoURL: data.photoURL || undefined,
+        isCoach: data.isCoach === true,
       });
     });
   }

@@ -741,6 +741,14 @@ export interface PublicProfile {
   displayName: string;
   photoURL?: string;
   displayNameLower: string;
+  isCoach?: boolean;
+}
+
+export interface ChatMemberUser {
+  uid: string;
+  name: string;
+  photoURL?: string;
+  isCoach: boolean;
 }
 
 export interface Peppkompis {
