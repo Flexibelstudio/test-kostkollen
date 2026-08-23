@@ -636,7 +636,7 @@ export const recalculateStreak = async (cohortId: string, userId: string, provid
           type: 'achievement',
           timestamp: Date.now(),
           title: 'har nått Fas 2 i Generalens Bootcamp!',
-          description: 'Överlevde grundträningen och är nu redo för Elit-fasen.',
+          description: 'Klarade de första 14 dagarnas disciplin och är nu redo för Elit-fasen.',
           icon: '🔥',
           relatedDocId: `bootcamp_${cohortId}_fas2`
         });

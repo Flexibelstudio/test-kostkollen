@@ -431,7 +431,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             <div className="text-left">
               <h1 className="text-2xl font-extrabold uppercase tracking-wider">Lägesrapport</h1>
               <p className="text-neutral-300 text-sm font-medium">
-                {(participant.cohortId === 'solo' || participant.cohortId === 'solo_group') ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDTRÄNING' : 'FAS 2: ELIT'}
+                {(participant.cohortId === 'solo' || participant.cohortId === 'solo_group') ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDFAS' : 'FAS 2: ELIT'}
               </p>
             </div>
           </div>

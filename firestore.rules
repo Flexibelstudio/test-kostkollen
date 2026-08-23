@@ -7,8 +7,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if request.auth.uid == userId
                   || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
-                  || exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid))
-                  || resource.data.isSearchable == true;
+                  || exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid));
       
       allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
       
@@ -62,7 +61,12 @@ service cloud.firestore {
     // ===== PUBLIC PROFILES =====
     match /publicProfiles/{userId} {
       allow read, list: if request.auth.uid != null;
-      allow write: if request.auth.uid == userId;
+      allow create, update: if request.auth.uid == userId
+                            && (
+                              !('isCoach' in request.resource.data)
+                              || request.resource.data.isCoach == (get(/databases/$(database)/documents/users/$(userId)).data.role == 'coach')
+                            );
+      allow delete: if request.auth.uid == userId;
     }
 
     // ===== COMMUNITYTIMELINE =====
