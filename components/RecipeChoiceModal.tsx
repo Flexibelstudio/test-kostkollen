@@ -1,5 +1,5 @@
 import React from 'react';
-import { SearchIcon, CameraIcon, UploadIcon, XMarkIcon, RecipeIcon } from './icons';
+import { SearchIcon, CameraIcon, UploadIcon, XMarkIcon, RecipeIcon, BookmarkIcon } from './icons';
 
 interface RecipeChoiceModalProps {
   show: boolean;
@@ -7,6 +7,7 @@ interface RecipeChoiceModalProps {
   onChooseSearch: () => void;
   onChooseTakePhoto: () => void;
   onChooseUpload: () => void;
+  onChooseMyRecipes?: () => void;
 }
 
 const RecipeChoiceModal: React.FC<RecipeChoiceModalProps> = ({ 
@@ -14,7 +15,8 @@ const RecipeChoiceModal: React.FC<RecipeChoiceModalProps> = ({
     onClose, 
     onChooseSearch, 
     onChooseTakePhoto, 
-    onChooseUpload 
+    onChooseUpload,
+    onChooseMyRecipes
 }) => {
   if (!show) return null;
 
@@ -34,7 +36,7 @@ const RecipeChoiceModal: React.FC<RecipeChoiceModalProps> = ({
           <div className="flex items-center">
             <RecipeIcon className="w-7 h-7 text-primary mr-2.5" />
             <h2 id="recipe-choice-modal-title" className="text-2xl font-semibold text-neutral-dark">
-              Hitta Recept
+              Recept
             </h2>
           </div>
           <button
@@ -46,7 +48,22 @@ const RecipeChoiceModal: React.FC<RecipeChoiceModalProps> = ({
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3.5">
+          {onChooseMyRecipes && (
+            <button
+              onClick={onChooseMyRecipes}
+              className="w-full flex items-center p-4 bg-[#F6E2D9]/40 hover:bg-[#F6E2D9]/70 border border-[#EAC5B8]/60 hover:border-primary/40 rounded-xl transition-all group"
+            >
+              <div className="bg-white p-3 rounded-full shadow-sm mr-4 group-hover:scale-110 transition-transform">
+                <BookmarkIcon className="w-6 h-6 text-primary" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-semibold text-neutral-dark">Mina sparade recept</h3>
+                <p className="text-sm text-neutral">Se och logga dina sparade favoritrecept</p>
+              </div>
+            </button>
+          )}
+
           <button
             onClick={onChooseSearch}
             className="w-full flex items-center p-4 bg-neutral-light/50 hover:bg-neutral-light border border-transparent hover:border-primary/30 rounded-xl transition-all group"
@@ -55,7 +72,7 @@ const RecipeChoiceModal: React.FC<RecipeChoiceModalProps> = ({
               <SearchIcon className="w-6 h-6 text-primary" />
             </div>
             <div className="text-left">
-              <h3 className="text-lg font-semibold text-neutral-dark">Sök på namn</h3>
+              <h3 className="text-lg font-semibold text-neutral-dark">Sök recept på namn</h3>
               <p className="text-sm text-neutral">T.ex. "Kycklinggryta" eller "Pannkakor"</p>
             </div>
           </button>

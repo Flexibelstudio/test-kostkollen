@@ -345,6 +345,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [scannedFoodInfo, setScannedFoodInfo] = useState<BarcodeScannedFoodInfo | null>(null);
     const [imageAnalysisResult, setImageAnalysisResult] = useState<NutritionalInfo | null>(null);
     const [analyzedImageDataUrl, setAnalyzedImageDataUrl] = useState<string | null>(null);
+    const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState<boolean>(false);
     const [recipeSuggestions, setRecipeSuggestions] = useState<RecipeSuggestion[] | null>(null);
     const [identifiedIngredients, setIdentifiedIngredients] = useState<string[]>([]);
     const [ingredientImages, setIngredientImages] = useState<string[]>([]);
@@ -894,10 +895,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         setCameraMode('mealAnalysis'); 
         openModalWithType(setShowCameraModal, 'camera');
     };
-    const handleFindRecipe = () => {
+    const handleRecipes = () => {
         setSearchedRecipe(null);
         openModalWithType(setShowRecipeChoiceModal, 'recipeChoice'); 
     };
+    const handleFindRecipe = handleRecipes;
     const handleMyRecipes = () => openModalWithType(setShowMyRecipesModal, 'myRecipes');
 
     const handleSaveRecipe = async (recipe: RecipeSuggestion) => {
@@ -1148,82 +1150,172 @@ const Dashboard: React.FC<DashboardProps> = ({
                             isBootcamp={!!activeBootcamp}
                         />
                     </div>
+
+                    {/* Kompakt horisontell rad med sparade val (chips) direkt under makrostaplarna */}
+                    {commonMeals && commonMeals.length > 0 && (
+                        <div className="w-full px-4 sm:px-6 mt-3 pt-3 border-t border-neutral-light/70 dark:border-[#484440]/60">
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar -mx-1 px-1">
+                                {commonMeals.map((meal) => (
+                                    <button
+                                        key={`chip-${meal.timestamp}-${meal.id}`}
+                                        onClick={() => isEditableView && handleCommonMealLog(meal)}
+                                        disabled={!isEditableView}
+                                        className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-neutral-light/60 hover:bg-[#F6E2D9]/70 dark:bg-[#34302C] dark:hover:bg-[#3E3A36] border border-neutral-light/80 dark:border-[#484440] hover:border-primary/40 rounded-xl text-left active:scale-95 transition-all shadow-xs group"
+                                        title={`Logga ${meal.name} (${Math.round(meal.nutritionalInfo.calories)} kcal)`}
+                                    >
+                                        <div className="w-2 h-2 rounded-full bg-primary/70 group-hover:bg-primary transition-colors shrink-0" />
+                                        <span className="text-xs font-bold text-neutral-dark dark:text-[#FAF6EF] whitespace-nowrap truncate max-w-[140px] sm:max-w-[180px]">
+                                            {meal.name}
+                                        </span>
+                                        <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 bg-white/80 dark:bg-[#2B2825] px-1.5 py-0.5 rounded-md border border-neutral-light dark:border-[#484440] shrink-0">
+                                            {Math.round(meal.nutritionalInfo.calories)} kcal
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Layout Columns */}
+            {/* Vatten & Streak (Snabbåtkomst ovanför matloggen) */}
+            <div className="grid grid-cols-2 gap-3 items-stretch">
+                <div ref={waterLoggerRef} className="h-full flex flex-col">
+                    <WaterLogger
+                        currentWaterMl={waterLoggedMl}
+                        waterGoalMl={DEFAULT_WATER_GOAL_ML}
+                        onLogWater={(amount) => handleLogWater(amount)}
+                        onResetWater={handleResetWater}
+                        disabled={!isEditableView}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                </div>
+                <div className="flex flex-col h-full justify-between">
+                    {/* Streak Card */}
+                    <div className={`${activeBootcamp ? 'bg-white border-[#D96E4A]/30' : 'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 h-full`}>
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
+                            <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
+                        </div>
+                        <div className="relative z-10 flex-1 min-w-0">
+                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Streak</p>
+                            <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-none truncate">
+                                {streakData.currentStreak} 
+                                <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Meal Sections (Matlogg - Placerad högt upp för snabbaste loggning) */}
+            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <MealSectionCard 
+                        title="Frukost" 
+                        icon={<Coffee className="w-6 h-6" />} 
+                        meals={mealsBySection.breakfast} 
+                        onDeleteMeal={handleDeleteMeal}
+                        onUpdateMeal={handleUpdateMeal}
+                        onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
+                        isEditable={isEditableView}
+                        isOpen={activeMealSection === 'breakfast'}
+                        onOpen={() => setActiveMealSection('breakfast')}
+                        onClose={() => setActiveMealSection(null)}
+                        recommendedCalories={Math.round(goals.calorieGoal * 0.25)}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                    <MealSectionCard 
+                        title="Lunch" 
+                        icon={<Sandwich className="w-6 h-6" />} 
+                        meals={mealsBySection.lunch} 
+                        onDeleteMeal={handleDeleteMeal}
+                        onUpdateMeal={handleUpdateMeal}
+                        onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
+                        isEditable={isEditableView}
+                        isOpen={activeMealSection === 'lunch'}
+                        onOpen={() => setActiveMealSection('lunch')}
+                        onClose={() => setActiveMealSection(null)}
+                        recommendedCalories={Math.round(goals.calorieGoal * 0.35)}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                    <MealSectionCard 
+                        title="Middag" 
+                        icon={<CookingPot className="w-6 h-6" />} 
+                        meals={mealsBySection.dinner} 
+                        onDeleteMeal={handleDeleteMeal}
+                        onUpdateMeal={handleUpdateMeal}
+                        onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
+                        isEditable={isEditableView}
+                        isOpen={activeMealSection === 'dinner'}
+                        onOpen={() => setActiveMealSection('dinner')}
+                        onClose={() => setActiveMealSection(null)}
+                        recommendedCalories={Math.round(goals.calorieGoal * 0.30)}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                    <MealSectionCard 
+                        title="Mellanmål" 
+                        icon={<Apple className="w-6 h-6" />} 
+                        meals={mealsBySection.snack} 
+                        onDeleteMeal={handleDeleteMeal}
+                        onUpdateMeal={handleUpdateMeal}
+                        onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
+                        isEditable={isEditableView}
+                        isOpen={activeMealSection === 'snack'}
+                        onOpen={() => setActiveMealSection('snack')}
+                        onClose={() => setActiveMealSection(null)}
+                        recommendedCalories={Math.round(goals.calorieGoal * 0.10)}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                </div>
+            </div>
+
+            {/* Layout Columns under matloggen: Ditt mål, Veckoöversikt & Sparade vanliga val */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 
                 {/* Left Column */}
                 <div className="flex flex-col gap-3">
-                    {/* Water & Streak/Bank */}
-                    <div className="grid grid-cols-2 gap-3 items-stretch">
-                        <div ref={waterLoggerRef} className="h-full flex flex-col">
-                            <WaterLogger
-                                currentWaterMl={waterLoggedMl}
-                                waterGoalMl={DEFAULT_WATER_GOAL_ML}
-                                onLogWater={(amount) => handleLogWater(amount)}
-                                onResetWater={handleResetWater}
-                                disabled={!isEditableView}
-                                isBootcamp={!!activeBootcamp}
-                            />
+                    {/* Goal Progress Card */}
+                    <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${activeBootcamp ? 'bg-[#E8EFE9] text-[#2B3B2C]' : 'bg-primary-100 text-primary-darker'} flex items-center justify-center shadow-sm relative z-10 shrink-0`}>
+                            <TrophyIcon className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
-                        <div className="flex flex-col gap-3 h-full justify-between">
-                            {/* Streak Card */}
-                            <div className={`${activeBootcamp ? 'bg-white border-[#D96E4A]/30' : 'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
-                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
-                                    <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
-                                </div>
-                                <div className="relative z-10 flex-1 min-w-0">
-                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Streak</p>
-                                    <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-none truncate">
-                                        {streakData.currentStreak} 
-                                        <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
-                                    </p>
-                                </div>
+                        <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
+                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Ditt Mål</p>
+                            <p className="text-sm font-bold text-neutral-dark leading-tight truncate">
+                                {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
+                                    userProfile.measurementMethod,
+                                    userProfile.desiredWeightChangeKg,
+                                    userProfile.desiredFatMassChangeKg,
+                                    userProfile.desiredMuscleMassChangeKg
+                                )}
+                            </p>
+                            <div className="flex items-center justify-between text-xs font-bold text-primary mt-1 mb-1">
+                                <span className="whitespace-nowrap">
+                                    {`${Math.round(calculateProgressPercentage(
+                                        userProfile.measurementMethod,
+                                        userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                        userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                        userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                        userProfile.mainGoalCompleted
+                                    ))}% klart`}
+                                </span>
                             </div>
-
-                            {/* Goal Progress Card */}
-                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
-                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${activeBootcamp ? 'bg-[#E8EFE9] text-[#2B3B2C]' : 'bg-primary-100 text-primary-darker'} flex items-center justify-center shadow-sm relative z-10 shrink-0`}>
-                                    <TrophyIcon className="w-5 h-5 sm:w-6 sm:h-6" />
-                                </div>
-                                <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
-                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Ditt Mål</p>
-                                    <p className="text-sm font-bold text-neutral-dark leading-tight truncate">
-                                        {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
+                            <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
+                                <div 
+                                    className="bg-primary h-full rounded-full transition-all duration-500" 
+                                    style={{ 
+                                        width: `${calculateProgressPercentage(
                                             userProfile.measurementMethod,
-                                            userProfile.desiredWeightChangeKg,
-                                            userProfile.desiredFatMassChangeKg,
-                                            userProfile.desiredMuscleMassChangeKg
-                                        )}
-                                    </p>
-                                    <div className="flex items-center justify-between text-xs font-bold text-primary mt-1 mb-1">
-                                        <span className="whitespace-nowrap">
-                                            {`${Math.round(calculateProgressPercentage(
-                                                userProfile.measurementMethod,
-                                                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                                                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                                                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                                                userProfile.mainGoalCompleted
-                                            ))}% klart`}
-                                        </span>
-                                    </div>
-                                    <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
-                                        <div 
-                                            className="bg-primary h-full rounded-full transition-all duration-500" 
-                                            style={{ 
-                                                width: `${calculateProgressPercentage(
-                                                    userProfile.measurementMethod,
-                                                    userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                                                    userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                                                    userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                                                    userProfile.mainGoalCompleted
-                                                )}%` 
-                                            }}
-                                        ></div>
-                                    </div>
-                                </div>
+                                            userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                            userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                            userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                            userProfile.mainGoalCompleted
+                                        )}%` 
+                                    }}
+                                ></div>
                             </div>
                         </div>
                     </div>
@@ -1253,7 +1345,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                 {/* Right Column */}
                 <div className="flex flex-col gap-3">
-                    
                     <CommonMealsList 
                         commonMeals={commonMeals}
                         onLogCommonMeal={handleCommonMealLog}
@@ -1267,71 +1358,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                         disabled={!isEditableView}
                         isBootcamp={!!activeBootcamp}
                     />
-
-                    {/* Meal Sections (Matlogg) */}
-                    <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <MealSectionCard 
-                                title="Frukost" 
-                                icon={<Coffee className="w-6 h-6" />} 
-                                meals={mealsBySection.breakfast} 
-                                onDeleteMeal={handleDeleteMeal}
-                                onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
-                                isEditable={isEditableView}
-                                isOpen={activeMealSection === 'breakfast'}
-                                onOpen={() => setActiveMealSection('breakfast')}
-                                onClose={() => setActiveMealSection(null)}
-                                recommendedCalories={Math.round(goals.calorieGoal * 0.25)}
-                                isBootcamp={!!activeBootcamp}
-                            />
-                            <MealSectionCard 
-                                title="Lunch" 
-                                icon={<Sandwich className="w-6 h-6" />} 
-                                meals={mealsBySection.lunch} 
-                                onDeleteMeal={handleDeleteMeal}
-                                onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
-                                isEditable={isEditableView}
-                                isOpen={activeMealSection === 'lunch'}
-                                onOpen={() => setActiveMealSection('lunch')}
-                                onClose={() => setActiveMealSection(null)}
-                                recommendedCalories={Math.round(goals.calorieGoal * 0.35)}
-                                isBootcamp={!!activeBootcamp}
-                            />
-                            <MealSectionCard 
-                                title="Middag" 
-                                icon={<CookingPot className="w-6 h-6" />} 
-                                meals={mealsBySection.dinner} 
-                                onDeleteMeal={handleDeleteMeal}
-                                onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
-                                isEditable={isEditableView}
-                                isOpen={activeMealSection === 'dinner'}
-                                onOpen={() => setActiveMealSection('dinner')}
-                                onClose={() => setActiveMealSection(null)}
-                                recommendedCalories={Math.round(goals.calorieGoal * 0.30)}
-                                isBootcamp={!!activeBootcamp}
-                            />
-                            <MealSectionCard 
-                                title="Mellanmål" 
-                                icon={<Apple className="w-6 h-6" />} 
-                                meals={mealsBySection.snack} 
-                                onDeleteMeal={handleDeleteMeal}
-                                onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
-                                isEditable={isEditableView}
-                                isOpen={activeMealSection === 'snack'}
-                                onOpen={() => setActiveMealSection('snack')}
-                                onClose={() => setActiveMealSection(null)}
-                                recommendedCalories={Math.round(goals.calorieGoal * 0.10)}
-                                isBootcamp={!!activeBootcamp}
-                            />
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -1348,6 +1374,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="fixed bottom-6 right-6 z-[50] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
+                            {/* 1. Chatta med coachen (längst upp) */}
                             <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3 group">
                                 <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
                                     Chatta med {coachName}
@@ -1356,14 +1383,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <SparklesIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
-                            <button onClick={handleTakePhoto} className="flex items-center gap-3 group">
+
+                            {/* 2. Recept (slår ihop Hitta recept & Mina recept) */}
+                            <button onClick={handleRecipes} className="flex items-center gap-3 group">
                                 <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
-                                    Fota mat
+                                    Recept
                                 </span>
                                 <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
-                                    <CameraIcon className="w-6 h-6 text-[#D96E4A]" />
+                                    <RecipeIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
+
+                            {/* 3. Skanna kod */}
                             <button onClick={handleScanBarcode} className="flex items-center gap-3 group">
                                 <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
                                     Skanna kod
@@ -1372,6 +1403,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <BarcodeIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
+
+                            {/* 4. Sök & logga */}
                             <button onClick={handleSearchText} className="flex items-center gap-3 group">
                                 <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
                                     Sök & logga
@@ -1380,20 +1413,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <SearchIcon className="w-5 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
-                            <button onClick={handleFindRecipe} className="flex items-center gap-3 group">
+
+                            {/* 5. Fota mat (närmast tummen / längst ner) */}
+                            <button onClick={handleTakePhoto} className="flex items-center gap-3 group">
                                 <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
-                                    Hitta recept
+                                    Fota mat
                                 </span>
                                 <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
-                                    <RecipeIcon className="w-6 h-6 text-[#D96E4A]" />
-                                </div>
-                            </button>
-                            <button onClick={handleMyRecipes} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
-                                    Mina recept
-                                </span>
-                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
-                                    <BookmarkIcon className="w-6 h-6 text-[#D96E4A]" />
+                                    <CameraIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
                         </div>
@@ -1504,19 +1531,27 @@ const Dashboard: React.FC<DashboardProps> = ({
                     onImageCapture={async (imgData) => { 
                         setShowCameraModal(false); 
                         if (cameraMode === 'mealAnalysis') {
-                            setAnalyzedImageDataUrl(`data:image/jpeg;base64,${imgData}`); 
-                            setAppStatus('analyzing'); 
-                            try { 
-                                const result = await analyzeFoodImage(imgData); 
-                                setImageAnalysisResult(result); 
-                                recordModalRenderStart();
-                                replaceModalState('imageAnalysis');
-                                setShowImageAnalysisResultModal(true); 
-                            } catch (e: any) { 
-                                alert(e.message); 
-                            } finally { 
-                                setAppStatus('idle'); 
-                            }
+                            const dataUrl = `data:image/jpeg;base64,${imgData}`;
+                            setAnalyzedImageDataUrl(dataUrl); 
+                            setImageAnalysisResult(null);
+                            setIsAnalyzingPhoto(true);
+                            // 1. ÖVERLAPPA VÄNTAN: Öppna bekräftelsevyn OMEDELBART efter att fotot tagits
+                            recordModalRenderStart();
+                            replaceModalState('imageAnalysis');
+                            setShowImageAnalysisResultModal(true); 
+
+                            // 2. Analysen körs i bakgrunden medan användaren väljer måltidstyp och portion
+                            analyzeFoodImage(imgData)
+                                .then((result) => {
+                                    setImageAnalysisResult(result);
+                                })
+                                .catch((e: any) => {
+                                    alert(e.message || 'Kunde inte analysera bilden.');
+                                    closeModalState('imageAnalysis', () => setShowImageAnalysisResultModal(false));
+                                })
+                                .finally(() => {
+                                    setIsAnalyzingPhoto(false);
+                                });
                         } else if (cameraMode === 'ingredientCapture') {
                             setIngredientImages(prev => [...prev, `data:image/jpeg;base64,${imgData}`]);
                             replaceModalState('ingredientCapture');
@@ -1539,7 +1574,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                 />
             )}
             {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => closeModalState('textEntry', () => setShowTextEntryModal(false))} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
-            {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => closeModalState('recipeChoice', () => setShowRecipeChoiceModal(false))} onChooseSearch={() => { replaceModalState('recipe'); setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { replaceModalState('ingredientCapture'); setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { replaceModalState('ingredientCapture'); setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
+            {showRecipeChoiceModal && (
+                <RecipeChoiceModal 
+                    show={showRecipeChoiceModal} 
+                    onClose={() => closeModalState('recipeChoice', () => setShowRecipeChoiceModal(false))} 
+                    onChooseSearch={() => { replaceModalState('recipe'); setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} 
+                    onChooseTakePhoto={() => { replaceModalState('ingredientCapture'); setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} 
+                    onChooseUpload={() => { replaceModalState('ingredientCapture'); setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} 
+                    onChooseMyRecipes={() => { replaceModalState('myRecipes'); setShowRecipeChoiceModal(false); setShowMyRecipesModal(true); }}
+                />
+            )}
             {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => closeModalState('recipe', () => { setShowRecipeModal(false); setIsRecipeSaved(false); })} onSearch={async (q) => { setAppStatus('searching_recipe'); setIsRecipeSaved(false); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching_recipe'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} onSaveRecipe={handleSaveRecipe} isSaved={isRecipeSaved} onShareRecipe={onShareRecipe} />}
             {showMyRecipesModal && <MyRecipesModal show={showMyRecipesModal} onClose={() => closeModalState('myRecipes', () => setShowMyRecipesModal(false))} onShareRecipe={onShareRecipe} onLogRecipe={handleAddMealToLog} />}
             {showIngredientCaptureModal && (
@@ -1561,7 +1605,20 @@ const Dashboard: React.FC<DashboardProps> = ({
             {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => closeModalState('ingredientResults', () => setShowIngredientRecipeResultsModal(false))} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} onSaveRecipe={handleSaveRecipe} savedRecipeIds={savedRecipeIds} />}
             {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => closeModalState('barcodeScanner', () => setShowBarcodeScannerModal(false))} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); replaceModalState('barcodeResult'); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setCameraMode('nutritionLabel'); replaceModalState('camera'); setShowBarcodeScannerModal(false); setShowCameraModal(true); }} />}
             {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => closeModalState('barcodeResult', () => setShowBarcodeSearchResultModal(false))} defaultMealType={defaultMealTypeForModal} />}
-            {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => closeModalState('imageAnalysis', () => setShowImageAnalysisResultModal(false))} defaultMealType={defaultMealTypeForModal} />}
+            {showImageAnalysisResultModal && analyzedImageDataUrl && (
+                <ImageAnalysisResultModal 
+                    show={showImageAnalysisResultModal} 
+                    analysisResult={imageAnalysisResult} 
+                    imageDataUrl={analyzedImageDataUrl} 
+                    isLoading={isAnalyzingPhoto}
+                    onLog={handleAddMealToLog} 
+                    onClose={() => {
+                        setIsAnalyzingPhoto(false);
+                        closeModalState('imageAnalysis', () => setShowImageAnalysisResultModal(false));
+                    }} 
+                    defaultMealType={defaultMealTypeForModal} 
+                />
+            )}
             {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => closeModalState('saveCommonMeal', () => { setMealToSaveAsCommon(null); setShowSaveCommonMealModal(false); })} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); closeModalState('saveCommonMeal', () => { setMealToSaveAsCommon(null); setShowSaveCommonMealModal(false); }); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
             {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => closeModalState('nutritionLabel', () => setShowNutritionLabelResultModal(false))} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
             {showFoodRatingModal && foodRatingData && userProfile && (

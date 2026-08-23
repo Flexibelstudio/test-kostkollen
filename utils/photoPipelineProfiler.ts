@@ -5,6 +5,9 @@ export interface PhotoPipelineMetrics {
   timestamp: number;
   formattedTime: string;
 
+  // 0. Föruppvärmning av anslutningar (Gemini & Firestore)
+  warmupTimeMs?: number;
+
   // 1. Från att användaren trycker på kameraknappen till att bilden är tagen
   captureTimeMs: number;
 
@@ -45,6 +48,7 @@ export interface PhotoPipelineMetrics {
 
 export interface ActivePhotoSession {
   id: string;
+  warmupTimeMs?: number;
   tCaptureStart: number;
   tCaptureEnd?: number;
   tCompressEnd?: number;
@@ -125,6 +129,18 @@ export function clearPhotoMetricsHistory(): void {
   notifyListeners();
 }
 
+let lastPrewarmDurationMs: number | undefined = undefined;
+
+/**
+ * 0. Registrera förvärmning av anslutningar (Gemini / Firestore)
+ */
+export function recordConnectionPrewarm(durationMs: number) {
+  lastPrewarmDurationMs = durationMs;
+  if (activeSession) {
+    activeSession.warmupTimeMs = durationMs;
+  }
+}
+
 /**
  * 1. Starta tidtagning när användaren trycker på kameraknappen
  */
@@ -132,6 +148,7 @@ export function startPhotoCapture(): ActivePhotoSession {
   const session: ActivePhotoSession = {
     id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     tCaptureStart: performance.now(),
+    warmupTimeMs: lastPrewarmDurationMs,
   };
   activeSession = session;
   return session;
@@ -285,6 +302,7 @@ export function finishPhotoPipeline(): PhotoPipelineMetrics | null {
     id: s.id,
     timestamp: Date.now(),
     formattedTime: new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    warmupTimeMs: s.warmupTimeMs,
     captureTimeMs,
     compressionTimeMs,
     rawImageSizeBytes: rawBytes,
@@ -330,6 +348,13 @@ export function logMetricsToConsole(m: PhotoPipelineMetrics) {
   console.groupCollapsed(groupLabel);
 
   const tableData: Record<string, { 'Tid (ms)': string; 'Andel aktiv': string; 'Detaljer': string }> = {
+    ...(m.warmupTimeMs !== undefined ? {
+      '0. Föruppvärmning (Kameraöppning)': {
+        'Tid (ms)': `${m.warmupTimeMs.toFixed(1)} ms`,
+        'Andel aktiv': '-',
+        'Detaljer': 'Pre-warm av Gemini-proxy & Firestore-kanal vid kameraöppning (körs i bakgrunden)'
+      }
+    } : {}),
     '1. Knapptryck -> Bild tagen': {
       'Tid (ms)': `${m.captureTimeMs.toFixed(1)} ms`,
       'Andel aktiv': `${((m.captureTimeMs / (m.totalActiveProcessingTimeMs || 1)) * 100).toFixed(1)}%`,

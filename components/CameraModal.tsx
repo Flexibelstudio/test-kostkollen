@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CameraIcon, XMarkIcon } from './icons.tsx'; 
 import { startPhotoCapture, recordCaptureAndCompression } from '../utils/photoPipelineProfiler.ts'; 
+import { prewarmConnections } from '../services/geminiService.ts';
 
 interface CameraModalProps {
   show: boolean;
@@ -29,6 +30,9 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
     };
 
     if (show) {
+        // Värm upp anslutningar till Gemini-proxy och Firestore i bakgrunden så fort kameran öppnas
+        prewarmConnections().catch(() => {});
+
         setIsCameraLoading(true);
         setCameraError(null); 
         setActiveStream(null);  

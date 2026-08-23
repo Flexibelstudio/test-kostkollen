@@ -28,7 +28,6 @@ export const PhotoTimingPanel: React.FC = () => {
       setHistory(updated);
       if (updated.length > 0) {
         setSelectedSessionId(updated[0].id);
-        setIsExpanded(true); // Öppna automatiskt när en ny mätning registreras
       }
     });
 
@@ -45,7 +44,7 @@ export const PhotoTimingPanel: React.FC = () => {
 Tidpunkt: ${currentMetrics.formattedTime}
 Måltid: ${currentMetrics.foodItemIdentified || 'Måltid'} (${currentMetrics.caloriesIdentified || 0} kcal)
 
-1. Kameraknapp till bild tagen: ${currentMetrics.captureTimeMs.toFixed(1)} ms
+${currentMetrics.warmupTimeMs !== undefined ? `0. Föruppvärmning (Kameraöppning): ${currentMetrics.warmupTimeMs.toFixed(1)} ms\n` : ''}1. Kameraknapp till bild tagen: ${currentMetrics.captureTimeMs.toFixed(1)} ms
 2. Komprimering & förberedelse: ${currentMetrics.compressionTimeMs.toFixed(1)} ms
    - Bildstorlek före: ${currentMetrics.rawImageSizeKb.toFixed(1)} KB (${currentMetrics.rawDimensions.width}x${currentMetrics.rawDimensions.height})
    - Bildstorlek efter: ${currentMetrics.compressedImageSizeKb.toFixed(1)} KB (${currentMetrics.compressedDimensions.width}x${currentMetrics.compressedDimensions.height})
@@ -75,23 +74,20 @@ Måltid: ${currentMetrics.foodItemIdentified || 'Måltid'} (${currentMetrics.cal
     });
   };
 
-  // Minimerad flytande knapp
+  // Minimerad flytande knapp — enbart kompakt ikon för att aldrig skymma innehåll
   if (!isExpanded) {
     return (
-      <div className="fixed bottom-20 left-4 z-[90] animate-fade-in print:hidden">
+      <div className="fixed bottom-6 left-6 z-[90] animate-fade-in print:hidden">
         <button
           onClick={() => setIsExpanded(true)}
-          className="flex items-center gap-2 px-3 py-2 bg-neutral-900/90 hover:bg-neutral-900 text-white rounded-full shadow-lg border border-neutral-700/60 backdrop-blur-md text-xs font-mono transition-all hover:scale-105 active:scale-95"
-          title="Visa tidsmätning för fotologgning (Endast synlig i testmiljö)"
+          className="w-10 h-10 bg-neutral-900/90 hover:bg-neutral-900 text-amber-400 rounded-full shadow-lg border border-neutral-700/80 backdrop-blur-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 group relative"
+          title="Visa tidsmätning för fotologgning"
+          aria-label="Fotomätning"
         >
-          <Timer className="w-4 h-4 text-amber-400" />
-          <span className="font-semibold text-neutral-200">Fotomätning</span>
-          <span className="px-1.5 py-0.5 bg-neutral-800 text-amber-300 rounded-full text-[10px] font-bold border border-neutral-700">
-            {history.length}
-          </span>
-          {currentMetrics && (
-            <span className="text-emerald-400 font-bold border-l border-neutral-700 pl-1.5">
-              {currentMetrics.totalActiveProcessingTimeMs.toFixed(0)} ms
+          <Timer className="w-5 h-5" />
+          {history.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-neutral-950 rounded-full text-[9px] font-bold flex items-center justify-center shadow-xs">
+              {history.length > 9 ? '9+' : history.length}
             </span>
           )}
         </button>
@@ -213,6 +209,22 @@ Måltid: ${currentMetrics.foodItemIdentified || 'Måltid'} (${currentMetrics.cal
               </div>
 
               <div className="space-y-1.5 font-mono">
+                {/* 0. Föruppvärmning (om tillgänglig) */}
+                {currentMetrics.warmupTimeMs !== undefined && (
+                  <div className="p-2 bg-neutral-950/60 rounded-lg border border-cyan-500/30 bg-cyan-500/5 flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <div className="text-[11px] font-medium text-cyan-300 flex items-center gap-1">
+                        <Activity className="w-3 h-3 text-cyan-400" />
+                        0. Föruppvärmning (Kameraöppning)
+                      </div>
+                      <div className="text-[10px] text-neutral-400">Gemini & Firestore TCP/TLS pre-warm</div>
+                    </div>
+                    <span className="font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 px-2 py-0.5 rounded">
+                      {currentMetrics.warmupTimeMs.toFixed(1)} ms
+                    </span>
+                  </div>
+                )}
+
                 {/* 1. Bildtagning */}
                 <div className="p-2 bg-neutral-950/60 rounded-lg border border-neutral-800/80 flex items-center justify-between">
                   <div className="space-y-0.5">

@@ -6,7 +6,7 @@ import { auth, firebaseConfig, appCheck } from '../firebase.ts'; // Lagt till ap
 import { getToken } from "firebase/app-check"; // Importera getToken för App Check
 import { runPlateauAnalysis } from '../utils/plateauAnalysis';
 import { calculateWeeklyTotals } from '../utils/nutritionTotals';
-import { recordUploadStart, recordUploadEnd, recordGeminiCallTiming } from '../utils/photoPipelineProfiler.ts';
+import { recordUploadStart, recordUploadEnd, recordGeminiCallTiming, recordConnectionPrewarm } from '../utils/photoPipelineProfiler.ts';
 
 // -- SECURE PROXY SETUP --
 // We route all Gemini API calls through our Firebase Cloud Function Proxy.
@@ -76,6 +76,48 @@ export const ai = new GoogleGenAI({
       fetch: customFetch
   } as any
 });
+
+/**
+ * Värm upp uppkopplingen mot Gemini-proxy och Firestore när kameran öppnas.
+ * Görs så billigt som möjligt (0 tokens, 0 AI-kvot, 0 Firestore-dokumentkostnad)
+ * genom ett enkelt HTTP OPTIONS/HEAD preflight-anrop samt ett token/ping-anrop.
+ */
+let lastPrewarmTimestamp = 0;
+export const prewarmConnections = async (): Promise<number> => {
+  const now = performance.now();
+  // Throttle inom 15 sekunder så vi inte gör onödiga dubbla anrop
+  if (Date.now() - lastPrewarmTimestamp < 15000) {
+    return 0;
+  }
+  lastPrewarmTimestamp = Date.now();
+
+  const tStart = performance.now();
+  try {
+    const user = auth.currentUser;
+    const tasks: Promise<any>[] = [
+      // 1. Värm upp TLS/TCP-kopplingen mot Cloud Function proxyn utan att anropa LLM (OPTIONS / HEAD)
+      fetch(baseUrl, { method: 'OPTIONS', mode: 'no-cors' }).catch(() => null),
+    ];
+
+    if (user) {
+      // 2. Förbered Auth Id-token & App Check i bakgrunden så de ligger i minnet/cachen
+      tasks.push(user.getIdToken().catch(() => null));
+      if (appCheck) {
+        tasks.push(getToken(appCheck).catch(() => null));
+      }
+    }
+
+    await Promise.all(tasks);
+    const duration = Math.max(0, performance.now() - tStart);
+    recordConnectionPrewarm(duration);
+    console.log(`⚡ [Pre-warm] Anslutningar förvärmda på ${duration.toFixed(1)} ms`);
+    return duration;
+  } catch (err) {
+    const duration = Math.max(0, performance.now() - tStart);
+    console.warn('Pre-warm error (non-fatal):', err);
+    return duration;
+  }
+};
 
 export interface AIDataForMorningBriefing {
   userProfile: UserProfileData;
@@ -483,22 +525,10 @@ export const analyzeFoodImage = async (base64ImageData: string): Promise<Nutriti
   };
 
   const textPart = {
-    text: `Analysera maten på denna bild. Ditt mål är att ge en RIMLIG och TYPISK uppskattning av dess näringsinnehåll.
-Identifiera den primära maträtten/livsmedlet.
-Uppskatta det totala antalet kalorier.
-Uppskatta makronutrientfördelningen i gram för protein, kolhydrater och fett.
-Se till att alla makronutrienter (protein, kolhydrater, fett) beaktas. Om en makronutrient typiskt finns i den identifierade maten (t.ex. kolhydrater i bröd, fett i ost), bör den ha och värde som inte är noll. Undvik att mata ut noll för en makronutrient om den tydligt finns.
-
-Svara ENDAST med ett enda JSON-objekt med följande nycklar:
-"foodItem" (string, på SVENSKA, t.ex., "Pepperonipizzabit", "Kycklingsallad"),
-"calories" (number),
-"protein" (number),
-"carbohydrates" (number),
-"fat" (number).
-
-Se till att alla näringsvärden är numeriska och representerar en rimlig näringsprofil för den synliga maten.
-Till exempel, för en ostpizzabit: {"foodItem": "Ostpizzabit", "calories": 280, "protein": 12, "carbohydrates": 35, "fat": 10}
-För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein": 30, "carbohydrates": 10, "fat": 20}`
+    text: `Identifiera måltiden/livsmedlet på bilden och uppskatta näringsvärden.
+Ingen introduktion, ingen förklaring, inga ingredienslistor.
+Svara ENDAST med ett JSON-objekt:
+{"foodItem":"Maträtt på svenska","calories":0,"protein":0,"carbohydrates":0,"fat":0}`
   };
   recordUploadEnd();
 
@@ -511,7 +541,7 @@ För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein
       contents: { parts: [imagePart, textPart] },
       config: {
         responseMimeType: "application/json",
-        temperature: 0.2, 
+        temperature: 0.1, 
       },
     });
     const tGeminiEnd = performance.now();
