@@ -91,12 +91,15 @@ export function calculateRemainingCalories(
     }
   }
 
+  // Ringens färg följer samma mållogik som goalMet ovan, dvs den är beroende av måltyp:
+  // - lose_fat/maintain: grön redan från minimigränsen (80% av målet) upp till målet (+ sparpott)
+  // - gain_muscle: grön från målet minus 300 kcal upp till målet
   let progressColor = '#D96E4A';
   if (consumedCalories < minSafeCalories) {
     progressColor = '#D96E4A';
   } else if (isNetOverBudget) {
     progressColor = '#C05A38';
-  } else if (isFullyCoveredByBank) {
+  } else if (goalMet || isFullyCoveredByBank) {
     progressColor = '#8C9A86';
   }
 

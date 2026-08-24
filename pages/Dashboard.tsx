@@ -1178,7 +1178,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
 
-            {/* Vatten & Streak (Snabbåtkomst ovanför matloggen) */}
+            {/* Vatten, Streak & Ditt Mål (Snabbåtkomst ovanför matloggen) */}
             <div className="grid grid-cols-2 gap-3 items-stretch">
                 <div ref={waterLoggerRef} className="h-full flex flex-col">
                     <WaterLogger
@@ -1190,9 +1190,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                         isBootcamp={!!activeBootcamp}
                     />
                 </div>
-                <div className="flex flex-col h-full justify-between">
+                <div className="flex flex-col h-full gap-3">
                     {/* Streak Card */}
-                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 h-full`}>
+                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
                         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
                             <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
@@ -1202,6 +1202,48 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 {streakData.currentStreak} 
                                 <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
                             </p>
+                        </div>
+                    </div>
+                    {/* Goal Progress Card */}
+                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${'bg-primary-100 text-primary-darker'} flex items-center justify-center shadow-sm relative z-10 shrink-0`}>
+                            <TrophyIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+                        </div>
+                        <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
+                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Ditt Mål</p>
+                            <p className="text-sm font-bold text-neutral-dark leading-tight truncate">
+                                {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
+                                    userProfile.measurementMethod,
+                                    userProfile.desiredWeightChangeKg,
+                                    userProfile.desiredFatMassChangeKg,
+                                    userProfile.desiredMuscleMassChangeKg
+                                )}
+                            </p>
+                            <div className="flex items-center justify-between text-xs font-bold text-primary mt-1 mb-1">
+                                <span className="whitespace-nowrap">
+                                    {`${Math.round(calculateProgressPercentage(
+                                        userProfile.measurementMethod,
+                                        userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                        userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                        userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                        userProfile.mainGoalCompleted
+                                    ))}% klart`}
+                                </span>
+                            </div>
+                            <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
+                                <div 
+                                    className="bg-primary h-full rounded-full transition-all duration-500" 
+                                    style={{ 
+                                        width: `${calculateProgressPercentage(
+                                            userProfile.measurementMethod,
+                                            userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                            userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                            userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                            userProfile.mainGoalCompleted
+                                        )}%` 
+                                    }}
+                                ></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1272,79 +1314,27 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
 
-            {/* Layout Columns under matloggen: Ditt mål, Veckoöversikt & Sparade vanliga val */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                
-                {/* Left Column */}
-                <div className="flex flex-col gap-3">
-                    {/* Goal Progress Card */}
-                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
-                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${'bg-primary-100 text-primary-darker'} flex items-center justify-center shadow-sm relative z-10 shrink-0`}>
-                            <TrophyIcon className="w-5 h-5 sm:w-6 sm:h-6" />
-                        </div>
-                        <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
-                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Ditt Mål</p>
-                            <p className="text-sm font-bold text-neutral-dark leading-tight truncate">
-                                {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
-                                    userProfile.measurementMethod,
-                                    userProfile.desiredWeightChangeKg,
-                                    userProfile.desiredFatMassChangeKg,
-                                    userProfile.desiredMuscleMassChangeKg
-                                )}
-                            </p>
-                            <div className="flex items-center justify-between text-xs font-bold text-primary mt-1 mb-1">
-                                <span className="whitespace-nowrap">
-                                    {`${Math.round(calculateProgressPercentage(
-                                        userProfile.measurementMethod,
-                                        userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                                        userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                                        userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                                        userProfile.mainGoalCompleted
-                                    ))}% klart`}
-                                </span>
-                            </div>
-                            <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
-                                <div 
-                                    className="bg-primary h-full rounded-full transition-all duration-500" 
-                                    style={{ 
-                                        width: `${calculateProgressPercentage(
-                                            userProfile.measurementMethod,
-                                            userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                                            userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                                            userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                                            userProfile.mainGoalCompleted
-                                        )}%` 
-                                    }}
-                                ></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Weekly Activity */}
-                    <WeeklyActivityChart 
-                        pastDaysSummary={pastDaysSummary}
-                        currentAppDate={new Date()}
-                        viewingDate={viewingDate}
-                        onDateSelect={onDateSelect}
-                        onPrevWeek={handlePrevWeek}
-                        onNextWeek={handleNextWeek}
-                        onToday={handleJumpToToday}
-                        goalType={userProfile.goalType} 
-                        currentViewStats={{ 
-                            calories: totalNutrients.calories,
-                            calorieGoal: goals.calorieGoal,
-                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
-                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML,
-                            goalMet: currentGoalMet
-                        }}
-                        isSummarizingYesterday={isSummarizingYesterday}
-                        bankedCalories={weeklyBank.bankedCalories}
-                        isBootcamp={!!activeBootcamp}
-                    />
-                </div>
-
-                {/* Sparade val visas nu som chips under makrostaplarna */}
-            </div>
+            {/* Veckoöversikt */}
+            <WeeklyActivityChart 
+                pastDaysSummary={pastDaysSummary}
+                currentAppDate={new Date()}
+                viewingDate={viewingDate}
+                onDateSelect={onDateSelect}
+                onPrevWeek={handlePrevWeek}
+                onNextWeek={handleNextWeek}
+                onToday={handleJumpToToday}
+                goalType={userProfile.goalType} 
+                currentViewStats={{ 
+                    calories: totalNutrients.calories,
+                    calorieGoal: goals.calorieGoal,
+                    proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
+                    waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML,
+                    goalMet: currentGoalMet
+                }}
+                isSummarizingYesterday={isSummarizingYesterday}
+                bankedCalories={weeklyBank.bankedCalories}
+                isBootcamp={!!activeBootcamp}
+            />
 
             {/* Backdrop for Speed Dial */}
             {isEditableView && isSpeedDialOpen && (
