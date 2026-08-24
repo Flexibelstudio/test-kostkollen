@@ -1343,22 +1343,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                 </div>
 
-                {/* Right Column */}
-                <div className="flex flex-col gap-3">
-                    <CommonMealsList 
-                        commonMeals={commonMeals}
-                        onLogCommonMeal={handleCommonMealLog}
-                        onDeleteCommonMeal={handleDeleteCommonMeal}
-                        onUpdateCommonMeal={handleUpdateCommonMeal}
-                        onShowRating={(nutritionalInfo) => {
-                            setFoodRatingData({ nutritionalInfo, mealType: 'snack' }); // default to snack for rating display
-                            pushModalState('foodRating');
-                            setShowFoodRatingModal(true);
-                        }}
-                        disabled={!isEditableView}
-                        isBootcamp={!!activeBootcamp}
-                    />
-                </div>
+                {/* Sparade val visas nu som chips under makrostaplarna */}
             </div>
 
             {/* Backdrop for Speed Dial */}

@@ -191,7 +191,7 @@ export const DevelopmentTestingTool: React.FC<DevelopmentTestingToolProps> = ({
     try {
       const newAccess = await grantBootcampAccess(currentUid);
       if (userContext?.setUserProfile) {
-        userContext.setUserProfile(prev => ({ ...prev, bootcampAccess: newAccess }));
+        userContext.setUserProfile(prev => ({ ...prev, bootcampAccess: newAccess, coachStyle: 'hard' }));
       }
       setBootcampTestMsg('Köp på 995 kr beviljat! Grundutbildning (max 3 dygn) har startat.');
     } catch (e: any) {

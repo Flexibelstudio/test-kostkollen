@@ -2332,7 +2332,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
           onSimulatedGrant={async () => {
             if (!currentUser || !isTestingToolAllowed()) return;
             const newAccess = await grantBootcampAccess(currentUser.uid);
-            setUserProfile(prev => ({ ...prev, bootcampAccess: newAccess }));
+            setUserProfile(prev => ({ ...prev, bootcampAccess: newAccess, coachStyle: 'hard' }));
             setToastNotification({ message: 'Simulerad Bootcamp-åtkomst beviljad (Testläge)!', type: 'success' });
           }}
           onOpenSubscriptionModal={() => setShowSubscriptionModal(true)}

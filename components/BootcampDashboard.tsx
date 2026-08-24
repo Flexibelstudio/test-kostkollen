@@ -757,7 +757,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                       className="w-6 h-6 rounded text-primary focus:ring-primary"
                     />
                     <div className="flex-1">
-                      <span className="font-bold text-neutral-dark dark:text-white block">Styrketräning</span>
+                      <span className="font-bold text-neutral-dark dark:text-white block">Styrketräning (valfritt)</span>
                       <span className="text-sm text-neutral-500 dark:text-neutral-400">Jag har genomfört ett träningspass idag.</span>
                     </div>
                   </label>

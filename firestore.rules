@@ -46,7 +46,18 @@ service cloud.firestore {
         allow write: if request.auth.uid == userId;
       }
 
-      // ===== ANDRA SUBCOLLECTIONS (timelineEvents, achievements, etc) =====
+      // ===== weightLogs (delas endast med kompisar om delningsinställningen är påslagen) =====
+      match /weightLogs/{docId} {
+        allow read, list: if request.auth.uid == userId
+                          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
+                          || (
+                              exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid))
+                              && get(/databases/$(database)/documents/users/$(userId)).data.get('communitySharingSettings', {}).get('weight', false) == true
+                          );
+        allow write: if request.auth.uid == userId;
+      }
+
+      // ===== ANDRA SUBCOLLECTIONS (timelineEvents, achievements, courseProgress, commonMeals, savedRecipes, etc) =====
       match /{subcollection}/{docId} {
         allow read, list: if request.auth.uid == userId
                           || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
@@ -54,7 +65,6 @@ service cloud.firestore {
                               subcollection in [
                                 "timelineEvents",
                                 "achievements",
-                                "weightLogs",
                                 "courseProgress"
                               ]
                               && exists(/databases/$(database)/documents/users/$(userId)/buddies/$(request.auth.uid))
@@ -220,13 +230,9 @@ service cloud.firestore {
 
     // ===== COLLECTION GROUP QUERIES =====
     match /{path=**}/participants/{docId} {
-      allow read: if request.auth.uid != null && (
-        docId == request.auth.uid ||
-        resource.data.userId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach'
-      );
-      // För collectionGroup queries måste vi tillåta list separat om vi filtrerar
-      allow list: if request.auth.uid != null;
+      // Endast deltagaren själv (filtrerat på eget userId) eller coacher får läsa och lista deltagarposter
+      allow get, list: if (request.auth.uid != null && (docId == request.auth.uid || resource.data.userId == request.auth.uid)) ||
+                          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
     }
 
     // ===== BOOTCAMP CONTENT LIBRARY =====
@@ -236,7 +242,9 @@ service cloud.firestore {
     }
 
     match /scheduledPosts/{postId} {
-      allow read: if request.auth.uid != null;
+      // Coacher kan läsa alla schemalagda inlägg, vanliga användare kan endast läsa publicerade inlägg
+      allow read: if (request.auth.uid != null && resource.data.status == 'published') ||
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
       allow create, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
     }
 
