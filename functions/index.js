@@ -1443,6 +1443,63 @@ exports.onChatMessageUpdated = functions.firestore
     }
   });
 
+/**
+ * Simulerat Bootcamp-köp för test i staging.
+ * bootcampAccess är betalningskritiskt och skrivs annars bara av Stripe-webhooken.
+ * Den här funktionen finns för att testverktyget ska kunna köra hela flödet utan
+ * betalning – och vägrar därför köra i produktionsprojektet.
+ */
+exports.devGrantBootcampAccess = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Inloggning krävs.");
+  }
+
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "";
+  if (projectId === "flexibel-kostkollen") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Simulerat köp är avstängt i produktion.",
+    );
+  }
+
+  const uid = context.auth.uid;
+
+  // Testverktyget kan sätta ett godtyckligt tillstånd (eller null för nollställning).
+  if (data && Object.prototype.hasOwnProperty.call(data, "bootcampAccess")) {
+    const payload = Object.assign(
+      {bootcampAccess: data.bootcampAccess},
+      data.userFields || {},
+    );
+    await db.collection("users").doc(uid).set(payload, {merge: true});
+    return {bootcampAccess: data.bootcampAccess};
+  }
+
+  const purchaseDate = data && data.purchaseDate ?
+    new Date(data.purchaseDate) :
+    new Date();
+
+  const bootcampAccess = {
+    purchaseDate: purchaseDate.toISOString(),
+    accessExpiresDate: new Date(
+      purchaseDate.getTime() + (3 + 84) * 24 * 60 * 60 * 1000,
+    ).toISOString().split("T")[0],
+    onboardingCompletedDate: null,
+    bootcampStartDate: null,
+    onboardingTasksCompleted: [],
+  };
+
+  await db.collection("users").doc(uid).set(
+    {
+      bootcampAccess: bootcampAccess,
+      coachStyle: "hard",
+      bootcampOnboarding: {tasksCompleted: [], completedAt: null},
+    },
+    {merge: true},
+  );
+
+  return {bootcampAccess: bootcampAccess};
+});
+
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
   const stripe = getStripe();
   const signature = req.headers["stripe-signature"];
@@ -1518,6 +1575,21 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
             {
               isCourseActive: true,
               hasCompletedBootcamp: false,
+              // Åtkomstmodellen: bootcampAccess är betalningskritiskt och skrivs
+              // ENBART här, via Admin SDK, så att Firestore-reglerna kan neka
+              // klienten att sätta det själv. Utgångsdatumet räknas som
+              // köpdatum + grundutbildning (3 dygn) + programmet (84 dagar), så
+              // att ingen kan få kortare tid än de tolv veckor som utlovats.
+              bootcampAccess: {
+                purchaseDate: new Date().toISOString(),
+                accessExpiresDate: new Date(
+                  Date.now() + (3 + 84) * 24 * 60 * 60 * 1000,
+                ).toISOString().split(T)[0],
+                onboardingCompletedDate: null,
+                bootcampStartDate: null,
+                onboardingTasksCompleted: [],
+              },
+              coachStyle: hard,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
             { merge: true },

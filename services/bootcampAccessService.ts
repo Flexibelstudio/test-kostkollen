@@ -40,15 +40,28 @@ async function ensureSoloBootcampParticipant(userId: string): Promise<void> {
  * @param userId Användarens unika Firebase Auth UID
  */
 export async function startBootcampCheckout(userId?: string): Promise<void> {
-  // === STRIPE CHECKOUT INTEGRATIONSPUNKT ===
-  // Här kopplas Stripe-checkout in via Cloud Functions, t.ex.:
-  // const functions = getFunctions();
-  // const createSession = httpsCallable(functions, 'createCheckoutSession');
-  // const result = await createSession({ mode: 'payment', type: 'bootcamp', returnUrl: window.location.origin });
-  // window.location.href = result.data.url;
-  
-  // Tills Stripe är driftsatt för Bootcamp i produktion:
-  throw new Error("Betalning via Stripe är inte konfigurerad ännu. Kontakta support.");
+  // Enda vägen till köp från produktionsgränssnittet. Går via Cloud Function
+  // createCheckoutSession, vars webhook sedan skriver bootcampAccess med Admin SDK.
+  // Klienten skriver aldrig åtkomstfältet själv – se firestore.rules.
+  const { getFunctions, httpsCallable } = await import('firebase/functions');
+  const functions = getFunctions();
+  const createSession = httpsCallable(functions, 'createCheckoutSession');
+
+  const result = await createSession({
+    returnUrl: window.location.origin,
+    mode: 'payment',
+    cohortId: 'solo',
+  });
+
+  const url = (result.data as any)?.url;
+  if (!url) {
+    throw new Error('Kunde inte starta betalningen. Försök igen.');
+  }
+
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.setItem('pending_checkout_type', 'bootcamp');
+  }
+  window.location.href = url;
 }
 
 /**
@@ -93,8 +106,14 @@ export async function recordBootcampGraduation(
     graduationDecision: decision,
   };
 
+  // Examensbeslutet är inte betalningskritiskt och skrivs till ett eget fält,
+  // eftersom bootcampAccess bara får skrivas av servern.
   const updatePayload: Record<string, any> = {
-    bootcampAccess: updatedAccess
+    bootcampGraduation: {
+      seen: true,
+      seenAt: new Date().toISOString(),
+      decision,
+    }
   };
 
   if (chosenCoachStyle) {
@@ -113,8 +132,21 @@ export async function recordBootcampGraduation(
  * @param userId Användarens unika Firebase Auth UID
  * @param purchaseDate Valfritt inköpsdatum i ISO-format (standard: nuvarande tid)
  */
+/**
+ * Skriver bootcampAccess via Cloud Function (Admin SDK), eftersom klienten
+ * inte får röra fältet. Funktionen på serversidan vägrar köra i produktion.
+ */
+async function setBootcampAccessViaServer(bootcampAccess: BootcampAccess | null, userFields?: Record<string, any>): Promise<void> {
+  if (!isTestingToolAllowed()) {
+    throw new Error('Simulerade Bootcamp-tillstånd är spärrade utanför tillåtna testmiljöer.');
+  }
+  const { getFunctions, httpsCallable } = await import('firebase/functions');
+  const devGrant = httpsCallable(getFunctions(), 'devGrantBootcampAccess');
+  await devGrant({ bootcampAccess, userFields });
+}
+
 export async function grantBootcampAccess(
-  userId: string, 
+  userId: string,
   purchaseDate?: string
 ): Promise<BootcampAccess> {
   // Säkerhetsspärr: Avbryt omedelbart om anrop sker från otillåtet värdnamn
@@ -123,22 +155,14 @@ export async function grantBootcampAccess(
     throw new Error('grantBootcampAccess är spärrad utanför tillåtna testmiljöer.');
   }
 
-  const nowIso = purchaseDate || new Date().toISOString();
-  
-  const newBootcampAccess: BootcampAccess = {
-    purchaseDate: nowIso,
-    onboardingCompletedDate: null,
-    bootcampStartDate: null,
-    accessExpiresDate: null,
-    onboardingTasksCompleted: [],
-  };
-
-  await updateUserDocument(userId, {
-    bootcampAccess: newBootcampAccess,
-    coachStyle: 'hard'
-  });
-
-  return newBootcampAccess;
+  // bootcampAccess får inte skrivas av klienten – Firestore-reglerna nekar det.
+  // Skrivningen sker därför i en Cloud Function med Admin SDK, som i sin tur
+  // vägrar köra i produktionsprojektet. Två oberoende spärrar.
+  const { getFunctions, httpsCallable } = await import('firebase/functions');
+  const functions = getFunctions();
+  const devGrant = httpsCallable(functions, 'devGrantBootcampAccess');
+  const result = await devGrant({ purchaseDate });
+  return (result.data as any).bootcampAccess as BootcampAccess;
 }
 
 /**
@@ -151,11 +175,12 @@ export async function completeBootcampOnboardingTask(
   currentProfile: UserProfileData
 ): Promise<BootcampAccess | null> {
   const currentAccess = currentProfile.bootcampAccess;
-  if (!currentAccess || currentAccess.onboardingCompletedDate) {
+  const onboarding = currentProfile.bootcampOnboarding;
+  if (!currentAccess || onboarding?.completedAt || currentAccess.onboardingCompletedDate) {
     return currentAccess || null;
   }
 
-  const existingCompleted = currentAccess.onboardingTasksCompleted || [];
+  const existingCompleted = onboarding?.tasksCompleted || currentAccess.onboardingTasksCompleted || [];
   if (existingCompleted.includes(taskId)) {
     return currentAccess;
   }
@@ -163,31 +188,22 @@ export async function completeBootcampOnboardingTask(
   const updatedTasks = [...existingCompleted, taskId];
   const isAllCompleted = ALL_BOOTCAMP_ONBOARDING_TASKS.every(t => updatedTasks.includes(t));
 
-  const updatedAccess: BootcampAccess = {
-    ...currentAccess,
-    onboardingTasksCompleted: updatedTasks,
+  // Framstegen skrivs till bootcampOnboarding – bootcampAccess är betalningskritiskt
+  // och får bara skrivas av Stripe-webhooken via Admin SDK.
+  const onboardingUpdate = {
+    tasksCompleted: updatedTasks,
+    completedAt: isAllCompleted ? new Date().toISOString() : (currentProfile.bootcampOnboarding?.completedAt || null),
   };
 
-  if (isAllCompleted) {
-    const now = new Date();
-    const nowIso = now.toISOString();
-    const todayStr = nowIso.split('T')[0];
-    const expiryStr = addDays(now, BOOTCAMP_DURATION_DAYS);
-
-    updatedAccess.onboardingCompletedDate = nowIso;
-    updatedAccess.bootcampStartDate = todayStr;
-    updatedAccess.accessExpiresDate = expiryStr;
-  }
-
   await updateUserDocument(userId, {
-    bootcampAccess: updatedAccess
+    bootcampOnboarding: onboardingUpdate
   });
 
   if (isAllCompleted) {
     await ensureSoloBootcampParticipant(userId);
   }
 
-  return updatedAccess;
+  return { ...currentAccess, onboardingTasksCompleted: updatedTasks };
 }
 
 /**
@@ -205,17 +221,21 @@ export async function completeAllBootcampOnboardingTasks(
   const todayStr = nowIso.split('T')[0];
   const expiryStr = addDays(now, BOOTCAMP_DURATION_DAYS);
 
+  await updateUserDocument(userId, {
+    bootcampOnboarding: {
+      tasksCompleted: [...ALL_BOOTCAMP_ONBOARDING_TASKS],
+      completedAt: nowIso,
+    }
+  });
+
   const updatedAccess: BootcampAccess = {
+    ...(currentAccess || {} as BootcampAccess),
     purchaseDate,
     onboardingCompletedDate: nowIso,
     bootcampStartDate: todayStr,
-    accessExpiresDate: expiryStr,
+    accessExpiresDate: currentAccess?.accessExpiresDate || expiryStr,
     onboardingTasksCompleted: [...ALL_BOOTCAMP_ONBOARDING_TASKS],
   };
-
-  await updateUserDocument(userId, {
-    bootcampAccess: updatedAccess
-  });
 
   await ensureSoloBootcampParticipant(userId);
 
@@ -252,10 +272,8 @@ export async function checkAndAdvanceBootcampAccess(
       accessExpiresDate: expiryStr,
     };
 
-    await updateUserDocument(userId, {
-      bootcampAccess: updatedAccess
-    });
-
+    // Ingen skrivning av bootcampAccess här: läget härleds i accessControl utifrån
+    // purchaseDate + grundutbildningens längd. Fältet ägs av Stripe-webhooken.
     await ensureSoloBootcampParticipant(userId);
 
     return { updated: true, bootcampAccess: updatedAccess };
@@ -293,9 +311,7 @@ export async function setBootcampAccessProgramDay(
     onboardingTasksCompleted: [...ALL_BOOTCAMP_ONBOARDING_TASKS],
   };
 
-  await updateUserDocument(userId, {
-    bootcampAccess: simulatedAccess
-  });
+  await setBootcampAccessViaServer(simulatedAccess);
 
   return simulatedAccess;
 }
@@ -304,9 +320,7 @@ export async function setBootcampAccessProgramDay(
  * Nollställer användarens Bootcamp-åtkomst.
  */
 export async function resetBootcampAccess(userId: string): Promise<void> {
-  await updateUserDocument(userId, {
-    bootcampAccess: null as any
-  });
+  await setBootcampAccessViaServer(null);
 }
 
 /**
@@ -333,8 +347,7 @@ export async function simulateExpiredBootcampCompleted(userId: string): Promise<
     graduationDecision: null,
   };
 
-  await updateUserDocument(userId, {
-    bootcampAccess: simulatedAccess,
+  await setBootcampAccessViaServer(simulatedAccess, {
     highestBootcampStreak: 84,
     currentStreak: 84,
     hasCompletedBootcamp: true,
@@ -368,8 +381,7 @@ export async function simulateExpiredBootcampIncomplete(userId: string): Promise
     graduationDecision: null,
   };
 
-  await updateUserDocument(userId, {
-    bootcampAccess: simulatedAccess,
+  await setBootcampAccessViaServer(simulatedAccess, {
     highestBootcampStreak: 16,
     currentStreak: 0,
     hasCompletedBootcamp: false,
@@ -396,9 +408,7 @@ export async function resetBootcampGraduationStatus(userId: string, currentAcces
     graduationDecision: null,
   };
 
-  await updateUserDocument(userId, {
-    bootcampAccess: updatedAccess
-  });
+  await setBootcampAccessViaServer(updatedAccess);
 
   return updatedAccess;
 }

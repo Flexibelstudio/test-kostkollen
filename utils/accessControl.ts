@@ -174,18 +174,27 @@ export function getBootcampAccessDetails(userProfile?: UserProfileData | null): 
   const daysSincePurchase = Math.floor((nowTime - purchaseTime) / msPerDay);
   const onboardingDaysLeft = Math.max(0, BOOTCAMP_ONBOARDING_MAX_DAYS - daysSincePurchase);
 
-  const completedTasks = access.onboardingTasksCompleted || [];
+  // Framstegen ligger i userProfile.bootcampOnboarding (klientskrivbart).
+  // Fallback till access.onboardingTasksCompleted för konton skapade före omläggningen.
+  const completedTasks = userProfile.bootcampOnboarding?.tasksCompleted || access.onboardingTasksCompleted || [];
+  const onboardingCompletedAt = userProfile.bootcampOnboarding?.completedAt || access.onboardingCompletedDate || null;
+  const allTasksDone = ALL_BOOTCAMP_ONBOARDING_TASKS.every(t => completedTasks.includes(t));
+  const onboardingTimedOut = daysSincePurchase >= BOOTCAMP_ONBOARDING_MAX_DAYS;
   const progressPercent = Math.round((completedTasks.length / ALL_BOOTCAMP_ONBOARDING_TASKS.length) * 100);
 
-  const isOnboarding = !access.onboardingCompletedDate;
+  const isOnboarding = !onboardingCompletedAt && !allTasksDone && !onboardingTimedOut;
 
   let daysRemaining: number | null = null;
   let daysInProgram: number | null = null;
   let isExpired = false;
   let isBootcampActive = false;
 
-  if (access.bootcampStartDate && access.accessExpiresDate) {
-    const startTime = new Date(access.bootcampStartDate).getTime();
+  const derivedStartDate = access.bootcampStartDate
+    || (onboardingCompletedAt ? onboardingCompletedAt.split('T')[0] : null)
+    || ((allTasksDone || onboardingTimedOut) ? todayStr : null);
+
+  if (derivedStartDate && access.accessExpiresDate) {
+    const startTime = new Date(derivedStartDate).getTime();
     const expiryTime = new Date(access.accessExpiresDate).getTime();
     
     daysInProgram = Math.max(1, Math.floor((nowTime - startTime) / msPerDay) + 1);
@@ -203,16 +212,16 @@ export function getBootcampAccessDetails(userProfile?: UserProfileData | null): 
     isBootcampActive,
     isExpired,
     purchaseDate: access.purchaseDate,
-    onboardingCompletedDate: access.onboardingCompletedDate,
-    bootcampStartDate: access.bootcampStartDate,
+    onboardingCompletedDate: onboardingCompletedAt,
+    bootcampStartDate: derivedStartDate,
     accessExpiresDate: access.accessExpiresDate,
     daysRemaining,
     daysInProgram,
     onboardingTasksCompleted: completedTasks,
     onboardingProgressPercent: progressPercent,
     onboardingDaysLeft,
-    graduationSeen: Boolean(access.graduationSeen),
-    graduationSeenAt: access.graduationSeenAt || null,
-    graduationDecision: access.graduationDecision || null,
+    graduationSeen: Boolean(userProfile.bootcampGraduation?.seen ?? access.graduationSeen),
+    graduationSeenAt: userProfile.bootcampGraduation?.seenAt || access.graduationSeenAt || null,
+    graduationDecision: userProfile.bootcampGraduation?.decision || access.graduationDecision || null,
   };
 }

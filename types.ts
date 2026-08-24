@@ -212,6 +212,22 @@ export type BootcampOnboardingTaskId =
   | 'weigh_in_and_goal'
   | 'read_morning_briefing';
 
+/**
+ * Grundutbildningens framsteg. Ligger SEPARAT från bootcampAccess eftersom
+ * användaren måste få skriva detta från appen, medan bootcampAccess är
+ * betalningskritiskt och bara får skrivas av servern (Stripe-webhooken).
+ */
+export interface BootcampOnboardingProgress {
+  tasksCompleted: BootcampOnboardingTaskId[];
+  completedAt?: string | null;
+}
+
+export interface BootcampGraduationState {
+  seen?: boolean;
+  seenAt?: string | null;
+  decision?: 'accepted' | 'declined' | 'dismissed' | null;
+}
+
 export interface BootcampAccess {
   purchaseDate: string;
   onboardingCompletedDate: string | null;
@@ -258,6 +274,8 @@ export interface UserProfileData {
   coachStyle: CoachStyle; // New field for coaching style
   highestBootcampStreak?: number; // New field for lifetime bootcamp streak
   plateauAnalysis?: PlateauAnalysisState;
+  bootcampOnboarding?: BootcampOnboardingProgress;
+  bootcampGraduation?: BootcampGraduationState;
   
   // Bootcamp Access
   bootcampAccess?: BootcampAccess;
@@ -309,6 +327,8 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, "name"> {
   lastInactivityReminderSent?: string;
   lastMilestoneNudgeSentFor?: string;
   plateauAnalysis?: PlateauAnalysisState;
+  bootcampOnboarding?: BootcampOnboardingProgress;
+  bootcampGraduation?: BootcampGraduationState;
 }
 
 // --- Plateau Analysis Types ---
