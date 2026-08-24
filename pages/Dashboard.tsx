@@ -1056,7 +1056,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             })()}
 
             {/* Top Date & Progress Card */}
-            <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${activeBootcamp ? 'bg-white border-[#D96E4A]/30' : 'bg-white border-neutral-light'}`}>
+            <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${'bg-white border-neutral-light'}`}>
                 {activeBootcamp && (
                     <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#D96E4A] text-white text-xs font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
                         <TrophyIcon className="w-3 h-3 text-[#F6E2D9]" />
@@ -1065,7 +1065,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 )}
                 <div className="flex flex-col items-center">
                     {/* Date Nav */}
-                    <div className={`flex items-center justify-center gap-4 mb-6 w-full px-6 ${activeBootcamp ? 'mt-2' : ''}`}>
+                    <div className={`flex items-center justify-center gap-4 mb-6 w-full px-6 ${''}`}>
                         <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
                         <div className="text-center">
                             <h2 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">{formattedViewingDate}</h2>
@@ -1192,7 +1192,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
                 <div className="flex flex-col h-full justify-between">
                     {/* Streak Card */}
-                    <div className={`${activeBootcamp ? 'bg-white border-[#D96E4A]/30' : 'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 h-full`}>
+                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 h-full`}>
                         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
                             <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
@@ -1208,7 +1208,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Meal Sections (Matlogg - Placerad högt upp för snabbaste loggning) */}
-            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
+            <div className={`${'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
                 </div>
@@ -1278,8 +1278,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 {/* Left Column */}
                 <div className="flex flex-col gap-3">
                     {/* Goal Progress Card */}
-                    <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
-                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${activeBootcamp ? 'bg-[#E8EFE9] text-[#2B3B2C]' : 'bg-primary-100 text-primary-darker'} flex items-center justify-center shadow-sm relative z-10 shrink-0`}>
+                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${'bg-primary-100 text-primary-darker'} flex items-center justify-center shadow-sm relative z-10 shrink-0`}>
                             <TrophyIcon className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
                         <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">

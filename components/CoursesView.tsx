@@ -119,15 +119,11 @@ const CourseCard: React.FC<{
   isBootcamp?: boolean;
 }> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason, isBootcamp }) => {
 
-  const baseClasses = isBootcamp 
-    ? `bg-[#56524D] text-white p-6 rounded-[22px] shadow-soft-xl border border-[#56524D] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75' : 'hover:scale-[1.01]'}`
-    : `bg-white dark:bg-[#2B2825] p-6 rounded-[22px] shadow-soft-xl border border-[#F1EAE0] dark:border-[#484440] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75' : 'hover:scale-[1.01]'}`;
+  const baseClasses = `bg-white dark:bg-[#2B2825] p-6 rounded-[22px] shadow-soft-xl border border-[#F1EAE0] dark:border-[#484440] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75' : 'hover:scale-[1.01]'}`;
 
-  const titleClasses = isBootcamp ? "text-2xl font-serif font-medium text-white mb-2 tracking-tight" : "text-2xl font-serif font-medium text-[#56524D] dark:text-[#FAF6EF] mb-2";
-  const descClasses = isBootcamp ? "text-[#F1EAE0] text-base leading-relaxed mb-4" : "text-[#7A756E] dark:text-[#C2BCB4] text-base leading-relaxed mb-4";
-  const iconContainerClasses = isBootcamp 
-    ? `w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden bg-[#7A756E]/40 text-white`
-    : `w-20 h-20 rounded-2xl flex items-center justify-center ${isLocked ? 'bg-[#F1EAE0] text-[#7A756E]' : 'bg-[#F6E2D9] text-[#D96E4A]'}`;
+  const titleClasses = "text-2xl font-serif font-medium text-[#56524D] dark:text-[#FAF6EF] mb-2";
+  const descClasses = "text-[#7A756E] dark:text-[#C2BCB4] text-base leading-relaxed mb-4";
+  const iconContainerClasses = `w-20 h-20 rounded-2xl flex items-center justify-center ${isLocked ? 'bg-[#F1EAE0] text-[#7A756E]' : 'bg-[#F6E2D9] text-[#D96E4A]'}`;
 
   return (
     <div className={baseClasses}>
@@ -167,15 +163,15 @@ const CourseCard: React.FC<{
 
             <button
                 onClick={onShowInfo}
-                className={`text-sm font-medium flex items-center gap-1 mt-auto interactive-transition ${isBootcamp ? 'text-[#F6E2D9] hover:text-white hover:underline' : 'text-[#D96E4A] hover:text-[#C05A38] hover:underline'}`}
+                className={`text-sm font-medium flex items-center gap-1 mt-auto interactive-transition ${'text-[#D96E4A] hover:text-[#C05A38] hover:underline'}`}
             >
                 <InformationCircleIcon className="w-4 h-4"/> Läs mer om kursen
             </button>
         </div>
 
-        <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${isBootcamp ? 'border-white/20' : 'border-[#F1EAE0] dark:border-[#484440]'}`}>
+        <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${'border-[#F1EAE0] dark:border-[#484440]'}`}>
             {isLocked ? (
-                <div className={`w-full py-3 px-4 flex flex-col items-center justify-center text-center rounded-full border ${isBootcamp ? 'bg-white/10 border-white/20 text-white' : 'bg-[#F1EAE0] border-[#F1EAE0] text-[#7A756E]'}`}>
+                <div className={`w-full py-3 px-4 flex flex-col items-center justify-center text-center rounded-full border ${'bg-[#F1EAE0] border-[#F1EAE0] text-[#7A756E]'}`}>
                     <span className="text-sm font-bold mb-1">Låst</span>
                     <span className="text-xs">{lockedReason}</span>
                 </div>
@@ -192,9 +188,9 @@ const CourseCard: React.FC<{
                 <div className="mt-2 text-center">
                     <button
                         onClick={onAbort}
-                        className={`text-xs underline transition-colors ${isBootcamp ? 'text-[#F1EAE0] hover:text-white' : 'text-[#7A756E] hover:text-[#56524D]'}`}
+                        className={`text-xs underline transition-colors ${'text-[#7A756E] hover:text-[#56524D]'}`}
                     >
-                        Avsluta {isBootcamp ? 'bootcamp' : 'kurs'}
+                        Avsluta {'kurs'}
                     </button>
                 </div>
             )}

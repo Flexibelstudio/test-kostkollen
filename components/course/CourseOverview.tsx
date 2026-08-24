@@ -40,10 +40,10 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
       <div className="animate-fade-in pb-10">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-sm ${isBootcamp ? 'bg-[#3A4B3C] text-primary' : 'bg-primary-100 text-primary'}`}>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-sm ${'bg-primary-100 text-primary'}`}>
                  <CourseIcon className="w-6 h-6" />
             </div>
-            <h1 className={`text-2xl sm:text-3xl font-extrabold ${isBootcamp ? 'text-neutral-dark dark:text-white' : 'text-neutral-dark'}`}>{course?.title}</h1>
+            <h1 className={`text-2xl sm:text-3xl font-extrabold ${'text-neutral-dark'}`}>{course?.title}</h1>
           </div>
           <button
             onClick={() => setShowCourseInfoModal(true)}
@@ -100,26 +100,26 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                 return (
                   <div
                     key={lesson.id}
-                    className={`w-full text-left p-6 rounded-3xl border relative overflow-hidden group select-none ${isBootcamp ? 'bg-neutral-light/50 dark:bg-[#1A2B1C] border-neutral-light dark:border-[#3A4B3C]' : 'bg-gray-50/80 dark:bg-black border-neutral-light/60 dark:border-neutral-dark/60'}`}
+                    className={`w-full text-left p-6 rounded-3xl border relative overflow-hidden group select-none ${'bg-gray-50/80 dark:bg-black border-neutral-light/60 dark:border-neutral-dark/60'}`}
                     aria-label={`${lesson.title} (låst)`}
                   >
                     <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                       <div className="flex-grow z-10 opacity-60">
                          <div className="flex items-center mb-2">
                           <LockClosedIcon className="w-5 h-5 text-neutral mr-2.5" />
-                          <h2 className={`text-xl font-bold ${isBootcamp ? 'text-neutral-dark dark:text-white' : 'text-neutral-dark dark:text-white'}`}>{lesson.title}</h2>
+                          <h2 className={`text-xl font-bold ${'text-neutral-dark dark:text-white'}`}>{lesson.title}</h2>
                         </div>
                         <p className="text-base text-neutral leading-relaxed">{lesson.introduction}</p>
                       </div>
                       
-                      <div className={`flex-shrink-0 z-10 px-3 py-1.5 rounded-lg border self-start sm:self-center ${isBootcamp ? 'bg-white/50 dark:bg-[#2A3B2C] border-neutral-light dark:border-[#4A5B4C]' : 'bg-white/50 dark:bg-neutral-dark/50 border-neutral-light/50'}`}>
+                      <div className={`flex-shrink-0 z-10 px-3 py-1.5 rounded-lg border self-start sm:self-center ${'bg-white/50 dark:bg-neutral-dark/50 border-neutral-light/50'}`}>
                           <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide">
                             Låst
                           </p>
                       </div>
                     </div>
                     
-                    <div className={`mt-4 pt-4 border-t opacity-80 ${isBootcamp ? 'border-neutral-light dark:border-[#3A4B3C]' : 'border-gray-200/60 dark:border-neutral-dark/60'}`}>
+                    <div className={`mt-4 pt-4 border-t opacity-80 ${'border-gray-200/60 dark:border-neutral-dark/60'}`}>
                          <p className="text-sm font-medium text-accent flex items-center gap-2">
                             {unlockMessage}
                          </p>
@@ -149,20 +149,20 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                 <button
                   key={lesson.id}
                   onClick={() => onSelectLesson(lesson.id)}
-                  className={`w-full text-left p-6 rounded-3xl shadow-soft-lg border hover:shadow-soft-xl hover:scale-[1.01] transition-all duration-300 group relative overflow-hidden ${isBootcamp ? 'bg-white dark:bg-[#2A3B2C] border-neutral-light dark:border-[#4A5B4C] hover:border-primary/30' : 'bg-white dark:bg-neutral-darker border-neutral-light hover:border-primary/30'}`}
+                  className={`w-full text-left p-6 rounded-3xl shadow-soft-lg border hover:shadow-soft-xl hover:scale-[1.01] transition-all duration-300 group relative overflow-hidden ${'bg-white dark:bg-neutral-darker border-neutral-light hover:border-primary/30'}`}
                   aria-label={`Gå till ${lesson.title}`}
                 >
                   <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start gap-4">
                     <div className="flex-grow">
                        <div className="flex items-center mb-2">
-                        <h2 className={`text-xl font-bold transition-colors ${isBootcamp ? 'text-neutral-dark dark:text-white group-hover:text-primary' : 'text-neutral-dark group-hover:text-primary'}`}>{lesson.title}</h2>
+                        <h2 className={`text-xl font-bold transition-colors ${'text-neutral-dark group-hover:text-primary'}`}>{lesson.title}</h2>
                         {isLessonCompleted && <CheckCircleIcon className="w-6 h-6 text-[#84A98C] ml-2 animate-scale-in" />}
                       </div>
-                      <p className={`text-base leading-relaxed line-clamp-2 ${isBootcamp ? 'text-neutral dark:text-neutral-300' : 'text-neutral'}`}>{lesson.introduction}</p>
+                      <p className={`text-base leading-relaxed line-clamp-2 ${'text-neutral'}`}>{lesson.introduction}</p>
                     </div>
                     
                     <div className="flex-shrink-0 self-start sm:self-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${isBootcamp ? 'bg-[#F6E2D9] text-primary group-hover:bg-primary group-hover:text-white' : 'bg-primary-50 text-primary group-hover:bg-primary group-hover:text-white'}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${'bg-primary-50 text-primary group-hover:bg-primary group-hover:text-white'}`}>
                              <ArrowRightIcon className="w-5 h-5" />
                         </div>
                     </div>
@@ -172,11 +172,11 @@ const CourseOverview: React.FC<CourseOverviewProps> = ({ lessons, userProgress, 
                       <div className="relative z-10 mt-5">
                         <div className="flex justify-between items-center mb-1.5">
                             <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Framsteg</span>
-                            <span className={`text-xs font-bold ${isBootcamp ? 'text-primary' : 'text-primary'}`}>{Math.round(progressPercentage)}%</span>
+                            <span className={`text-xs font-bold ${'text-primary'}`}>{Math.round(progressPercentage)}%</span>
                         </div>
-                        <div className={`w-full rounded-full h-2 overflow-hidden ${isBootcamp ? 'bg-neutral-light dark:bg-[#1A2B1C]' : 'bg-neutral-light'}`}>
+                        <div className={`w-full rounded-full h-2 overflow-hidden ${'bg-neutral-light'}`}>
                             <div
-                                className={`h-full rounded-full transition-all duration-500 ease-out ${isBootcamp ? 'bg-primary' : 'bg-primary'}`}
+                                className={`h-full rounded-full transition-all duration-500 ease-out ${'bg-primary'}`}
                                 style={{ width: `${progressPercentage}%` }}
                             ></div>
                         </div>

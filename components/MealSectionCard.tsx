@@ -141,7 +141,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
       <div 
         onClick={handleCardClick}
         className={`
-            ${isBootcamp ? 'bg-[#56524D] text-white border-[#56524D]' : 'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} rounded-[22px] p-4 border shadow-soft-xl 
+            ${'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} rounded-[22px] p-4 border shadow-soft-xl 
             transition-all duration-300 ease-out flex flex-col justify-between h-36 min-h-[44px]
             ${isEmpty 
                 ? 'hover:border-[#D96E4A]/40 cursor-pointer group' 
@@ -152,16 +152,16 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
         <div className="flex justify-between items-start">
             <div className={`
                 w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm transition-colors duration-300
-                ${isBootcamp ? 'bg-white/10 text-white' : 'bg-[#F6E2D9] text-[#D96E4A]'}
+                ${'bg-[#F6E2D9] text-[#D96E4A]'}
             `}>
                 {icon}
             </div>
             
             <div className="text-right">
-                 <span className={`block text-2xl font-serif font-medium leading-none transition-colors ${totals.calories > 0 ? (isBootcamp ? 'text-white' : 'text-[#56524D] dark:text-[#FAF6EF]') : (isBootcamp ? 'text-white/60' : 'text-[#7A756E] dark:text-[#C2BCB4]')}`}>
+                 <span className={`block text-2xl font-serif font-medium leading-none transition-colors ${totals.calories > 0 ? ('text-[#56524D] dark:text-[#FAF6EF]') : ('text-[#7A756E] dark:text-[#C2BCB4]')}`}>
                     {Math.round(totals.calories)}
                  </span>
-                 <span className={`text-xs font-sans tracking-wide transition-colors ${totals.calories > 0 ? (isBootcamp ? 'text-white/80' : 'text-[#7A756E] dark:text-[#C2BCB4]') : (isBootcamp ? 'text-white/50' : 'text-[#7A756E]')}`}>
+                 <span className={`text-xs font-sans tracking-wide transition-colors ${totals.calories > 0 ? ('text-[#7A756E] dark:text-[#C2BCB4]') : ('text-[#7A756E]')}`}>
                     kcal {recommendedCalories && `/ ~${recommendedCalories}`}
                  </span>
             </div>
@@ -169,8 +169,8 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
 
         <div className="flex justify-between items-end mt-2">
             <div>
-                <h3 className={`text-lg font-serif font-medium leading-tight mb-0.5 ${isBootcamp ? 'text-white' : 'text-[#56524D] dark:text-[#FAF6EF]'}`}>{title}</h3>
-                <p className={`text-sm font-sans transition-colors ${isEmpty ? (isBootcamp ? 'text-white/70' : 'text-[#7A756E] dark:text-[#C2BCB4]') : (isBootcamp ? 'text-white' : 'text-[#56524D] dark:text-[#FAF6EF]')}`}>
+                <h3 className={`text-lg font-serif font-medium leading-tight mb-0.5 ${'text-[#56524D] dark:text-[#FAF6EF]'}`}>{title}</h3>
+                <p className={`text-sm font-sans transition-colors ${isEmpty ? ('text-[#7A756E] dark:text-[#C2BCB4]') : ('text-[#56524D] dark:text-[#FAF6EF]')}`}>
                     {isEmpty ? 'Inget loggat' : `${meals.length} ${meals.length === 1 ? 'val' : 'val'}`}
                 </p>
             </div>

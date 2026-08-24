@@ -222,7 +222,7 @@ const CommonMealCard: React.FC<{
   const { icon, bg, text } = getMealIcon(meal.name);
 
   return (
-    <div className={`relative group ${isBootcamp ? 'bg-white dark:!bg-[#2A3B2C] dark:border-[#4A5B4C]' : 'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`relative group ${'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
       {/* Menu Trigger */}
       <div className="absolute top-2 right-2 z-20">
         <button 
@@ -300,7 +300,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
 
   return (
     <>
-      <div className={`${isBootcamp ? 'bg-[#56524D] text-white border-[#56524D]' : 'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} p-6 rounded-[22px] shadow-soft-xl border`}>
+      <div className={`${'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} p-6 rounded-[22px] shadow-soft-xl border`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <BookmarkIcon className="w-5 h-5 text-[#D96E4A]" />

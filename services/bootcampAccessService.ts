@@ -13,6 +13,23 @@ function addDays(dateStrOrObj: string | Date, days: number): string {
 }
 
 /**
+ * Säkerställer att en solo-trupp finns när Bootcampen startar.
+ * Åtkomstmodellen (bootcampAccess) och truppmodellen (bootcampCohorts/participants)
+ * är två separata system – utan detta anrop tror appen att användaren inte går någon
+ * Bootcamp, och Kurssidan visar säljvyn i stället för programmet.
+ */
+async function ensureSoloBootcampParticipant(userId: string): Promise<void> {
+  try {
+    const { getUserActiveBootcamp, joinSoloBootcamp } = await import('./bootcampService');
+    const existing = await getUserActiveBootcamp(userId);
+    if (existing) return;
+    await joinSoloBootcamp(userId);
+  } catch (e) {
+    console.error('Kunde inte skapa solo-trupp vid Bootcamp-start:', e);
+  }
+}
+
+/**
  * Initierar köpflödet för General Börjes 12-veckors Bootcamp.
  * Detta är den ENDA tillåtna vägen till köp från produktionsgränssnittet
  * och är den centrala integrationspunkten där Stripe Checkout ansluts.
@@ -166,6 +183,10 @@ export async function completeBootcampOnboardingTask(
     bootcampAccess: updatedAccess
   });
 
+  if (isAllCompleted) {
+    await ensureSoloBootcampParticipant(userId);
+  }
+
   return updatedAccess;
 }
 
@@ -195,6 +216,8 @@ export async function completeAllBootcampOnboardingTasks(
   await updateUserDocument(userId, {
     bootcampAccess: updatedAccess
   });
+
+  await ensureSoloBootcampParticipant(userId);
 
   return updatedAccess;
 }
@@ -232,6 +255,8 @@ export async function checkAndAdvanceBootcampAccess(
     await updateUserDocument(userId, {
       bootcampAccess: updatedAccess
     });
+
+    await ensureSoloBootcampParticipant(userId);
 
     return { updated: true, bootcampAccess: updatedAccess };
   }

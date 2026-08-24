@@ -25,11 +25,7 @@ export const MacroCard: React.FC<MacroCardProps> = ({
 
   return (
     <div
-      className={`flex flex-col justify-between ${
-        isBootcamp
-          ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]'
-          : 'bg-neutral-50 border-neutral-light'
-      } rounded-2xl p-3 sm:p-4 border text-center h-full`}
+      className={`flex flex-col justify-between bg-neutral-50 border-neutral-light rounded-2xl p-3 sm:p-4 border text-center h-full`}
     >
       <div>
         <div className="h-4 sm:h-5 flex items-center justify-center mb-1">

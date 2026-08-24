@@ -81,7 +81,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   const weekNumber = getISOWeekNumber(monday);
 
   return (
-    <div className={`${isBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
+    <div className={`${'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
       <div className="flex justify-center items-center mb-6 relative">
         <div className="flex items-center gap-4">
             <button 
