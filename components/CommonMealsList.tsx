@@ -17,6 +17,8 @@ interface CommonMealsListProps {
   onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled?: boolean;
   isBootcamp?: boolean;
+  /** true = rendera utan eget vitt kort (inbäddad i annat kort, t.ex. under makrostaplarna) */
+  embedded?: boolean;
 }
 
 // Helper to match a Lucide icon and color theme based on the meal name
@@ -167,7 +169,7 @@ const CommonMealCard: React.FC<{
 
   if (isEditing) {
     return (
-      <div className="bg-white shadow-soft-xl rounded-2xl p-4 border-2 border-primary-lighter relative space-y-3 animate-fade-in col-span-2 sm:col-span-1">
+      <div className="bg-white shadow-soft-xl rounded-2xl p-4 border-2 border-primary-lighter relative space-y-3 animate-fade-in flex-shrink-0 w-[85%] sm:w-[320px] snap-start">
         <div>
           <label className="block text-xs font-semibold text-neutral-dark mb-1">Namn</label>
           <input
@@ -222,7 +224,7 @@ const CommonMealCard: React.FC<{
   const { icon, bg, text } = getMealIcon(meal.name);
 
   return (
-    <div className={`relative group ${'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`relative group flex-shrink-0 w-[calc(50%-0.375rem)] sm:w-[calc(33.333%-0.667rem)] min-h-[170px] snap-start ${'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
       {/* Menu Trigger */}
       <div className="absolute top-2 right-2 z-20">
         <button 
@@ -277,7 +279,7 @@ const CommonMealCard: React.FC<{
   );
 };
 
-export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false, isBootcamp = false }) => {
+export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false, isBootcamp = false, embedded = false }) => {
   const [mealIdToConfirmDelete, setMealIdToConfirmDelete] = useState<string | null>(null);
 
   const handleDeleteRequest = (mealId: string) => {
@@ -300,11 +302,13 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
 
   return (
     <>
-      <div className={`${'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} p-6 rounded-[22px] shadow-soft-xl border`}>
-        <div className="flex items-center justify-between mb-4">
+      <div className={embedded
+        ? 'w-full'
+        : `${'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} p-6 rounded-[22px] shadow-soft-xl border`}>
+        <div className={`flex items-center justify-between ${embedded ? 'mb-2.5' : 'mb-4'}`}>
           <div className="flex items-center gap-2.5">
-            <BookmarkIcon className="w-5 h-5 text-[#D96E4A]" />
-            <h3 className="text-lg font-serif font-medium text-[#56524D] dark:text-[#FAF6EF]">Mina vanliga val</h3>
+            <BookmarkIcon className={`${embedded ? 'w-4 h-4' : 'w-5 h-5'} text-[#D96E4A]`} />
+            <h3 className={`${embedded ? 'text-sm font-bold uppercase tracking-wider text-[#7A756E]' : 'text-lg font-serif font-medium text-[#56524D]'} dark:text-[#FAF6EF]`}>Mina vanliga val</h3>
           </div>
         </div>
 
@@ -323,7 +327,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="flex items-stretch gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-none no-scrollbar -mx-1 px-1 pb-2">
             {commonMeals.map((meal) => (
               <CommonMealCard
                 key={meal.timestamp}

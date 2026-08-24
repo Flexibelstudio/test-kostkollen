@@ -1,1 +1,11 @@
 @import "./custom-calendar.css";
+/* Dölj scrollbaren i horisontella kortrader (Mina vanliga val m.fl.) */
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

@@ -1151,30 +1151,26 @@ const Dashboard: React.FC<DashboardProps> = ({
                         />
                     </div>
 
-                    {/* Kompakt horisontell rad med sparade val (chips) direkt under makrostaplarna */}
+                    {/* Mina vanliga val – kort, två i bredd, scrollas i sidled */}
                     {commonMeals && commonMeals.length > 0 && (
                         <div className="w-full px-4 sm:px-6 mt-3 pt-3 border-t border-neutral-light/70 dark:border-[#484440]/60">
-                            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar -mx-1 px-1">
-                                {commonMeals.map((meal) => (
-                                    <button
-                                        key={`chip-${meal.timestamp}-${meal.id}`}
-                                        onClick={() => isEditableView && handleCommonMealLog(meal)}
-                                        disabled={!isEditableView}
-                                        className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-neutral-light/60 hover:bg-[#F6E2D9]/70 dark:bg-[#34302C] dark:hover:bg-[#3E3A36] border border-neutral-light/80 dark:border-[#484440] hover:border-primary/40 rounded-xl text-left active:scale-95 transition-all shadow-xs group"
-                                        title={`Logga ${meal.name} (${Math.round(meal.nutritionalInfo.calories)} kcal)`}
-                                    >
-                                        <div className="w-2 h-2 rounded-full bg-primary/70 group-hover:bg-primary transition-colors shrink-0" />
-                                        <span className="text-xs font-bold text-neutral-dark dark:text-[#FAF6EF] whitespace-nowrap truncate max-w-[140px] sm:max-w-[180px]">
-                                            {meal.name}
-                                        </span>
-                                        <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 bg-white/80 dark:bg-[#2B2825] px-1.5 py-0.5 rounded-md border border-neutral-light dark:border-[#484440] shrink-0">
-                                            {Math.round(meal.nutritionalInfo.calories)} kcal
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
+                            <CommonMealsList
+                                commonMeals={commonMeals}
+                                onLogCommonMeal={handleCommonMealLog}
+                                onDeleteCommonMeal={handleDeleteCommonMeal}
+                                onUpdateCommonMeal={handleUpdateCommonMeal}
+                                onShowRating={(nutritionalInfo) => {
+                                    setFoodRatingData({ nutritionalInfo, mealType: 'snack' });
+                                    pushModalState('foodRating');
+                                    setShowFoodRatingModal(true);
+                                }}
+                                disabled={!isEditableView}
+                                isBootcamp={!!activeBootcamp}
+                                embedded
+                            />
                         </div>
                     )}
+
                 </div>
             </div>
 
