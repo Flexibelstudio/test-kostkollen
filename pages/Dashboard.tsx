@@ -1146,7 +1146,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             current={totalNutrients.fat}
                             goal={goals.fatGoal}
                             trackColor="#E8EFE9"
-                            barColor="#8C9A86"
+                            barColor="#7BA05B"
                             isBootcamp={!!activeBootcamp}
                         />
                     </div>

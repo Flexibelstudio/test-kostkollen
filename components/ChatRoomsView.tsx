@@ -769,7 +769,7 @@ export const ChatWindow: React.FC<{
                                     <div className="flex items-center gap-2">
                                         {!isMe && !isBuddy && (
                                             sentFriendRequests.has(member.uid) ? (
-                                                <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-[#E8EFE9] rounded-full text-xs font-bold text-[#2B3B2C] shadow-sm border border-[#8C9A86]/40">
+                                                <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-[#E8EFE9] rounded-full text-xs font-bold text-[#2B3B2C] shadow-sm border border-[#7BA05B]/40">
                                                     <CheckIcon className="w-3.5 h-3.5" />
                                                     <span>Skickad</span>
                                                 </div>

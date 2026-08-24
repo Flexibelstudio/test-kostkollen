@@ -123,14 +123,14 @@ export const BootcampOnboardingCard: React.FC<BootcampOnboardingCardProps> = ({
               key={taskId}
               className={`p-3 sm:p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                 isDone 
-                  ? 'bg-white/5 border-[#8C9A86]/40 text-white/80' 
+                  ? 'bg-white/5 border-[#7BA05B]/40 text-white/80' 
                   : 'bg-white/10 border-white/15 hover:border-[#D96E4A]/50 text-white'
               }`}
             >
               <div className="flex items-start gap-3">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
                   isDone 
-                    ? 'bg-[#8C9A86]/20 text-[#8C9A86] border border-[#8C9A86]/30' 
+                    ? 'bg-[#7BA05B]/20 text-[#7BA05B] border border-[#7BA05B]/30' 
                     : 'bg-white/10 text-[#D96E4A]'
                 }`}>
                   {isDone ? (
@@ -155,7 +155,7 @@ export const BootcampOnboardingCard: React.FC<BootcampOnboardingCardProps> = ({
               {/* Action knapp */}
               <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                 {isDone ? (
-                  <span className="text-xs font-bold text-[#8C9A86] bg-[#8C9A86]/20 px-3 py-1.5 rounded-xl inline-flex items-center gap-1 border border-[#8C9A86]/30 font-mono">
+                  <span className="text-xs font-bold text-[#7BA05B] bg-[#7BA05B]/20 px-3 py-1.5 rounded-xl inline-flex items-center gap-1 border border-[#7BA05B]/30 font-mono">
                     Klar ✓
                   </span>
                 ) : (

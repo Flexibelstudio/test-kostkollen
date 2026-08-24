@@ -126,7 +126,7 @@ const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling'
     
     switch(status) {
         case 'active':
-            classes = 'bg-[#E8EFE9] text-[#2B3B2C] border-[#8C9A86]/40';
+            classes = 'bg-[#E8EFE9] text-[#2B3B2C] border-[#7BA05B]/40';
             label = 'Aktiv (Betalande)';
             break;
         case 'trialing':
@@ -271,7 +271,7 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
                 className={`grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6 transition-all duration-500 ease-in-out ${isExpanded ? 'opacity-100 max-h-[3000px]' : 'opacity-0 max-h-0 overflow-hidden mt-0'}`}
             >
                 <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-[#F6E2D9]" textClass="text-[#D96E4A]" />
-                <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-[#E8EFE9]" textClass="text-[#8C9A86]" />
+                <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-[#E8EFE9]" textClass="text-[#7BA05B]" />
                 <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={allChatsCount.toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika, ${allChatsCount - systemGroupsCount - publicRoomsCount} Privata`} colorClass="bg-[#F6E2D9]" textClass="text-[#D96E4A]" />
                 <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-[#F1EAE0]" textClass="text-[#7A756E]" />
                 <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-[#F1EAE0]" textClass="text-[#56524D]" />

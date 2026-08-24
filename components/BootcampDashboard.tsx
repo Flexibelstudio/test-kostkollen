@@ -319,15 +319,15 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           )}
 
           <div className="space-y-4">
-            <div className={`p-4 rounded-xl border ${hasCompletedWeight ? 'bg-[#E8EFE9] border-[#8C9A86]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
+            <div className={`p-4 rounded-xl border ${hasCompletedWeight ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasCompletedWeight ? 'bg-[#8C9A86] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasCompletedWeight ? 'bg-[#7BA05B] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>
                   1
                 </div>
                 <span className={`font-bold ${hasCompletedWeight ? 'text-[#2B3B2C]' : 'text-[#56524D]'}`}>Startmätning</span>
               </div>
               {hasCompletedWeight ? (
-                <CheckCircleIcon className="w-6 h-6 text-[#8C9A86]" />
+                <CheckCircleIcon className="w-6 h-6 text-[#7BA05B]" />
               ) : (
                 <button 
                   onClick={() => setShowWeightModal(true)}
@@ -338,15 +338,15 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
               )}
             </div>
 
-            <div className={`p-4 rounded-xl border ${participant.bootcampOnboardingCompleted ? 'bg-[#E8EFE9] border-[#8C9A86]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
+            <div className={`p-4 rounded-xl border ${participant.bootcampOnboardingCompleted ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${participant.bootcampOnboardingCompleted ? 'bg-[#8C9A86] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${participant.bootcampOnboardingCompleted ? 'bg-[#7BA05B] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>
                   2
                 </div>
                 <span className={`font-bold ${participant.bootcampOnboardingCompleted ? 'text-[#2B3B2C]' : 'text-[#56524D]'}`}>Sätt dina mål</span>
               </div>
               {participant.bootcampOnboardingCompleted ? (
-                <CheckCircleIcon className="w-6 h-6 text-[#8C9A86]" />
+                <CheckCircleIcon className="w-6 h-6 text-[#7BA05B]" />
               ) : (
                 <button 
                   onClick={() => {
@@ -599,9 +599,9 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         // Show if it's Sunday/Monday morning, OR if they haven't logged this week (delayed)
         if (isSunday || isMondayMorning || isDelayed) {
           return (
-            <div className={`mb-6 p-5 rounded-2xl border-2 shadow-sm flex items-center justify-between ${hasLoggedThisWeek ? 'bg-[#E8EFE9] border-[#8C9A86]/40' : (isDelayed ? 'bg-red-50 border-red-200' : 'bg-[#F6E2D9] border-[#D96E4A]/30')}`}>
+            <div className={`mb-6 p-5 rounded-2xl border-2 shadow-sm flex items-center justify-between ${hasLoggedThisWeek ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : (isDelayed ? 'bg-red-50 border-red-200' : 'bg-[#F6E2D9] border-[#D96E4A]/30')}`}>
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${hasLoggedThisWeek ? 'bg-[#8C9A86] text-white' : (isDelayed ? 'bg-red-100 text-red-600' : 'bg-[#F6E2D9] text-[#D96E4A]')}`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${hasLoggedThisWeek ? 'bg-[#7BA05B] text-white' : (isDelayed ? 'bg-red-100 text-red-600' : 'bg-[#F6E2D9] text-[#D96E4A]')}`}>
                   {hasLoggedThisWeek ? <CheckCircleIcon className="w-8 h-8" /> : '⚖️'}
                 </div>
                 <div>
@@ -657,8 +657,8 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             </div>
 
             {(!editingYesterday && hasReportedToday) ? (
-              <div className="p-6 bg-[#E8EFE9] dark:bg-[#34302C] rounded-2xl border border-[#8C9A86]/40 text-center">
-                <CheckCircleIcon className="w-12 h-12 text-[#8C9A86] mx-auto mb-3" />
+              <div className="p-6 bg-[#E8EFE9] dark:bg-[#34302C] rounded-2xl border border-[#7BA05B]/40 text-center">
+                <CheckCircleIcon className="w-12 h-12 text-[#7BA05B] mx-auto mb-3" />
                 <h3 className="text-lg font-bold text-[#2B3B2C] dark:text-[#FAF6EF] mb-2">Rapport inlämnad!</h3>
                 <p className="text-[#3E523F] dark:text-[#C2BCB4]">
                   Du har lämnat din rapport för idag. Generalen har mottagit den. Vila upp dig inför morgondagen.

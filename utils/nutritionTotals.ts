@@ -100,7 +100,7 @@ export function calculateRemainingCalories(
   } else if (isNetOverBudget) {
     progressColor = '#C05A38';
   } else if (goalMet || isFullyCoveredByBank) {
-    progressColor = '#8C9A86';
+    progressColor = '#7BA05B';
   }
 
   return {

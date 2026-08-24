@@ -151,8 +151,8 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
                   </div>
 
                   {/* Meals Logged Card */}
-                  <div className="bg-[#E8EFE9] border border-[#8C9A86]/40 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
-                    <Trophy className="w-7 h-7 text-[#8C9A86] mb-1.5" />
+                  <div className="bg-[#E8EFE9] border border-[#7BA05B]/40 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
+                    <Trophy className="w-7 h-7 text-[#7BA05B] mb-1.5" />
                     <span className="text-lg font-extrabold text-neutral-dark">
                       {totalMealsLogged || 0} {totalMealsLogged === 1 ? 'måltid' : 'måltider'}
                     </span>
@@ -171,7 +171,7 @@ export const TrialRecapModal: React.FC<TrialRecapModalProps> = ({
 
                 {/* AI Coach Row */}
                 <div className="flex gap-3 bg-neutral-light/40 p-4 rounded-2xl border border-black/5 items-start mt-4">
-                  <div className="w-9 h-9 rounded-full bg-[#E8EFE9] flex items-center justify-center text-[#8C9A86] flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[#E8EFE9] flex items-center justify-center text-[#7BA05B] flex-shrink-0">
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>

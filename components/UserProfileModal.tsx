@@ -240,7 +240,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     // Theme colors based on coach style
     let coachTheme = { bg: 'bg-[#F6E2D9]/40', border: 'border-[#F6E2D9]', text: 'text-[#D96E4A]', iconBg: 'bg-[#F6E2D9]', iconText: 'text-[#D96E4A]' };
     if (activeCoachStyle === 'soft') {
-        coachTheme = { bg: 'bg-[#E8EFE9]', border: 'border-[#8C9A86]/40', text: 'text-[#2B3B2C]', iconBg: 'bg-[#E8EFE9]', iconText: 'text-[#8C9A86]' };
+        coachTheme = { bg: 'bg-[#E8EFE9]', border: 'border-[#7BA05B]/40', text: 'text-[#2B3B2C]', iconBg: 'bg-[#E8EFE9]', iconText: 'text-[#7BA05B]' };
     } else if (activeCoachStyle === 'hard') {
         coachTheme = { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800', iconBg: 'bg-red-100', iconText: 'text-red-600' };
     }
@@ -1330,7 +1330,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                      {/* Push Notification Card */}
                      <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-[#E8EFE9] flex items-center justify-center text-[#8C9A86] shadow-sm">
+                            <div className="w-12 h-12 rounded-xl bg-[#E8EFE9] flex items-center justify-center text-[#7BA05B] shadow-sm">
                                 <Smartphone className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Enhet & Pushnotiser</h4>
@@ -1339,8 +1339,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                          <div className="p-4 bg-neutral-light/40 rounded-xl space-y-3">
                             {permissionStatus === 'granted' && (
                                 <div className="space-y-3">
-                                    <div className="flex items-center text-[#2B3B2C] bg-[#E8EFE9] p-3 rounded-lg border border-[#8C9A86]/40">
-                                        <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 text-[#8C9A86]" />
+                                    <div className="flex items-center text-[#2B3B2C] bg-[#E8EFE9] p-3 rounded-lg border border-[#7BA05B]/40">
+                                        <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 text-[#7BA05B]" />
                                         <span className="font-medium">Notisrättigheter är godkända i denna webbläsare.</span>
                                     </div>
                                     <button

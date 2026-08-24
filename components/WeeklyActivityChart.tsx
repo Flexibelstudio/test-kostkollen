@@ -176,7 +176,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             const surplus = Math.max(0, calories - calorieGoal);
             const isOverGoal = calories > calorieGoal;
 
-            const dayLabelColor = waterGoalMet ? 'text-[#8C9A86] font-bold' : (isViewing ? 'text-[#56524D] dark:text-[#FAF6EF] font-bold' : 'text-[#7A756E] dark:text-[#C2BCB4]');
+            const dayLabelColor = waterGoalMet ? 'text-[#7BA05B] font-bold' : (isViewing ? 'text-[#56524D] dark:text-[#FAF6EF] font-bold' : 'text-[#7A756E] dark:text-[#C2BCB4]');
 
             return (
                 <button

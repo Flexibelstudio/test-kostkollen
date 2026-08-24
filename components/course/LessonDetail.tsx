@@ -221,14 +221,14 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                   onClick={() => onToggleFocusPoint(lesson.id, point.id)}
                   className={`flex items-center w-full p-4 rounded-xl border-2 interactive-transition active:scale-[0.98] shadow-sm
                     ${progress?.completedFocusPoints?.includes(point.id)
-                      ? ('bg-[#E8EFE9] border-[#8C9A86] text-[#2B3B2C]')
+                      ? ('bg-[#E8EFE9] border-[#7BA05B] text-[#2B3B2C]')
                       : ('bg-white dark:bg-neutral-darker border-neutral-light hover:border-[#D96E4A] text-neutral-dark dark:text-white')
                     }`}
                   aria-pressed={progress?.completedFocusPoints?.includes(point.id)}
                 >
                   <div className="flex-shrink-0 w-8 h-8 mr-4 flex items-center justify-center">
                     {progress?.completedFocusPoints?.includes(point.id) ? (
-                      <CheckCircleIcon className={`w-8 h-8 ${'text-[#8C9A86]'}`} />
+                      <CheckCircleIcon className={`w-8 h-8 ${'text-[#7BA05B]'}`} />
                     ) : (
                       <div className={`w-6 h-6 border-2 rounded-full transition-colors ${'border-neutral-300 group-hover:border-[#D96E4A]'}`}></div>
                     )}
@@ -286,8 +286,8 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
         </section>
         
         {progress?.isCompleted ? (
-           <div className={`mt-10 p-6 border rounded-2xl text-center ${'bg-[#E8EFE9] border-[#8C9A86]/40'}`}>
-            <CheckCircleIcon className={`w-12 h-12 mx-auto mb-3 ${'text-[#8C9A86]'}`} />
+           <div className={`mt-10 p-6 border rounded-2xl text-center ${'bg-[#E8EFE9] border-[#7BA05B]/40'}`}>
+            <CheckCircleIcon className={`w-12 h-12 mx-auto mb-3 ${'text-[#7BA05B]'}`} />
             <p className={`text-xl font-bold ${'text-[#2B3B2C]'}`}>Bra jobbat, du har slutfört denna lektion!</p>
           </div>
         ) : allFocusPointsCompleted ? (

@@ -648,7 +648,7 @@ export const TimelineEventCard: FC<{
     return (
     <div id={`event-${event.id}`} className={`group relative p-4 rounded-2xl shadow-sm border transition-colors duration-500 ease-out mb-4 ${
         isNewEvent 
-            ? 'bg-[#E8EFE9] border-[#8C9A86]/40' 
+            ? 'bg-[#E8EFE9] border-[#7BA05B]/40' 
             : isBorje
                 ? 'bg-red-50 border-red-200'
             : (isGlobalPost || isCoachPersona)
@@ -664,7 +664,7 @@ export const TimelineEventCard: FC<{
                             <span className="font-bold">{displayName}</span>
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 sentFriendRequests.has(event.userId) ? (
-                                    <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-[#E8EFE9] rounded-full text-xs font-bold text-[#2B3B2C] shadow-sm border border-[#8C9A86]/40">
+                                    <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-[#E8EFE9] rounded-full text-xs font-bold text-[#2B3B2C] shadow-sm border border-[#7BA05B]/40">
                                         <CheckIcon className="w-3.5 h-3.5" />
                                         <span>Skickad</span>
                                     </div>
