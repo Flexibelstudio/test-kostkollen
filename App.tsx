@@ -1482,6 +1482,9 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
 
   useEffect(() => {
     if (!checklistState || !currentUser || !isInitialDataLoaded) return;
+    // Att bara dölja kortet räckte inte - effekten körde ändå och delade ut
+    // bonusen mitt i en pågående bootcamp. Bootcampen äger onboardingen då.
+    if (activeBootcamp || userProfile.bootcampAccess) return;
     const allComplete = Object.values(checklistState.items).every(Boolean);
     if (allComplete && !checklistState.dismissed) {
         setShowConfetti(true);
@@ -1489,7 +1492,7 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         setShowOnboardingRewardModal(true);
         grantOnboardingBonus();
     }
-  }, [checklistState, currentUser, isInitialDataLoaded, grantOnboardingBonus]);
+  }, [checklistState, currentUser, isInitialDataLoaded, grantOnboardingBonus, activeBootcamp, userProfile.bootcampAccess]);
 
   useEffect(() => {
     if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
@@ -1899,7 +1902,15 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
             completeBootcampOnboardingTask(currentUser.uid, 'weigh_in_and_goal', userProfile).then(updated => {
                 if (updated) {
-                    setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+                    setUserProfile(prev => ({
+                            ...prev,
+                            bootcampAccess: updated,
+                            // Spegla listan lokalt också, annars läser nästa uppgift en gammal profil
+                            bootcampOnboarding: {
+                                ...(prev.bootcampOnboarding || { completedAt: null }),
+                                tasksCompleted: updated?.onboardingTasksCompleted || prev.bootcampOnboarding?.tasksCompleted || [],
+                            },
+                        }));
                 }
             });
         }

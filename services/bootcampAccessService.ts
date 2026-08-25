@@ -1,6 +1,6 @@
 import { UserProfileData, BootcampAccess, BootcampOnboardingTaskId } from '../types';
 import { ALL_BOOTCAMP_ONBOARDING_TASKS, BOOTCAMP_DURATION_DAYS, BOOTCAMP_ONBOARDING_MAX_DAYS } from '../utils/accessControl';
-import { updateUserDocument } from './firestoreService';
+import { updateUserDocument, addBootcampOnboardingTask } from './firestoreService';
 import { isTestingToolAllowed } from '../utils/testingToolHostnames';
 import { SOLO_COHORT_ID } from './bootcampService';
 
@@ -186,21 +186,15 @@ export async function completeBootcampOnboardingTask(
     return currentAccess;
   }
 
-  const updatedTasks = [...existingCompleted, taskId];
-  const isAllCompleted = ALL_BOOTCAMP_ONBOARDING_TASKS.every(t => updatedTasks.includes(t));
-
   // Framstegen skrivs till bootcampOnboarding – bootcampAccess är betalningskritiskt
   // och får bara skrivas av Stripe-webhooken via Admin SDK.
-  const onboardingUpdate = {
-    tasksCompleted: updatedTasks,
-    completedAt: isAllCompleted ? new Date().toISOString() : (currentProfile.bootcampOnboarding?.completedAt || null),
-  };
+  // Listan slås ihop i en transaktion mot databasen, aldrig mot klientens minne.
+  const result = await addBootcampOnboardingTask(userId, taskId, ALL_BOOTCAMP_ONBOARDING_TASKS);
+  if (!result) return currentAccess;
 
-  await updateUserDocument(userId, {
-    bootcampOnboarding: onboardingUpdate
-  });
+  const updatedTasks = result.tasksCompleted as BootcampOnboardingTaskId[];
 
-  if (isAllCompleted) {
+  if (result.completedAt) {
     await ensureSoloBootcampParticipant(userId);
   }
 

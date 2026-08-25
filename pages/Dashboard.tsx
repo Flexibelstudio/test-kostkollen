@@ -316,7 +316,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                 if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
                     completeBootcampOnboardingTask(currentUser.uid, 'read_morning_briefing', userProfile).then(updated => {
                         if (updated) {
-                            setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+                            setUserProfile(prev => ({
+                            ...prev,
+                            bootcampAccess: updated,
+                            // Spegla listan lokalt också, annars läser nästa uppgift en gammal profil
+                            bootcampOnboarding: {
+                                ...(prev.bootcampOnboarding || { completedAt: null }),
+                                tasksCompleted: updated?.onboardingTasksCompleted || prev.bootcampOnboarding?.tasksCompleted || [],
+                            },
+                        }));
                         }
                     });
                 }
@@ -750,7 +758,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                 const taskId: BootcampOnboardingTaskId = isPhoto ? 'log_meal_photo' : 'log_meal_search';
                 completeBootcampOnboardingTask(currentUser.uid, taskId, userProfile).then(updated => {
                     if (updated) {
-                        setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+                        setUserProfile(prev => ({
+                            ...prev,
+                            bootcampAccess: updated,
+                            // Spegla listan lokalt också, annars läser nästa uppgift en gammal profil
+                            bootcampOnboarding: {
+                                ...(prev.bootcampOnboarding || { completedAt: null }),
+                                tasksCompleted: updated?.onboardingTasksCompleted || prev.bootcampOnboarding?.tasksCompleted || [],
+                            },
+                        }));
                     }
                 });
             }
@@ -816,7 +832,15 @@ const Dashboard: React.FC<DashboardProps> = ({
             if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate && newAmount > 0) {
                 completeBootcampOnboardingTask(currentUser.uid, 'log_water', userProfile).then(updated => {
                     if (updated) {
-                        setUserProfile(prev => ({ ...prev, bootcampAccess: updated }));
+                        setUserProfile(prev => ({
+                            ...prev,
+                            bootcampAccess: updated,
+                            // Spegla listan lokalt också, annars läser nästa uppgift en gammal profil
+                            bootcampOnboarding: {
+                                ...(prev.bootcampOnboarding || { completedAt: null }),
+                                tasksCompleted: updated?.onboardingTasksCompleted || prev.bootcampOnboarding?.tasksCompleted || [],
+                            },
+                        }));
                     }
                 });
             }

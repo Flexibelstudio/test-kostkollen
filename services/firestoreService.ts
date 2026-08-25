@@ -1308,6 +1308,45 @@ export async function updateUserDocument(userId: string, data: { [key: string]: 
   await updateDoc(userDocRef, cleanFirestoreData(data));
 }
 
+/**
+ * Bockar av en uppgift i Grundutbildningen atomiskt.
+ *
+ * Tidigare lästes listan ur klientens userProfile och skrevs tillbaka som ett
+ * helt objekt. Var profilen i minnet efter kunde en skrivning radera uppgifter
+ * som redan var avklarade - därav att hela grundutbildningen kunde nollställas.
+ * Transaktionen läser alltid databasens aktuella lista.
+ */
+export async function addBootcampOnboardingTask(
+  userId: string,
+  taskId: string,
+  allTaskIds: string[]
+): Promise<{ tasksCompleted: string[]; completedAt: string | null } | null> {
+  if (!db) return null;
+  const userDocRef = doc(db, 'users', userId);
+
+  return runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(userDocRef);
+    if (!snap.exists()) return null;
+
+    const data = snap.data() as any;
+    const existing: string[] = data?.bootcampOnboarding?.tasksCompleted
+      || data?.bootcampAccess?.onboardingTasksCompleted
+      || [];
+
+    const tasksCompleted = existing.includes(taskId) ? existing : [...existing, taskId];
+    const alreadyDone = data?.bootcampOnboarding?.completedAt || null;
+    const isAllCompleted = allTaskIds.every(t => tasksCompleted.includes(t));
+    const completedAt = alreadyDone || (isAllCompleted ? new Date().toISOString() : null);
+
+    transaction.update(userDocRef, {
+      'bootcampOnboarding.tasksCompleted': tasksCompleted,
+      'bootcampOnboarding.completedAt': completedAt,
+    });
+
+    return { tasksCompleted, completedAt };
+  });
+}
+
 export async function savePushSubscription(userId: string, subscription: object) {
   if (!db) return;
   const userDocRef = doc(db, 'users', userId);
