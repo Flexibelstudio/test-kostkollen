@@ -46,7 +46,11 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [tempProfile, setTempProfile] = useState<UserProfileData | null>(null);
-  const [hasCompletedWeight, setHasCompletedWeight] = useState(participant.bootcampOnboardingCompleted || false);
+  // Steg 1 i Väntrummet får inte bara leva i komponentens minne. Gjorde man
+  // startmätningen och lämnade sidan innan målen var satta, såg steget oavklarat
+  // ut igen vid återbesök. Härled det från en faktisk mätning gjord efter
+  // inmönstringen istället.
+  const [weightSavedThisSession, setHasCompletedWeight] = useState(false);
 
   // Form state
   const [loggedAllMeals, setLoggedAllMeals] = useState(false);
@@ -64,6 +68,13 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   }, []);
 
   const todayStr = getDateUID(new Date());
+
+  const joinedAtMs = participant.joinedAt
+    || (participant.originalStartDate ? new Date(participant.originalStartDate).getTime() : 0);
+  const hasWeighInSinceJoining = (weightLogs || []).some(log => (log.loggedAt || 0) >= joinedAtMs);
+  const hasCompletedWeight = weightSavedThisSession
+    || participant.bootcampOnboardingCompleted
+    || hasWeighInSinceJoining;
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = getDateUID(yesterday);

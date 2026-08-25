@@ -162,7 +162,11 @@ export const completeBootcampOnboarding = async (userId: string, cohortId: strin
   const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
   
   const participantSnap = await getDoc(participantRef);
-  if (!participantSnap.exists()) return;
+  // Tyst return här gav ett falskt "Du är nu redo för Bootcamp!" när sökvägen pekade
+  // fel: inget skrevs, men användaren fick grönt ljus och hamnade i Väntrummet igen.
+  if (!participantSnap.exists()) {
+    throw new Error(`Hittade inget deltagardokument på bootcampCohorts/${cohortId}/participants/${userId}`);
+  }
 
   const data = participantSnap.data() as BootcampParticipant;
   
@@ -383,6 +387,42 @@ export const cleanupExpiredBootcampGroups = async (userId: string): Promise<void
   }
 };
 
+/**
+ * Plockar ut den aktiva deltagaren ur ett collectionGroup-resultat.
+ *
+ * Två saker är medvetna här:
+ * 1. cohortId tas ALLTID från dokumentets faktiska sökväg, aldrig från fältet i
+ *    dokumentet. Om fältet har drivit isär från sökvägen skriver t.ex.
+ *    completeBootcampOnboarding till fel dokument, och användaren hamnar i
+ *    Väntrummet igen trots att hon fyllt i allt.
+ * 2. Om flera aktiva deltagardokument finns (gamla testtrupper) väljs det som
+ *    startade senast, i stället för det som råkar komma först i resultatet.
+ */
+const pickActiveParticipant = (
+  docs: Array<{ data: () => any; ref: any }>
+): BootcampParticipant | undefined => {
+  const active = docs
+    .map(d => {
+      const data = d.data() as BootcampParticipant;
+      const pathCohortId = d.ref.parent.parent ? d.ref.parent.parent.id : data.cohortId;
+      if (pathCohortId && data.cohortId !== pathCohortId) {
+        console.warn(
+          `Bootcamp: cohortId i dokumentet ("${data.cohortId}") matchar inte sökvägen ("${pathCohortId}"). Använder sökvägen.`
+        );
+      }
+      return { ...data, cohortId: pathCohortId };
+    })
+    .filter(p => p.status === 'fas1' || p.status === 'fas2');
+
+  if (active.length > 1) {
+    console.warn(
+      `Bootcamp: hittade ${active.length} aktiva deltagardokument för samma användare (${active.map(p => p.cohortId).join(', ')}). Väljer det senast startade.`
+    );
+  }
+
+  return active.sort((a, b) => (b.joinedAt || 0) - (a.joinedAt || 0))[0];
+};
+
 export const getUserActiveBootcamp = async (userId: string): Promise<BootcampParticipant | null> => {
   if (!db) return null;
 
@@ -392,14 +432,7 @@ export const getUserActiveBootcamp = async (userId: string): Promise<BootcampPar
     
     if (snapshot.empty) return null;
     
-    // Return the first active one (assuming user can only be in one at a time)
-    const activeParticipant = snapshot.docs.map(doc => {
-        const data = doc.data() as BootcampParticipant;
-        if (!data.cohortId && doc.ref.parent.parent) {
-            data.cohortId = doc.ref.parent.parent.id;
-        }
-        return data;
-    }).find(p => p.status === 'fas1' || p.status === 'fas2');
+    const activeParticipant = pickActiveParticipant(snapshot.docs);
     
     if (activeParticipant) {
       const checkedParticipant = await checkBootcampExpiration(activeParticipant);
@@ -426,13 +459,7 @@ export const subscribeToUserActiveBootcamp = (userId: string, callback: (partici
     if (snapshot.empty) {
       callback(null);
     } else {
-      const activeParticipant = snapshot.docs.map(doc => {
-          const data = doc.data() as BootcampParticipant;
-          if (!data.cohortId && doc.ref.parent.parent) {
-              data.cohortId = doc.ref.parent.parent.id;
-          }
-          return data;
-      }).find(p => p.status === 'fas1' || p.status === 'fas2');
+      const activeParticipant = pickActiveParticipant(snapshot.docs);
       if (activeParticipant) {
         const checkedParticipant = await checkBootcampExpiration(activeParticipant);
         if (checkedParticipant.status === 'fas1' || checkedParticipant.status === 'fas2') {
