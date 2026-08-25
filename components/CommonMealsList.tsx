@@ -169,7 +169,7 @@ const CommonMealCard: React.FC<{
 
   if (isEditing) {
     return (
-      <div className="bg-white shadow-soft-xl rounded-2xl p-4 border-2 border-primary-lighter relative space-y-3 animate-fade-in row-span-2 w-full h-full overflow-y-auto snap-start">
+      <div className="bg-white shadow-soft-xl rounded-2xl p-4 border-2 border-primary-lighter relative space-y-3 animate-fade-in row-span-full w-full h-full overflow-y-auto snap-start">
         <div>
           <label className="block text-xs font-semibold text-neutral-dark mb-1">Namn</label>
           <input
@@ -310,6 +310,10 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
     });
   }, [commonMeals]);
 
+  // Vid få val ska rutan krympa: 1-3 val ryms på en rad, fler staplas i två.
+  // Grid-klasserna måste vara kompletta strängar - Tailwind kan inte tolka ihopsatta klassnamn.
+  const rowsClass = sortedMeals.length <= 3 ? 'grid-rows-1' : 'grid-rows-2';
+
   const mealToConfirm = mealIdToConfirmDelete ? commonMeals.find(cm => cm.id === mealIdToConfirmDelete) : null;
 
   return (
@@ -331,15 +335,17 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
         )}
         
         {commonMeals.length === 0 ? (
-           <div className="text-center py-8 px-4 bg-[#FAF6EF] dark:bg-[#34302C] rounded-[22px] border border-[#F1EAE0] dark:border-[#484440]">
-             <Utensils className="w-8 h-8 text-[#D96E4A]/60 mx-auto mb-2" />
-             <p className="text-base text-[#56524D] dark:text-[#FAF6EF] font-medium">Inga sparade val än.</p>
-             <p className="text-sm text-[#7A756E] dark:text-[#C2BCB4] mt-1 max-w-xs mx-auto leading-relaxed">
-              Spara din favoritmåltid med spar-knappen när du loggat för att snabbt hitta den här igen.
-            </p>
+           <div className={`text-center bg-[#FAF6EF] dark:bg-[#34302C] rounded-[22px] border border-[#F1EAE0] dark:border-[#484440] ${embedded ? 'py-3 px-3' : 'py-8 px-4'}`}>
+             <Utensils className={`text-[#D96E4A]/60 mx-auto ${embedded ? 'w-5 h-5 mb-1' : 'w-8 h-8 mb-2'}`} />
+             <p className={`text-[#56524D] dark:text-[#FAF6EF] font-medium ${embedded ? 'text-xs' : 'text-base'}`}>Inga sparade val än.</p>
+             {!embedded && (
+               <p className="text-sm text-[#7A756E] dark:text-[#C2BCB4] mt-1 max-w-xs mx-auto leading-relaxed">
+                Spara din favoritmåltid med spar-knappen när du loggat för att snabbt hitta den här igen.
+              </p>
+             )}
           </div>
         ) : (
-          <div className="grid grid-rows-2 grid-flow-col auto-cols-[calc(50%-0.3125rem)] items-start gap-2.5 overflow-x-auto snap-x snap-mandatory scrollbar-none no-scrollbar -mx-1 px-1 pb-2">
+          <div className={`grid ${rowsClass} grid-flow-col auto-cols-[calc(50%-0.3125rem)] items-start gap-2.5 overflow-x-auto snap-x snap-mandatory scrollbar-none no-scrollbar -mx-1 px-1 pb-2`}>
             {sortedMeals.map((meal) => (
               <CommonMealCard
                 key={meal.id}

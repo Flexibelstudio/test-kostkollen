@@ -1197,7 +1197,23 @@ exports.createCheckoutSession = functions
 
       return { sessionId: session.id, url: session.url };
     } catch (error) {
-      console.error("Stripe fel:", error);
+      console.error("Stripe fel:", error, `(priceId: ${priceId}, mode: ${mode})`);
+
+      // Ett arkiverat/inaktivt pris i Stripe är ett konfigurationsfel hos oss,
+      // inte något kunden kan göra något åt. Visa ett begripligt
+      // meddelande istället för Stripes råa felmeddelande.
+      const isInactivePrice =
+        error.code === "resource_missing" ||
+        /price .*(inactive|not found)/i.test(error.message || "") ||
+        /only accepts active prices/i.test(error.message || "");
+
+      if (isInactivePrice) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Betalningen kunde inte startas just nu. Vi är informerade – försök igen om en stund.",
+        );
+      }
+
       throw new functions.https.HttpsError("internal", error.message);
     }
   });

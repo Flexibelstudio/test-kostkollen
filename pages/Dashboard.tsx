@@ -1022,13 +1022,20 @@ const Dashboard: React.FC<DashboardProps> = ({
             {activeBootcamp && (() => {
                 const rankInfo = getBootcampRankInfo(Math.max(activeBootcamp.longestStreak || 0, userProfile.highestBootcampStreak || 0), activeBootcamp.currentStreak || 0, activeBootcamp.status);
                 return (
-                <div className="bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden">
+                <div
+                    onClick={() => onOpenBootcamp?.()}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenBootcamp?.(); } }}
+                    role={onOpenBootcamp ? 'button' : undefined}
+                    tabIndex={onOpenBootcamp ? 0 : undefined}
+                    aria-label={onOpenBootcamp ? 'Öppna bootcampen' : undefined}
+                    className={`bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden ${onOpenBootcamp ? 'cursor-pointer hover:shadow-soft-2xl active:scale-[0.99] transition-all focus:outline-none focus:ring-2 focus:ring-[#D96E4A] focus:ring-offset-2' : ''}`}>
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-[#3A4B3C] flex items-center justify-center text-white overflow-hidden p-0.5">
                                 <RankBadge rank={rankInfo.currentRank} size="sm" className="w-full h-full" />
                             </div>
                             <h3 className="text-lg font-bold text-neutral-dark dark:text-white">Bootcamp Lägesrapport</h3>
+                            {onOpenBootcamp && <ArrowRightIcon className="w-4 h-4 text-[#D96E4A] flex-shrink-0" />}
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="text-xs font-bold px-2 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 rounded-full">
