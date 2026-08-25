@@ -9,6 +9,8 @@ import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } 
 import ToastNotification from './ToastNotification';
 import ProteinInfoModal from './ProteinInfoModal';
 import { shareAppInvite } from '../utils/shareUtils.ts';
+import { rebalanceManualGoals, getManualGoalWarnings, minimumFatGrams } from '../utils/goalBalancing';
+import type { ManualGoalField } from '../utils/goalBalancing';
 
 
 export const Avatar: React.FC<{
@@ -420,10 +422,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleManualGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
       const numValue = parseInt(value, 10) || 0;
-      setManualGoals(prev => ({
-          ...prev,
-          [name]: numValue
-      }));
+      // Kalorimålet är låset: ändrar man protein eller fett justeras kolhydraterna
+      // så att summan håller. Ändrar man kolhydraterna ger fettet vika, ner till
+      // sitt golv. Se utils/goalBalancing.ts.
+      setManualGoals(prev => rebalanceManualGoals(prev, name as ManualGoalField, numValue));
   };
 
   const handleNotificationSettingChange = (setting: keyof NotificationSettings) => {
@@ -1114,6 +1116,40 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         />
                                     </div>
                                 </div>
+
+                                {isManualGoalMode && (() => {
+                                    const w = getManualGoalWarnings(manualGoals);
+                                    return (
+                                        <div className="mt-1 space-y-2">
+                                            <p className="text-xs text-neutral flex items-center justify-between gap-2 px-1">
+                                                <span>
+                                                    {manualGoals.proteinGoal} g protein · {manualGoals.carbohydrateGoal} g kolhydrater · {manualGoals.fatGoal} g fett
+                                                </span>
+                                                <span className={w.exceedsCalorieGoal ? 'font-bold text-[#D96E4A]' : 'font-bold text-neutral-dark'}>
+                                                    {Math.round(w.macroCalories)} kcal
+                                                </span>
+                                            </p>
+                                            <p className="text-xs text-neutral px-1">
+                                                Kalorimålet håller – ändrar du protein eller fett justeras kolhydraterna automatiskt.
+                                            </p>
+                                            {w.exceedsCalorieGoal && (
+                                                <p className="text-xs font-semibold text-[#D96E4A] bg-[#F6E2D9] border border-[#EAC5B8] rounded-lg px-3 py-2">
+                                                    Protein och fett tar mer än hela kalorimålet. Sänk något av dem, eller höj kalorierna.
+                                                </p>
+                                            )}
+                                            {w.proteinIsHigh && !w.exceedsCalorieGoal && (
+                                                <p className="text-xs text-[#56524D] bg-[#F1EAE0]/70 border border-[#F1EAE0] rounded-lg px-3 py-2">
+                                                    Proteinet står för {Math.round(w.proteinShare * 100)} % av energin. Det är högt – det lämnar lite plats åt kolhydrater och fett.
+                                                </p>
+                                            )}
+                                            {w.fatAtFloor && !w.exceedsCalorieGoal && (
+                                                <p className="text-xs text-[#56524D] bg-[#F1EAE0]/70 border border-[#F1EAE0] rounded-lg px-3 py-2">
+                                                    Fettet ligger på sin nedre gräns ({minimumFatGrams(manualGoals.calorieGoal)} g) och sänks inte mer.
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         ) : (
                             <p className="text-neutral">Fyll i dina personliga detaljer ovan för att se rekommendationer.</p>

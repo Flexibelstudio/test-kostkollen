@@ -1067,8 +1067,23 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
     console.warn("Could not read userDoc before updating profile/goals.", e);
   }
 
+  // Serverägda fält får ALDRIG skickas med. Klienten håller en lokal kopia av
+  // bootcampAccess som ändras när grundutbildningens uppgifter bockas av, och
+  // säkerhetsreglerna kräver att fältet är identiskt med det som redan ligger i
+  // dokumentet. Skickades det med avvisades hela profilsparningen med
+  // "Missing or insufficient permissions" - felet användaren såg som
+  // "Kunde inte spara profil".
+  const {
+    bootcampAccess: _bootcampAccess,
+    role: _role,
+    status: _status,
+    subscriptionStatus: _subscriptionStatus,
+    currentPeriodEnd: _currentPeriodEnd,
+    ...profileWithoutServerOwnedFields
+  } = profile as any;
+
   const dataToUpdate: any = {
-    ...profile,
+    ...profileWithoutServerOwnedFields,
     goals: goals,
     displayName: profile.name,
     ...(maybeSummaryStart ? { summaryStartDate: maybeSummaryStart } : {}),

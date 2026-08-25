@@ -838,6 +838,9 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   }, []); 
 
   const handleFirestoreError = (error: any, operation: string) => {
+    // Utan den här raden syns felet ingenstans - användaren fick en röd ruta
+    // och konsolen var tom, vilket gjorde det omöjligt att felsöka.
+    console.error(`Firestore-fel vid "${operation}":`, error?.code, error?.message, error);
     setToastNotification({ message: `Kunde inte ${operation}.`, type: 'error' });
     setTimeout(() => setToastNotification(null), 5000);
   };
