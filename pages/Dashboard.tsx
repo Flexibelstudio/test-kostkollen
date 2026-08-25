@@ -79,7 +79,7 @@ import CommonMealsList from '../components/CommonMealsList';
 import BootcampOnboardingCard from '../components/BootcampOnboardingCard';
 import ReadOnlyBanner from '../components/ReadOnlyBanner';
 import { completeBootcampOnboardingTask, checkAndAdvanceBootcampAccess } from '../services/bootcampAccessService';
-import { hasAppAccess, isReadOnlyUser } from '../utils/accessControl';
+import { hasAppAccess, isReadOnlyUser, getBootcampAccessDetails } from '../utils/accessControl';
 import { BootcampOnboardingTaskId } from '../types';
 
 // Helper function for image resizing
@@ -986,8 +986,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                 />
             )}
 
-            {/* Börjes Grundutbildning Kort under inmönstring */}
-            {userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate && (
+            {/* Börjes Grundutbildning Kort under inmönstring.
+                Gatet går via getBootcampAccessDetails och inte via fältets blotta
+                existens - ett halvskrivet bootcampAccess utan purchaseDate ska
+                inte ge grundutbildning till någon som inte köpt bootcampen. */}
+            {getBootcampAccessDetails(userProfile).isOnboarding && (
                 <BootcampOnboardingCard 
                     userProfile={userProfile}
                     onActionClick={handleBootcampOnboardingTaskAction}
