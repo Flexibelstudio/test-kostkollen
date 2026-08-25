@@ -31,6 +31,22 @@ async function ensureSoloBootcampParticipant(userId: string): Promise<void> {
 }
 
 /**
+ * Grundutbildningen är den enda grinden in i de 12 veckorna. När den är klar
+ * markeras deltagaren som färdig med inmönstringen och startdatumen sätts -
+ * tidigare gjordes det i ett separat väntrum som frågade efter samma sak igen.
+ */
+async function startTwelveWeeksForParticipant(userId: string): Promise<void> {
+  try {
+    const { getUserActiveBootcamp, completeBootcampOnboarding } = await import('./bootcampService');
+    const participant = await getUserActiveBootcamp(userId);
+    if (!participant || participant.bootcampOnboardingCompleted) return;
+    await completeBootcampOnboarding(userId, participant.cohortId);
+  } catch (e) {
+    console.error('Kunde inte starta de 12 veckorna efter grundutbildningen:', e);
+  }
+}
+
+/**
  * Initierar köpflödet för General Börjes 12-veckors Bootcamp.
  * Detta är den ENDA tillåtna vägen till köp från produktionsgränssnittet
  * och är den centrala integrationspunkten där Stripe Checkout ansluts.
@@ -196,6 +212,7 @@ export async function completeBootcampOnboardingTask(
 
   if (result.completedAt) {
     await ensureSoloBootcampParticipant(userId);
+    await startTwelveWeeksForParticipant(userId);
   }
 
   return { ...currentAccess, onboardingTasksCompleted: updatedTasks };

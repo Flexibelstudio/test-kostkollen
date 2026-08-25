@@ -1901,8 +1901,13 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
              }
         }
 
-        // Grundutbildning inmönstrings-uppgift
+        // Grundutbildning inmönstrings-uppgift.
+        // Uppgiften heter "startmätning OCH mål", så när mätningen är sparad
+        // slussas användaren direkt vidare till målen i stället för att lämnas
+        // med halva uppgiften gjord.
         if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
+            pushModalState('userProfile');
+            setShowUserProfileModal(true);
             completeBootcampOnboardingTask(currentUser.uid, 'weigh_in_and_goal', userProfile).then(updated => {
                 if (updated) {
                     setUserProfile(prev => ({
@@ -2670,6 +2675,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 activeBootcamp={activeBootcamp}
                 initialOpenBootcamp={openBootcampDirectly}
                 onBootcampStateChange={setIsBootcampViewActive}
+                onNavigateHome={() => { pushViewState({ view: 'main' }); setViewMode('main'); }}
                 bootcampFeedSlot={effectiveActiveBootcamp ? (
                   <CommunityView
                     currentUser={currentUser}

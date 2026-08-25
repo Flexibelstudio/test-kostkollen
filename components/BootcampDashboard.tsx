@@ -17,6 +17,7 @@ import { sumMealNutrients } from '../utils/nutritionTotals';
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
 import { BootcampDiplomaGalleryModal } from './BootcampDiplomaGalleryModal';
 import { RankBadge } from './RankBadge';
+import { getBootcampAccessDetails, ALL_BOOTCAMP_ONBOARDING_TASKS } from '../utils/accessControl';
 import { Award, Volume2, VolumeX } from 'lucide-react';
 
 interface BootcampDashboardProps {
@@ -37,9 +38,11 @@ interface BootcampDashboardProps {
    * har EN kodväg och EN olästräknare. Inget flöde flyttas hit - det speglas.
    */
   bootcampFeedSlot?: React.ReactNode;
+  /** Tar användaren till startsidan där Grundutbildningen ligger. */
+  onNavigateHome?: () => void;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog, bootcampFeedSlot }) => {
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog, bootcampFeedSlot, onNavigateHome }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
@@ -310,7 +313,15 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
     }
   };
 
-  const isWaitingRoom = !participant.bootcampOnboardingCompleted || (participant.originalStartDate && participant.originalStartDate > todayStr);
+  // Grundutbildningen är den enda grinden in i de 12 veckorna. Väntrummet frågade
+  // tidigare efter startmätning och mål igen - samma sak som uppgiften
+  // 'weigh_in_and_goal' i Grundutbildningen - och de två kunde hamna i otakt.
+  const onboardingDetails = getBootcampAccessDetails(userProfile);
+  const waitingForOnboarding = onboardingDetails.hasBootcamp
+    ? onboardingDetails.isOnboarding
+    : !participant.bootcampOnboardingCompleted;
+  const waitingForStartDate = !!(participant.originalStartDate && participant.originalStartDate > todayStr);
+  const isWaitingRoom = waitingForOnboarding || waitingForStartDate;
 
   if (isWaitingRoom) {
     return (
@@ -337,62 +348,45 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           </div>
           <h1 className="text-3xl font-black text-neutral-darker mb-4">Väntrummet</h1>
           
-          {participant.originalStartDate && participant.originalStartDate > todayStr ? (
+          {waitingForStartDate ? (
             <p className="text-lg text-neutral-600 mb-8">
-              Din trupp drar igång den <strong className="text-primary">{participant.originalStartDate}</strong>. 
-              Tills dess kan du förbereda dig genom att göra din startmätning och sätta dina mål.
+              Din trupp drar igång den <strong className="text-primary">{participant.originalStartDate}</strong>.
+              Tills dess kan du göra klart Grundutbildningen på startsidan.
             </p>
           ) : (
             <p className="text-lg text-neutral-600 mb-8">
-              Innan du kan börja rapportera måste du göra din startmätning och sätta dina mål.
+              Innan du kan börja rapportera ska du göra klart Grundutbildningen – där ingår
+              startmätningen och dina mål. Den öppnas automatiskt efter {onboardingDetails.onboardingDaysLeft === 0 ? 'tre dagar' : `${onboardingDetails.onboardingDaysLeft} dagar`}.
             </p>
           )}
 
-          <div className="space-y-4">
-            <div className={`p-4 rounded-xl border ${hasCompletedWeight ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasCompletedWeight ? 'bg-[#7BA05B] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>
-                  1
-                </div>
-                <span className={`font-bold ${hasCompletedWeight ? 'text-[#2B3B2C]' : 'text-[#56524D]'}`}>Startmätning</span>
-              </div>
-              {hasCompletedWeight ? (
-                <CheckCircleIcon className="w-6 h-6 text-[#7BA05B]" />
-              ) : (
-                <button 
-                  onClick={() => setShowWeightModal(true)}
-                  className="px-4 py-2 bg-[#D96E4A] text-white font-bold rounded-lg hover:bg-[#C05A38] transition-colors"
-                >
-                  Gör nu
-                </button>
-              )}
+          {/* Grundutbildningens status. Uppgifterna bockas av på startsidan -
+              vi visar bara läget här så att inga två listor kan hamna i otakt. */}
+          <div className="text-left bg-[#FAF6EF] border border-[#F1EAE0] rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold text-[#56524D]">Grundutbildningen</span>
+              <span className="text-sm font-bold text-[#D96E4A]">
+                {onboardingDetails.onboardingTasksCompleted.length}/{ALL_BOOTCAMP_ONBOARDING_TASKS.length} klara
+              </span>
             </div>
-
-            <div className={`p-4 rounded-xl border ${participant.bootcampOnboardingCompleted ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${participant.bootcampOnboardingCompleted ? 'bg-[#7BA05B] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>
-                  2
-                </div>
-                <span className={`font-bold ${participant.bootcampOnboardingCompleted ? 'text-[#2B3B2C]' : 'text-[#56524D]'}`}>Sätt dina mål</span>
-              </div>
-              {participant.bootcampOnboardingCompleted ? (
-                <CheckCircleIcon className="w-6 h-6 text-[#7BA05B]" />
-              ) : (
-                <button 
-                  onClick={() => {
-                    if (!hasCompletedWeight) {
-                      setToast({ message: 'Gör startmätningen först!', type: 'info' });
-                    } else {
-                      setShowProfileModal(true);
-                    }
-                  }}
-                  disabled={!hasCompletedWeight}
-                  className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-darker transition-colors disabled:opacity-50"
-                >
-                  Gör nu
-                </button>
-              )}
+            <div className="w-full bg-[#F1EAE0] rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-[#D96E4A] h-full rounded-full transition-all duration-500"
+                style={{ width: `${onboardingDetails.onboardingProgressPercent}%` }}
+              ></div>
             </div>
+            <p className="text-sm text-[#7A756E] mt-3 leading-relaxed">
+              Uppgifterna gör du på startsidan. Där ingår startmätning och mål,
+              logga med foto, logga via sök, logga vatten och läsa morgonbriefingen.
+            </p>
+            {onNavigateHome && (
+              <button
+                onClick={onNavigateHome}
+                className="mt-4 w-full py-3 px-6 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl active:scale-95 transition-all"
+              >
+                Till Grundutbildningen
+              </button>
+            )}
           </div>
         </div>
 
