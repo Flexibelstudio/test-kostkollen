@@ -246,6 +246,8 @@ export interface BootcampAccess {
 export interface UserProfileData {
   name?: string;
   hasCompletedBootcamp?: boolean;
+  /** När kom igång-checklistans 100 kcal-bonus delades ut. Spärr mot dubbel utdelning. */
+  onboardingBonusGrantedAt?: number;
   currentWeightKg?: number;
   heightCm?: number;
   ageYears?: number;

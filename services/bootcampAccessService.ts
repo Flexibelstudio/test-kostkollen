@@ -2,6 +2,7 @@ import { UserProfileData, BootcampAccess, BootcampOnboardingTaskId } from '../ty
 import { ALL_BOOTCAMP_ONBOARDING_TASKS, BOOTCAMP_DURATION_DAYS, BOOTCAMP_ONBOARDING_MAX_DAYS } from '../utils/accessControl';
 import { updateUserDocument } from './firestoreService';
 import { isTestingToolAllowed } from '../utils/testingToolHostnames';
+import { SOLO_COHORT_ID } from './bootcampService';
 
 /**
  * Hjälpfunktion för att addera dagar till ett datum.
@@ -50,7 +51,7 @@ export async function startBootcampCheckout(userId?: string): Promise<void> {
   const result = await createSession({
     returnUrl: window.location.origin,
     mode: 'payment',
-    cohortId: 'solo',
+    cohortId: SOLO_COHORT_ID,
   });
 
   const url = (result.data as any)?.url;

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, UsersIcon, UserIcon, KeyIcon, CheckCircleIcon } from './icons';
 import { Loader2 } from 'lucide-react';
 import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
-import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort, getBootcampStepGoal } from '../services/bootcampService';
+import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort, getBootcampStepGoal, SOLO_COHORT_ID, isSoloCohort } from '../services/bootcampService';
 import { saveWeightLog } from '../services/firestoreService';
 import { auth, db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -52,7 +52,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         const result = await createSession({ 
             returnUrl: window.location.origin,
             mode: 'payment',
-            cohortId: isSolo ? 'solo_group' : cohortIdOrCode
+            cohortId: isSolo ? SOLO_COHORT_ID : cohortIdOrCode
         });
         
         const url = (result.data as any).url;
@@ -72,7 +72,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
   };
 
   const handleJoinSolo = async () => {
-    await handlePaymentAndJoin('solo_group', true);
+    await handlePaymentAndJoin(SOLO_COHORT_ID, true);
   };
 
   const handleJoinWithCode = async (e: React.FormEvent) => {
@@ -98,7 +98,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         fiveDaysAgo.setDate(today.getDate() - 5);
         const fiveDaysAgoStr = `${fiveDaysAgo.getFullYear()}-${String(fiveDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(fiveDaysAgo.getDate()).padStart(2, '0')}`;
 
-        if (cohortData.startDate < fiveDaysAgoStr && cohortDoc.id !== 'solo' && cohortDoc.id !== 'solo_group') {
+        if (cohortData.startDate < fiveDaysAgoStr && !isSoloCohort(cohortDoc.id)) {
             setToast({ message: 'Denna trupp har stängt för sena anmälningar.', type: 'error' });
             setIsJoining(false);
             return;

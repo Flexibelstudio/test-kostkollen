@@ -105,11 +105,23 @@ export const deleteCohort = async (cohortId: string): Promise<void> => {
   await deleteDoc(cohortRef);
 };
 
+/**
+ * Enda giltiga id:t för solotruppen. Tidigare skrev köpflödet 'solo_group'
+ * medan tjänstelagret och innehållsbiblioteket använde 'solo' - deltagare
+ * hamnade i en trupp vars innehåll aldrig lästes. Nya deltagare skrivs alltid
+ * till SOLO_COHORT_ID; 'solo_group' accepteras enbart som gammalt alias.
+ */
+export const SOLO_COHORT_ID = 'solo';
+export const LEGACY_SOLO_COHORT_IDS = ['solo_group'];
+
+export const isSoloCohort = (cohortId?: string | null): boolean =>
+  !!cohortId && (cohortId === SOLO_COHORT_ID || LEGACY_SOLO_COHORT_IDS.includes(cohortId));
+
 export const joinSoloBootcamp = async (userId: string): Promise<{ success: boolean; message: string }> => {
   if (!db) throw new Error("Firestore not initialized");
 
   // Check if already joined any bootcamp
-  const participantRef = doc(db, 'bootcampCohorts', 'solo', 'participants', userId);
+  const participantRef = doc(db, 'bootcampCohorts', SOLO_COHORT_ID, 'participants', userId);
   const participantSnap = await getDoc(participantRef);
 
   if (participantSnap.exists()) {
@@ -124,7 +136,7 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
   const startDateStr = new Date().toISOString().split('T')[0];
   const participantData: Partial<BootcampParticipant> = {
     userId,
-    cohortId: 'solo', // Special ID for solo participants
+    cohortId: SOLO_COHORT_ID,
     status: 'fas1',
     currentStreak: 0,
     longestStreak: 0,
@@ -175,7 +187,7 @@ export const completeBootcampOnboarding = async (userId: string, cohortId: strin
   };
 
   // If solo, start the 12 weeks from today
-  if (cohortId === 'solo' || cohortId === 'solo_group') {
+  if (isSoloCohort(cohortId)) {
     const startDateStr = new Date().toISOString().split('T')[0];
     updates.fas1StartDate = startDateStr;
     updates.originalStartDate = startDateStr;

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry, WeeklyCalorieBank, BuddyDetails } from '../types';
-import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal, completeBootcampOnboarding } from '../services/bootcampService';
+import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal, completeBootcampOnboarding, isSoloCohort } from '../services/bootcampService';
 import { fetchMealLogsForDate, fetchWaterLog, saveWeightLog } from '../services/firestoreService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
@@ -76,7 +76,19 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
 
   const todayStr = getDateUID(new Date());
 
-  const joinedAtMs = participant.joinedAt
+  // joinedAt kan vara antingen ett tal (klienten skriver Date.now()) eller en
+  // Firestore-Timestamp (serverskrivna dokument). Jämför man ett tal med ett
+  // Timestamp-objekt blir resultatet NaN och steg 1 kunde aldrig bli grönt.
+  const toMillis = (value: any): number => {
+    if (!value) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (value.seconds !== undefined) return value.seconds * 1000;
+    const parsed = new Date(value).getTime();
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const joinedAtMs = toMillis(participant.joinedAt)
     || (participant.originalStartDate ? new Date(participant.originalStartDate).getTime() : 0);
   const hasWeighInSinceJoining = (weightLogs || []).some(log => (log.loggedAt || 0) >= joinedAtMs);
   const hasCompletedWeight = weightSavedThisSession
@@ -254,7 +266,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       const isUsingInBody = data.skeletalMuscleMassKg != null || data.bodyFatMassKg != null;
       
       let startDate = participant.originalStartDate ? new Date(participant.originalStartDate) : new Date();
-      if (participant.cohortId === 'solo' || participant.cohortId === 'solo_group') {
+      if (isSoloCohort(participant.cohortId)) {
         startDate = new Date();
       }
       const targetDate = new Date(startDate);
@@ -471,7 +483,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             <div className="text-left">
               <h1 className="text-2xl font-extrabold uppercase tracking-wider">Lägesrapport</h1>
               <p className="text-neutral-300 text-sm font-medium">
-                {(participant.cohortId === 'solo' || participant.cohortId === 'solo_group') ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDFAS' : 'FAS 2: ELIT'}
+                {isSoloCohort(participant.cohortId) ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDFAS' : 'FAS 2: ELIT'}
               </p>
             </div>
           </div>

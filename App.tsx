@@ -1445,6 +1445,41 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
     });
   }, []);
 
+  const isGrantingOnboardingBonus = useRef(false);
+
+  /**
+   * Sparpott-bonusen ges när sista punkten bockas i, inte när belöningsmodalen
+   * stängs. Navigerade man bort i stället för att trycka på krysset fick man
+   * varken bonusen eller bli av med checklistan.
+   *
+   * Spärren ligger i användardokumentet och inte i localStorage, så bonusen inte
+   * kan hämtas en gång till från en annan enhet.
+   */
+  const grantOnboardingBonus = useCallback(async () => {
+    if (!currentUser) return;
+    if (userProfile.goalType === 'gain_muscle') return;
+    if (userProfile.onboardingBonusGrantedAt) return;
+    if (isGrantingOnboardingBonus.current) return;
+
+    isGrantingOnboardingBonus.current = true;
+    try {
+      const grantedAt = Date.now();
+      const newVal = (weeklyBankRef.current?.bankedCalories || 0) + 100;
+      const weekId = weeklyBankRef.current?.weekId || getWeekInfo(new Date()).weekId;
+      await updateUserDocument(currentUser.uid, {
+        "weeklyBank.bankedCalories": newVal,
+        "weeklyBank.weekId": weekId,
+        onboardingBonusGrantedAt: grantedAt
+      });
+      setWeeklyBank(prev => ({ ...prev, bankedCalories: newVal, weekId: prev.weekId || weekId }));
+      setUserProfile(prev => ({ ...prev, onboardingBonusGrantedAt: grantedAt }));
+      setToastNotification({ message: "100 kcal bonus tillagd i din sparpott!", type: 'success' });
+    } catch (e) {
+      console.error('Kunde inte lägga till onboarding-bonusen', e);
+      isGrantingOnboardingBonus.current = false;
+    }
+  }, [currentUser, userProfile.goalType, userProfile.onboardingBonusGrantedAt, setToastNotification]);
+
   useEffect(() => {
     if (!checklistState || !currentUser || !isInitialDataLoaded) return;
     const allComplete = Object.values(checklistState.items).every(Boolean);
@@ -1452,8 +1487,9 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         setShowConfetti(true);
         playAudio('levelUp');
         setShowOnboardingRewardModal(true);
+        grantOnboardingBonus();
     }
-  }, [checklistState, currentUser, isInitialDataLoaded]);
+  }, [checklistState, currentUser, isInitialDataLoaded, grantOnboardingBonus]);
 
   useEffect(() => {
     if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
@@ -2265,17 +2301,9 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             setChecklistState(null);
         }
 
-        if (currentUser && userProfile.goalType !== 'gain_muscle') {
-             try {
-                const newVal = (weeklyBankRef.current?.bankedCalories || 0) + 100;
-                await updateUserDocument(currentUser.uid, {
-                    "weeklyBank.bankedCalories": newVal,
-                    "weeklyBank.weekId": weeklyBankRef.current?.weekId || getWeekInfo(new Date()).weekId
-                });
-                setWeeklyBank(prev => ({ ...prev, bankedCalories: newVal, weekId: prev.weekId || getWeekInfo(new Date()).weekId }));
-                setToastNotification({ message: "100 kcal bonus tillagd i din sparpott!", type: 'success' });
-             } catch (e) {}
-        }
+        // Bonusen delas ut när sista punkten bockas i (grantOnboardingBonus).
+        // Anropet här är bara ett skyddsnät om utdelningen misslyckades då.
+        await grantOnboardingBonus();
     };
 
     // IMPLEMENTED SAVING LOGIC HERE

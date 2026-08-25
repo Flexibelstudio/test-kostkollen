@@ -742,7 +742,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             // Grundutbildning inmönstrings-uppgifter
             if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
-                const isPhoto = Boolean(newMeal.imageUrl || (newMeal.nutritionalInfo && (newMeal.nutritionalInfo as any).source === 'camera') || cameraMode === 'mealAnalysis');
+                // cameraMode får INTE vara med här. Den initieras till 'mealAnalysis'
+                // och nollställs aldrig, så villkoret var sant för alla från appstart -
+                // varje måltid räknades som foto och 'log_meal_search' kunde aldrig bockas i.
+                // Läs av måltiden själv i stället för kvardröjande UI-state.
+                const isPhoto = Boolean(newMeal.imageUrl || (newMeal.nutritionalInfo && (newMeal.nutritionalInfo as any).source === 'camera'));
                 const taskId: BootcampOnboardingTaskId = isPhoto ? 'log_meal_photo' : 'log_meal_search';
                 completeBootcampOnboardingTask(currentUser.uid, taskId, userProfile).then(updated => {
                     if (updated) {
@@ -1425,7 +1429,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
 
             {/* Checklist & Spotlight (Onboarding) */}
-            {checklistState && !checklistState.dismissed && (
+            {/* Kom igång-checklistan göms så fort bootcampen är igång - då gäller
+                grundutbildningen i stället. Aldrig två parallella onboardingspår. */}
+            {checklistState && !checklistState.dismissed && !activeBootcamp && !userProfile?.bootcampAccess && (
                 <div className="mb-4 max-w-lg mx-auto w-full">
                     <OnboardingChecklist 
                         state={checklistState}
