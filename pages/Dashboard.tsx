@@ -37,6 +37,7 @@ import {
     addCommonMeal, 
     deleteCommonMeal as deleteCommonMealFromDB, 
     updateCommonMeal,
+    incrementCommonMealUsage,
     deleteMealLog,
     updateMealLog,
     setPastDaySummary as setPastDaySummaryFirestore,
@@ -840,10 +841,20 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const confirmCommonMealLog = (type: MealType) => {
         if (showCommonMealsPopup) {
+            const loggedMeal = showCommonMealsPopup;
             handleAddMealToLog(
-                showCommonMealsPopup.nutritionalInfo, 
+                loggedMeal.nutritionalInfo, 
                 { mealType: type, skipRatingModal: true, portionMultiplier: selectedCommonMealPortion }
             );
+            // Räkna upp användningen så att de mest använda valen hamnar först.
+            // Sorteringen ska aldrig kunna stoppa loggningen, därför tyst felhantering.
+            setCommonMeals(prev => prev.map(cm => cm.id === loggedMeal.id
+                ? { ...cm, useCount: (cm.useCount || 0) + 1, lastUsedAt: Date.now() }
+                : cm));
+            if (currentUser) {
+                incrementCommonMealUsage(currentUser.uid, loggedMeal.id)
+                    .catch(err => console.error('Kunde inte uppdatera användningsräknaren', err));
+            }
             setShowCommonMealsPopup(null);
             setSelectedCommonMealType(null);
             setSelectedCommonMealPortion(1);

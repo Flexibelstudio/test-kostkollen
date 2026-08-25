@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
 import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon, SmileIcon, BookmarkIcon } from './icons.tsx';
 import { 
@@ -169,7 +169,7 @@ const CommonMealCard: React.FC<{
 
   if (isEditing) {
     return (
-      <div className="bg-white shadow-soft-xl rounded-2xl p-4 border-2 border-primary-lighter relative space-y-3 animate-fade-in flex-shrink-0 w-[85%] sm:w-[320px] snap-start">
+      <div className="bg-white shadow-soft-xl rounded-2xl p-4 border-2 border-primary-lighter relative space-y-3 animate-fade-in row-span-2 w-full h-full overflow-y-auto snap-start">
         <div>
           <label className="block text-xs font-semibold text-neutral-dark mb-1">Namn</label>
           <input
@@ -224,7 +224,7 @@ const CommonMealCard: React.FC<{
   const { icon, bg, text } = getMealIcon(meal.name);
 
   return (
-    <div className={`relative group flex-shrink-0 w-[calc(50%-0.375rem)] sm:w-[calc(33.333%-0.667rem)] min-h-[170px] snap-start ${'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`relative group w-full aspect-square snap-start ${'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
       {/* Menu Trigger */}
       <div className="absolute top-2 right-2 z-20">
         <button 
@@ -259,14 +259,14 @@ const CommonMealCard: React.FC<{
         className="w-full h-full p-4 flex flex-col items-center justify-center text-center cursor-pointer outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-2xl active:scale-95 transition-transform"
       >
         {/* Updated Icon Container with Squircle and dynamic color */}
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 shadow-sm ${bg} ${text}`}>
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 shadow-sm shrink-0 ${bg} ${text}`}>
           {icon}
         </div>
         
-        <h4 className="font-bold text-neutral-dark text-sm leading-tight mb-1 line-clamp-2 w-full">
+        <h4 className="font-bold text-neutral-dark text-sm leading-tight mb-1 line-clamp-2 w-full break-words">
           {meal.name}
         </h4>
-        <p className="text-xs font-medium text-neutral-500 bg-neutral-light/50 px-2 py-0.5 rounded-full">
+        <p className="text-xs font-medium text-neutral-500 bg-neutral-light/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
           {meal.nutritionalInfo.calories.toFixed(0)} kcal
         </p>
       </button>
@@ -298,6 +298,18 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
     onLogCommonMeal(meal);
   };
 
+  // Mest använda först. Vid lika antal: senast använd, därefter nyast sparad.
+  // Val som aldrig loggats (useCount saknas) hamnar sist men behåller inbördes ordning.
+  const sortedMeals = useMemo(() => {
+    return [...commonMeals].sort((a, b) => {
+      const countDiff = (b.useCount || 0) - (a.useCount || 0);
+      if (countDiff !== 0) return countDiff;
+      const usedDiff = (b.lastUsedAt || 0) - (a.lastUsedAt || 0);
+      if (usedDiff !== 0) return usedDiff;
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+  }, [commonMeals]);
+
   const mealToConfirm = mealIdToConfirmDelete ? commonMeals.find(cm => cm.id === mealIdToConfirmDelete) : null;
 
   return (
@@ -327,10 +339,10 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
             </p>
           </div>
         ) : (
-          <div className="flex items-stretch gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-none no-scrollbar -mx-1 px-1 pb-2">
-            {commonMeals.map((meal) => (
+          <div className="grid grid-rows-2 grid-flow-col auto-cols-[calc(50%-0.3125rem)] items-start gap-2.5 overflow-x-auto snap-x snap-mandatory scrollbar-none no-scrollbar -mx-1 px-1 pb-2">
+            {sortedMeals.map((meal) => (
               <CommonMealCard
-                key={meal.timestamp}
+                key={meal.id}
                 meal={meal}
                 onLog={handleLogClick}
                 onDelete={handleDeleteRequest}

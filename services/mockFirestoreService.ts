@@ -149,6 +149,15 @@ export async function deleteCommonMeal(userId: string, commonMealId: string) {
   saveMockState(state);
 }
 
+export async function incrementCommonMealUsage(userId: string, commonMealId: string) {
+    const index = state.commonMeals.findIndex(cm => cm.id === commonMealId);
+    if (index !== -1) {
+        const current = state.commonMeals[index];
+        state.commonMeals[index] = { ...current, useCount: (current.useCount || 0) + 1, lastUsedAt: Date.now() };
+    }
+    saveMockState(state);
+}
+
 export async function updateCommonMeal(userId: string, commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) {
     const index = state.commonMeals.findIndex(cm => cm.id === commonMealId);
     if(index !== -1) {

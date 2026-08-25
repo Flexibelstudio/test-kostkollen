@@ -1007,6 +1007,17 @@ export async function deleteCommonMeal(userId: string, commonMealId: string) {
   await deleteDoc(commonMealRef);
 }
 
+/**
+ * Räknar upp användningen av ett vanligt val. Används för att sortera de mest
+ * använda valen först. increment() är atomiskt, så parallella loggningar
+ * från flera enheter inte skriver över varandra.
+ */
+export async function incrementCommonMealUsage(userId: string, commonMealId: string) {
+  if (!db) return;
+  const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);
+  await updateDoc(commonMealRef, { useCount: increment(1), lastUsedAt: Date.now() });
+}
+
 export async function updateCommonMeal(userId: string, commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) {
   if (!db) return;
   const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);

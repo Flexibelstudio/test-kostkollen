@@ -92,6 +92,10 @@ export interface CommonMeal {
   timestamp: number;
   name: string;
   nutritionalInfo: NutritionalInfo;
+  /** Antal gånger valet loggats. Styr sorteringen – mest använda först. */
+  useCount?: number;
+  /** Tidsstämpel för senaste loggning. Skiljeförfarande vid lika useCount. */
+  lastUsedAt?: number;
 }
 
 export interface DailyWaterLog {
