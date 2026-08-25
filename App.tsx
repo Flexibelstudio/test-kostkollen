@@ -2628,6 +2628,27 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 activeBootcamp={activeBootcamp}
                 initialOpenBootcamp={openBootcampDirectly}
                 onBootcampStateChange={setIsBootcampViewActive}
+                bootcampFeedSlot={effectiveActiveBootcamp ? (
+                  <CommunityView
+                    currentUser={currentUser}
+                    userProfile={userProfile}
+                    achievements={ACHIEVEMENT_DEFINITIONS}
+                    setToastNotification={setToastNotification}
+                    pendingRequestsCount={pendingRequestsCount}
+                    unreadChatsCount={unreadChatsCount}
+                    timelineEvents={timelineEvents}
+                    setTimelineEvents={setTimelineEvents}
+                    buddyDetails={buddyDetails}
+                    isLoading={isLoadingCommunityData}
+                    activeBootcamp={effectiveActiveBootcamp}
+                    onDataChanged={loadCommunityData}
+                    lastViewTimestamp={lastCommunityViewTimestamp}
+                    currentStreak={streakData.currentStreak}
+                    userRole={userRole || 'member'}
+                    initialFeedFilter="bootcamp"
+                    embedded
+                  />
+                ) : undefined}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (

@@ -1430,6 +1430,14 @@ export const CommunityView: React.FC<{
   lastViewTimestamp: number | null;
   currentStreak: number;
   userRole: UserRole;
+  /** Startvärde för flödesfiltret. Används när vyn bäddas in i Bootcampen. */
+  initialFeedFilter?: 'all' | 'bootcamp';
+  /**
+   * Inbäddat läge: samma flöde, men utan egen flikrad och utan filterväxel.
+   * Används av Bootcampvyn så att truppens flöde renderas av EN kodväg
+   * med EN olästräknare - inget flöde flyttas eller dupliceras.
+   */
+  embedded?: boolean;
 }> = ({ 
   currentUser,
   userProfile,
@@ -1450,10 +1458,12 @@ export const CommunityView: React.FC<{
   onDataChanged,
   lastViewTimestamp,
   currentStreak,
-  userRole
+  userRole,
+  initialFeedFilter = 'all',
+  embedded = false
 }) => {
-  const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(initialTab);
-  const [feedFilter, setFeedFilter] = useState<'all' | 'bootcamp'>('all');
+  const [activeTab, setActiveTab] = useState<'flode' | 'hantera' | 'chatt'>(embedded ? 'flode' : initialTab);
+  const [feedFilter, setFeedFilter] = useState<'all' | 'bootcamp'>(initialFeedFilter);
   const [effectiveLastViewTimestamp, setEffectiveLastViewTimestamp] = useState(lastViewTimestamp);
   const [sentFriendRequests, setSentFriendRequests] = useState<Set<string>>(new Set());
   
@@ -1892,16 +1902,18 @@ export const CommunityView: React.FC<{
 
     return (
         <div className="flex flex-col flex-grow w-full h-full bg-transparent">
-            <header className="flex-shrink-0 bg-white dark:bg-neutral-darker shadow-md z-10 sticky top-0">
+            {!embedded && (
+              <header className="flex-shrink-0 bg-white dark:bg-neutral-darker shadow-md z-10 sticky top-0">
                 <nav className="flex items-center justify-around">
                     {tabs.map(tab => <TabButton key={tab.key} tab={tab} isActive={activeTab === tab.key} onClick={() => handleTabChange(tab.key as any)} />)}
                 </nav>
-            </header>
+              </header>
+            )}
             
             <main className={`flex-grow bg-transparent ${activeTab === 'chatt' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
                 {activeTab === 'flode' && (
                     <div className="p-2 sm:p-4 max-w-2xl mx-auto w-full">
-                        {activeBootcamp && (
+                        {activeBootcamp && !embedded && (
                             <div className="flex bg-neutral-100 p-1 rounded-xl mb-4">
                                 <button
                                     onClick={() => setFeedFilter('all')}

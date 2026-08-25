@@ -109,6 +109,8 @@ interface CoursesViewProps {
   activeBootcamp: BootcampParticipant | null;
   initialOpenBootcamp?: boolean;
   onBootcampStateChange?: (isOpen: boolean) => void;
+  /** Truppens flöde, renderat av App. Skickas vidare till Bootcampvyn. */
+  bootcampFeedSlot?: React.ReactNode;
 }
 
 const CourseCard: React.FC<{
@@ -234,7 +236,7 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onPreviewLesson, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp, initialOpenBootcamp, onBootcampStateChange }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onPreviewLesson, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp, initialOpenBootcamp, onBootcampStateChange, bootcampFeedSlot }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(initialOpenBootcamp || false);
   const [courseToAbort, setCourseToAbort] = useState<CourseInfo | null>(null);
@@ -284,7 +286,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
 
   if (showBootcampLanding) {
     if (activeBootcamp) {
-      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} weeklyBank={weeklyBank} onBack={() => setShowBootcampLanding(false)} ensureYesterdayProcessed={ensureYesterdayProcessed} onSaveProfileAndGoals={onSaveProfileAndGoals} onSaveWeightLog={onSaveWeightLog} />;
+      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} weeklyBank={weeklyBank} onBack={() => setShowBootcampLanding(false)} ensureYesterdayProcessed={ensureYesterdayProcessed} onSaveProfileAndGoals={onSaveProfileAndGoals} onSaveWeightLog={onSaveWeightLog} bootcampFeedSlot={bootcampFeedSlot} />;
     }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} userProfile={userProfile} goals={goals} onJoinSuccess={handleJoinSuccess} onSaveWeightLog={onSaveWeightLog} />;
   }

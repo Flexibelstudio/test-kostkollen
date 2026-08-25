@@ -31,9 +31,15 @@ interface BootcampDashboardProps {
   onAddFriend?: (userId: string, userName: string) => void;
   onSaveProfileAndGoals?: (profileUpdates: UserProfileData, goalUpdates: GoalSettings) => Promise<void>;
   onSaveWeightLog?: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
+  /**
+   * Truppens flöde, färdigrenderat av App med samma CommunityView som vanligt.
+   * Skickas som ett element i stället för ett tjugotal proppar, så att flödet
+   * har EN kodväg och EN olästräknare. Inget flöde flyttas hit - det speglas.
+   */
+  bootcampFeedSlot?: React.ReactNode;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog }) => {
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog, bootcampFeedSlot }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
@@ -41,6 +47,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
   const [showDiplomaGallery, setShowDiplomaGallery] = useState(false);
   const [isSpeakingQuote, setIsSpeakingQuote] = useState(false);
+  const [activeSection, setActiveSection] = useState<'rapport' | 'flode'>('rapport');
 
   // Waiting Room state
   const [showWeightModal, setShowWeightModal] = useState(false);
@@ -428,6 +435,28 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         <ArrowLeftIcon className="w-5 h-5" />
         Tillbaka till Kurser
       </button>
+
+      {bootcampFeedSlot && (
+        <div className="flex bg-neutral-100 dark:bg-[#34302C] p-1 rounded-xl mb-6">
+          <button
+            onClick={() => setActiveSection('rapport')}
+            className={`flex-1 py-2 px-4 rounded-lg font-bold text-base transition-colors ${activeSection === 'rapport' ? 'bg-white dark:bg-[#2B2825] text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+          >
+            Lägesrapport
+          </button>
+          <button
+            onClick={() => setActiveSection('flode')}
+            className={`flex-1 py-2 px-4 rounded-lg font-bold text-base transition-colors ${activeSection === 'flode' ? 'bg-white dark:bg-[#2B2825] text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+          >
+            Truppens flöde
+          </button>
+        </div>
+      )}
+
+      {bootcampFeedSlot && activeSection === 'flode' ? (
+        <div className="-mx-2 sm:mx-0">{bootcampFeedSlot}</div>
+      ) : (
+      <>
 
       {/* Header */}
       <div className="bg-neutral-darker text-white rounded-3xl shadow-soft-xl mb-6 relative overflow-hidden">
@@ -872,6 +901,8 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           status={participant.status}
           onClose={() => setShowDiplomaGallery(false)}
         />
+      )}
+      </>
       )}
     </div>
   );
