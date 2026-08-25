@@ -8,6 +8,8 @@ export interface AppHistoryState {
   communitySubTab?: 'buddies' | 'search' | 'requests';
   courseId?: string | null;
   lessonId?: string | null;
+  /** Sant när lektionen visas som gratis förhandsvisning av en låst kurs. */
+  previewCourseId?: string | null;
   modal?: string | null;
   timestamp: number;
 }
@@ -28,6 +30,7 @@ function isStateEqual(a: AppHistoryState, b: Partial<AppHistoryState>): boolean 
   if (b.journeyTab !== undefined && a.journeyTab !== b.journeyTab) return false;
   if (b.communityTab !== undefined && a.communityTab !== b.communityTab) return false;
   if (b.communitySubTab !== undefined && a.communitySubTab !== b.communitySubTab) return false;
+  if (b.previewCourseId !== undefined && a.previewCourseId !== b.previewCourseId) return false;
   if (b.courseId !== undefined && a.courseId !== b.courseId) return false;
   if (b.lessonId !== undefined && a.lessonId !== b.lessonId) return false;
   if (b.modal !== undefined && a.modal !== b.modal) return false;
@@ -93,6 +96,7 @@ export function pushViewState(state: Partial<AppHistoryState>): void {
     communitySubTab: state.communitySubTab !== undefined ? state.communitySubTab : (state.view === 'community' ? current.communitySubTab : undefined),
     courseId: state.courseId !== undefined ? state.courseId : (state.view === 'courseOverview' || state.view === 'lessonDetail' ? current.courseId : null),
     lessonId: state.lessonId !== undefined ? state.lessonId : (state.view === 'lessonDetail' ? current.lessonId : null),
+    previewCourseId: state.previewCourseId !== undefined ? state.previewCourseId : (state.view === 'lessonDetail' ? current.previewCourseId : null),
     modal: state.modal !== undefined ? state.modal : null,
     timestamp: Date.now()
   };

@@ -409,6 +409,7 @@ export const App = () => {
       } else if (historyState.view !== 'lessonDetail') {
         setCurrentLessonId(null);
       }
+      setPreviewCourseId((historyState.previewCourseId as CourseInfo['id'] | undefined) || null);
 
       // Sync Modals
       setShowAICoachModal(historyState.modal === 'aiCoach');
@@ -493,6 +494,8 @@ export const App = () => {
   const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error' | 'info', onClick?: () => void} | null>(null);
   
   const [activeCourse, setActiveCourse] = useState<CourseInfo | null>(null);
+  // Förhandsvisning av en låst kurs: lektion 1 i läsläge, ingenting sparas.
+  const [previewCourseId, setPreviewCourseId] = useState<CourseInfo['id'] | null>(null);
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
   const [newlyUnlockedLesson, setNewlyUnlockedLesson] = useState<CourseLesson | null>(null);
 
@@ -1545,12 +1548,29 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         }
     }
 
+    setPreviewCourseId(null);
     setActiveCourse(course);
     pushViewState({ view: 'courseOverview', courseId: course.id });
     setViewMode('courseOverview');
   };
 
+  const handlePreviewLesson = (courseId: CourseInfo['id']) => {
+    const firstLessonId = courseId === 'maxa-klimakteriet' ? 'm-lektion1' : 'lektion1';
+    setPreviewCourseId(courseId);
+    setCurrentLessonId(firstLessonId);
+    pushViewState({ view: 'lessonDetail', courseId: null, previewCourseId: courseId, lessonId: firstLessonId });
+    setViewMode('lessonDetail');
+  };
+
   const handleCloseLessonDetail = () => {
+    // Förhandsvisningen tillhör ingen aktiverad kurs - tillbaka till kurslistan.
+    if (previewCourseId) {
+      setPreviewCourseId(null);
+      setCurrentLessonId(null);
+      pushViewState({ view: 'coursesView' });
+      setViewMode('coursesView');
+      return;
+    }
     if (activeCourse) {
       pushViewState({ view: 'courseOverview', courseId: activeCourse.id });
       setViewMode('courseOverview');
@@ -1562,6 +1582,7 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
 
   const handleSelectLesson = (lessonId: string) => {
+    setPreviewCourseId(null);
     setCurrentLessonId(lessonId);
     pushViewState({ view: 'lessonDetail', courseId: activeCourse?.id, lessonId });
     setViewMode('lessonDetail');
@@ -2392,7 +2413,9 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
   ];
 
   const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
-  const currentLesson = lessonsForOverview.find(l => l.id === currentLessonId);
+  const previewLessons = previewCourseId === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
+  const lessonsForCurrentView = previewCourseId ? previewLessons : lessonsForOverview;
+  const currentLesson = lessonsForCurrentView.find(l => l.id === currentLessonId);
 
   const coachName = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle].label : 'Din Coach';
 
@@ -2597,6 +2620,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 weightLogs={weightLogs}
                 weeklyBank={weeklyBank}
                 onNavigateToCourse={handleNavigateToCourse}
+                onPreviewLesson={handlePreviewLesson}
                 onSaveProfileAndGoals={handleSaveProfileAndGoals}
                 onSaveWeightLog={handleBootcampInitialWeightLog}
                 onCourseAborted={refreshUserData}
@@ -2630,6 +2654,15 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 weightLogs={weightLogs}
                 pastDaysSummary={Object.values(pastDaysSummary)}
                 onOpenLogWeightModal={handleOpenLogWeightModal} 
+                isPreview={!!previewCourseId}
+                previewPositionText={previewCourseId ? `Lektion 1 av ${previewLessons.length}` : undefined}
+                previewUnlockText={
+                  previewCourseId === 'praktisk-viktkontroll'
+                    ? 'Resten av kursen låses upp när du har genomfört en Bootcamp. Då sparas dina svar och Flexibot ger dig personlig återkoppling på varje reflektion.'
+                    : previewCourseId
+                      ? 'Starta kursen för att spara dina svar och få personlig återkoppling från Flexibot på varje reflektion.'
+                      : undefined
+                }
             />
          )}
          {viewMode === 'community' && (

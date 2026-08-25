@@ -18,6 +18,12 @@ interface LessonDetailProps {
   onOpenLogWeightModal: () => void;
   onClose: () => void;
   isBootcamp?: boolean;
+  /** Förhandsvisning av en låst kurs: allt går att läsa, inget går att spara. */
+  isPreview?: boolean;
+  /** Text som förklarar hur kursen låses upp. Visas i botten av förhandsvisningen. */
+  previewUnlockText?: string;
+  /** Lektionens plats i kursen, t.ex. "Lektion 1 av 12". */
+  previewPositionText?: string;
 }
 
 const LessonDetail: React.FC<LessonDetailProps> = ({
@@ -33,7 +39,10 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
   pastDaysSummary,
   onOpenLogWeightModal,
   onClose,
-  isBootcamp
+  isBootcamp,
+  isPreview = false,
+  previewUnlockText,
+  previewPositionText
 }) => {
   const [reflectionAnswer, setReflectionAnswer] = useState(progress?.reflectionAnswer || '');
   const [whyAnswer, setWhyAnswer] = useState(progress?.whyAnswer || '');
@@ -57,7 +66,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
 
   useEffect(() => {
     const fetchAiIntro = async () => {
-      if (lesson.aiPromptHint) {
+      if (lesson.aiPromptHint && !isPreview) {
         setIsLoadingAi(true);
         setAiIntro(null);
         try {
@@ -133,6 +142,13 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
 
   return (
     <div className="animate-fade-in pb-10">
+      {isPreview && (
+        <div className="mb-3 px-4 py-2.5 rounded-2xl bg-[#F6E2D9] border border-[#D96E4A]/30 flex items-center gap-2 text-[#56524D]">
+          <BookOpenIcon className="w-5 h-5 text-[#D96E4A] flex-shrink-0" />
+          <span className="text-sm font-bold">Förhandsvisning</span>
+          {previewPositionText && <span className="text-sm text-[#7A756E]">· {previewPositionText}</span>}
+        </div>
+      )}
       <article className={`p-6 sm:p-8 rounded-3xl shadow-soft-xl border ${'bg-white dark:bg-neutral-darker border-neutral-light'}`}>
         <header className={`mb-8 pb-6 border-b ${'border-neutral-light/70'}`}>
             <div className="flex justify-between items-start mb-4">
@@ -204,8 +220,10 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                       }
                   }}
                   rows={5}
-                  className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 text-base ${'border-neutral-light focus:ring-primary'}`}
-                  placeholder="Skriv dina tankar här..."
+                  readOnly={isPreview}
+                  disabled={isPreview}
+                  className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 text-base ${'border-neutral-light focus:ring-primary'} ${isPreview ? 'bg-neutral-light/40 cursor-not-allowed' : ''}`}
+                  placeholder={isPreview ? 'Här skriver du dina egna svar när du har kursen.' : 'Skriv dina tankar här...'}
                   aria-label={lesson.specialAction.prompt}
                 />
           </section>
@@ -218,8 +236,9 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
             {lesson.focusPoints.map(point => (
               <li key={point.id} className="space-y-3">
                 <button
-                  onClick={() => onToggleFocusPoint(lesson.id, point.id)}
-                  className={`flex items-center w-full p-4 rounded-xl border-2 interactive-transition active:scale-[0.98] shadow-sm
+                  onClick={() => { if (!isPreview) onToggleFocusPoint(lesson.id, point.id); }}
+                  disabled={isPreview}
+                  className={`flex items-center w-full p-4 rounded-xl border-2 interactive-transition shadow-sm ${isPreview ? 'cursor-default' : 'active:scale-[0.98]'}
                     ${progress?.completedFocusPoints?.includes(point.id)
                       ? ('bg-[#E8EFE9] border-[#7BA05B] text-[#2B3B2C]')
                       : ('bg-white dark:bg-neutral-darker border-neutral-light hover:border-[#D96E4A] text-neutral-dark dark:text-white')
@@ -235,7 +254,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                   </div>
                   <span className="flex-grow text-left text-base sm:text-lg font-medium">{point.text}</span>
                 </button>
-                {point.cta && (
+                {point.cta && !isPreview && (
                     <div className="pl-14">
                         <button 
                             onClick={() => handleCtaClick(point.cta!.action)}
@@ -279,13 +298,30 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                 setReflectionAnswer(e.target.value);
             }}
             rows={4}
-            className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 text-base ${'border-neutral-light focus:ring-primary'}`}
-            placeholder="Dina tankar och reflektioner..."
+            readOnly={isPreview}
+            disabled={isPreview}
+            className={`w-full p-4 border rounded-xl shadow-sm focus:outline-none focus:ring-2 text-base ${'border-neutral-light focus:ring-primary'} ${isPreview ? 'bg-neutral-light/40 cursor-not-allowed' : ''}`}
+            placeholder={isPreview ? 'Dina reflektioner sparas när du har kursen – och Flexibot svarar på dem.' : 'Dina tankar och reflektioner...'}
             aria-label={lesson.reflection.question}
           />
         </section>
         
-        {progress?.isCompleted ? (
+        {isPreview ? (
+          <div className="mt-10 p-6 rounded-2xl border text-center bg-[#FAF6EF] dark:bg-[#34302C] border-[#F1EAE0] dark:border-[#484440]">
+            <p className="text-xl font-bold text-[#56524D] dark:text-[#FAF6EF] mb-2">Det här var lektion 1.</p>
+            {previewUnlockText && (
+              <p className="text-base text-[#7A756E] dark:text-[#C2BCB4] max-w-md mx-auto leading-relaxed mb-5">
+                {previewUnlockText}
+              </p>
+            )}
+            <button
+              onClick={onClose}
+              className="px-8 py-3 bg-[#D96E4A] hover:bg-[#C05A38] text-white text-lg font-semibold rounded-xl shadow-md active:scale-95 transform interactive-transition"
+            >
+              Tillbaka till kurserna
+            </button>
+          </div>
+        ) : progress?.isCompleted ? (
            <div className={`mt-10 p-6 border rounded-2xl text-center ${'bg-[#E8EFE9] border-[#7BA05B]/40'}`}>
             <CheckCircleIcon className={`w-12 h-12 mx-auto mb-3 ${'text-[#7BA05B]'}`} />
             <p className={`text-xl font-bold ${'text-[#2B3B2C]'}`}>Bra jobbat, du har slutfört denna lektion!</p>
@@ -301,7 +337,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
           </div>
         ) : null}
 
-        <div className="mt-10 pt-8 border-t border-neutral-light/70 text-center">
+        {!isPreview && <div className="mt-10 pt-8 border-t border-neutral-light/70 text-center">
             <button
                 onClick={handleSaveAndClose}
                 disabled={isSaving}
@@ -316,7 +352,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
                     </>
                 )}
             </button>
-        </div>
+        </div>}
       </article>
     </div>
   );

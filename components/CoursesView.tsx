@@ -7,6 +7,7 @@ import BootcampLandingView from './BootcampLandingView';
 import BootcampDashboard from './BootcampDashboard';
 import { getUserActiveBootcamp, abortBootcamp } from '../services/bootcampService';
 import { cancelCourse } from '../services/firestoreService';
+import { courseLessons, menopauseCourseLessons } from '../courseData';
 import { auth } from '../firebase';
 
 export interface Review {
@@ -99,6 +100,8 @@ interface CoursesViewProps {
   weightLogs: WeightLogEntry[];
   weeklyBank: WeeklyCalorieBank;
   onNavigateToCourse: (courseId: CourseInfo['id']) => void;
+  /** Öppnar lektion 1 i läsläge för en låst kurs. */
+  onPreviewLesson: (courseId: CourseInfo['id']) => void;
   onSaveProfileAndGoals: (profile: UserProfileData, goals: GoalSettings) => Promise<void>;
   onSaveWeightLog: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
   onCourseAborted: () => Promise<void>;
@@ -117,7 +120,9 @@ const CourseCard: React.FC<{
   isLocked?: boolean;
   lockedReason?: string;
   isBootcamp?: boolean;
-}> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason, isBootcamp }) => {
+  lessonTitles?: string[];
+  onPreview?: () => void;
+}> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason, isBootcamp, lessonTitles, onPreview }) => {
 
   const baseClasses = `bg-white dark:bg-[#2B2825] p-6 rounded-[22px] shadow-soft-xl border border-[#F1EAE0] dark:border-[#484440] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75' : 'hover:scale-[1.01]'}`;
 
@@ -171,9 +176,38 @@ const CourseCard: React.FC<{
 
         <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${'border-[#F1EAE0] dark:border-[#484440]'}`}>
             {isLocked ? (
-                <div className={`w-full py-3 px-4 flex flex-col items-center justify-center text-center rounded-full border ${'bg-[#F1EAE0] border-[#F1EAE0] text-[#7A756E]'}`}>
-                    <span className="text-sm font-bold mb-1">Låst</span>
-                    <span className="text-xs">{lockedReason}</span>
+                <div className="w-full flex flex-col gap-3">
+                    {lessonTitles && lessonTitles.length > 0 && (
+                        <div className="text-left">
+                            <p className="text-xs font-bold uppercase tracking-wider text-[#7A756E] mb-2">
+                                {lessonTitles.length} lektioner ingår
+                            </p>
+                            <ul className="space-y-1.5">
+                                {lessonTitles.slice(0, 4).map((title, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-[#56524D] dark:text-[#C2BCB4]">
+                                        <span className="text-[#D96E4A] font-bold flex-shrink-0">{i + 1}.</span>
+                                        <span className="leading-snug">{title}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                            {lessonTitles.length > 4 && (
+                                <p className="text-sm text-[#7A756E] mt-1.5 pl-5">…och {lessonTitles.length - 4} till</p>
+                            )}
+                        </div>
+                    )}
+                    <div className={`w-full py-2.5 px-4 flex flex-col items-center justify-center text-center rounded-2xl border ${'bg-[#F1EAE0] border-[#F1EAE0] text-[#7A756E]'}`}>
+                        <span className="text-sm font-bold mb-0.5">Låst</span>
+                        <span className="text-xs">{lockedReason}</span>
+                    </div>
+                    {onPreview && (
+                        <button
+                            onClick={onPreview}
+                            className="w-full py-3 px-6 flex items-center justify-center gap-2 font-medium rounded-full border-2 border-[#D96E4A] text-[#D96E4A] hover:bg-[#F6E2D9] active:scale-95 transform transition-all"
+                        >
+                            Läs lektion 1 gratis
+                            <ArrowRightIcon className="w-5 h-5" />
+                        </button>
+                    )}
                 </div>
             ) : (
                 <button
@@ -200,7 +234,7 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp, initialOpenBootcamp, onBootcampStateChange }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onPreviewLesson, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp, initialOpenBootcamp, onBootcampStateChange }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(initialOpenBootcamp || false);
   const [courseToAbort, setCourseToAbort] = useState<CourseInfo | null>(null);
@@ -314,6 +348,12 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
                         isLocked={isLocked}
                         lockedReason={lockedReason}
                         isBootcamp={course.id === 'bootcamp'}
+                        lessonTitles={
+                          course.id === 'praktisk-viktkontroll' ? courseLessons.map(l => l.title)
+                          : course.id === 'maxa-klimakteriet' ? menopauseCourseLessons.map(l => l.title)
+                          : undefined
+                        }
+                        onPreview={isLocked && course.id !== 'bootcamp' ? () => onPreviewLesson(course.id) : undefined}
                     />
                 );
             })}
