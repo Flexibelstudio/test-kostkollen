@@ -195,6 +195,29 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
   const passwordInputClass = "pr-12"; // Add padding for the icon
   const buttonBaseClass = "w-full py-3 px-6 rounded-lg font-semibold text-white text-lg shadow-md transition-colors disabled:opacity-70 disabled:cursor-not-allowed interactive-transition active:scale-95"; // Added px-6, text-lg, shadow-md
 
+  /**
+   * Registreringen får inte utlova en produkt som användaren ännu inte valt.
+   * Tidigare stod det "Starta dina 7 gratisdagar" för alla - även för den som
+   * kom hit för att köpa Bootcampen. Valet görs efter kontot, när hon sett sin plan.
+   *
+   * Avsikten från landningssidan (?valj=bootcamp eller ?valj=app) sparas för
+   * valsidan, men syns inte i den här rutan - den ska bara vara ett konto.
+   */
+  const signupIntent = (() => {
+    if (typeof window === 'undefined') return null;
+    const value = new URLSearchParams(window.location.search).get('valj');
+    return value === 'bootcamp' || value === 'app' ? value : null;
+  })();
+
+  // Spara avsikten så att valsidan kan förvälja rätt alternativ efter registreringen.
+  useEffect(() => {
+    if (signupIntent && typeof window !== 'undefined') {
+      window.sessionStorage.setItem('signup_intent', signupIntent);
+    }
+  }, [signupIntent]);
+
+  const signupHeading = 'Skapa konto';
+
   return (
     <>
       <div className="min-h-screen flex items-start sm:items-center justify-center bg-neutral-light p-4 pt-12 sm:pt-4">
@@ -202,13 +225,13 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
           <div className="text-center mb-6">
             <img src="/favicon.png" alt="Kostloggen.se logo" className="h-20 w-20 mx-auto mb-3 drop-shadow-sm" />
             <h2 className="text-2xl sm:text-3xl font-bold text-neutral-dark">
-              {isLogin ? "Logga in" : "Starta dina 7 gratisdagar"}
+              {isLogin ? "Logga in" : signupHeading}
             </h2>
-            <p className="text-neutral mt-2 text-sm font-medium leading-relaxed">
-              {isLogin 
-                ? "Välkommen tillbaka!" 
-                : "Du betalar inget idag. 95 kr/mån efter provperioden – avsluta när du vill."}
-            </p>
+            {isLogin && (
+              <p className="text-neutral mt-2 text-sm font-medium leading-relaxed">
+                Välkommen tillbaka!
+              </p>
+            )}
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -259,7 +282,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthStateChange }) => {
                 >
                   {isLoading && !resetFeedback ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mx-auto"></div>
-                  ) : (isLogin ? "Logga in" : "Starta 7 dagar gratis")}
+                  ) : (isLogin ? "Logga in" : "Fortsätt")}
                 </button>
             </div>
 
