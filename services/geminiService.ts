@@ -424,6 +424,7 @@ Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringsl�
 - Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
 - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Fibrer: riktmärket är ca 25 g om dagen. Fibrer är ett SAMLARMÅL, aldrig ett mål man missar - skäll aldrig på lågt fiberintag och räkna det aldrig som ett misslyckande. Ligger fibrerna lågt flera dagar i rad får du föreslå ett konkret byte (fullkorn i stället för vitt, baljväxter i grytan, frukt eller grönt till mellanmålet). Saknas fibervärde i datan: nämn inte fibrer alls.
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 ${dietaryPromptBlock(userProfile.dietaryPreference)}
 
@@ -437,6 +438,7 @@ Användaren heter ${name}.
 SITUATION IGÅR:
 - Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
 - Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
+${typeof summary.consumedFiber === 'number' ? `- Fibrer igår: ${summary.consumedFiber.toFixed(0)} g (riktmärke 25 g)` : '- Fibrer igår: okänt (nämn inte fibrer)'}
 - Streak-status: ${currentStreak > 0 ? `AKTIV (${currentStreak} dagar i rad). Användaren loggade igår!` : 'BRUTEN (0 dagar). Användaren loggade inte igår.'}
 ${yesterdayBootcampReport ? `
 BOOTCAMP-RAPPORT IGÅR:
@@ -532,7 +534,8 @@ export const analyzeFoodImage = async (base64ImageData: string): Promise<Nutriti
     text: `Identifiera måltiden/livsmedlet på bilden och uppskatta näringsvärden.
 Ingen introduktion, ingen förklaring, inga ingredienslistor.
 Svara ENDAST med ett JSON-objekt:
-{"foodItem":"Maträtt på svenska","calories":0,"protein":0,"carbohydrates":0,"fat":0}`
+{"foodItem":"Maträtt på svenska","calories":0,"protein":0,"carbohydrates":0,"fat":0,"fiber":0}
+"fiber" = kostfiber i gram (ingår i kolhydraterna, dra inte av dem). Uppskatta alltid, även grovt.`
   };
   recordUploadEnd();
 
@@ -610,12 +613,13 @@ Svara ENDAST med ett enda JSON-objekt med följande nycklar:
 "calories" (number, för den beskrivna portionen),
 "protein" (number, i gram, för den beskrivna portionen),
 "carbohydrates" (number, i gram, för den beskrivna portionen),
-"fat" (number, i gram, för den beskrivna portionen).
+"fat" (number, i gram, för den beskrivna portionen),
+"fiber" (number, kostfiber i gram för den beskrivna portionen; ingår i kolhydraterna och ska INTE dras av från dem. Uppskatta alltid, sätt 0 bara för livsmedel som verkligen saknar fiber, t.ex. kött, fisk, ägg, mejeri och olja).
 
 Se till att alla näringsvärden är numeriska och representerar en rimlig näringsprofil för standardportionen av livsmedlet. Om sökfrågan är tvetydig (t.ex. "läsk"), försök att välja ett vanligt exempel (t.ex. "Coladryck") eller ange antagandet i foodItem.
-Exempel för "ett ägg": {"foodItem": "Stort ägg, kokat", "servingDescription": "1 stort (ca 50g)", "calories": 78, "protein": 6, "carbohydrates": 0.6, "fat": 5}
-Exempel för "ett glas mjölk": {"foodItem": "Mjölk, 2% fett", "servingDescription": "1 glas (ca 240ml)", "calories": 122, "protein": 8, "carbohydrates": 12, "fat": 5}
-Exempel för "öl": {"foodItem": "Öl, vanlig", "servingDescription": "1 burk (355ml)", "calories": 153, "protein": 1.6, "carbohydrates": 13, "fat": 0}`;
+Exempel för "ett ägg": {"foodItem": "Stort ägg, kokat", "servingDescription": "1 stort (ca 50g)", "calories": 78, "protein": 6, "carbohydrates": 0.6, "fat": 5, "fiber": 0}
+Exempel för "ett glas mjölk": {"foodItem": "Mjölk, 2% fett", "servingDescription": "1 glas (ca 240ml)", "calories": 122, "protein": 8, "carbohydrates": 12, "fat": 5, "fiber": 0}
+Exempel för "en portion linsgryta": {"foodItem": "Linsgryta", "servingDescription": "1 portion (ca 350g)", "calories": 320, "protein": 17, "carbohydrates": 42, "fat": 8, "fiber": 12}`;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
@@ -705,6 +709,7 @@ Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringsl�
 - Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
 - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Fibrer: riktmärket är ca 25 g om dagen. Fibrer är ett SAMLARMÅL, aldrig ett mål man missar - skäll aldrig på lågt fiberintag och räkna det aldrig som ett misslyckande. Ligger fibrerna lågt flera dagar i rad får du föreslå ett konkret byte (fullkorn i stället för vitt, baljväxter i grytan, frukt eller grönt till mellanmålet). Saknas fibervärde i datan: nämn inte fibrer alls.
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 ${dietaryPromptBlock(userProfile.dietaryPreference)}
 
@@ -786,6 +791,7 @@ Ditt svar MÅSTE vara ett enda JSON-objekt med följande struktur:
     "protein": number,
     "carbohydrates": number,
     "fat": number,
+    "fiber": number,
     "foodItem": "Samma som title (sträng)"
   },
   "chefTip": "Valfritt: Ett hjälpsamt tips eller variation (sträng, SVENSKA)"
@@ -889,7 +895,7 @@ JSON-struktur för varje recept i 'recipeSuggestions':
   "servings": "Uppskattat antal portioner (sträng, t.ex. '4 portioner', SVENSKA)",
   "ingredients": [ { "item": "Fullständig ingredienssträng..." } ],
   "instructions": [ "Instruktion 1...", "Instruktion 2..." ],
-  "totalNutritionalInfo": { "calories": number, "protein": number, "carbohydrates": number, "fat": number, "foodItem": "Samma som title (sträng)" },
+  "totalNutritionalInfo": { "calories": number, "protein": number, "carbohydrates": number, "fat": number, "fiber": number, "foodItem": "Samma som title (sträng)" },
   "chefTip": "Valfritt: Ett hjälpsamt tips eller variation (sträng, SVENSKA)"
 }
 `
@@ -967,6 +973,7 @@ export const getAICoachResponseStream = async (
     date: s.date,
     consumedCalories: s.consumedCalories,
     consumedProtein: s.consumedProtein,
+    consumedFiber: typeof s.consumedFiber === 'number' ? s.consumedFiber : null,
     consumedCarbohydrates: s.consumedCarbohydrates,
     consumedFat: s.consumedFat,
     proteinGoalMet: s.proteinGoalMet,
@@ -993,6 +1000,7 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
     - Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
     - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
     - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+    - Fibrer: riktmärket är ca 25 g om dagen. Fibrer är ett SAMLARMÅL, aldrig ett mål man missar - skäll aldrig på lågt fiberintag och räkna det aldrig som ett misslyckande. Ligger fibrerna lågt flera dagar i rad får du föreslå ett konkret byte (fullkorn i stället för vitt, baljväxter i grytan, frukt eller grönt till mellanmålet). Saknas fibervärde i datan: nämn inte fibrer alls.
     - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 ${dietaryPromptBlock(userProfile.dietaryPreference)}
 
@@ -1284,6 +1292,14 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     const totalaDagar = last30DaysSummaries.length;
     const waterGoalMetCount = last30DaysSummaries.filter(s => s.waterGoalMet).length;
     const vattenuppfyllnadProcent = totalaDagar > 0 ? ((waterGoalMetCount / totalaDagar) * 100).toFixed(0) : '0';
+
+    // Fibersnitt raknas BARA pa dagar som faktiskt har ett fibervarde. Skulle
+    // dagar fran tiden fore fibrerna raknas som noll drogs snittet ner i veckor
+    // och coachen hade kommenterat en nedgang som aldrig hant.
+    const dagarMedFiber = last30DaysSummaries.filter(s => typeof s.consumedFiber === 'number');
+    const fiberSnitt = dagarMedFiber.length > 0
+        ? (dagarMedFiber.reduce((sum, s) => sum + (s.consumedFiber || 0), 0) / dagarMedFiber.length).toFixed(0)
+        : null;
     
     const { currentLevel } = getUserLevelInfo(currentStreak);
     const nivå = currentLevel.name;
@@ -1350,6 +1366,7 @@ Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringsl�
 - Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
 - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Fibrer: riktmärket är ca 25 g om dagen. Fibrer är ett SAMLARMÅL, aldrig ett mål man missar - skäll aldrig på lågt fiberintag och räkna det aldrig som ett misslyckande. Ligger fibrerna lågt flera dagar i rad får du föreslå ett konkret byte (fullkorn i stället för vitt, baljväxter i grytan, frukt eller grönt till mellanmålet). Saknas fibervärde i datan: nämn inte fibrer alls.
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 ${dietaryPromptBlock(userProfile.dietaryPreference)}
 
@@ -1413,6 +1430,7 @@ ${bodyCompositionDataPrompt}
 - Summering av näring i analysperioden: ${nutritionalSummaryForPrompt}
 - Måltidslinje & Milstolpar: ${JSON.stringify(goalTimeline)}
 - Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna (senaste 30d)
+- Fibrer: ${fiberSnitt ? `${fiberSnitt} g i snitt per dag (${dagarMedFiber.length} dagar med data, riktmärke 25 g)` : 'ingen fiberdata ännu - nämn inte fibrer'}
 - Streak: ${currentStreak} dagar
 - Nivå: ${nivå}
 - Aktivitetsnivå: ${aktivitetsnivå}
@@ -1533,10 +1551,11 @@ Svara ENDAST med ett enda JSON-objekt med följande exakta nycklar:
 "calories" (number, i kcal, per 100g/ml),
 "protein" (number, i gram, per 100g/ml),
 "carbohydrates" (number, i gram, per 100g/ml),
-"fat" (number, i gram, per 100g/ml).
+"fat" (number, i gram, per 100g/ml),
+"fiber" (number, kostfiber i gram per 100g/ml. Star det "varav fiber", "fiber" eller "kostfiber" pa etiketten: ta det vardet. Saknas raden helt, uppskatta utifran produkttypen).
 
 Se till att alla näringsvärden är numeriska och representerar värdena per 100g eller 100ml. Om ett värde inte kan hittas, returnera 0 för det fältet. Om du hittar "kJ" för energi, omvandla det till kcal (dividera med 4.184). Extrahera endast siffror.
-Exempel: {"foodItem": "Ekologisk Mellanmjölk", "calories": 45, "protein": 3.5, "carbohydrates": 4.9, "fat": 1.5}`
+Exempel: {"foodItem": "Ekologisk Mellanmjölk", "calories": 45, "protein": 3.5, "carbohydrates": 4.9, "fat": 1.5, "fiber": 0}`
   };
 
   try {

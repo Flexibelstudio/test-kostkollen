@@ -48,6 +48,9 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
         protein: scanResult.nutrientsPer100g.protein * multiplier,
         carbohydrates: scanResult.nutrientsPer100g.carbohydrates * multiplier,
         fat: scanResult.nutrientsPer100g.fat * multiplier,
+        fiber: typeof scanResult.nutrientsPer100g.fiber === 'number'
+          ? scanResult.nutrientsPer100g.fiber * multiplier
+          : undefined,
       });
     }
   }, [amount, unit, scanResult]);

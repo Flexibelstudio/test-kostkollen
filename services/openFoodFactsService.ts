@@ -34,6 +34,10 @@ export const getFoodInfoFromBarcode = async (barcode: string): Promise<BarcodeSc
       protein: nutriments.proteins_100g || 0,
       carbohydrates: nutriments.carbohydrates_100g || 0,
       fat: nutriments.fat_100g || 0,
+      // Open Food Facts har ofta fiber, men langt ifran alltid. Saknas den
+      // lamnar vi faltet odefinierat i stallet for 0, sa att dagen kan visa
+      // "vet ej" i stallet for att pasta att maten var fiberfri.
+      fiber: typeof nutriments.fiber_100g === 'number' ? nutriments.fiber_100g : undefined,
     },
   };
 };

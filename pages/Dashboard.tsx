@@ -13,6 +13,7 @@ import {
 } from '../types';
 import { 
     DEFAULT_WATER_GOAL_ML,
+    FIBER_DAILY_TARGET_GRAMS,
     MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
     LOCAL_STORAGE_KEYS,
     COACH_PERSONAS
@@ -58,6 +59,7 @@ import { pushModalState, replaceModalState, closeModalState, subscribeToHistory 
 import CameraModal from '../components/CameraModal';
 import TextEntryModal from '../components/TextEntryModal';
 import ProteinInfoModal from '../components/ProteinInfoModal';
+import FiberRow from '../components/FiberRow';
 import RecipeChoiceModal from '../components/RecipeChoiceModal';
 import RecipeModal from '../components/RecipeModal';
 import IngredientCaptureModal from '../components/IngredientCaptureModal';
@@ -543,6 +545,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             carbohydrateGoal: goals.carbohydrateGoal,
             consumedFat: totals.fat,
             fatGoal: goals.fatGoal,
+            // Bara om dagen faktiskt har fibervarden. Skrivs 0 in for gamla
+            // dagar blir veckosnittet missvisande i flera veckor framat.
+            ...(totals.hasFiberData ? { consumedFiber: totals.fiber } : {}),
             goalType: userProfile.goalType,
             waterGoalMet: currentWater >= DEFAULT_WATER_GOAL_ML,
             streakForThisDay: newStreak, 
@@ -706,6 +711,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                 protein: newMeal.nutritionalInfo.protein * multiplier,
                 carbohydrates: newMeal.nutritionalInfo.carbohydrates * multiplier,
                 fat: newMeal.nutritionalInfo.fat * multiplier,
+                fiber: typeof newMeal.nutritionalInfo.fiber === 'number'
+                    ? newMeal.nutritionalInfo.fiber * multiplier
+                    : undefined,
             };
         }
 
@@ -1205,6 +1213,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                         />
                     </div>
 
+                    {/* Fibrer - eget mal, medvetet utanfor makrogrids tre kort */}
+                    <div className="w-full px-4 sm:px-6 mt-2">
+                        <FiberRow
+                            current={totalNutrients.fiber}
+                            target={FIBER_DAILY_TARGET_GRAMS}
+                            hasData={totalNutrients.hasFiberData}
+                        />
+                    </div>
+
                     {/* Mina vanliga val – kort, två i bredd, scrollas i sidled */}
                     {commonMeals && commonMeals.length > 0 && (
                         <div className="w-full px-4 sm:px-6 mt-3 pt-3 border-t border-neutral-light/70 dark:border-[#484440]/60">
@@ -1379,7 +1396,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     calorieGoal: goals.calorieGoal,
                     proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
                     waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML,
-                    goalMet: currentGoalMet
+                    goalMet: currentGoalMet,
+                    fiberGoalMet: totalNutrients.hasFiberData && totalNutrients.fiber >= FIBER_DAILY_TARGET_GRAMS
                 }}
                 isSummarizingYesterday={isSummarizingYesterday}
                 bankedCalories={weeklyBank.bankedCalories}

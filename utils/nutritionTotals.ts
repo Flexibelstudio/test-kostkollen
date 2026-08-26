@@ -7,6 +7,10 @@ export interface NutrientTotals {
   protein: number;
   carbohydrates: number;
   fat: number;
+  /** Summerade fibrer. Maltider utan fibervarde raknas som 0 har. */
+  fiber: number;
+  /** True om minst en maltid faktiskt bar ett fibervarde. */
+  hasFiberData: boolean;
 }
 
 export interface RemainingCaloriesResult {
@@ -54,9 +58,14 @@ export function sumMealNutrients(
         protein: acc.protein + (meal.nutritionalInfo.protein * count),
         carbohydrates: acc.carbohydrates + (meal.nutritionalInfo.carbohydrates * count),
         fat: acc.fat + (meal.nutritionalInfo.fat * count),
+        // Fibrer ar valfria. Saknas de pa en maltid bidrar den med 0, men vi
+        // minns om NAGON maltid hade ett varde - annars gar det inte att skilja
+        // "at inga fibrer" fran "vi vet inte".
+        fiber: acc.fiber + ((meal.nutritionalInfo.fiber || 0) * count),
+        hasFiberData: acc.hasFiberData || typeof meal.nutritionalInfo.fiber === 'number',
       };
     },
-    { calories: 0, protein: 0, carbohydrates: 0, fat: 0 }
+    { calories: 0, protein: 0, carbohydrates: 0, fat: 0, fiber: 0, hasFiberData: false }
   );
 }
 
@@ -201,6 +210,10 @@ export function resolveUpdatedNutrients(
     protein: resolveNutritionalFieldValue(original.protein, edited.protein),
     carbohydrates: resolveNutritionalFieldValue(original.carbohydrates, edited.carbohydrates),
     fat: resolveNutritionalFieldValue(original.fat, edited.fat),
+    // Fibrer redigeras inte for hand nagonstans, men de far inte tappas bort
+    // nar anvandaren justerar makrona - da hade dagens fibersumma sjunkit av
+    // en andring som inte handlade om fibrer.
+    fiber: original.fiber,
   };
 }
 

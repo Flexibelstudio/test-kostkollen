@@ -1,10 +1,10 @@
 
 import React, { useMemo } from 'react';
 import { PastDaysSummaryCollection } from '../types';
-import { Dumbbell } from 'lucide-react';
+import { Dumbbell, Leaf } from 'lucide-react';
 import { ArrowLeftIcon, ArrowRightIcon } from './icons';
 import { getISOWeekNumber } from '../utils/dateUtils';
-import { MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL } from '../constants';
+import { MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, FIBER_DAILY_TARGET_GRAMS } from '../constants';
 
 interface DailyStats {
     calories: number;
@@ -12,6 +12,7 @@ interface DailyStats {
     proteinGoalMet: boolean;
     waterGoalMet: boolean;
     goalMet: boolean;
+    fiberGoalMet?: boolean;
 }
 
 interface WeeklyActivityChartProps {
@@ -127,6 +128,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             let proteinGoalMet = false;
             let waterGoalMet = false;
             let goalMet = false;
+            let fiberGoalMet = false;
 
             const summary = pastDaysSummary[dayISO];
 
@@ -135,6 +137,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 calorieGoal = currentViewStats.calorieGoal;
                 proteinGoalMet = currentViewStats.proteinGoalMet;
                 waterGoalMet = currentViewStats.waterGoalMet;
+                fiberGoalMet = Boolean(currentViewStats.fiberGoalMet);
                 
                 const minSafe = calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
                 const overage = Math.max(0, calories - calorieGoal);
@@ -153,6 +156,10 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 proteinGoalMet = summary.proteinGoalMet;
                 waterGoalMet = summary.waterGoalMet || false;
                 goalMet = summary.goalMet;
+                // Dagar loggade innan fibrerna infordes saknar faltet helt och
+                // far ingen markor - de ska inte se ut som misslyckanden.
+                fiberGoalMet = typeof summary.consumedFiber === 'number'
+                    && summary.consumedFiber >= FIBER_DAILY_TARGET_GRAMS;
             }
             
             const dayLabel = day.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '').charAt(0).toUpperCase();
@@ -210,6 +217,12 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                                     {proteinGoalMet && hasLog && (
                                         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-full flex justify-center">
                                             <Dumbbell className="w-3 h-3 sm:w-4 sm:h-4 text-white drop-shadow-sm" />
+                                        </div>
+                                    )}
+                                    {/* Fibermarkoren sitter hogst upp i stapeln sa den aldrig krockar med hanteln. */}
+                                    {fiberGoalMet && hasLog && (
+                                        <div className="absolute top-1 left-1/2 -translate-x-1/2 w-full flex justify-center">
+                                            <Leaf className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white drop-shadow-sm" />
                                         </div>
                                     )}
                                 </div>

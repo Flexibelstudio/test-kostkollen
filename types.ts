@@ -23,6 +23,13 @@ export interface NutritionalInfo {
   protein: number;
   carbohydrates: number;
   fat: number;
+  /**
+   * Kostfiber i gram. Valfritt med flit: alla loggar som skapades innan
+   * fibrerna infordes saknar vardet, och da ska det behandlas som "vet ej"
+   * och inte som noll. Fibrer ingar redan i kolhydratgrammen och paverkar
+   * darfor varken kalorimalet eller sparpotten.
+   */
+  fiber?: number;
   foodItem?: string; // Optional: Gemini might provide this
 }
 
@@ -128,6 +135,8 @@ export interface PastDaySummary {
   carbohydrateGoal: number;
   consumedFat: number;
   fatGoal: number;
+  /** Summerade fibrer for dagen. Saknas for dagar loggade fore fibrerna infordes. */
+  consumedFiber?: number;
   goalType: GoalType;
   isBinaryOrigin?: boolean;
   waterGoalMet?: boolean;

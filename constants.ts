@@ -84,6 +84,13 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
   highestBootcampStreak: 0,
 };
 
+/**
+ * Dagligt fibermal i gram. Nordiska rekommendationerna ligger pa 25-35 g for
+ * vuxna kvinnor; vi lagger malet i underkant sa att det ar nabart och far
+ * fungera som ett samlarmal, aldrig som ett tak man kan missa.
+ */
+export const FIBER_DAILY_TARGET_GRAMS = 25;
+
 export const COACH_PERSONAS = {
   soft: {
     label: 'Maja',
