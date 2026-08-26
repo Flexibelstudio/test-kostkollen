@@ -831,8 +831,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </section>
             )}
             
-            {/* COACH SELECTION: Only show when NOT onboarding */}
-            {!isOnboarding && (
+            {/* Coachvalet visas ÄVEN under onboardingen. Det var dolt där, vilket
+                gjorde att nya användare aldrig upptäckte att Maja och Erik finns -
+                och att feedbacken efter profilen kom från en coach de inte valt.
+                Vid bootcampregistrering visar samma sektion i stället Börje som
+                låst, med förklaringen att valet öppnas efter examen. */}
                 <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
                     {isCoachLocked ? (
                         <div>
@@ -896,7 +899,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         </div>
                     )}
                 </section>
-            )}
 
             {isOnboarding && (
                 <>
