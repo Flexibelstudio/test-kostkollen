@@ -886,7 +886,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
       <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('members')}>
-                <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
+                <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14 object-contain" />
             </div>
             <div className="flex flex-wrap justify-end items-center gap-1">
                 <div className="relative" ref={profileDropdownRef}>

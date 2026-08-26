@@ -104,7 +104,7 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
       <header className="w-full bg-white border-b border-[#F1EAE0] px-4 py-3 sticky top-0 z-30 shadow-xs">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/favicon.png" alt="Kostloggen.se" className="h-10 w-10" />
+            <img src="/favicon.png" alt="Kostloggen.se" className="h-10 w-10 object-contain" />
             <div>
               <span className="font-extrabold text-[#56524D] text-lg tracking-tight block leading-tight">Kostloggen</span>
               <span className="text-[11px] text-[#7A756E] font-medium block">General Börjes Kost- & Disciplinsystem</span>

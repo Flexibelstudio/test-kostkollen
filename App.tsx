@@ -2544,7 +2544,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
        <header className="w-full bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => { pushViewState({ view: 'main' }); setViewMode('main'); }}>
-                    <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
+                    <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14 object-contain" />
                 </div>
                 <div className="flex flex-wrap justify-end items-center gap-1">
                     {navItems.map(item => (

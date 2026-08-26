@@ -8,7 +8,7 @@ const SplashScreen: React.FC = () => {
         <img
           src="/favicon.png"
           alt="Kostloggen.se logo"
-          className="h-32 w-32 drop-shadow-md"
+          className="h-24 w-24 object-contain drop-shadow-md"
         />
       </div>
     </div>
