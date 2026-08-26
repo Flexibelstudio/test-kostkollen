@@ -158,13 +158,18 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             const dayLabel = day.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '').charAt(0).toUpperCase();
             const hasLog = calories > 0;
             
-            let barColor = 'bg-[#F1EAE0]'; 
-            
+            // Stapeln ska visa samma sak som dagens ring pa startsidan:
+            // under minimigransen = orange, over budget = morkt orange, mal natt = gront.
+            const minSafeForDay = calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
+            let barColor = 'bg-[#F1EAE0]';
+
             if (hasLog) {
                 if (goalMet) {
-                    barColor = 'bg-[#D96E4A]'; 
+                    barColor = 'bg-[#7BA05B]';
+                } else if (calories < minSafeForDay) {
+                    barColor = 'bg-[#D96E4A]';
                 } else {
-                    barColor = 'bg-[#C05A38]'; 
+                    barColor = 'bg-[#C05A38]';
                 }
             }
 

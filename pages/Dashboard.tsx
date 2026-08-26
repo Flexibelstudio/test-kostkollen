@@ -1404,8 +1404,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
                                     Chatta med {coachName}
                                 </span>
-                                <div className="w-12 h-12 rounded-full shadow-md flex items-center justify-center bg-white dark:bg-[#2B2825] text-[#D96E4A] border border-[#F1EAE0] group-hover:bg-[#F6E2D9] transition-colors">
-                                    <SparklesIcon className="w-6 h-6 text-[#D96E4A]" />
+                                <div className="w-12 h-12 rounded-full shadow-md flex items-center justify-center bg-white dark:bg-[#2B2825] text-[#D96E4A] border-2 border-[#D96E4A] overflow-hidden group-hover:bg-[#F6E2D9] transition-colors">
+                                    {coachPersona.imageUrl ? (
+                                        <img src={coachPersona.imageUrl} alt={coachName} className="w-full h-full object-cover" />
+                                    ) : coachPersona.emoji ? (
+                                        <span className="text-xl">{coachPersona.emoji}</span>
+                                    ) : (
+                                        <SparklesIcon className="w-6 h-6 text-[#D96E4A]" />
+                                    )}
                                 </div>
                             </button>
 

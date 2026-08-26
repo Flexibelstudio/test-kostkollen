@@ -392,6 +392,11 @@ export async function fetchInitialAppData(userId: string) {
       subscriptionStatus: userDocData.subscriptionStatus,
       currentPeriodEnd: userDocData.currentPeriodEnd,
       bootcampAccess: userDocData.bootcampAccess ?? undefined,
+      // Grundutbildningens avbockade uppgifter lastes aldrig tillbaka har, sa vid
+      // varje appstart foll kortet tillbaka pa den gamla listan i bootcampAccess
+      // och visade allt som obockat - tills anvandaren bockade av nagot nytt och
+      // listan speglades i minnet igen.
+      bootcampOnboarding: userDocData.bootcampOnboarding ?? undefined,
       highestBootcampStreak: highestBootcampStreak,
       plateauAnalysis: userDocData.plateauAnalysis ?? undefined,
       role: userDocData.role,
@@ -1073,8 +1078,15 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   // dokumentet. Skickades det med avvisades hela profilsparningen med
   // "Missing or insufficient permissions" - felet användaren såg som
   // "Kunde inte spara profil".
+  //
+  // bootcampOnboarding.tasksCompleted skrivs BARA av addBootcampOnboardingTask,
+  // som slar ihop listan i en transaktion mot databasen. Profilmodalen bar med
+  // sig en kopia av listan fran den stund den oppnades, sa skrevs den med hit
+  // nollstalldes uppgifter som redan var avbockade - anvandaren kom tillbaka in
+  // i appen och fann grundutbildningen ur-bockad.
   const {
     bootcampAccess: _bootcampAccess,
+    bootcampOnboarding: _bootcampOnboarding,
     role: _role,
     status: _status,
     subscriptionStatus: _subscriptionStatus,
