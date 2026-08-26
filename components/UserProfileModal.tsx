@@ -196,6 +196,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     const bootcampDetails = getBootcampAccessDetails(initialProfile);
     const isCoachLocked = isBootcampOnboarding || isBootcampActive || (bootcampDetails.hasBootcamp && !bootcampDetails.isExpired);
 
+    // Mätmetoden fryses när de 84 dagarna börjar - byter man måttstock mitt i
+    // programmet blir nollpunkten, och därmed diplomet, meningslöst.
+    //
+    // Men under Grundutbildningen ska den gå att växla. Den som gissat en vikt
+    // vid registreringen och gör InBody dagen efter måste kunna byta innan
+    // programmet startar, annars sitter hon fast med fel metod i tolv veckor.
+    const isDuringBootcampOnboarding = isBootcampOnboarding || bootcampDetails.isOnboarding;
+    const isMeasurementMethodLocked = isBootcampActive && !isDuringBootcampOnboarding;
+
+    // Målen fryses av samma skäl och vid samma tidpunkt, men det är ett eget
+    // lås - under Grundutbildningen SKA man kunna sätta dem, det är en av
+    // uppgifterna.
+    const isBootcampGoalLocked = isBootcampActive && !isDuringBootcampOnboarding;
+
     const getInitialProfileForState = useCallback(() => {
       const details = getBootcampAccessDetails(initialProfile);
       const isOngoingBootcamp = isBootcampOnboarding || isBootcampActive || (details.hasBootcamp && !details.isExpired);
@@ -918,17 +932,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => !isBootcampActive && setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
-                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isBootcampActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    disabled={isBootcampActive}
+                                    onClick={() => !isMeasurementMethodLocked && setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
+                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isMeasurementMethodLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={isMeasurementMethodLocked}
                                 >
                                     InBody / Avancerad våg
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => !isBootcampActive && setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
-                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isBootcampActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    disabled={isBootcampActive}
+                                    onClick={() => !isMeasurementMethodLocked && setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
+                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isMeasurementMethodLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={isMeasurementMethodLocked}
                                 >
                                     Vanlig våg
                                 </button>
@@ -958,9 +972,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                              <div className="animate-fade-in">
                                 <label htmlFor="desiredWeightChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad viktförändring (kg)</label>
                                 <div className="flex items-center space-x-2">
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad viktförändring" disabled={isBootcampActive}>-</button>
-                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampActive} />
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad viktförändring" disabled={isBootcampActive}>+</button>
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad viktförändring" disabled={isBootcampGoalLocked}>-</button>
+                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampGoalLocked} />
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad viktförändring" disabled={isBootcampGoalLocked}>+</button>
                                 </div>
                                 <p className="text-xs text-neutral mt-1">Negativt för minskning (t.ex. -5){!isBootcampOnboarding && ', positivt för ökning'}.</p>
                             </div>
@@ -969,9 +983,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 <div>
                                     <label htmlFor="desiredFatMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad fettmassaförändring (kg)</label>
                                     <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad fettmassaförändring" disabled={isBootcampActive}>-</button>
-                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampActive} />
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad fettmassaförändring" disabled={isBootcampActive}>+</button>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad fettmassaförändring" disabled={isBootcampGoalLocked}>-</button>
+                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampGoalLocked} />
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad fettmassaförändring" disabled={isBootcampGoalLocked}>+</button>
                                     </div>
                                     <p className="text-xs text-neutral mt-1">Sätt ett mål för antingen fett eller muskler.</p>
                                 </div>
@@ -979,9 +993,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     <div>
                                         <label htmlFor="desiredMuscleMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad muskelmassaförändring (kg)</label>
                                         <div className="flex items-center space-x-2">
-                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad muskelmassaförändring" disabled={isBootcampActive}>-</button>
-                                            <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" min="0" placeholder="0.0" disabled={isBootcampActive} />
-                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad muskelmassaförändring" disabled={isBootcampActive}>+</button>
+                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad muskelmassaförändring" disabled={isBootcampGoalLocked}>-</button>
+                                            <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" min="0" placeholder="0.0" disabled={isBootcampGoalLocked} />
+                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad muskelmassaförändring" disabled={isBootcampGoalLocked}>+</button>
                                         </div>
                                         <p className="text-xs text-neutral mt-1">Sätt ett mål för antingen fett eller muskler.</p>
                                     </div>
@@ -992,7 +1006,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         {!isBootcampOnboarding && (
                             <div className="mt-5">
                                 <label htmlFor="goalCompletionDate" className="block text-base font-medium text-neutral-dark mb-1.5">Måldatum</label>
-                                <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} disabled={isBootcampActive} />
+                                <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} disabled={isBootcampGoalLocked} />
                                 <p className="text-xs text-neutral mt-1">När vill du ha uppnått detta mål?</p>
                             </div>
                         )}

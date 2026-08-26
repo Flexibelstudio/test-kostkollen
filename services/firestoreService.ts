@@ -1116,20 +1116,51 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
       measuringWeekStartDate: null,
     };
 
-    // Fetch the latest weight log to set as the new start value
+    // Nollpunkt för det nya målet.
+    //
+    // Byter man mätmetod i efterhand saknas ofta en nollpunkt för den nya
+    // enheten. Vi letar då upp den TIDIGASTE mätningen som faktiskt innehåller
+    // värdet, så att historiken bevaras - i stället för att låtsas att resan
+    // började idag. Finns inget sådant värde sätts ingen nollpunkt alls, och
+    // gränssnittet får säga att målet startar idag. Appen ska aldrig tyst
+    // backdatera framsteg den inte har underlag för.
     try {
       const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
-      const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
-      const latestLogSnap = await getDocsSafe(latestLogQuery);
-      
+
+      const latestLogSnap = await getDocsSafe(
+        query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1))
+      );
       if (!latestLogSnap.empty) {
         const latestLog = latestLogSnap.docs[0].data() as WeightLogEntry;
         if (latestLog.weightKg != null) dataToUpdate.goalStartWeight = latestLog.weightKg;
-        if (latestLog.bodyFatMassKg != null) dataToUpdate.goalStartFatMassKg = latestLog.bodyFatMassKg;
-        if (latestLog.skeletalMuscleMassKg != null) dataToUpdate.goalStartMuscleMassKg = latestLog.skeletalMuscleMassKg;
+      }
+
+      const methodChanged = currentDocData && currentDocData.measurementMethod !== profile.measurementMethod;
+
+      if (profile.measurementMethod === 'inbody') {
+        // Äldsta mätning som har kroppssammansättning - den blir nollpunkten.
+        const allLogsSnap = await getDocsSafe(
+          query(weightLogsRef, orderBy('loggedAt', 'asc'))
+        );
+        const firstWithComposition = allLogsSnap.docs
+          .map(d => d.data() as WeightLogEntry)
+          .find(l => l.bodyFatMassKg != null || l.skeletalMuscleMassKg != null);
+
+        if (firstWithComposition) {
+          if (firstWithComposition.bodyFatMassKg != null) {
+            dataToUpdate.goalStartFatMassKg = firstWithComposition.bodyFatMassKg;
+          }
+          if (firstWithComposition.skeletalMuscleMassKg != null) {
+            dataToUpdate.goalStartMuscleMassKg = firstWithComposition.skeletalMuscleMassKg;
+          }
+        } else if (methodChanged) {
+          // Ingen historik att luta sig mot - hellre ingen nollpunkt än en påhittad.
+          dataToUpdate.goalStartFatMassKg = null;
+          dataToUpdate.goalStartMuscleMassKg = null;
+        }
       }
     } catch (e) {
-      console.warn("Could not fetch latest weight log to set goal start values.", e);
+      console.warn("Could not fetch weight logs to set goal start values.", e);
     }
   }
 

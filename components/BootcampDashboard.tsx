@@ -439,6 +439,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
               onSave={handleWeightSaved} 
               measurementMethod="unknown" 
               hideComment={true}
+              weightLogs={weightLogs}
+              prefillFromProfile={{
+                weightKg: userProfile.currentWeightKg,
+                skeletalMuscleMassKg: userProfile.skeletalMuscleMassKg,
+                bodyFatMassKg: userProfile.bodyFatMassKg,
+              }}
             />
           </div>,
           document.body

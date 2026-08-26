@@ -12,9 +12,20 @@ interface LogWeightModalProps {
   hideComment?: boolean;
   activeBootcamp?: BootcampParticipant | null;
   weightLogs?: WeightLogEntry[];
+  /**
+   * Värden från profilen att förifylla med när användaren aldrig gjort en
+   * riktig mätning. Vikten i profilen kan vara en gissning från registreringen,
+   * så den får aldrig bli startmätning automatiskt - men att skriva samma siffra
+   * två gånger är onödigt. Hon förifylls och får bekräfta eller korrigera.
+   */
+  prefillFromProfile?: {
+    weightKg?: number | null;
+    skeletalMuscleMassKg?: number | null;
+    bodyFatMassKg?: number | null;
+  };
 }
 
-const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, measurementMethod = 'scale', hideComment = false, activeBootcamp, weightLogs = [] }) => {
+const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, measurementMethod = 'scale', hideComment = false, activeBootcamp, weightLogs = [], prefillFromProfile }) => {
   const [weightKg, setWeightKg] = useState<string>('');
   const [skeletalMuscleMassKg, setSkeletalMuscleMassKg] = useState<string>('');
   const [bodyFatMassKg, setBodyFatMassKg] = useState<string>('');
@@ -56,11 +67,16 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
 
   const [acceptedPunishment, setAcceptedPunishment] = useState(false);
 
+  // Förifyll bara första gången, när ingen mätning finns sedan tidigare.
+  const hasNoPreviousLogs = !weightLogs || weightLogs.length === 0;
+  const isPrefilled = hasNoPreviousLogs && !!prefillFromProfile?.weightKg;
+
   useEffect(() => {
     if (show) {
-      setWeightKg('');
-      setSkeletalMuscleMassKg('');
-      setBodyFatMassKg('');
+      const usePrefill = (!weightLogs || weightLogs.length === 0) && prefillFromProfile;
+      setWeightKg(usePrefill && prefillFromProfile?.weightKg != null ? String(prefillFromProfile.weightKg) : '');
+      setSkeletalMuscleMassKg(usePrefill && prefillFromProfile?.skeletalMuscleMassKg != null ? String(prefillFromProfile.skeletalMuscleMassKg) : '');
+      setBodyFatMassKg(usePrefill && prefillFromProfile?.bodyFatMassKg != null ? String(prefillFromProfile.bodyFatMassKg) : '');
       setComment('');
       setError(null);
       setIsSaving(false);
@@ -262,6 +278,11 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
       
       <form onSubmit={handleSave} className="space-y-4">
         <fieldset disabled={isSaving} className="space-y-4 group">
+            {isPrefilled && (
+              <div className="bg-[#F1EAE0]/70 border border-[#F1EAE0] rounded-xl p-3.5 text-sm text-[#56524D] leading-relaxed">
+                Vi har fyllt i värdena från din profil. <strong>Stämmer de fortfarande?</strong> Har du mätt nyss – på våg eller InBody – skriv in de nya siffrorna i stället. Det här blir din nollpunkt.
+              </div>
+            )}
             <div className="group-disabled:opacity-60 transition-opacity">
                 <label htmlFor="weightKg" className={labelClass}>Vikt (kg) *</label>
                 <input
