@@ -127,6 +127,12 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
           protein: baseValues ? resolveNutritionalFieldValue(baseProtein, editedProtein) : (parseFloat(editedProtein.replace(',', '.')) || 0),
           carbohydrates: baseValues ? resolveNutritionalFieldValue(baseCarbs, editedCarbohydrates) : (parseFloat(editedCarbohydrates.replace(',', '.')) || 0),
           fat: baseValues ? resolveNutritionalFieldValue(baseFat, editedFat) : (parseFloat(editedFat.replace(',', '.')) || 0),
+          // Fibrer redigeras inte for hand, men maste folja med antalet portioner.
+          // Byggdes objektet falt for falt utan fibern forsvann den pa vagen in
+          // i loggen och dagens fiberrad fylldes aldrig i.
+          fiber: typeof baseValues?.fiber === 'number'
+            ? baseValues.fiber * numQuantity
+            : (typeof searchResult?.fiber === 'number' ? searchResult.fiber * numQuantity : undefined),
         };
         onLog(dataToLog, { saveAsCommon, mealType: selectedMealType }); 
         handleClose();
@@ -296,7 +302,14 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
                                     </div>
                                 </div>
                             </div>
-                            
+
+                            {typeof searchResult?.fiber === 'number' && (
+                                <p className="mt-3 text-sm text-neutral-600 flex items-center gap-1.5">
+                                    <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Fibrer">🌾</span>
+                                    Fibrer: {(searchResult.fiber * (parseFloat(quantity) || 0)).toFixed(1)} g
+                                </p>
+                            )}
+
                             <div className="mt-4 pt-3 border-t border-neutral-light/60">
                                 <label htmlFor="saveAsCommonText" className="flex items-center text-base text-neutral-dark cursor-pointer">
                                     <input type="checkbox" id="saveAsCommonText" name="saveAsCommon" checked={saveAsCommon} onChange={(e) => setSaveAsCommon(e.target.checked)} className="h-5 w-5 text-primary border-neutral-light rounded focus:ring-primary mr-2.5" />

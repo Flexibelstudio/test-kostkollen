@@ -44,6 +44,7 @@ interface BootcampDashboardProps {
 
 const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog, bootcampFeedSlot, onNavigateHome }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
+  const [redDayConfirm, setRedDayConfirm] = useState<{ stepsNum: number; reasons: string[] } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -186,6 +187,23 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
     fetchProgress();
   }, [targetDateStr, goals.calorieGoal, goals.proteinGoal, editingYesterday, yesterdayReport, weeklyBank, userProfile.goalType]);
 
+  /**
+   * Vad som saknas for en gron dag. Anvands bade for att avgora om vi ska
+   * fraga en extra gang och for att kunna visa exakt VAD som ar rott - att
+   * bara saga "det blir en rod dag" hjalper ingen som glomt kryssa i en ruta.
+   */
+  const getRedDayReasons = (stepsNum: number): string[] => {
+    const targetSteps = getBootcampStepGoal(userProfile.activityLevel, participant.status);
+    const reasons: string[] = [];
+    if (!loggedAllMeals) reasons.push('Alla måltider är inte loggade');
+    if (!proteinMet) reasons.push('Proteinmålet är inte uppnått');
+    if (!waterMet) reasons.push('Vattenmålet är inte uppnått');
+    if (stepsNum < targetSteps) {
+      reasons.push(`Stegen räcker inte till (${stepsNum.toLocaleString()} av ${targetSteps.toLocaleString()})`);
+    }
+    return reasons;
+  };
+
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) return;
@@ -196,10 +214,26 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       return;
     }
 
+    // En rod dag bryter streaken och gar inte att angra. Da ska rapporten
+    // aldrig ga ivag pa ett slarvigt tryck - vi visar vad som ar rott och
+    // later anvandaren ga tillbaka och ratta.
+    const reasons = getRedDayReasons(stepsNum);
+    if (reasons.length > 0) {
+      setRedDayConfirm({ stepsNum, reasons });
+      return;
+    }
+
+    await submitReport(stepsNum);
+  };
+
+  const submitReport = async (stepsNum: number) => {
+    if (!auth.currentUser) return;
+
     const targetSteps = getBootcampStepGoal(userProfile.activityLevel, participant.status);
     const stepsMet = stepsNum >= targetSteps;
     const isGreenDay = loggedAllMeals && proteinMet && waterMet && stepsMet;
 
+    setRedDayConfirm(null);
     setIsSubmitting(true);
     try {
       await submitEveningReport(participant.cohortId, auth.currentUser.uid, {
@@ -954,6 +988,61 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           status={participant.status}
           onClose={() => setShowDiplomaGallery(false)}
         />
+      )}
+
+      {/* Sista kontrollen före en röd dag. Rapporten bryter streaken och går
+          inte att ångra, så användaren ska se exakt vad som saknas och få
+          chansen att gå tillbaka i stället för att bara trycka igenom. */}
+      {redDayConfirm && (
+        <div
+          className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 animate-fade-in"
+          onClick={() => setRedDayConfirm(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="bg-white dark:bg-[#2B2825] w-full max-w-md rounded-[22px] shadow-soft-xl p-6 animate-scale-in"
+          >
+            <h3 className="text-xl font-bold text-neutral-dark dark:text-white mb-2">
+              Det här blir en röd dag
+            </h3>
+            <p className="text-sm text-neutral-600 dark:text-[#C2BCB4] mb-4">
+              {editingYesterday
+                ? 'Gårdagens rapport registreras som röd om du skickar den så här.'
+                : 'Skickar du rapporten så här bryts din streak. Det går inte att ångra.'}
+            </p>
+
+            <ul className="space-y-2 mb-5">
+              {redDayConfirm.reasons.map(reason => (
+                <li key={reason} className="flex items-start gap-2 text-sm text-neutral-dark dark:text-[#FAF6EF]">
+                  <span className="w-2 h-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
+                  <span>{reason}</span>
+                </li>
+              ))}
+            </ul>
+
+            <p className="text-sm text-neutral-600 dark:text-[#C2BCB4] mb-5">
+              Stämmer det? Har du glömt kryssa i något är det bara att gå tillbaka och rätta.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => setRedDayConfirm(null)}
+                className="flex-1 py-3 bg-[#F1EAE0] dark:bg-[#3A3632] text-neutral-dark dark:text-[#FAF6EF] font-bold rounded-xl hover:bg-[#E2D8CC] transition-colors"
+              >
+                Gå tillbaka
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => submitReport(redDayConfirm.stepsNum)}
+                className="flex-1 py-3 bg-neutral-darker text-white font-bold rounded-xl hover:bg-black transition-colors disabled:opacity-50"
+              >
+                Ja, skicka ändå
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       </>
       )}
