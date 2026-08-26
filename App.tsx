@@ -485,6 +485,10 @@ export const App = () => {
   const pastDaysSummaryRef = useRef(pastDaysSummary);
   const streakDataRef = useRef(streakData);
   const weeklyBankRef = useRef(weeklyBank);
+  // Läses inne i fördröjda anrop efter Stripe-återkomsten, där closuren annars
+  // skulle se en gammal profil.
+  const userProfileRef = useRef(userProfile);
+  useEffect(() => { userProfileRef.current = userProfile; }, [userProfile]);
 
   useEffect(() => { pastDaysSummaryRef.current = pastDaysSummary; }, [pastDaysSummary]);
   useEffect(() => { streakDataRef.current = streakData; }, [streakData]);
@@ -1260,20 +1264,33 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         }
         // ----------------------------------
 
-        setOpenBootcampDirectly(true);
-        pushViewState({ view: 'coursesView' });
-        setViewMode('coursesView');
+        // Landa på rätt ställe. Handlaren var skriven för bootcampköp och
+        // slussade ALLA till kursvyn med bootcampen öppnad - även den som just
+        // tecknat abonnemang, som då möttes av grundutbildningen i stället för
+        // den vanliga starten.
+        if (checkoutType === 'bootcamp') {
+            setOpenBootcampDirectly(true);
+            pushViewState({ view: 'coursesView' });
+            setViewMode('coursesView');
+        } else {
+            setOpenBootcampDirectly(false);
+            pushViewState({ view: 'main' });
+            setViewMode('main');
+        }
 
         // Webhooken skriver åtkomsten EFTER att Stripe skickat tillbaka
         // användaren, så profilen i minnet är ett ögonblick för gammal.
         //
-        // Tidigare kördes refreshUserData fem gånger på rad oavsett resultat.
-        // Varje omläsning nollställer laddningsläget, och kedjan startade om
-        // appen mitt i - vilket syntes som att den fastnade på en tom skärm med
-        // loggan. Nu sker EN omläsning, med en enda extra försening som
-        // skyddsnät om webhooken var långsam.
-        setTimeout(() => { refreshUserData(); }, 2500);
-        setTimeout(() => { refreshUserData(); }, 8000);
+        // refreshUserData sätter isDataLoading och ger en laddningsskärm. Körs
+        // flera omläsningar parallellt fastnar appen på loggan - därför väntar
+        // vi in varje anrop, och slutar så fort åtkomsten faktiskt finns.
+        (async () => {
+            for (const delay of [2500, 4000, 6000]) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+                if (hasAppAccess(userProfileRef.current)) return;
+                await refreshUserData();
+            }
+        })();
 
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
