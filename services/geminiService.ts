@@ -1,11 +1,12 @@
 // services/geminiService.ts
 import { GoogleGenAI, GenerateContentResponse, Content, Modality } from "@google/genai";
-import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle } from '../types.ts';
+import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle, DietaryPreference } from '../types.ts';
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
 import { auth, firebaseConfig, appCheck } from '../firebase.ts'; // Lagt till appCheck i importen
 import { getToken } from "firebase/app-check"; // Importera getToken för App Check
 import { runPlateauAnalysis } from '../utils/plateauAnalysis';
 import { calculateWeeklyTotals } from '../utils/nutritionTotals';
+import { dietaryPromptBlock, dietaryRecipeBlock } from '../utils/dietaryPreference';
 import { recordUploadStart, recordUploadEnd, recordGeminiCallTiming, recordConnectionPrewarm } from '../utils/photoPipelineProfiler.ts';
 
 // -- SECURE PROXY SETUP --
@@ -424,6 +425,7 @@ Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringsl�
 - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+${dietaryPromptBlock(userProfile.dietaryPreference)}
 
 DEFINITIONER:
 - Streak: Att logga mat. Hålls levande oavsett kalorimängd. Det är beviset på vanan att vara konsekvent.
@@ -704,6 +706,7 @@ Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringsl�
 - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+${dietaryPromptBlock(userProfile.dietaryPreference)}
 
 **Användarens Status:**
 - Namn: ${userName || 'Användare'}
@@ -757,9 +760,13 @@ ${contextPrompt}
 };
 
 
-export const getRecipeSuggestion = async (recipeQuery: string): Promise<RecipeSuggestion> => {
+export const getRecipeSuggestion = async (
+  recipeQuery: string,
+  dietaryPreference?: DietaryPreference
+): Promise<RecipeSuggestion> => {
   const prompt = `Du är en expert receptassistent. Användaren kommer att be om ett recept.
 Ge ett recept baserat på deras fråga.
+${dietaryRecipeBlock(dietaryPreference)}
 Ditt svar MÅSTE vara ett enda JSON-objekt med följande struktur:
 {
   "title": "Recepttitel (sträng, SVENSKA)",
@@ -849,7 +856,10 @@ Användarens fråga: "${recipeQuery}"`;
 };
 
 
-export const getRecipesFromIngredientsImage = async (base64ImageDatas: string[]): Promise<IngredientRecipeResponse> => {
+export const getRecipesFromIngredientsImage = async (
+  base64ImageDatas: string[],
+  dietaryPreference?: DietaryPreference
+): Promise<IngredientRecipeResponse> => {
   if (base64ImageDatas.length === 0) {
     return { identifiedIngredients: [], recipeSuggestions: [] };
   }
@@ -868,6 +878,7 @@ export const getRecipesFromIngredientsImage = async (base64ImageDatas: string[])
 6.  Svara i JSON-format. JSON-objektet på toppnivå ska ha två nycklar: 'identifiedIngredients' (en array av strängar) och 'recipeSuggestions' (en array av receptobjekt, var och en som matchar RecipeSuggestion-strukturen).
 7.  För receptingredienser, lista endast varor som antingen är direkt identifierade eller mycket vanliga skafferivaror om det är absolut nödvändigt för receptet.
 8.  Se till att 'foodItem' i totalNutritionalInfo for varje recept alltid är receptets titel. Näringsinformationen ska vara en UPPSKATTNING per PORTION.
+${dietaryRecipeBlock(dietaryPreference)}
 
 JSON-struktur för varje recept i 'recipeSuggestions':
 {
@@ -983,6 +994,7 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
     - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
     - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
     - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+${dietaryPromptBlock(userProfile.dietaryPreference)}
 
 **ANVÄNDARENS AKTUELLA KONTEXT:**
 ${context.activeBootcamp ? `- Användaren deltar just nu i General Börjes Bootcamp (Fas: ${context.activeBootcamp.status}, Streak: ${context.activeBootcamp.currentStreak} dagar). VIKTIGT: Bootcampen har INGA lektioner. Prata aldrig om lektioner i samband med bootcampen.` : ''}
@@ -1339,6 +1351,7 @@ Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringsl�
 - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+${dietaryPromptBlock(userProfile.dietaryPreference)}
 
 ${plateauPromptPart}
 Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med följande exakta struktur:

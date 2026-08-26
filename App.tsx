@@ -87,7 +87,7 @@ import { uploadImageToStorage, uploadBase64ToStorage, base64ToBlob } from './uti
 import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports, getUnseenBootcampFinale, markBootcampFinaleAsSeen } from './services/bootcampService.ts';
 import { completeBootcampOnboardingTask, grantBootcampAccess, startBootcampCheckout, startSubscriptionCheckout, recordBootcampGraduation } from './services/bootcampAccessService.ts';
 import { isTestingToolAllowed } from './utils/testingToolHostnames.ts';
-import { hasAppAccess, isReadOnlyUser } from './utils/accessControl.ts';
+import { hasAppAccess, isReadOnlyUser, getBootcampAccessDetails } from './utils/accessControl.ts';
 import AccessGateView from './components/AccessGateView.tsx';
 import {
   InformationCircleIcon, AICoachIcon,
@@ -1952,7 +1952,14 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         // Uppgiften heter "startmätning OCH mål", så när mätningen är sparad
         // slussas användaren direkt vidare till målen i stället för att lämnas
         // med halva uppgiften gjord.
-        if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
+        // Gatet lag tidigare pa bootcampAccess.onboardingCompletedDate, men det
+        // faltet skrivs aldrig langre - grundutbildningens status bor i
+        // bootcampOnboarding. Foljden blev att profilen slog upp efter VARJE
+        // invagning, aven for den som redan gatt klart grundutbildningen.
+        const onboardingDetails = getBootcampAccessDetails(userProfile);
+        const weighInTaskDone = onboardingDetails.onboardingTasksCompleted.includes('weigh_in_and_goal');
+
+        if (currentUser && onboardingDetails.isOnboarding && !weighInTaskDone) {
             pushModalState('userProfile');
             setShowUserProfileModal(true);
             completeBootcampOnboardingTask(currentUser.uid, 'weigh_in_and_goal', userProfile).then(updated => {

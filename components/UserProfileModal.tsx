@@ -4,6 +4,7 @@ import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritional
 import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS, DEFAULT_COMMUNITY_SHARING_SETTINGS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
 import { getBootcampAccessDetails } from '../utils/accessControl.ts';
+import { DIETARY_PREFERENCE_OPTIONS } from '../utils/dietaryPreference';
 import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon, UserPlusIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
 import ToastNotification from './ToastNotification';
@@ -236,6 +237,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           courseInterest: false,
           isSearchable: true, // Default to searchable for new users
           notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
+          dietaryPreference: initialProfile?.dietaryPreference || 'omnivore',
           // Vid vanlig registrering ska coachen VÄLJAS, inte tilldelas. Att
           // förvälja Börje gjorde dels att valet inte syntes - många upptäckte
           // aldrig att Maja och Erik finns - dels att någon som bara vill logga
@@ -898,6 +900,33 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             </div>
                         </div>
                     )}
+                </section>
+
+                <section aria-labelledby="dietary-preference-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                    <h4 id="dietary-preference-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Kostval</h4>
+                    <p className="text-sm text-neutral mb-4">
+                        Styr vad coachen föreslår och vilka recept appen tar fram. Söker du själv på en viss råvara får du alltid den.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                        {DIETARY_PREFERENCE_OPTIONS.map(opt => {
+                            const isSelected = (profile.dietaryPreference || 'omnivore') === opt.value;
+                            return (
+                                <button
+                                    type="button"
+                                    key={opt.value}
+                                    onClick={() => handleProfileChange({ target: { name: 'dietaryPreference', value: opt.value, type: 'select' } } as any)}
+                                    className={`text-left p-3 rounded-2xl border-2 transition-all duration-200 ${
+                                        isSelected
+                                            ? 'bg-primary-50 border-primary shadow-md'
+                                            : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300'
+                                    }`}
+                                >
+                                    <p className={`font-bold ${isSelected ? 'text-primary-darker' : 'text-neutral-dark'}`}>{opt.label}</p>
+                                    <p className="text-xs text-neutral-600 leading-snug mt-0.5">{opt.description}</p>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </section>
 
             {isOnboarding && (

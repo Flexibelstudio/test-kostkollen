@@ -79,6 +79,7 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
     milestoneNudge: true,
   },
   preferredWeighInDay: 'måndag',
+  dietaryPreference: 'omnivore',
   coachStyle: 'balanced', // Default coach style
   highestBootcampStreak: 0,
 };

@@ -209,6 +209,12 @@ export interface CommunitySharingSettings {
   goal: boolean;        // mål
 }
 
+/**
+ * Kostval. Styr bade vad coachen foreslar och vilka recept appen tar fram.
+ * 'omnivore' ar standard och betyder inga begransningar alls.
+ */
+export type DietaryPreference = 'omnivore' | 'pescetarian' | 'vegetarian' | 'vegan';
+
 export type BootcampOnboardingTaskId =
   | 'log_meal_photo'
   | 'log_meal_search'
@@ -274,6 +280,8 @@ export interface UserProfileData {
   completedGoals?: CompletedGoal[];
   notificationSettings: NotificationSettings;
   preferredWeighInDay?: DayOfWeek;
+  /** Kostval. Saknas det tolkas det som 'omnivore'. */
+  dietaryPreference?: DietaryPreference;
   // New fields for course access management
   isCourseActive?: boolean;
   courseInterest?: boolean;
@@ -333,6 +341,7 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, "name"> {
   lastInactivityReminderSent?: string;
   lastMilestoneNudgeSentFor?: string;
   plateauAnalysis?: PlateauAnalysisState;
+  dietaryPreference?: DietaryPreference;
   bootcampOnboarding?: BootcampOnboardingProgress;
   bootcampGraduation?: BootcampGraduationState;
 }
