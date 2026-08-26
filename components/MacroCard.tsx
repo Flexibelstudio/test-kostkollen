@@ -29,20 +29,23 @@ export const MacroCard: React.FC<MacroCardProps> = ({
     >
       <div>
         <div className="h-4 sm:h-5 flex items-center justify-center mb-1">
-          <p className="text-xs font-bold text-neutral-dark uppercase tracking-wider leading-none flex items-center justify-center">
+          {/* Info-ikonen ska sitta tatt intill ordet, som en forlangning av det,
+              och ordet plus ikon ska centreras som EN enhet i kortet. Darfor
+              inline-flex med minimal marginal - inte en egen kolumn med luft. */}
+          <p className="text-xs font-bold text-neutral-dark uppercase tracking-wider leading-none inline-flex items-center justify-center whitespace-nowrap">
             <span>{label}</span>
             {onInfoClick && (
               <button
                 type="button"
                 onClick={onInfoClick}
-                className="ml-1 text-neutral-400 hover:text-primary transition-colors inline-flex items-center justify-center leading-none"
+                className="ml-0.5 text-neutral-400 hover:text-primary transition-colors inline-flex items-center justify-center leading-none align-middle"
                 aria-label={infoAriaLabel || `Information om ${label.toLowerCase()}mål`}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
                   fill="currentColor"
-                  className="w-3.5 h-3.5 block"
+                  className="w-3 h-3 block"
                 >
                   <path
                     fillRule="evenodd"
