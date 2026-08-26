@@ -1134,7 +1134,14 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
   }
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
-  await syncPublicProfile(userId, profile.name, profile.photoURL, profile.isSearchable !== false, profile.role === 'coach');
+
+  // isCoach MÅSTE spegla rollen som ligger i databasen. Säkerhetsregeln för
+  // publicProfiles jämför fältet mot users/{uid}.role, så skickas klientens
+  // egen (ibland tomma) role-kopia nekas skrivningen med permission-denied -
+  // efter att användardokumentet redan sparats. Användaren fick då
+  // "Kunde inte spara profil" trots att profilen faktiskt var sparad.
+  const roleInDatabase = currentDocData?.role ?? profile.role;
+  await syncPublicProfile(userId, profile.name, profile.photoURL, profile.isSearchable !== false, roleInDatabase === 'coach');
 }
 
 /* ===== Gamification: Achievements ===== */
@@ -1760,17 +1767,42 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
   const buddies = await fetchBuddies(userId);
   if (buddies.length === 0) return [];
 
-  const buddyDetailsPromises = buddies.map(async (buddy) => {
+  const buddyDetailsPromises = buddies.map((buddy) => loadOneBuddyDetails(userId, buddy).catch(e => {
+    console.warn('Kunde inte hämta detaljer för kompis', buddy.uid, e);
+    return null;
+  }));
+
+  const results = await Promise.all(buddyDetailsPromises);
+  return results.filter((d): d is BuddyDetails => d !== null);
+}
+
+/**
+ * Hämtar detaljer för EN kompis. Bryts ut så att ett fel på en kompis kan fångas
+ * utan att hela kompislistan - och därmed flödet - fallerar.
+ */
+async function loadOneBuddyDetails(userId: string, buddy: Peppkompis): Promise<BuddyDetails | null> {
+    if (!db) return null;
     const userDocRef = doc(db, 'users', buddy.uid);
     const userDocSnap = await getDocSafe(userDocRef);
     if (!userDocSnap.exists()) return null;
     
     const userData = userDocSnap.data() as FirestoreUserDocument;
 
-    const weightLogsRef = collection(db, 'users', buddy.uid, 'weightLogs');
-    const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
-    const latestLogSnap = await getDocsSafe(latestLogQuery);
-    const latestLog = latestLogSnap.empty ? null : latestLogSnap.docs[0].data() as WeightLogEntry;
+    // Viktloggarna delas bara om kompisen slagit på delning av vikt. Gör hon inte
+    // det nekar säkerhetsreglerna läsningen - och tidigare fick det HELA
+    // kompislistan att fallera med "Missing or insufficient permissions", vilket
+    // användaren såg som "Kunde inte ladda flödet". En kompis privata inställning
+    // får aldrig släcka någon annans flöde.
+    let latestLog: WeightLogEntry | null = null;
+    try {
+      const weightLogsRef = collection(db, 'users', buddy.uid, 'weightLogs');
+      const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
+      const latestLogSnap = await getDocsSafe(latestLogQuery);
+      latestLog = latestLogSnap.empty ? null : latestLogSnap.docs[0].data() as WeightLogEntry;
+    } catch (e) {
+      // Delning avstängd eller regel som nekar - falla tillbaka på användardokumentet.
+      latestLog = null;
+    }
 
     const currentWeight = latestLog?.weightKg ?? userData.currentWeightKg;
     const currentMuscleMass = latestLog?.skeletalMuscleMassKg ?? userData.skeletalMuscleMassKg;
@@ -1843,10 +1875,6 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
       bootcampStatus,
       highestBootcampStreak: highestBootcampStreak,
     } as BuddyDetails;
-  });
-
-  const results = await Promise.all(buddyDetailsPromises);
-  return results.filter((b): b is BuddyDetails => b !== null);
 }
 
 export async function searchForBuddies(currentUserId: string, searchQuery: string = ''): Promise<Peppkompis[]> {

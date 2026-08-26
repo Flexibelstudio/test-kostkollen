@@ -1627,6 +1627,27 @@ export const CommunityView: React.FC<{
 
       if (feedFilter === 'bootcamp' && activeBootcamp) {
           filtered = filtered.filter(e => e.bootcampId === activeBootcamp.cohortId || (e.visibleTo && e.visibleTo.includes('bootcamp')) || (e.visibleTo && e.visibleTo.includes('bootcamp_and_friends')));
+
+          // Truppens flöde börjar den dag du mönstrade in. Att läsa vad andra skrev
+          // veckor innan du gick med är förvirrande - och gäller även coacher, som
+          // är deltagare i sin egen trupp. joinedAt kan vara tal eller Timestamp.
+          const joinedAtMs = (() => {
+              const v: any = activeBootcamp.joinedAt;
+              if (!v) {
+                  const d = activeBootcamp.originalStartDate ? new Date(activeBootcamp.originalStartDate).getTime() : 0;
+                  return isNaN(d) ? 0 : d;
+              }
+              if (typeof v === 'number') return v;
+              if (typeof v.toMillis === 'function') return v.toMillis();
+              if (typeof v.toDate === 'function') return v.toDate().getTime();
+              if (v.seconds !== undefined) return v.seconds * 1000;
+              const parsed = new Date(v).getTime();
+              return isNaN(parsed) ? 0 : parsed;
+          })();
+
+          if (joinedAtMs > 0) {
+              filtered = filtered.filter(e => e.isEditorial || e.timestamp >= (joinedAtMs - 60000));
+          }
       }
 
       return filtered;

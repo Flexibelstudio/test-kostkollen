@@ -57,15 +57,18 @@ const WaterLogger = React.forwardRef<HTMLDivElement, WaterLoggerProps>(({
             <p className="text-4xl font-serif font-medium text-[#56524D] dark:text-[#FAF6EF]">{(currentWaterMl / 1000).toFixed(1)} <span className="text-2xl font-sans font-medium text-[#7A756E] dark:text-[#C2BCB4]">L</span></p>
             <div className="flex items-center justify-between mt-1">
                 <p className="text-xs text-[#56524D] dark:text-[#C2BCB4] font-semibold uppercase tracking-wide">Mål: {(waterGoalMl / 1000).toFixed(1)} L</p>
-                {currentWaterMl > 0 && (
-                    <button 
-                        onClick={onResetWater} 
-                        disabled={disabled}
-                        className="text-xs text-[#7A756E] dark:text-[#C2BCB4] hover:underline z-20 min-h-[44px] px-1 flex items-center"
-                    >
-                        Töm
-                    </button>
-                )}
+                {/* Knappen renderas alltid. Visades den bara när det fanns vatten
+                    växte hela kortet med knappens 44 px så fort man loggade sitt
+                    första glas - layouten ska inte hoppa av en loggning. */}
+                <button
+                    onClick={onResetWater}
+                    disabled={disabled || currentWaterMl <= 0}
+                    aria-hidden={currentWaterMl <= 0}
+                    tabIndex={currentWaterMl > 0 ? 0 : -1}
+                    className={`text-xs text-[#7A756E] dark:text-[#C2BCB4] hover:underline z-20 min-h-[44px] px-1 flex items-center transition-opacity ${currentWaterMl > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                >
+                    Töm
+                </button>
             </div>
         </div>
     </div>

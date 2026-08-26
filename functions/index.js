@@ -610,6 +610,90 @@ exports.addMutualFriends = functions.firestore
     }
   });
 
+/**
+ * Städar upp efter en raderad användare.
+ *
+ * Bara att ta bort users/{uid} räcker inte: sökningen läser spegelkollektionen
+ * publicProfiles, så personen gick fortfarande att hitta som vän. Och namnen i
+ * inlägg och kommentarer är denormaliserade - de ligger sparade i varje dokument
+ * och försvinner inte av sig själva.
+ *
+ * Därför: ta bort spegeln, och anonymisera personens spår till "Borttagen
+ * användare" i stället för att radera innehållet. Andras konversationer ska
+ * fortsätta gå att läsa.
+ */
+const DELETED_USER_NAME = "Borttagen användare";
+
+exports.onUserDeleted = functions.firestore
+  .document("users/{userId}")
+  .onDelete(async (snapshot, context) => {
+    const { userId } = context.params;
+
+    // 1. Spegeln i publicProfiles - annars ligger personen kvar i vänsökningen.
+    try {
+      await db.collection("publicProfiles").doc(userId).delete();
+    } catch (error) {
+      console.error(`Kunde inte ta bort publicProfiles/${userId}`, error);
+    }
+
+    // 2. Personens egna inlägg i communityTimeline.
+    try {
+      const postsSnap = await db
+        .collection("communityTimeline")
+        .where("userId", "==", userId)
+        .get();
+
+      let batch = db.batch();
+      let opsInBatch = 0;
+      for (const doc of postsSnap.docs) {
+        batch.update(doc.ref, {
+          userName: DELETED_USER_NAME,
+          userPhotoURL: null,
+        });
+        opsInBatch += 1;
+        if (opsInBatch >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          opsInBatch = 0;
+        }
+      }
+      if (opsInBatch > 0) await batch.commit();
+      console.log(`Anonymiserade ${postsSnap.size} inlägg for ${userId}`);
+    } catch (error) {
+      console.error(`Kunde inte anonymisera inlägg for ${userId}`, error);
+    }
+
+    // 3. Personens kommentarer. De ligger som subkollektion under varje inlägg,
+    //    så vi får gå via en collectionGroup-fråga.
+    try {
+      const commentsSnap = await db
+        .collectionGroup("comments")
+        .where("authorUid", "==", userId)
+        .get();
+
+      let batch = db.batch();
+      let opsInBatch = 0;
+      for (const doc of commentsSnap.docs) {
+        batch.update(doc.ref, {
+          authorName: DELETED_USER_NAME,
+          authorPhotoURL: null,
+        });
+        opsInBatch += 1;
+        if (opsInBatch >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          opsInBatch = 0;
+        }
+      }
+      if (opsInBatch > 0) await batch.commit();
+      console.log(`Anonymiserade ${commentsSnap.size} kommentarer for ${userId}`);
+    } catch (error) {
+      console.error(`Kunde inte anonymisera kommentarer for ${userId}`, error);
+    }
+
+    return null;
+  });
+
 exports.onBuddyRemoved = functions.firestore
   .document("users/{userId}/buddies/{buddyId}")
   .onDelete(async (snapshot, context) => {

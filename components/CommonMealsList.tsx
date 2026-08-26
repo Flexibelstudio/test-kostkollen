@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
-import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon, SmileIcon, BookmarkIcon } from './icons.tsx';
+import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon, SmileIcon, BookmarkIcon, ArrowRightIcon } from './icons.tsx';
 import { 
   MoreHorizontal, 
   Soup, Egg, Sandwich, CupSoda, Drumstick, Beef, Fish, Salad, Carrot,
@@ -224,7 +224,7 @@ const CommonMealCard: React.FC<{
   const { icon, bg, text } = getMealIcon(meal.name);
 
   return (
-    <div className={`relative group w-full aspect-square snap-start ${'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`relative group w-full h-[150px] snap-start ${'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
       {/* Menu Trigger */}
       <div className="absolute top-2 right-2 z-20">
         <button 
@@ -313,6 +313,11 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
   // Vid få val ska rutan krympa: 1-3 val ryms på en rad, fler staplas i två.
   // Grid-klasserna måste vara kompletta strängar - Tailwind kan inte tolka ihopsatta klassnamn.
   const rowsClass = sortedMeals.length <= 3 ? 'grid-rows-1' : 'grid-rows-2';
+  // Två kolumner får plats. Fler kort än så betyder att raden går att scrolla,
+  // och det måste synas - annars tror användaren att listan tar slut vid kort två.
+  const visibleColumns = 2;
+  const rowCount = sortedMeals.length <= 3 ? 1 : 2;
+  const isScrollable = sortedMeals.length > visibleColumns * rowCount;
 
   const mealToConfirm = mealIdToConfirmDelete ? commonMeals.find(cm => cm.id === mealIdToConfirmDelete) : null;
 
@@ -345,7 +350,8 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
              )}
           </div>
         ) : (
-          <div className={`grid ${rowsClass} grid-flow-col auto-cols-[calc(50%-0.3125rem)] items-start gap-2.5 overflow-x-auto snap-x snap-mandatory scrollbar-none no-scrollbar -mx-1 px-1 pb-2`}>
+          <div className="relative">
+            <div className={`grid ${rowsClass} grid-flow-col auto-cols-[calc(50%-0.3125rem)] items-start gap-2.5 overflow-x-auto snap-x snap-mandatory scrollbar-none no-scrollbar -mx-1 px-1 pb-2`}>
             {sortedMeals.map((meal) => (
               <CommonMealCard
                 key={meal.id}
@@ -358,6 +364,18 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
                 isBootcamp={isBootcamp}
               />
             ))}
+            </div>
+
+            {isScrollable && (
+              <>
+                {/* Toning i högerkanten så att nästa kort tydligt fortsätter utanför bild */}
+                <div className="pointer-events-none absolute top-0 right-0 h-full w-10 bg-gradient-to-l from-white dark:from-[#2B2825] to-transparent" />
+                <p className="flex items-center justify-end gap-1 text-[11px] font-medium text-[#7A756E] dark:text-[#C2BCB4] mt-0.5 pr-1">
+                  Dra i sidled för fler
+                  <ArrowRightIcon className="w-3.5 h-3.5" />
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>
