@@ -420,6 +420,8 @@ Tonläge och instruktioner: ${persona.promptTone}
 Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
 - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
 - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
+- Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 
@@ -698,6 +700,8 @@ Ge feedback på SVENSKA.
 Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
 - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
 - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
+- Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 
@@ -975,6 +979,8 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 7.  **NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):** Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
     - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
     - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+    - Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
+    - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
     - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
     - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 
@@ -1329,6 +1335,8 @@ Du är en INTE en extern coach, du ÄR ${persona.label}. Skriv återkopplingen s
 Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
 - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
 - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
+- Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
 

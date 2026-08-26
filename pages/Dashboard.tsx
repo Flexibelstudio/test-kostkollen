@@ -662,7 +662,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Handlers
     const handleAddMealToLog = async (
         data: LoggedMeal | Omit<LoggedMeal, 'id'> | NutritionalInfo | SearchedFoodInfo, 
-        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean; portionMultiplier?: number }
+        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean; portionMultiplier?: number; loggedWithPhoto?: boolean }
     ) => {
         if (!currentUser) return;
         if (!hasAppAccess(userProfile)) {
@@ -750,11 +750,16 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             // Grundutbildning inmönstrings-uppgifter
             if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
-                // cameraMode får INTE vara med här. Den initieras till 'mealAnalysis'
-                // och nollställs aldrig, så villkoret var sant för alla från appstart -
-                // varje måltid räknades som foto och 'log_meal_search' kunde aldrig bockas i.
-                // Läs av måltiden själv i stället för kvardröjande UI-state.
-                const isPhoto = Boolean(newMeal.imageUrl || (newMeal.nutritionalInfo && (newMeal.nutritionalInfo as any).source === 'camera'));
+                // Flaggan sätts av det anrop som faktiskt kommer från kameraflödet.
+                // Tidigare lästes cameraMode, som initieras till 'mealAnalysis' och
+                // aldrig nollställs - då räknades ALLA måltider som foto. Att bara ta
+                // bort den vände på felet: inget hade imageUrl eller source==='camera',
+                // så då kunde i stället fotouppgiften aldrig bockas i.
+                const isPhoto = Boolean(
+                    options?.loggedWithPhoto
+                    || newMeal.imageUrl
+                    || (newMeal.nutritionalInfo && (newMeal.nutritionalInfo as any).source === 'camera')
+                );
                 const taskId: BootcampOnboardingTaskId = isPhoto ? 'log_meal_photo' : 'log_meal_search';
                 completeBootcampOnboardingTask(currentUser.uid, taskId, userProfile).then(updated => {
                     if (updated) {
@@ -1633,7 +1638,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     analysisResult={imageAnalysisResult} 
                     imageDataUrl={analyzedImageDataUrl} 
                     isLoading={isAnalyzingPhoto}
-                    onLog={handleAddMealToLog} 
+                    onLog={(data: any, opts: any) => handleAddMealToLog(data, { ...(opts || {}), loggedWithPhoto: true })} 
                     onClose={() => {
                         setIsAnalyzingPhoto(false);
                         closeModalState('imageAnalysis', () => setShowImageAnalysisResultModal(false));

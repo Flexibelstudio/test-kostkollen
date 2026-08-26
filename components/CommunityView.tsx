@@ -1132,7 +1132,7 @@ const FriendManagementView: FC<{
                                         Du har {buddyDetails.length === 0 ? 'inga' : buddyDetails.length} {buddyDetails.length === 1 ? 'kompis' : 'kompisar'} ännu
                                     </p>
                                     <p className="text-base text-neutral-600 mt-0.5">
-                                        Det är betydligt roligare och lättare att nå sina mål tillsammans! Bjud in minst 3 vänner för att peppa varandra.
+                                        Det är betydligt roligare och lättare att nå sina mål tillsammans. Bjud in någon du vill peppa - och bli peppad av.
                                     </p>
                                 </div>
                                 <button

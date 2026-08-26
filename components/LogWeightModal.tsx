@@ -61,7 +61,11 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
 
   const isWeighInWindow = checkIsWeighInWindow();
   const hasLoggedThisWeek = checkHasLoggedThisWeek();
-  const showBootcampRestriction = isBootcampActive && !isWeighInWindow;
+  // Söndagsregeln gäller de 84 dagarna, inte grundutbildningen. Den som gör sin
+  // ALLRA FÖRSTA mätning kan omöjligt ha missat en invägning - att Börje skäller
+  // för något hon inte kunnat göra är fel, och det är hennes nollpunkt vi ber om.
+  const isFirstEverWeighIn = !weightLogs || weightLogs.length === 0;
+  const showBootcampRestriction = isBootcampActive && !isWeighInWindow && !isFirstEverWeighIn;
   const isDelayedLogging = showBootcampRestriction && !hasLoggedThisWeek;
   const isBlockedLogging = showBootcampRestriction && hasLoggedThisWeek;
 
