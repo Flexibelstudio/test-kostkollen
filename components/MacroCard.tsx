@@ -9,6 +9,8 @@ interface MacroCardProps {
   isBootcamp?: boolean;
   onInfoClick?: () => void;
   infoAriaLabel?: string;
+  /** Ersatter "x/y g"-texten. Anvands nar vardet inte ar kant an. */
+  displayValue?: string;
 }
 
 export const MacroCard: React.FC<MacroCardProps> = ({
@@ -20,6 +22,7 @@ export const MacroCard: React.FC<MacroCardProps> = ({
   isBootcamp = false,
   onInfoClick,
   infoAriaLabel,
+  displayValue,
 }) => {
   const percentage = goal > 0 ? Math.min((current / goal) * 100, 100) : 0;
 
@@ -38,7 +41,7 @@ export const MacroCard: React.FC<MacroCardProps> = ({
               <button
                 type="button"
                 onClick={onInfoClick}
-                className="ml-0.5 text-neutral-400 hover:text-primary transition-colors inline-flex items-center justify-center leading-none align-middle"
+                className="-ml-px text-neutral-400 hover:text-primary transition-colors inline-flex items-center justify-center leading-none align-middle"
                 aria-label={infoAriaLabel || `Information om ${label.toLowerCase()}mål`}
               >
                 <svg
@@ -58,7 +61,7 @@ export const MacroCard: React.FC<MacroCardProps> = ({
           </p>
         </div>
         <p className="text-xs sm:text-sm text-neutral-500 mb-2 leading-tight">
-          {Math.round(current)}/{goal}g
+          {displayValue ?? `${Math.round(current)}/${goal}g`}
         </p>
       </div>
       <div

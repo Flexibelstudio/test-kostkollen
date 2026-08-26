@@ -59,7 +59,6 @@ import { pushModalState, replaceModalState, closeModalState, subscribeToHistory 
 import CameraModal from '../components/CameraModal';
 import TextEntryModal from '../components/TextEntryModal';
 import ProteinInfoModal from '../components/ProteinInfoModal';
-import FiberRow from '../components/FiberRow';
 import RecipeChoiceModal from '../components/RecipeChoiceModal';
 import RecipeModal from '../components/RecipeModal';
 import IngredientCaptureModal from '../components/IngredientCaptureModal';
@@ -1184,7 +1183,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
 
                     {/* Macros Integrated */}
-                    <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full px-4 sm:px-6 items-stretch">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full px-4 sm:px-6 items-stretch">
                         <MacroCard 
                             label="Kolhydrater"
                             current={totalNutrients.carbohydrates}
@@ -1211,14 +1210,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                             barColor="#7BA05B"
                             isBootcamp={!!activeBootcamp}
                         />
-                    </div>
-
-                    {/* Fibrer - eget mal, medvetet utanfor makrogrids tre kort */}
-                    <div className="w-full px-4 sm:px-6 mt-2">
-                        <FiberRow
+                        {/* Fibrer ligger som fjarde kort, jamnt med de andra. Malet ar
+                            ett riktmarke - kortet blir aldrig rott, och coachen skaller
+                            aldrig pa lagt fiberintag. Har dagen inga fibervarden alls
+                            visas ett streck i stallet for en nolla. */}
+                        <MacroCard
+                            label="Fibrer"
                             current={totalNutrients.fiber}
-                            target={FIBER_DAILY_TARGET_GRAMS}
-                            hasData={totalNutrients.hasFiberData}
+                            goal={FIBER_DAILY_TARGET_GRAMS}
+                            trackColor="#F4E9D7"
+                            barColor="#C99B4A"
+                            isBootcamp={!!activeBootcamp}
+                            displayValue={totalNutrients.hasFiberData ? undefined : `–/${FIBER_DAILY_TARGET_GRAMS}g`}
                         />
                     </div>
 
