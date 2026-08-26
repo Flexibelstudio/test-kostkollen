@@ -1192,7 +1192,9 @@ exports.manualSummarizeYesterday = functions
 // ==========================================
 
 exports.createCheckoutSession = functions
-  .runWith({ secrets: ["STRIPE_BOOTCAMP_PRICE"] })
+  // STRIPE_PRICE_ID måste deklareras här, annars är den odefinierad i
+  // prenumerationsgrenen och köpet faller på "Kunde inte hitta ett pris".
+  .runWith({ secrets: ["STRIPE_BOOTCAMP_PRICE", "STRIPE_PRICE_ID"] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(

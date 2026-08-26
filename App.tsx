@@ -2441,6 +2441,10 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             setToastNotification({ message: 'Simulerad Bootcamp-åtkomst beviljad (Testläge)!', type: 'success' });
           }}
           onOpenSubscriptionModal={() => setShowSubscriptionModal(true)}
+          onStartSubscriptionCheckout={async () => {
+            if (!currentUser) return;
+            await startSubscriptionCheckout(currentUser.uid, userProfile.coachStyle);
+          }}
           onLogout={handleLogout}
         />
         {showSubscriptionModal && (

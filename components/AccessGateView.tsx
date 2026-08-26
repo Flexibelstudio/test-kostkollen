@@ -9,7 +9,8 @@ import {
   SparklesIcon, 
   CheckIcon, 
   ArrowRightOnRectangleIcon, 
-  CreditCardIcon 
+  CreditCardIcon,
+  CheckCircleIcon
 } from './icons';
 import { Flame, Target, Trophy, Clock, Zap, Loader2, Sparkles } from 'lucide-react';
 import { startBootcampCheckout } from '../services/bootcampAccessService';
@@ -20,6 +21,8 @@ interface AccessGateViewProps {
   onStartBootcampCheckout?: () => Promise<void>;
   onSimulatedGrant?: () => Promise<void>;
   onOpenSubscriptionModal: () => void;
+  /** Går direkt till Stripe för abonnemanget - ingen mellanruta. */
+  onStartSubscriptionCheckout?: () => Promise<void>;
   onLogout: () => void;
   isLoading?: boolean;
   /**
@@ -39,11 +42,28 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
   onStartBootcampCheckout,
   onSimulatedGrant,
   onOpenSubscriptionModal,
+  onStartSubscriptionCheckout,
   onLogout,
   isLoading = false,
   planSummary
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isStartingSubscription, setIsStartingSubscription] = useState(false);
+
+  const handleStartSubscription = async () => {
+    if (!onStartSubscriptionCheckout) {
+      onOpenSubscriptionModal();
+      return;
+    }
+    setIsStartingSubscription(true);
+    setErrorMessage(null);
+    try {
+      await onStartSubscriptionCheckout();
+    } catch (e: any) {
+      setErrorMessage(e?.message || 'Kunde inte starta abonnemanget. Försök igen.');
+      setIsStartingSubscription(false);
+    }
+  };
   const [isSimulating, setIsSimulating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -76,7 +96,7 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
     }
   };
 
-  const busy = isLoading || isProcessing || isSimulating;
+  const busy = isLoading || isProcessing || isSimulating || isStartingSubscription;
 
   return (
     <div className="min-h-[100dvh] bg-[#FAF6EF] text-[#56524D] flex flex-col justify-between">
@@ -227,27 +247,53 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
               det som var trasigt. Verktyget finns kvar i coachvyn. */
           }
 
-          {/* SEKUNDÄRT ERBJUDANDE: ABONNEMANG */}
-          <div className="bg-white/80 backdrop-blur-xs rounded-xl border border-[#F1EAE0] p-4 sm:p-5 transition-all">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-[#56524D] font-bold text-sm">
-                  <CreditCardIcon className="w-4 h-4 text-[#7A756E]" />
-                  <span>Föredrar du månadsprenumeration?</span>
-                </div>
-                <p className="text-xs text-[#7A756E]">
-                  Löpande åtkomst till Kostloggens loggning för 95 kr/månad utan bindningstid.
-                </p>
-              </div>
-
-              <button
-                onClick={onOpenSubscriptionModal}
-                disabled={busy}
-                className="px-4 py-2.5 bg-[#F1EAE0] hover:bg-[#E2D8CC] text-[#56524D] font-semibold text-xs rounded-xl border border-[#E2D8CC] transition-colors whitespace-nowrap active:scale-98"
-              >
-                Hantera / Välj Abonnemang
-              </button>
+          {/* ABONNEMANG - jämbördigt alternativ, inte en fotnot. Gratisveckan är
+              det starkaste argumentet och ska synas, inte gömmas i småtext. */}
+          <div className="bg-white rounded-2xl border-2 border-[#F1EAE0] shadow-soft-lg p-5 sm:p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <CreditCardIcon className="w-5 h-5 text-[#D96E4A]" />
+              <h2 className="font-bold text-lg text-[#56524D]">Bara logga i appen</h2>
             </div>
+
+            <p className="text-3xl font-serif font-medium text-[#56524D] leading-none mt-3">
+              7 dagar gratis
+            </p>
+            <p className="text-sm text-[#7A756E] mt-1.5">
+              Sedan 95 kr/mån. Ingen bindningstid – avsluta när du vill.
+            </p>
+
+            <ul className="mt-4 space-y-1.5 text-sm text-[#56524D]">
+              <li className="flex items-start gap-2">
+                <CheckCircleIcon className="w-4 h-4 text-[#7BA05B] mt-0.5 shrink-0" />
+                <span>Logga med foto, sök eller streckkod</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircleIcon className="w-4 h-4 text-[#7BA05B] mt-0.5 shrink-0" />
+                <span>Din AI-coach, sparpotten och veckoöversikten</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircleIcon className="w-4 h-4 text-[#7BA05B] mt-0.5 shrink-0" />
+                <span>Kursen Maxa Klimakteriet ingår</span>
+              </li>
+            </ul>
+
+            <button
+              onClick={handleStartSubscription}
+              disabled={busy}
+              className="mt-5 w-full py-3.5 px-6 bg-[#56524D] hover:bg-[#3D3A36] text-white font-bold rounded-xl transition-colors active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {isStartingSubscription ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Öppnar betalningen...</span>
+                </>
+              ) : (
+                <span>Starta 7 dagar gratis</span>
+              )}
+            </button>
+            <p className="text-xs text-[#7A756E] text-center mt-2">
+              Du betalar inget idag.
+            </p>
           </div>
 
           {/* Trygghetsgaranti & Information */}

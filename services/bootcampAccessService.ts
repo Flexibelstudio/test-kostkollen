@@ -89,15 +89,27 @@ export async function startBootcampCheckout(userId?: string): Promise<void> {
  * @param coachStyle Vald coach-stil för det fortsatta abonnemanget
  */
 export async function startSubscriptionCheckout(userId?: string, coachStyle?: string): Promise<void> {
-  // === STRIPE SUBSCRIPTION CHECKOUT INTEGRATIONSPUNKT ===
-  // Här kopplas Stripe-checkout in via Cloud Functions, t.ex.:
-  // const functions = getFunctions();
-  // const createSession = httpsCallable(functions, 'createSubscriptionSession');
-  // const result = await createSession({ mode: 'subscription', coachStyle, returnUrl: window.location.origin });
-  // window.location.href = result.data.url;
-  
-  // Tills Stripe är driftsatt för abonnemang i produktion:
-  throw new Error("Abonnemangsbetalning via Stripe är inte konfigurerad ännu. Kontakta support.");
+  // Samma Cloud Function som bootcampköpet, men i prenumerationsläge. Där sätts
+  // trial_period_days: 7, så gratisveckan hanteras av Stripe och inte av oss.
+  const { getFunctions, httpsCallable } = await import('firebase/functions');
+  const functions = getFunctions();
+  const createSession = httpsCallable(functions, 'createCheckoutSession');
+
+  const result = await createSession({
+    returnUrl: window.location.origin,
+    mode: 'subscription',
+    ...(coachStyle ? { coachStyle } : {}),
+  });
+
+  const url = (result.data as any)?.url;
+  if (!url) {
+    throw new Error('Kunde inte starta betalningen. Försök igen.');
+  }
+
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.setItem('pending_checkout_type', 'subscription');
+    window.location.href = url;
+  }
 }
 
 /**
