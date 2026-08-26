@@ -84,7 +84,17 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [currentDate]);
 
   // Derive simulated / overridden states
-  const effectiveUserStatus = simulatedUserStatus !== null ? simulatedUserStatus : userData.userStatus;
+  //
+  // Den gamla modellen krävde att en coach godkände varje nytt konto. Den är
+  // ersatt av självbetjäning: betalningen ger åtkomst, och `hasAppAccess` är
+  // den enda grinden. Men 'pending' gatade fortfarande ett tjugotal ställen i
+  // App.tsx - datainläsning, onboarding, community, och returen från Stripe -
+  // så ett nyskapat konto fick en halvdöd app och kom aldrig in efter köpet.
+  //
+  // 'pending' tolkas därför som godkänt. 'archived' står kvar, så coachen kan
+  // fortfarande stänga av någon.
+  const rawUserStatus = simulatedUserStatus !== null ? simulatedUserStatus : userData.userStatus;
+  const effectiveUserStatus = rawUserStatus === 'pending' ? 'approved' : rawUserStatus;
   
   const effectiveUserProfile = {
     ...userData.userProfile,

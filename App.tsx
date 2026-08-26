@@ -1225,7 +1225,10 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
       }, 5000);
     }
     
-    if ((params.get('payment_success') === 'true' || window.location.pathname.endsWith('/success')) && userStatus === 'approved') {
+    // Ingen statusgrind här. Tidigare krävdes userStatus === 'approved', men nya
+    // konton skapas som 'pending' - så den som faktiskt betalat hoppades över
+    // och landade tillbaka på valsidan i stället för inne i appen.
+    if (params.get('payment_success') === 'true' || window.location.pathname.endsWith('/success')) {
         setToastNotification({ message: "Betalning bekräftad! Välkommen in!", type: 'success' });
         
         // --- SKICKA KÖP TILL META PIXEL ---
@@ -1261,13 +1264,27 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         pushViewState({ view: 'coursesView' });
         setViewMode('coursesView');
 
+        // Webhooken skriver bootcampAccess/prenumerationen EFTER att Stripe
+        // skickat tillbaka användaren. Utan att läsa om profilen står hon i
+        // appen utan åtkomst tills hon råkar ladda om sidan. Vi läser om ett
+        // par gånger med stigande fördröjning och slutar så fort åtkomsten finns.
+        let attempt = 0;
+        const pollForAccess = () => {
+            attempt += 1;
+            refreshUserData();
+            if (attempt < 5) {
+                setTimeout(pollForAccess, attempt * 1500);
+            }
+        };
+        setTimeout(pollForAccess, 1500);
+
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
         newUrl.searchParams.delete('session_id');
         const newPath = newUrl.pathname.endsWith('/success') ? '/' : newUrl.pathname;
         window.history.replaceState(window.history.state, '', newPath + newUrl.search);
     }
-  }, [userStatus, setToastNotification, activeBootcamp]);
+  }, [setToastNotification, activeBootcamp, refreshUserData]);
 
   const handleNavigateToCourses = () => {
     pushViewState({ view: 'coursesView' });

@@ -1675,6 +1675,9 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
             {
               isCourseActive: true,
               hasCompletedBootcamp: false,
+              // Betalning = godkänt konto. Den gamla modellen med
+              // coachgodkännande är borttagen.
+              status: "approved",
               // Åtkomstmodellen: bootcampAccess är betalningskritiskt och skrivs
               // ENBART här, via Admin SDK, så att Firestore-reglerna kan neka
               // klienten att sätta det själv. Utgångsdatumet räknas som
@@ -1684,12 +1687,12 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
                 purchaseDate: new Date().toISOString(),
                 accessExpiresDate: new Date(
                   Date.now() + (3 + 84) * 24 * 60 * 60 * 1000,
-                ).toISOString().split(T)[0],
+                ).toISOString().split("T")[0],
                 onboardingCompletedDate: null,
                 bootcampStartDate: null,
                 onboardingTasksCompleted: [],
               },
-              coachStyle: hard,
+              coachStyle: "hard",
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
             { merge: true },
