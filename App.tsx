@@ -1383,7 +1383,19 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
 
     try {
         await saveProfileAndGoals(currentUser.uid, updatedProfile, newGoals);
-        setUserProfile(updatedProfile);
+        // Slå ihop, ersätt inte. Profilmodalen bär inte med sig serverägda fält
+        // som bootcampAccess och subscriptionStatus - ersattes hela profilen med
+        // modalens kopia försvann åtkomsten ur minnet, och användaren kastades
+        // tillbaka till köpsidan direkt efter att ha fyllt i profilen.
+        setUserProfile(prev => ({
+            ...updatedProfile,
+            bootcampAccess: prev.bootcampAccess ?? updatedProfile.bootcampAccess,
+            bootcampOnboarding: prev.bootcampOnboarding ?? updatedProfile.bootcampOnboarding,
+            subscriptionStatus: prev.subscriptionStatus ?? updatedProfile.subscriptionStatus,
+            currentPeriodEnd: prev.currentPeriodEnd ?? updatedProfile.currentPeriodEnd,
+            role: prev.role ?? updatedProfile.role,
+            status: prev.status ?? updatedProfile.status,
+        }));
         setGoals(newGoals);
 
         if (isProfileModalOnboarding) {

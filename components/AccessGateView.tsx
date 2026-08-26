@@ -191,40 +191,11 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
             </div>
           </div>
 
-          {/* TESTVERKTYG: SIMULERAT KÖP (Endast i godkända testmiljöer, aldrig i produktion) */}
-          {isTestingToolAllowed() && (
-            <div className="bg-[#F1EAE0] border border-[#E2D8CC] rounded-2xl p-4 text-xs space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 font-bold text-[#56524D]">
-                  <Sparkles className="w-4 h-4 text-[#7A756E]" />
-                  <span>Testfunktion (Endast synlig i utvecklings-/testmiljö)</span>
-                </div>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-[#E2D8CC] text-[#56524D]">
-                  Dev/Staging
-                </span>
-              </div>
-              <p className="text-[#7A756E] leading-relaxed">
-                Denna knapp visas inte på produktionsdomänen. Den låter dig simulera ett godkänt köp av 12-veckors Bootcampen utan betalning för att testa grundutbildningen och appen.
-              </p>
-              <button
-                onClick={handleSimulatedGrant}
-                disabled={busy}
-                className="w-full bg-[#56524D] hover:bg-[#3D3A36] active:bg-[#2B2825] text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isSimulating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Simulerar köp...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheckIcon className="w-4 h-4" />
-                    <span>Simulera godkänt Bootcamp-köp (Testfunktion)</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+          {/* Testverktyget för simulerat köp är borttaget härifrån. Betalning med
+              Stripes testkort på teststage gör samma sak och testar dessutom
+              webhooken - vilket simuleringen aldrig gjorde, och som var precis
+              det som var trasigt. Verktyget finns kvar i coachvyn. */
+          }
 
           {/* SEKUNDÄRT ERBJUDANDE: ABONNEMANG */}
           <div className="bg-white/80 backdrop-blur-xs rounded-xl border border-[#F1EAE0] p-4 sm:p-5 transition-all">
