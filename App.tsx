@@ -1264,19 +1264,16 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         pushViewState({ view: 'coursesView' });
         setViewMode('coursesView');
 
-        // Webhooken skriver bootcampAccess/prenumerationen EFTER att Stripe
-        // skickat tillbaka användaren. Utan att läsa om profilen står hon i
-        // appen utan åtkomst tills hon råkar ladda om sidan. Vi läser om ett
-        // par gånger med stigande fördröjning och slutar så fort åtkomsten finns.
-        let attempt = 0;
-        const pollForAccess = () => {
-            attempt += 1;
-            refreshUserData();
-            if (attempt < 5) {
-                setTimeout(pollForAccess, attempt * 1500);
-            }
-        };
-        setTimeout(pollForAccess, 1500);
+        // Webhooken skriver åtkomsten EFTER att Stripe skickat tillbaka
+        // användaren, så profilen i minnet är ett ögonblick för gammal.
+        //
+        // Tidigare kördes refreshUserData fem gånger på rad oavsett resultat.
+        // Varje omläsning nollställer laddningsläget, och kedjan startade om
+        // appen mitt i - vilket syntes som att den fastnade på en tom skärm med
+        // loggan. Nu sker EN omläsning, med en enda extra försening som
+        // skyddsnät om webhooken var långsam.
+        setTimeout(() => { refreshUserData(); }, 2500);
+        setTimeout(() => { refreshUserData(); }, 8000);
 
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
@@ -1450,12 +1447,16 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
     setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
 
     try {
+        // role och status skickas INTE med. Säkerhetsreglerna kräver att de är
+        // oförändrade, och userStatus är numera det tolkade värdet ('pending'
+        // läses som godkänt) - så skrivningen sa 'approved' medan dokumentet sa
+        // 'pending' och hela uppdateringen avvisades. Följden blev en röd toast
+        // och att hasCompletedOnboarding aldrig sparades, så onboardingen kom
+        // tillbaka efter betalningen.
         await updateUserDocument(currentUser.uid, { 
           hasCompletedOnboarding: true,
           summaryStartDate: todayUID, // Set start date for report processing to TODAY
           lastDateStreakChecked: todayUID, // Set this to today so morning report for "yesterday" won't trigger immediately
-          role: userRole || 'member', 
-          status: userStatus || 'approved' 
         });
         setSummaryStartDate(todayUID);
         setStreakData(prev => ({ ...prev, lastDateStreakChecked: todayUID }));

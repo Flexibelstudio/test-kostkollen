@@ -236,7 +236,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           courseInterest: false,
           isSearchable: true, // Default to searchable for new users
           notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
-          coachStyle: initialProfile?.coachStyle || 'hard',
+          // Vid vanlig registrering ska coachen VÄLJAS, inte tilldelas. Att
+          // förvälja Börje gjorde dels att valet inte syntes - många upptäckte
+          // aldrig att Maja och Erik finns - dels att någon som bara vill logga
+          // mat möttes av bootcamptonen. Är det en bootcampregistrering behåller
+          // vi Börje, för då är han coachen.
+          coachStyle: initialProfile?.coachStyle
+            || (isBootcampOnboarding ? 'hard' : DEFAULT_USER_PROFILE.coachStyle),
         } as UserProfileData;
       }
       // Vid redigering: behåll befintligt sparat värde för användaren, eller standardvärde om låst
