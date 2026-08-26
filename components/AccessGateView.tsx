@@ -22,6 +22,16 @@ interface AccessGateViewProps {
   onOpenSubscriptionModal: () => void;
   onLogout: () => void;
   isLoading?: boolean;
+  /**
+   * Den framräknade planen. Visas överst så att personen ser vad appen kommit
+   * fram till innan hon ombeds betala - hela poängen med att flytta profilen
+   * före köpvalet.
+   */
+  planSummary?: {
+    calorieGoal?: number;
+    proteinGoal?: number;
+    goalType?: string;
+  };
 }
 
 export const AccessGateView: React.FC<AccessGateViewProps> = ({
@@ -30,7 +40,8 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
   onSimulatedGrant,
   onOpenSubscriptionModal,
   onLogout,
-  isLoading = false
+  isLoading = false,
+  planSummary
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -93,7 +104,26 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
       {/* Huvudinnehåll */}
       <main className="max-w-4xl w-full mx-auto px-4 py-8 flex-grow flex flex-col items-center justify-center">
         <div className="w-full max-w-2xl space-y-6">
-          
+
+          {/* Den framräknade planen. Personen ska se vad hon får innan hon betalar. */}
+          {planSummary?.calorieGoal ? (
+            <div className="bg-white rounded-2xl border border-[#F1EAE0] shadow-soft-lg p-5 text-center">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#7A756E] mb-2">Din plan är klar</p>
+              <p className="text-4xl font-serif font-medium text-[#56524D] leading-none">
+                {Math.round(planSummary.calorieGoal)}
+                <span className="text-lg font-sans text-[#7A756E] ml-1.5">kcal/dag</span>
+              </p>
+              {planSummary.proteinGoal ? (
+                <p className="text-sm text-[#7A756E] mt-2">
+                  varav minst {Math.round(planSummary.proteinGoal)} g protein
+                </p>
+              ) : null}
+              <p className="text-sm text-[#56524D] mt-3 leading-relaxed">
+                Så här ser din dagliga budget ut. Välj nedan hur du vill köra.
+              </p>
+            </div>
+          ) : null}
+
           {/* Header & Presentation */}
           <div className="text-center space-y-2">
             <div className="inline-flex items-center gap-1.5 bg-[#F6E2D9] text-[#D96E4A] border border-[#D96E4A]/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">

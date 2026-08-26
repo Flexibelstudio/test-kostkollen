@@ -2417,10 +2417,18 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
   const userHasAccess = hasAppAccess(effectiveUserProfile);
   const isReadOnly = isReadOnlyUser(effectiveUserProfile);
 
-  if (!userHasAccess && !isReadOnly) {
+  // Köpvalet visas först när profilen är ifylld. Annars möttes ett nybakat konto
+  // av en prislista innan appen ens visat vad den räknat fram - och profilmodalen
+  // hann aldrig öppnas, eftersom grinden returnerade tidigt.
+  if (!userHasAccess && !isReadOnly && hasCompletedOnboarding) {
     return (
       <>
         <AccessGateView 
+          planSummary={{
+            calorieGoal: goals.calorieGoal,
+            proteinGoal: goals.proteinGoal,
+            goalType: userProfile.goalType,
+          }}
           userProfile={userProfile}
           onStartBootcampCheckout={async () => {
             if (!currentUser) return;
