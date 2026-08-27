@@ -24,7 +24,7 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
     const prosList: string[] = [];
     const consList: string[] = [];
 
-    const { calories, protein, carbohydrates, fat } = nutritionalInfo;
+    const { calories, protein, carbohydrates, fat, fiber } = nutritionalInfo;
     
     // Avoid division by zero
     const totalKcal = calories > 0 ? calories : 1;
@@ -36,6 +36,19 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
     const proteinRatio = proteinKcal / totalKcal;
     const fatRatio = fatKcal / totalKcal;
     const carbsRatio = carbsKcal / totalKcal;
+
+    // Fiberlogik. Bara nar vardet finns - saknas det ar maltiden loggad fore
+    // fibrerna infordes, och da ska den varken belonas eller straffas.
+    if (typeof fiber === 'number' && calories > 150) {
+      const fiberPer100kcal = (fiber / calories) * 100;
+      if (fiberPer100kcal >= 2.5) {
+        currentScore += 10;
+        prosList.push('Fiberrikt');
+      } else if (fiberPer100kcal >= 1.5) {
+        currentScore += 5;
+        prosList.push('Bra med fibrer');
+      }
+    }
 
     // Protein Logic
     if (proteinRatio > 0.30) {
@@ -164,7 +177,7 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
         </div>
 
         {/* Macros */}
-        <div className="grid grid-cols-3 gap-2 p-6 bg-neutral-50 border-b border-neutral-light">
+        <div className={`grid ${typeof nutritionalInfo.fiber === 'number' ? 'grid-cols-4' : 'grid-cols-3'} gap-2 p-6 bg-neutral-50 border-b border-neutral-light`}>
           <div className="text-center">
             <div className="w-12 h-12 mx-auto rounded-full border-4 border-[#7A756E] flex items-center justify-center mb-1">
               <span className="text-xs font-bold text-neutral-dark">{Math.round(nutritionalInfo.carbohydrates)}g</span>
@@ -183,6 +196,14 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
             </div>
             <span className="text-xs text-neutral-500 uppercase tracking-wide">Fett</span>
           </div>
+          {typeof nutritionalInfo.fiber === 'number' && (
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto rounded-full border-4 border-[#C99B4A] flex items-center justify-center mb-1">
+                <span className="text-xs font-bold text-neutral-dark">{Math.round(nutritionalInfo.fiber)}g</span>
+              </div>
+              <span className="text-xs text-neutral-500 uppercase tracking-wide">Fibrer</span>
+            </div>
+          )}
         </div>
 
         {/* Pros and Cons */}

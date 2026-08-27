@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
 import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon, SmileIcon, BookmarkIcon, ArrowRightIcon } from './icons.tsx';
 import { 
@@ -119,6 +120,18 @@ const CommonMealCard: React.FC<{
 }> = ({ meal, onLog, onDelete, onUpdate, onShowRating, disabled, isBootcamp }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  // Korten ligger i en vagratt scrollande behallare. En meny som ritas inuti
+  // kortet klipps darfor bort vid kortkanten - den maste ut ur flodet helt.
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
+
+  const openMenu = () => {
+    const rect = menuButtonRef.current?.getBoundingClientRect();
+    if (rect) {
+      setMenuPosition({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    }
+    setShowMenu(true);
+  };
 
   // Edit state
   const [editedName, setEditedName] = useState(meal.name);
@@ -168,8 +181,20 @@ const CommonMealCard: React.FC<{
   const inputClass = "block w-full px-2 py-1.5 bg-neutral-light/50 border border-neutral-light rounded-md text-sm focus:ring-primary focus:border-primary";
 
   if (isEditing) {
-    return (
-      <div className="bg-white shadow-soft-xl rounded-2xl p-4 border-2 border-primary-lighter relative space-y-3 animate-fade-in row-span-full w-full h-full overflow-y-auto snap-start">
+    // Redigeringen lag tidigare inuti sjalva kortet. Nar korten blev lagre fick
+    // sex falt samsas om 118 px och formularet blev obrukbart. Den ligger nu
+    // som en egen ruta ovanpa sidan i stallet.
+    return createPortal(
+      <div
+        className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[130] p-4 animate-fade-in"
+        onClick={() => setIsEditing(false)}
+        role="dialog"
+        aria-modal="true"
+      >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white shadow-soft-xl rounded-2xl p-5 w-full max-w-sm max-h-[85vh] overflow-y-auto space-y-3 animate-scale-in">
+        <h3 className="text-lg font-serif font-medium text-[#56524D] mb-1">Redigera vanligt val</h3>
         <div>
           <label className="block text-xs font-semibold text-neutral-dark mb-1">Namn</label>
           <input
@@ -213,11 +238,13 @@ const CommonMealCard: React.FC<{
             </button>
           )}
           <div className="flex justify-end space-x-2 ml-auto">
-            <button onClick={() => setIsEditing(false)} className="p-2 text-neutral hover:bg-neutral-light rounded-full"><XMarkIcon className="w-5 h-5" /></button>
-            <button onClick={handleSave} className="p-2 text-white bg-primary hover:bg-primary-darker rounded-full shadow-sm"><CheckIcon className="w-5 h-5" /></button>
+            <button onClick={() => setIsEditing(false)} className="p-2 text-neutral hover:bg-neutral-light rounded-full" aria-label="Avbryt"><XMarkIcon className="w-5 h-5" /></button>
+            <button onClick={handleSave} className="p-2 text-white bg-primary hover:bg-primary-darker rounded-full shadow-sm" aria-label="Spara"><CheckIcon className="w-5 h-5" /></button>
           </div>
         </div>
       </div>
+      </div>,
+      document.body
     );
   }
 
@@ -227,30 +254,41 @@ const CommonMealCard: React.FC<{
     <div className={`relative group w-full h-[118px] snap-start ${'bg-white'} rounded-2xl border border-neutral-light shadow-soft-sm hover:shadow-soft-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
       {/* Menu Trigger */}
       <div className="absolute top-2 right-2 z-20">
-        <button 
-          onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+        <button
+          ref={menuButtonRef}
+          onClick={(e) => { e.stopPropagation(); showMenu ? setShowMenu(false) : openMenu(); }}
           className="p-1.5 text-neutral-400 hover:text-neutral-dark rounded-full hover:bg-neutral-light transition-colors"
+          aria-label={`Alternativ för ${meal.name}`}
         >
           <MoreHorizontal className="w-5 h-5" />
         </button>
-        
-        {showMenu && (
-          <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
-            <button 
+      </div>
+
+      {/* Menyn ritas i body med fast position, annars klipps den av kortet
+          och av den vagratt scrollande raden runt omkring. */}
+      {showMenu && menuPosition && createPortal(
+        <>
+          <div className="fixed inset-0 z-[130]" onClick={() => setShowMenu(false)} />
+          <div
+            className="fixed w-36 bg-white rounded-xl shadow-soft-xl border border-neutral-light z-[131] animate-scale-in origin-top-right overflow-hidden"
+            style={{ top: menuPosition.top, right: menuPosition.right }}
+          >
+            <button
               onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowMenu(false); }}
-              className="w-full text-left px-3 py-2 text-sm text-neutral-dark hover:bg-neutral-light flex items-center gap-2"
+              className="w-full text-left px-3 py-2.5 text-sm text-neutral-dark hover:bg-neutral-light flex items-center gap-2"
             >
               <PencilIcon className="w-3.5 h-3.5" /> Redigera
             </button>
-            <button 
+            <button
               onClick={(e) => { e.stopPropagation(); onDelete(meal.id); setShowMenu(false); }}
-              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-neutral-light"
+              className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-neutral-light"
             >
               <TrashIcon className="w-3.5 h-3.5" /> Ta bort
             </button>
           </div>
-        )}
-      </div>
+        </>,
+        document.body
+      )}
 
       {/* Main Clickable Area */}
       <button
@@ -271,10 +309,6 @@ const CommonMealCard: React.FC<{
         </p>
       </button>
       
-      {/* Overlay click to close menu */}
-      {showMenu && (
-        <div className="fixed inset-0 z-10 cursor-default" onClick={() => setShowMenu(false)}></div>
-      )}
     </div>
   );
 };
