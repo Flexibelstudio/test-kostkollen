@@ -136,7 +136,7 @@ const FoodRatingModal: React.FC<FoodRatingModalProps> = ({ show, onClose, nutrit
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[140] p-4 animate-fade-in" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in" onClick={e => e.stopPropagation()}>
         
         {/* Header */}
