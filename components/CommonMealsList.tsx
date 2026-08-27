@@ -224,7 +224,7 @@ const CommonMealCard: React.FC<{
   const { icon, bg, text } = getMealIcon(meal.name);
 
   return (
-    <div className={`relative group w-full h-[150px] snap-start ${'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`relative group w-full h-[118px] snap-start ${'bg-white'} rounded-2xl border border-neutral-light shadow-soft-sm hover:shadow-soft-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
       {/* Menu Trigger */}
       <div className="absolute top-2 right-2 z-20">
         <button 
@@ -256,10 +256,10 @@ const CommonMealCard: React.FC<{
       <button
         onClick={() => !disabled && !showMenu && onLog(meal)}
         disabled={disabled}
-        className="w-full h-full p-4 flex flex-col items-center justify-center text-center cursor-pointer outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-2xl active:scale-95 transition-transform"
+        className="w-full h-full px-3 py-2.5 flex flex-col items-center justify-center text-center cursor-pointer outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-2xl active:scale-95 transition-transform"
       >
         {/* Updated Icon Container with Squircle and dynamic color */}
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 shadow-sm shrink-0 ${bg} ${text}`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1.5 shadow-soft-sm shrink-0 ${bg} ${text}`}>
           {icon}
         </div>
         

@@ -1418,11 +1418,12 @@ export async function savePushSubscription(userId: string, subscription: object)
   const userDocRef = doc(db, 'users', userId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
-    const { role, status } = userDoc.data();
+    // role och status ekades tidigare tillbaka i skrivningen. De ar serverägda
+    // och sakerhetsreglerna kraver att de ar ofrandrade - skickas de med alls
+    // rakar en enda avvikelse fran databasen fälla hela skrivningen, och da
+    // sparas aldrig push-prenumerationen. Skriv bara det som faktiskt andras.
     await updateDoc(userDocRef, {
       pushSubscriptions: arrayUnion(subscription),
-      role: role,
-      status: status,
     });
   }
 }
