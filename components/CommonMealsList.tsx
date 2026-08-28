@@ -384,6 +384,8 @@ const CommonMealCard: React.FC<{
 
 export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false, isBootcamp = false, embedded = false }) => {
   const [mealIdToConfirmDelete, setMealIdToConfirmDelete] = useState<string | null>(null);
+  const [showAllMeals, setShowAllMeals] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleDeleteRequest = (mealId: string) => {
     setMealIdToConfirmDelete(mealId);
@@ -399,6 +401,8 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
   const handleLogClick = (meal: CommonMeal) => {
     if (disabled) return;
     onLogCommonMeal(meal);
+    // Loggar man fran hela listan ar man klar - da ska rutan inte bli kvar.
+    setShowAllMeals(false);
   };
 
   // Mest använda först. Vid lika antal: senast använd, därefter nyast sparad.
@@ -425,6 +429,10 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
   // undrar ar om det finns mer an det man ser, och at vilket hall.
   const hiddenCount = Math.max(0, sortedMeals.length - visibleColumns * rowCount);
 
+  const visibleInModal = searchQuery.trim()
+    ? sortedMeals.filter(m => m.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    : sortedMeals;
+
   const mealToConfirm = mealIdToConfirmDelete ? commonMeals.find(cm => cm.id === mealIdToConfirmDelete) : null;
 
   return (
@@ -441,10 +449,14 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
           {/* Ligger har uppe i stallet for under korten - raden var tom anda,
               och under korten kostade den en hel textrad. */}
           {hiddenCount > 0 && (
-            <span className="flex items-center gap-1 text-[11px] font-medium text-[#7A756E] dark:text-[#C2BCB4] whitespace-nowrap flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(''); setShowAllMeals(true); }}
+              className="flex items-center gap-1 text-[11px] font-semibold text-[#D96E4A] hover:text-[#C05A38] whitespace-nowrap flex-shrink-0 px-1.5 py-1 -mr-1.5 rounded-lg hover:bg-[#F6E2D9] transition-colors"
+            >
               +{hiddenCount} fler
               <ArrowRightIcon className="w-3.5 h-3.5" />
-            </span>
+            </button>
           )}
         </div>
 
@@ -490,6 +502,77 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
           </div>
         )}
       </div>
+
+      {/* Hela listan. Med manga val racker inte en svepbar rad - tio svep i tva
+          rader ar ingen bra vag till maten man ater varje dag. Har visas allt
+          pa en gang, med sokning nar listan blivit lang. */}
+      {showAllMeals && createPortal(
+        <div
+          className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[125] sm:p-4 animate-fade-in"
+          onClick={() => setShowAllMeals(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Alla vanliga val"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#2B2825] w-full sm:max-w-2xl rounded-t-[22px] sm:rounded-[22px] shadow-soft-xl max-h-[85vh] flex flex-col animate-scale-in"
+          >
+            <div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-b border-[#F1EAE0] dark:border-[#484440]">
+              <h3 className="text-lg font-serif font-medium text-[#56524D] dark:text-[#FAF6EF]">
+                Mina vanliga val
+                <span className="ml-2 text-sm font-sans text-[#7A756E]">{sortedMeals.length} st</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAllMeals(false)}
+                className="p-2 text-[#7A756E] hover:text-[#56524D] rounded-full hover:bg-neutral-light transition-colors flex-shrink-0"
+                aria-label="Stäng"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sokfaltet dyker upp forst nar listan blivit sa lang att den
+                behovs - vid sex val ar det bara i vagen. */}
+            {sortedMeals.length > 6 && (
+              <div className="px-4 sm:px-5 pt-4">
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Sök bland dina val…"
+                  className="w-full px-3 py-2.5 bg-[#FAF6EF] dark:bg-[#34302C] border border-neutral-light dark:border-[#484440] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#D96E4A] focus:border-transparent"
+                />
+              </div>
+            )}
+
+            <div className="overflow-y-auto p-4 sm:p-5">
+              {visibleInModal.length === 0 ? (
+                <p className="text-center text-sm text-[#7A756E] py-8">
+                  Inget val matchar ”{searchQuery}”.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {visibleInModal.map((meal) => (
+                    <CommonMealCard
+                      key={meal.id}
+                      meal={meal}
+                      onLog={handleLogClick}
+                      onDelete={handleDeleteRequest}
+                      onUpdate={onUpdateCommonMeal}
+                      onShowRating={onShowRating}
+                      disabled={disabled}
+                      isBootcamp={isBootcamp}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {mealToConfirm && (
         <div 
