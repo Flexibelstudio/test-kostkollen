@@ -421,6 +421,9 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
   const visibleColumns = 2;
   const rowCount = sortedMeals.length <= 3 ? 1 : 2;
   const isScrollable = sortedMeals.length > visibleColumns * rowCount;
+  // Antalet som INTE syns. Ett rent totalantal svarar pa fel fraga - det man
+  // undrar ar om det finns mer an det man ser, och at vilket hall.
+  const hiddenCount = Math.max(0, sortedMeals.length - visibleColumns * rowCount);
 
   const mealToConfirm = mealIdToConfirmDelete ? commonMeals.find(cm => cm.id === mealIdToConfirmDelete) : null;
 
@@ -434,6 +437,15 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
             <BookmarkIcon className={`${embedded ? 'w-4 h-4' : 'w-5 h-5'} text-[#D96E4A]`} />
             <h3 className={`${embedded ? 'text-sm font-bold uppercase tracking-wider text-[#7A756E]' : 'text-lg font-serif font-medium text-[#56524D]'} dark:text-[#FAF6EF]`}>Mina vanliga val</h3>
           </div>
+
+          {/* Ligger har uppe i stallet for under korten - raden var tom anda,
+              och under korten kostade den en hel textrad. */}
+          {hiddenCount > 0 && (
+            <span className="flex items-center gap-1 text-[11px] font-medium text-[#7A756E] dark:text-[#C2BCB4] whitespace-nowrap flex-shrink-0">
+              +{hiddenCount} fler
+              <ArrowRightIcon className="w-3.5 h-3.5" />
+            </span>
+          )}
         </div>
 
         {disabled && commonMeals.length > 0 && (
@@ -469,15 +481,11 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
             ))}
             </div>
 
+            {/* Toningen ar kvar och gor det tyngsta jobbet: man SER att nasta
+                kort fortsatter utanfor bild. Texten uppe i hornet ar ett
+                komplement, inte huvudsignalen. */}
             {isScrollable && (
-              <>
-                {/* Toning i högerkanten så att nästa kort tydligt fortsätter utanför bild */}
-                <div className="pointer-events-none absolute top-0 right-0 h-full w-10 bg-gradient-to-l from-white dark:from-[#2B2825] to-transparent" />
-                <p className="flex items-center justify-end gap-1 text-[11px] font-medium text-[#7A756E] dark:text-[#C2BCB4] mt-0.5 pr-1">
-                  Dra i sidled för fler
-                  <ArrowRightIcon className="w-3.5 h-3.5" />
-                </p>
-              </>
+              <div className="pointer-events-none absolute top-0 right-0 h-full w-10 bg-gradient-to-l from-white dark:from-[#2B2825] to-transparent" />
             )}
           </div>
         )}
