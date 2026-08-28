@@ -9,12 +9,13 @@ import {
   Pizza, Coffee, Cake, Cookie, IceCream, Apple, Utensils, Croissant, Wine
 } from 'lucide-react';
 import { resolveUpdatedNutrients } from '../utils/nutritionTotals.ts';
+import { fileToSquareThumbnail } from '../utils/imageUtils.ts';
 
 interface CommonMealsListProps {
   commonMeals: CommonMeal[];
   onLogCommonMeal: (commonMeal: CommonMeal) => void;
   onDeleteCommonMeal: (commonMealId: string) => void;
-  onUpdateCommonMeal: (commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) => void;
+  onUpdateCommonMeal: (commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo; imageUrl?: string | null }) => void;
   onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled?: boolean;
   isBootcamp?: boolean;
@@ -113,7 +114,7 @@ const CommonMealCard: React.FC<{
   meal: CommonMeal;
   onLog: (meal: CommonMeal) => void;
   onDelete: (id: string) => void;
-  onUpdate: (id: string, data: { name: string; nutritionalInfo: NutritionalInfo }) => void;
+  onUpdate: (id: string, data: { name: string; nutritionalInfo: NutritionalInfo; imageUrl?: string | null }) => void;
   onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled: boolean;
   isBootcamp?: boolean;
@@ -139,6 +140,10 @@ const CommonMealCard: React.FC<{
   const [editedProtein, setEditedProtein] = useState(Math.round(meal.nutritionalInfo.protein).toString());
   const [editedCarbs, setEditedCarbs] = useState(Math.round(meal.nutritionalInfo.carbohydrates).toString());
   const [editedFat, setEditedFat] = useState(Math.round(meal.nutritionalInfo.fat).toString());
+  const [editedImage, setEditedImage] = useState<string | null>(meal.imageUrl || null);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isEditing) {
@@ -147,8 +152,25 @@ const CommonMealCard: React.FC<{
       setEditedProtein(Math.round(meal.nutritionalInfo.protein).toString());
       setEditedCarbs(Math.round(meal.nutritionalInfo.carbohydrates).toString());
       setEditedFat(Math.round(meal.nutritionalInfo.fat).toString());
+      setEditedImage(meal.imageUrl || null);
+      setImageError(null);
     }
   }, [isEditing, meal]);
+
+  const handleImageSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setImageBusy(true);
+    setImageError(null);
+    try {
+      setEditedImage(await fileToSquareThumbnail(file));
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : 'Bilden kunde inte läsas in.');
+    } finally {
+      setImageBusy(false);
+    }
+  };
 
   const handleSave = () => {
     const updatedNutrients = resolveUpdatedNutrients(meal.nutritionalInfo, {
@@ -164,6 +186,9 @@ const CommonMealCard: React.FC<{
         ...updatedNutrients,
         foodItem: editedName.trim(),
       },
+      // null i stallet for undefined - undefined stryks bort innan skrivningen,
+      // och da hade en borttagen bild aldrig raderats i databasen.
+      imageUrl: editedImage ?? null,
     };
     onUpdate(meal.id, updatedData);
     setIsEditing(false);
@@ -195,6 +220,46 @@ const CommonMealCard: React.FC<{
         onClick={(e) => e.stopPropagation()}
         className="bg-white shadow-soft-xl rounded-2xl p-5 w-full max-w-sm max-h-[85vh] overflow-y-auto space-y-3 animate-scale-in">
         <h3 className="text-lg font-serif font-medium text-[#56524D] mb-1">Redigera vanligt val</h3>
+
+        {/* Bilden ar frivillig. Ett foto gor valet mycket snabbare att hitta i
+            raden an ett generiskt ikonval. */}
+        <div className="flex items-center gap-3">
+          <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#F1EAE0] border border-neutral-light flex items-center justify-center flex-shrink-0">
+            {editedImage ? (
+              <img src={editedImage} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <Utensils className="w-6 h-6 text-[#D96E4A]/60" />
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={imageBusy}
+              className="text-sm font-semibold text-primary hover:text-primary-darker text-left disabled:opacity-50"
+            >
+              {imageBusy ? 'Läser in…' : editedImage ? 'Byt bild' : 'Lägg till bild'}
+            </button>
+            {editedImage && !imageBusy && (
+              <button
+                type="button"
+                onClick={() => setEditedImage(null)}
+                className="text-sm text-neutral-500 hover:text-red-600 text-left"
+              >
+                Ta bort bild
+              </button>
+            )}
+          </div>
+          <input
+            type="file"
+            accept="image/*"
+            ref={imageInputRef}
+            onChange={handleImageSelected}
+            className="hidden"
+            aria-hidden="true"
+          />
+        </div>
+        {imageError && <p className="text-xs text-red-600">{imageError}</p>}
         <div>
           <label className="block text-xs font-semibold text-neutral-dark mb-1">Namn</label>
           <input
@@ -297,8 +362,12 @@ const CommonMealCard: React.FC<{
         className="w-full h-full px-3 py-2.5 flex flex-col items-center justify-center text-center cursor-pointer outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-2xl active:scale-95 transition-transform"
       >
         {/* Updated Icon Container with Squircle and dynamic color */}
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1.5 shadow-soft-sm shrink-0 ${bg} ${text}`}>
-          {icon}
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1.5 shadow-soft-sm shrink-0 overflow-hidden ${meal.imageUrl ? 'bg-[#F1EAE0]' : `${bg} ${text}`}`}>
+          {meal.imageUrl ? (
+            <img src={meal.imageUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            icon
+          )}
         </div>
         
         <h4 className="font-bold text-neutral-dark text-sm leading-tight mb-1 line-clamp-2 w-full break-words">

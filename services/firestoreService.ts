@@ -1024,7 +1024,7 @@ export async function incrementCommonMealUsage(userId: string, commonMealId: str
   await updateDoc(commonMealRef, { useCount: increment(1), lastUsedAt: Date.now() });
 }
 
-export async function updateCommonMeal(userId: string, commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) {
+export async function updateCommonMeal(userId: string, commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo; imageUrl?: string | null }) {
   if (!db) return;
   const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);
   await updateDoc(commonMealRef, cleanFirestoreData(updatedData));

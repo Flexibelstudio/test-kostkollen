@@ -913,7 +913,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     };
 
-    const handleUpdateCommonMeal = async (id: string, data: { name: string; nutritionalInfo: NutritionalInfo }) => {
+    const handleUpdateCommonMeal = async (id: string, data: { name: string; nutritionalInfo: NutritionalInfo; imageUrl?: string | null }) => {
         if (!currentUser) return;
         setCommonMeals(prev => prev.map(cm => cm.id === id ? { ...cm, ...data } : cm));
         try {

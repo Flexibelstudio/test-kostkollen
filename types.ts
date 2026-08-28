@@ -103,6 +103,11 @@ export interface CommonMeal {
   useCount?: number;
   /** Tidsstämpel för senaste loggning. Skiljeförfarande vid lika useCount. */
   lastUsedAt?: number;
+  /**
+   * Valfri miniatyrbild som data-URL. Ligger i dokumentet i stället för i
+   * Storage, så den försvinner automatiskt när valet raderas.
+   */
+  imageUrl?: string;
 }
 
 export interface DailyWaterLog {
