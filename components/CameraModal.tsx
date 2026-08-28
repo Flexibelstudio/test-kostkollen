@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { CameraIcon, XMarkIcon } from './icons.tsx'; 
+import { CameraIcon, XMarkIcon, UploadIcon } from './icons.tsx'; 
 import { startPhotoCapture, recordCaptureAndCompression } from '../utils/photoPipelineProfiler.ts'; 
 import { prewarmConnections } from '../services/geminiService.ts';
 
@@ -18,6 +18,8 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
   const [isCameraLoading, setIsCameraLoading] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [activeStream, setActiveStream] = useState<MediaStream | null>(null); 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
 
   useEffect(() => {
     let isMountedAndEffectActive = true; 
@@ -126,6 +128,109 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
     }; 
   }, [show, onCameraError]);
 
+  /**
+   * Bild ur telefonens album.
+   *
+   * Gar igenom exakt samma krympning och komprimering som kamerabilden: en
+   * modern mobilbild ar 12 megapixel och flera megabyte, och skickas den rakt
+   * in blir bade uppladdningen och analysen langsam.
+   *
+   * Bilder ur albumet bar dessutom ofta en EXIF-flagga for rotation. Darfor
+   * createImageBitmap med imageOrientation 'from-image' - annars kan maten
+   * komma in liggande, och da har modellen betydligt svarare att kanna igen
+   * vad den ser.
+   */
+  const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Nollstall direkt sa att samma bild kan valjas igen efter ett avbrott.
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      const msg = 'Filen verkar inte vara en bild. Välj ett foto ur albumet.';
+      setCameraError(msg);
+      onCameraError(msg);
+      return;
+    }
+
+    setIsProcessingFile(true);
+    startPhotoCapture();
+
+    try {
+      let source: ImageBitmap | HTMLImageElement;
+      let sourceWidth: number;
+      let sourceHeight: number;
+
+      if (typeof createImageBitmap === 'function') {
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        source = bitmap;
+        sourceWidth = bitmap.width;
+        sourceHeight = bitmap.height;
+      } else {
+        // Aldre webblasare: las in via en img i stallet.
+        const objectUrl = URL.createObjectURL(file);
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const el = new Image();
+          el.onload = () => resolve(el);
+          el.onerror = () => reject(new Error('Bilden kunde inte läsas.'));
+          el.src = objectUrl;
+        });
+        URL.revokeObjectURL(objectUrl);
+        source = img;
+        sourceWidth = img.naturalWidth;
+        sourceHeight = img.naturalHeight;
+      }
+
+      const tCaptureEnd = performance.now();
+
+      const MAX_SIZE = 800;
+      let width = sourceWidth;
+      let height = sourceHeight;
+
+      if (width > height) {
+        if (width > MAX_SIZE) {
+          height = Math.round(height * (MAX_SIZE / width));
+          width = MAX_SIZE;
+        }
+      } else if (height > MAX_SIZE) {
+        width = Math.round(width * (MAX_SIZE / height));
+        height = MAX_SIZE;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Kunde inte bearbeta bilden.');
+
+      context.drawImage(source as CanvasImageSource, 0, 0, width, height);
+      if ('close' in source && typeof (source as ImageBitmap).close === 'function') {
+        (source as ImageBitmap).close();
+      }
+
+      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+      const tCompressEnd = performance.now();
+      const base64Data = imageDataUrl.split(',')[1] || '';
+
+      recordCaptureAndCompression({
+        tCaptureEnd,
+        tCompressEnd,
+        rawDimensions: { width: sourceWidth, height: sourceHeight },
+        rawImageSizeBytes: file.size,
+        compressedDimensions: { width, height },
+        compressedImageSizeBytes: Math.round(base64Data.length * 0.75),
+      });
+
+      onImageCapture(base64Data);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Bilden kunde inte läsas in.';
+      setCameraError(msg);
+      onCameraError(msg);
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
   const handleCapture = () => {
     // Starta mätning av Steg 1: Från att användaren trycker på kameraknappen till att bilden är tagen
     startPhotoCapture();
@@ -225,7 +330,7 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
         <div className="flex items-center justify-between mb-4">
           <h2 id="camera-modal-title" className="text-2xl font-semibold text-neutral-dark flex items-center">
             <CameraIcon className="w-7 h-7 mr-2.5 text-primary" />
-            Använd kamera
+            Lägg till bild
           </h2>
           <button
             onClick={onClose}
@@ -272,7 +377,8 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
             )}
         </div>
         
-        <div className="flex flex-col sm:flex-row sm:space-x-4 space-y-3 sm:space-y-0">
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:space-x-4 space-y-3 sm:space-y-0">
             <button
                 onClick={onClose}
                 className="flex-1 px-5 py-3 text-base font-semibold text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral active:scale-95"
@@ -282,13 +388,37 @@ const CameraModal: React.FC<CameraModalProps> = ({ show, onClose, onImageCapture
             </button>
             <button
                 onClick={handleCapture}
-                disabled={isCameraLoading || !!cameraError || !activeStream || !activeStream.active}
+                disabled={isCameraLoading || !!cameraError || !activeStream || !activeStream.active || isProcessingFile}
                 className="flex-1 px-5 py-3 text-base font-semibold text-white bg-primary hover:bg-primary-darker rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-neutral"
                 aria-label="Ta bild med kameran"
             >
                 <CameraIcon className="w-5 h-5 inline mr-2" />
                 Ta bild
             </button>
+          </div>
+
+          {/* Album-valet ar med flit INTE beroende av kameran. Nekas
+              kamerabehorighet, eller sitter man vid en dator utan kamera, ar
+              det har vagen vidare i stallet for en atervandsgrand. */}
+          <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isProcessingFile}
+              className="w-full px-5 py-3 text-base font-semibold text-primary bg-white border-2 border-primary hover:bg-[#F6E2D9] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Välj en bild från albumet"
+          >
+              <UploadIcon className="w-5 h-5 inline mr-2" />
+              {isProcessingFile ? 'Läser in bilden…' : 'Välj bild från album'}
+          </button>
+
+          <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              onChange={handleFileSelected}
+              className="hidden"
+              aria-hidden="true"
+          />
         </div>
       </div>
     </div>,

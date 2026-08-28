@@ -585,20 +585,15 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                     </button>
                 </div>
             )}
+            {/* Samma knapp som pa startsidan. Har satt tidigare coachens ansikte
+                nar menyn var stangd, vilket inte lastes som "lagg till" - plusset
+                sager vad knappen gor, och den ser likadan ut pa bada sidorna. */}
             <button 
                 onClick={() => { setIsSpeedDialOpen(!isSpeedDialOpen); }}
-                className={`pointer-events-auto w-16 h-16 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 border-primary ${isSpeedDialOpen ? 'bg-red-500 text-white rotate-45 border-red-500' : 'bg-white dark:bg-neutral-darker text-primary'}`}
+                className={`pointer-events-auto w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden ${isSpeedDialOpen ? 'bg-[#56524D] text-white rotate-45' : 'bg-[#D96E4A] text-white hover:bg-[#C05A38]'}`}
                 aria-label="Lägg till"
             >
-                {isSpeedDialOpen ? (
-                    <PlusIcon className="w-8 h-8" />
-                ) : (
-                    userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
-                        <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={coachName} className="w-full h-full object-cover" />
-                    ) : (
-                        <PlusIcon className="w-8 h-8" />
-                    )
-                )}
+                <PlusIcon className="w-7 h-7" />
             </button>
         </div>
       )}
