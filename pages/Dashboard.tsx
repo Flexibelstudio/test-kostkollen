@@ -382,6 +382,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         [streakData.currentStreak]
     );
 
+    // Den hogsta nivan man passerat. Anvands for att markera var man star i listan.
+    const currentLevel = useMemo(() => {
+        const passed = LEVEL_DEFINITIONS.filter(l => l.requiredStreak <= streakData.currentStreak);
+        return passed.length > 0 ? passed[passed.length - 1] : LEVEL_DEFINITIONS[0];
+    }, [streakData.currentStreak]);
+
     const bankRef = useRef<HTMLDivElement>(null);
     const waterLoggerRef = useRef<HTMLDivElement>(null);
 
@@ -1778,6 +1784,41 @@ const Dashboard: React.FC<DashboardProps> = ({
                         Du kan fortfarande logga i efterhand för igår, så en glömd kväll behöver inte
                         bryta kedjan.
                     </p>
+
+                    <div className="pt-3 border-t border-neutral-light">
+                        <p className="font-bold text-[#56524D] dark:text-[#FAF6EF] mb-1">Nivåerna</p>
+                        <p className="mb-3">
+                            Varje nivå låses upp av en sammanhängande streak. Du står på{' '}
+                            <strong>{currentLevel.icon} {currentLevel.name}</strong>.
+                        </p>
+
+                        {/* Hela stegen, inte bara nasta niva. Den som ar nyfiken pa
+                            vad som vantar langre fram ska kunna se det. */}
+                        <div className="space-y-0.5">
+                            {LEVEL_DEFINITIONS.map(level => {
+                                const isCurrent = level.id === currentLevel.id;
+                                const isReached = level.requiredStreak <= streakData.currentStreak;
+                                return (
+                                    <div
+                                        key={level.id}
+                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${
+                                            isCurrent
+                                                ? 'bg-[#F6E2D9] font-bold text-[#8E3B1E]'
+                                                : isReached
+                                                    ? 'text-[#7A756E]'
+                                                    : 'text-[#56524D] dark:text-[#C2BCB4]'
+                                        }`}
+                                    >
+                                        <span className="w-6 text-center flex-shrink-0">{level.icon}</span>
+                                        <span className="flex-1 min-w-0">{level.name}</span>
+                                        <span className="text-xs whitespace-nowrap flex-shrink-0 text-[#7A756E]">
+                                            {level.requiredStreak} d
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </InfoPopoverModal>
             )}
 
