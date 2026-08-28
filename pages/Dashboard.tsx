@@ -1298,12 +1298,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
                 <div className="flex flex-col h-full gap-3">
                     {/* Streak Card */}
-                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-start gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
+                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
                         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
                             <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
                         <div className="relative z-10 flex-1 min-w-0">
-                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap flex items-center">
+                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider whitespace-nowrap flex items-center leading-none">
                                 Streak
                                 <button
                                     type="button"
@@ -1316,7 +1316,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     </svg>
                                 </button>
                             </p>
-                            <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-none truncate">
+                            <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-none truncate mt-1">
                                 {streakData.currentStreak} 
                                 <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
                             </p>
@@ -1324,7 +1324,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 hade gott om oanvand luft, sa nasta niva far en
                                 egen rad och kan radbryta i stallet for att kapas. */}
                             {nextLevel && (
-                                <p className="text-[11px] text-neutral-500 leading-tight mt-1.5">
+                                <p className="text-[11px] text-neutral-500 leading-tight mt-1">
                                     {nextLevel.requiredStreak - streakData.currentStreak} dagar till {nextLevel.name}
                                 </p>
                             )}

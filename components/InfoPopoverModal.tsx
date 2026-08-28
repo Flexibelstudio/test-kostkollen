@@ -43,7 +43,7 @@ export const InfoPopoverModal: React.FC<InfoPopoverModalProps> = ({ title, onClo
         <button
           type="button"
           onClick={onClose}
-          className="w-full mt-5 py-2.5 bg-[#F1EAE0] dark:bg-[#3A3632] text-[#56524D] dark:text-[#FAF6EF] font-bold rounded-xl hover:bg-[#E2D8CC] transition-colors"
+          className="w-full mt-5 px-6 py-2.5 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-primary-darker active:scale-95 interactive-transition"
         >
           Jag förstår
         </button>
