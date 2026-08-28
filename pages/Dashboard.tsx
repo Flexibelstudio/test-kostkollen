@@ -1320,15 +1320,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 {streakData.currentStreak} 
                                 <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
                             </p>
-                            {/* Var sin rad. Kortet ar lika hogt som vattenkortet
-                                bredvid och hade gott om oanvand luft. */}
-                            {highestStreak > 0 && (
-                                <p className="text-[11px] text-neutral-500 leading-tight mt-1.5 truncate">
-                                    Rekord {highestStreak} dagar
-                                </p>
-                            )}
+                            {/* Kortet ar lika hogt som vattenkortet bredvid och
+                                hade gott om oanvand luft, sa nasta niva far en
+                                egen rad och kan radbryta i stallet for att kapas. */}
                             {nextLevel && (
-                                <p className="text-[11px] text-neutral-500 leading-tight mt-0.5">
+                                <p className="text-[11px] text-neutral-500 leading-tight mt-1.5">
                                     {nextLevel.requiredStreak - streakData.currentStreak} dagar till {nextLevel.name}
                                 </p>
                             )}
