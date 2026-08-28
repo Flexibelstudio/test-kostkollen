@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { resolveUpdatedNutrients } from '../utils/nutritionTotals.ts';
 import { fileToSquareThumbnail } from '../utils/imageUtils.ts';
+import { estimateFiberForFood } from '../services/geminiService.ts';
 
 interface CommonMealsListProps {
   commonMeals: CommonMeal[];
@@ -144,6 +145,11 @@ const CommonMealCard: React.FC<{
   const [imageBusy, setImageBusy] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [editedFiber, setEditedFiber] = useState<string>(
+    typeof meal.nutritionalInfo.fiber === 'number' ? String(meal.nutritionalInfo.fiber) : ''
+  );
+  const [fiberBusy, setFiberBusy] = useState(false);
+  const [fiberError, setFiberError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isEditing) {
@@ -154,8 +160,32 @@ const CommonMealCard: React.FC<{
       setEditedFat(Math.round(meal.nutritionalInfo.fat).toString());
       setEditedImage(meal.imageUrl || null);
       setImageError(null);
+      setEditedFiber(typeof meal.nutritionalInfo.fiber === 'number' ? String(meal.nutritionalInfo.fiber) : '');
+      setFiberError(null);
     }
   }, [isEditing, meal]);
+
+  /**
+   * Vanliga val som sparades innan fibrerna infordes har inget varde alls.
+   * Att spara om dem hjalper inte - varden bars med oforandrat - sa har far
+   * anvandaren lata AI:n rakna ut det utifran namn, kalorier och kolhydrater.
+   */
+  const handleEstimateFiber = async () => {
+    setFiberBusy(true);
+    setFiberError(null);
+    try {
+      const value = await estimateFiberForFood(
+        editedName.trim() || meal.name,
+        parseFloat(editedCalories.replace(',', '.')) || meal.nutritionalInfo.calories,
+        parseFloat(editedCarbs.replace(',', '.')) || meal.nutritionalInfo.carbohydrates
+      );
+      setEditedFiber(String(value));
+    } catch (error) {
+      setFiberError(error instanceof Error ? error.message : 'Kunde inte räkna ut fibrerna.');
+    } finally {
+      setFiberBusy(false);
+    }
+  };
 
   const handleImageSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -190,6 +220,10 @@ const CommonMealCard: React.FC<{
       // och da hade en borttagen bild aldrig raderats i databasen.
       imageUrl: editedImage ?? null,
     };
+    const fiberValue = editedFiber.trim() === '' ? undefined : parseFloat(editedFiber.replace(',', '.'));
+    if (typeof fiberValue === 'number' && !isNaN(fiberValue)) {
+      updatedData.nutritionalInfo.fiber = Math.max(0, fiberValue);
+    }
     onUpdate(meal.id, updatedData);
     setIsEditing(false);
     setShowMenu(false);
@@ -292,6 +326,28 @@ const CommonMealCard: React.FC<{
             <label className="block text-xs font-medium text-neutral">Fett</label>
             <input type="number" min="0" step="any" value={editedFat} onChange={createNumericHandler(setEditedFat)} className={inputClass} />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral">Fibrer</label>
+            <input type="number" min="0" step="any" value={editedFiber} onChange={createNumericHandler(setEditedFiber)} placeholder="–" className={inputClass} />
+          </div>
+        </div>
+
+        {/* Val sparade fore fibrerna infordes har inget varde. Har fylls det i. */}
+        <div>
+          <button
+            type="button"
+            onClick={handleEstimateFiber}
+            disabled={fiberBusy}
+            className="text-sm font-semibold text-primary hover:text-primary-darker disabled:opacity-50"
+          >
+            {fiberBusy ? 'Räknar ut…' : editedFiber ? 'Räkna om fibrerna' : 'Räkna ut fibrer'}
+          </button>
+          {!editedFiber && !fiberBusy && (
+            <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">
+              Det här valet sparades innan fibrerna räknades och bidrar därför med 0 g i dag.
+            </p>
+          )}
+          {fiberError && <p className="text-xs text-red-600 mt-1">{fiberError}</p>}
         </div>
         <div className="flex justify-between items-center mt-2">
           {onShowRating && (
@@ -508,7 +564,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
           pa en gang, med sokning nar listan blivit lang. */}
       {showAllMeals && createPortal(
         <div
-          className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[125] sm:p-4 animate-fade-in"
+          className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[125] p-4 animate-fade-in"
           onClick={() => setShowAllMeals(false)}
           role="dialog"
           aria-modal="true"
@@ -516,7 +572,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-[#2B2825] w-full sm:max-w-2xl rounded-t-[22px] sm:rounded-[22px] shadow-soft-xl max-h-[85vh] flex flex-col animate-scale-in"
+            className="bg-white dark:bg-[#2B2825] w-full sm:max-w-2xl rounded-[22px] shadow-soft-xl max-h-[85vh] flex flex-col animate-scale-in"
           >
             <div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-b border-[#F1EAE0] dark:border-[#484440]">
               <h3 className="text-lg font-serif font-medium text-[#56524D] dark:text-[#FAF6EF]">

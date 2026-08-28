@@ -14,6 +14,7 @@ import {
 import { 
     DEFAULT_WATER_GOAL_ML,
     FIBER_DAILY_TARGET_GRAMS,
+    LEVEL_DEFINITIONS,
     MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
     LOCAL_STORAGE_KEYS,
     COACH_PERSONAS
@@ -59,6 +60,7 @@ import { pushModalState, replaceModalState, closeModalState, subscribeToHistory 
 import CameraModal from '../components/CameraModal';
 import TextEntryModal from '../components/TextEntryModal';
 import ProteinInfoModal from '../components/ProteinInfoModal';
+import InfoPopoverModal from '../components/InfoPopoverModal';
 import RecipeChoiceModal from '../components/RecipeChoiceModal';
 import RecipeModal from '../components/RecipeModal';
 import IngredientCaptureModal from '../components/IngredientCaptureModal';
@@ -372,6 +374,13 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [showBonusCoin, setShowBonusCoin] = useState(false);
     const [activeMealSection, setActiveMealSection] = useState<MealType | null>(null); // Lifted state for open section
     const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
+    const [infoPopover, setInfoPopover] = useState<'fiber' | 'streak' | null>(null);
+
+    // Nasta niva i streaken. Finns ingen kvar ar man pa den hogsta.
+    const nextLevel = useMemo(
+        () => LEVEL_DEFINITIONS.find(l => l.requiredStreak > streakData.currentStreak) || null,
+        [streakData.currentStreak]
+    );
 
     const bankRef = useRef<HTMLDivElement>(null);
     const waterLoggerRef = useRef<HTMLDivElement>(null);
@@ -985,6 +994,31 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     return (
         <div className="flex flex-col gap-3 pb-28 sm:pb-32 relative">
+            {/* Datumremsa. Sitter klistrad hogst upp sa lange man inte star pa
+                idag - datumet i rubriken scrollar bort sa fort man borjar
+                justera i matloggen, och da tappar man latt bort vilken dag man
+                faktiskt andrar i. */}
+            {!isViewingToday && (
+                <div className={`sticky top-0 z-30 -mx-1 px-3 py-2 rounded-b-xl shadow-soft-sm flex items-center justify-between gap-3 text-sm ${
+                    isEditableView
+                        ? 'bg-[#F6E2D9] text-[#8E3B1E] border-b border-[#E9B9A5]'
+                        : 'bg-[#F1EAE0] text-[#56524D] border-b border-[#E2D8CC]'
+                }`}>
+                    <span className="font-semibold truncate">
+                        {isEditableView
+                            ? `Du redigerar igår · ${formattedViewingDate}`
+                            : `Låst · ${formattedViewingDate} går inte att ändra`}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => onDateSelect(new Date())}
+                        className="font-bold underline underline-offset-2 whitespace-nowrap flex-shrink-0"
+                    >
+                        Gå till idag
+                    </button>
+                </div>
+            )}
+
             {/* Läsläge Banner */}
             {isReadOnly && (
                 <ReadOnlyBanner 
@@ -1222,6 +1256,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                             barColor="#C99B4A"
                             isBootcamp={!!activeBootcamp}
                             displayValue={totalNutrients.hasFiberData ? undefined : `–/${FIBER_DAILY_TARGET_GRAMS}g`}
+                            onInfoClick={() => setInfoPopover('fiber')}
+                            infoAriaLabel="Information om fibrer"
                         />
                     </div>
 
@@ -1267,10 +1303,33 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
                         <div className="relative z-10 flex-1 min-w-0">
-                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Streak</p>
+                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap flex items-center">
+                                Streak
+                                <button
+                                    type="button"
+                                    onClick={() => setInfoPopover('streak')}
+                                    className="ml-1 text-neutral-400 hover:text-primary transition-colors inline-flex items-center justify-center leading-none"
+                                    aria-label="Information om streak"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 block">
+                                        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </p>
                             <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-none truncate">
                                 {streakData.currentStreak} 
                                 <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
+                            </p>
+                            {/* Rekordet och nasta niva pa en enda rad, sa kortet
+                                inte vaxer pa hojden. */}
+                            <p className="text-[11px] text-neutral-500 leading-tight mt-1 truncate">
+                                {highestStreak > 0 && <span>Rekord {highestStreak} d</span>}
+                                {highestStreak > 0 && nextLevel && <span className="mx-1.5 text-neutral-300">·</span>}
+                                {nextLevel && (
+                                    <span>
+                                        {nextLevel.requiredStreak - streakData.currentStreak} d till {nextLevel.name}
+                                    </span>
+                                )}
                             </p>
                         </div>
                     </div>
@@ -1685,6 +1744,46 @@ const Dashboard: React.FC<DashboardProps> = ({
                 />
             )}
             
+            {infoPopover === 'fiber' && (
+                <InfoPopoverModal title="Om fibrer" onClose={() => setInfoPopover(null)}>
+                    <p>
+                        Fibrer mättar, ger jämnare blodsocker och är bra för magen. Riktmärket är
+                        ungefär {FIBER_DAILY_TARGET_GRAMS} g om dagen.
+                    </p>
+                    <p>
+                        Det här är ett samlarmål, inte ett tak. Du kan inte missa det, och coachen
+                        skäller aldrig på ett lågt fiberintag.
+                    </p>
+                    <p className="pt-1 border-t border-neutral-light">
+                        <strong>Står det ett streck i stället för en siffra?</strong> Då saknar dagens
+                        måltider fibervärden. Vanliga val som du sparade innan fibrerna infördes har
+                        inget värde och bidrar med 0 g.
+                    </p>
+                    <p>
+                        Så fyller du i dem: gå till <strong>Mina vanliga val</strong>, öppna valet via
+                        de tre prickarna, välj Redigera och tryck på <strong>Räkna ut fibrer</strong>.
+                        Du kan också skriva in värdet själv.
+                    </p>
+                </InfoPopoverModal>
+            )}
+
+            {infoPopover === 'streak' && (
+                <InfoPopoverModal title="Om din streak" onClose={() => setInfoPopover(null)}>
+                    <p>
+                        Streaken är antalet dagar i rad som du har loggat mat. Den räknar bara att du
+                        loggat något - inte om du träffade ditt kalorimål.
+                    </p>
+                    <p>
+                        Missar du en hel dag börjar den om från noll. Det är därför den är värd något:
+                        den mäter vanan, inte prestationen.
+                    </p>
+                    <p>
+                        Du kan fortfarande logga i efterhand för igår, så en glömd kväll behöver inte
+                        bryta kedjan.
+                    </p>
+                </InfoPopoverModal>
+            )}
+
             {showProteinInfoModal && (
                 <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => closeModalState('proteinInfo', () => setShowProteinInfoModal(false))}>
                     <div onClick={e => e.stopPropagation()}>

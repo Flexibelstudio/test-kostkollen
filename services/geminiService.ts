@@ -765,6 +765,54 @@ ${contextPrompt}
 };
 
 
+/**
+ * Uppskattar fibermängden för en måltid som saknar värde.
+ *
+ * Används för vanliga val som sparades innan fibrerna infördes. Vi frågar
+ * ENBART efter fibern och skickar med de värden vi redan har, så att svaret
+ * blir konsekvent med måltidens övriga näringsvärden i stället för en ny och
+ * avvikande uppskattning av hela måltiden.
+ */
+export const estimateFiberForFood = async (
+  foodName: string,
+  calories: number,
+  carbohydrates: number
+): Promise<number> => {
+  const prompt = `Uppskatta mängden kostfiber i gram för den här måltiden.
+
+Måltid: "${foodName}"
+Kalorier: ${Math.round(calories)} kcal
+Kolhydrater: ${Math.round(carbohydrates)} g
+
+Kostfiber ingår i kolhydraterna och kan därför aldrig vara mer än kolhydratmängden.
+Kött, fisk, ägg, mejeriprodukter och rena fetter innehåller 0 g fiber.
+Baljväxter, fullkorn, grönsaker, frukt, nötter och frön innehåller mest.
+
+Svara ENDAST med ett JSON-objekt: {"fiber": number}`;
+
+  const response: GenerateContentResponse = await ai.models.generateContent({
+    model: GEMINI_MODEL_NAME_TEXT,
+    contents: prompt,
+    config: { responseMimeType: "application/json", temperature: 0.1 },
+  });
+
+  let jsonStr = response.text?.trim();
+  if (!jsonStr) throw new Error("Inget svar från AI:n.");
+
+  const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
+  const match = jsonStr.match(fenceRegex);
+  if (match && match[2]) jsonStr = match[2].trim();
+
+  const parsed = JSON.parse(jsonStr) as { fiber?: number };
+  if (typeof parsed.fiber !== 'number' || isNaN(parsed.fiber)) {
+    throw new Error("Kunde inte tolka fibervärdet.");
+  }
+
+  // Fibern ligger i kolhydraterna - ett högre värde än så är alltid fel.
+  const capped = Math.min(Math.max(0, parsed.fiber), Math.max(0, carbohydrates));
+  return Math.round(capped * 10) / 10;
+};
+
 export const getRecipeSuggestion = async (
   recipeQuery: string,
   dietaryPreference?: DietaryPreference
