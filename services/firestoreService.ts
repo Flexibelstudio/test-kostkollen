@@ -1927,27 +1927,46 @@ export async function searchForBuddies(currentUserId: string, searchQuery: strin
   const queryText = searchQuery.trim().toLowerCase();
   if (!queryText) return [];
 
+  // Firestore kan bara gora prefixsokning, och da bara mot HELA namnet. Sokte
+  // man pa "andersson" fick man inga traffar pa "Anna Andersson" - man var
+  // tvungen att veta exakt hur namnet borjade. Vi hamtar darfor en avgransad
+  // mangd profiler och filtrerar i klienten, sa att traffen kan sitta var som
+  // helst i namnet och pa vilket ord som helst.
+  //
+  // Det haller sa lange anvandarantalet ar litet. Nar det vaxer bor det bytas
+  // mot sokord i dokumentet (array-contains) eller en riktig sokindex-tjanst.
   const publicProfilesRef = collection(db, "publicProfiles");
-  const q = query(
-    publicProfilesRef,
-    where("displayNameLower", ">=", queryText),
-    where("displayNameLower", "<=", queryText + "\uf8ff"),
-    limit(20)
-  );
-  const snapshot = await getDocsSafe(q);
+  const snapshot = await getDocsSafe(query(publicProfilesRef, limit(500)));
 
-  const users: Peppkompis[] = [];
+  const scored: Array<{ user: Peppkompis; score: number }> = [];
+
   snapshot.forEach(doc => {
     const data = doc.data();
-    if (data.uid !== currentUserId) {
-      users.push({
+    if (!data || data.uid === currentUserId) return;
+
+    const name: string = data.displayName || '';
+    const haystack = (data.displayNameLower || name.toLowerCase()).trim();
+    if (!haystack) return;
+
+    const position = haystack.indexOf(queryText);
+    if (position === -1) return;
+
+    // Traffar i borjan av namnet, och i borjan av ett ord, hamnar hogst upp.
+    const startsWord = position === 0 || haystack[position - 1] === ' ' || haystack[position - 1] === '-';
+    const score = position === 0 ? 0 : startsWord ? 1 : 2;
+
+    scored.push({
+      user: {
         uid: data.uid,
-        name: data.displayName || 'Användare',
+        name: name || 'Användare',
         photoURL: data.photoURL || undefined,
-      });
-    }
+      },
+      score,
+    });
   });
-  return users;
+
+  scored.sort((a, b) => a.score - b.score || a.user.name.localeCompare(b.user.name, 'sv'));
+  return scored.slice(0, 20).map(s => s.user);
 }
 
 export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string, toName?: string): Promise<void> {

@@ -37,7 +37,7 @@ import Lightbox from './Lightbox';
 import { ChatRoomsView } from './ChatRoomsView';
 import { FloatingReactionPicker, ReactionsBottomSheet, CommentsBottomSheet } from './CommunityModals';
 import CameraModal from './CameraModal';
-import { COACH_PERSONAS } from '../constants';
+import { COACH_PERSONAS, DELETED_USER_NAME } from '../constants';
 import { uploadImageToStorage, uploadBase64ToStorage, base64ToBlob } from '../utils/storageUtils';
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
 import { RankBadge } from './RankBadge';
@@ -595,6 +595,11 @@ export const TimelineEventCard: FC<{
 
     const isGlobalPost = event.isGlobal || event.visibleTo?.includes('GLOBAL') || isEditorial;
 
+    // Ett raderat konto ska inte ga att bli van med, och namnet ska inte
+    // aterstallas nagonstans i granssnittet. Molnfunktionen skriver om namnet
+    // pa inlaggen vid radering - det ar den markeringen vi kanner igen har.
+    const isDeletedAuthor = event.userName === DELETED_USER_NAME;
+
     const displayName = isEditorial
         ? (event.senderName || event.userName || 'Kostloggen')
         : (isBorje || isCoachPersona 
@@ -660,9 +665,13 @@ export const TimelineEventCard: FC<{
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
                     <div className="flex flex-col min-w-0 flex-1">
-                        <p className="text-base text-neutral-dark font-medium leading-tight flex items-center flex-wrap gap-1.5">
-                            <span className="font-bold">{displayName}</span>
-                            {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
+                        {/* Namnet och rubriken lag tidigare i samma flexrad med
+                            flex-wrap. Da brots raden mellan namnet och rubriken,
+                            och en ensam emoji kunde hamna pa tredje raden. Nu ar
+                            namnraden sin egen rad och rubriken sin. */}
+                        <p className="text-base text-neutral-dark font-medium leading-tight flex items-center gap-1.5 min-w-0">
+                            <span className="font-bold truncate min-w-0">{displayName}</span>
+                            {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && !isDeletedAuthor && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 sentFriendRequests.has(event.userId) ? (
                                     <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-[#E8EFE9] rounded-full text-xs font-bold text-[#2B3B2C] shadow-sm border border-[#7BA05B]/40">
                                         <CheckIcon className="w-3.5 h-3.5" />
@@ -693,8 +702,10 @@ export const TimelineEventCard: FC<{
                                     🎖️ General Börjes Bootcamp
                                 </span>
                             )}
-                            {event.type === 'user_post' ? '' : ` ${event.title}`}
                         </p>
+                        {event.type !== 'user_post' && event.title && (
+                            <p className="text-base text-neutral-dark leading-snug">{event.title}</p>
+                        )}
                         
                         {/* --- COMPACT STATS ROW --- */}
                         {!isGlobalPost && !isCoachPersona && (() => {
@@ -728,7 +739,7 @@ export const TimelineEventCard: FC<{
 
                             return (
                                 <div className="mt-1 mb-2 w-full min-w-0">
-                                    <div className="flex items-center gap-2 text-xs text-neutral-500 font-medium mb-1.5 min-w-0">
+                                    <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-neutral-500 font-medium mb-1.5 min-w-0">
                                         {event.streakAtPost !== undefined && event.streakAtPost >= 0 && (
                                             <span className="flex items-center gap-0.5 text-[#D96E4A] whitespace-nowrap shrink-0"><span className="text-sm">🔥</span> {event.streakAtPost}</span>
                                         )}
@@ -750,7 +761,7 @@ export const TimelineEventCard: FC<{
                                         {event.goalTextAtPost && (
                                             <>
                                                 {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak || (hasHighestStreak && rankName)) && <span className="text-neutral-300 shrink-0">|</span>}
-                                                <span className="truncate min-w-0">{event.goalTextAtPost}</span>
+                                                <span className="min-w-0">{event.goalTextAtPost}</span>
                                             </>
                                         )}
                                     </div>

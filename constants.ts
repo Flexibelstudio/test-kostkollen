@@ -146,6 +146,13 @@ export const CALORIE_ADJUSTMENT = {
 };
 
 // Gamification Level Definitions
+/**
+ * Namnet ett raderat konto far i floden och kommentarer. Maste vara EXAKT
+ * samma strang som DELETED_USER_NAME i functions/index.js - klienten kanner
+ * igen raderade konton pa den har texten och doljer da vanknappen.
+ */
+export const DELETED_USER_NAME = 'Borttagen användare';
+
 export const LEVEL_DEFINITIONS: Level[] = [
   { id: 'level0', name: 'Nystartad', requiredStreak: 0, icon: '🌱', description: 'Du har precis börjat din resa!' },
   { id: 'level1', name: 'Veckoutmanare', requiredStreak: 7, icon: '🥉', description: 'En hel vecka, starkt jobbat!' },
