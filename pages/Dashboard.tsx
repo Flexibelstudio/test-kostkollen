@@ -1298,7 +1298,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
                 <div className="flex flex-col h-full gap-3">
                     {/* Streak Card */}
-                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
+                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-start gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
                         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
                             <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
@@ -1320,17 +1320,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 {streakData.currentStreak} 
                                 <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
                             </p>
-                            {/* Rekordet och nasta niva pa en enda rad, sa kortet
-                                inte vaxer pa hojden. */}
-                            <p className="text-[11px] text-neutral-500 leading-tight mt-1 truncate">
-                                {highestStreak > 0 && <span>Rekord {highestStreak} d</span>}
-                                {highestStreak > 0 && nextLevel && <span className="mx-1.5 text-neutral-300">·</span>}
-                                {nextLevel && (
-                                    <span>
-                                        {nextLevel.requiredStreak - streakData.currentStreak} d till {nextLevel.name}
-                                    </span>
-                                )}
-                            </p>
+                            {/* Var sin rad. Kortet ar lika hogt som vattenkortet
+                                bredvid och hade gott om oanvand luft. */}
+                            {highestStreak > 0 && (
+                                <p className="text-[11px] text-neutral-500 leading-tight mt-1.5 truncate">
+                                    Rekord {highestStreak} dagar
+                                </p>
+                            )}
+                            {nextLevel && (
+                                <p className="text-[11px] text-neutral-500 leading-tight mt-0.5">
+                                    {nextLevel.requiredStreak - streakData.currentStreak} dagar till {nextLevel.name}
+                                </p>
+                            )}
                         </div>
                     </div>
                     {/* Goal Progress Card */}
