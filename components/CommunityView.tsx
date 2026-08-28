@@ -663,13 +663,14 @@ export const TimelineEventCard: FC<{
         <div className="flex items-start gap-3">
             <Avatar photoURL={displayPhotoURL} gender={event.gender} size={48} />
             <div className="flex-1 min-w-0">
-                <div className="flex items-start">
-                    <div className="flex flex-col min-w-0 flex-1">
+                {/* Rad 1: namn, datum och knappar. Rubrik och statistik
+                    ligger UNDER raden och far darfor hela bredden. */}
+                <div className="flex items-start justify-between gap-2">
                         {/* Namnet och rubriken lag tidigare i samma flexrad med
                             flex-wrap. Da brots raden mellan namnet och rubriken,
                             och en ensam emoji kunde hamna pa tredje raden. Nu ar
                             namnraden sin egen rad och rubriken sin. */}
-                        <p className="text-base text-neutral-dark font-medium leading-tight flex items-center gap-1.5 min-w-0 pr-24">
+                        <p className="text-base text-neutral-dark font-medium leading-tight flex items-center gap-1.5 min-w-0 flex-1">
                             <span className="font-bold truncate min-w-0">{displayName}</span>
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && !isDeletedAuthor && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 sentFriendRequests.has(event.userId) ? (
@@ -703,82 +704,7 @@ export const TimelineEventCard: FC<{
                                 </span>
                             )}
                         </p>
-                        {event.type !== 'user_post' && event.title && (
-                            <p className="text-base text-neutral-dark leading-snug">{event.title}</p>
-                        )}
-                        
-                        {/* --- COMPACT STATS ROW --- */}
-                        {!isGlobalPost && !isCoachPersona && (() => {
-                            // Fallback to current user profile or buddy details if event doesn't have the highest streak
-                            let effectiveHighestStreak = event.highestBootcampStreak;
-                            if (effectiveHighestStreak === undefined || effectiveHighestStreak === 0) {
-                                if (event.userId === currentUser.uid) {
-                                    effectiveHighestStreak = userProfile.highestBootcampStreak;
-                                } else {
-                                    const buddy = buddyDetails.find(b => b.uid === event.userId);
-                                    if (buddy) {
-                                        effectiveHighestStreak = buddy.highestBootcampStreak;
-                                    }
-                                }
-                            }
-
-                            const hasBootcampStreak = event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost >= 0;
-                            const hasHighestStreak = effectiveHighestStreak !== undefined && effectiveHighestStreak >= 0;
-                            
-                            if (!(
-                                (event.streakAtPost !== undefined && event.streakAtPost >= 0) || 
-                                hasBootcampStreak || 
-                                hasHighestStreak ||
-                                event.goalTextAtPost || 
-                                (event.progressAtPost !== undefined && event.progressAtPost > 0)
-                            )) {
-                                return null;
-                            }
-
-                            const rankName = hasHighestStreak ? getBootcampRankInfo(effectiveHighestStreak!, 0, 'fas1').currentRank : '';
-
-                            return (
-                                <div className="mt-1 mb-2 w-full min-w-0">
-                                    <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-neutral-500 font-medium mb-1.5 min-w-0">
-                                        {event.streakAtPost !== undefined && event.streakAtPost >= 0 && (
-                                            <span className="flex items-center gap-0.5 text-[#D96E4A] whitespace-nowrap shrink-0"><span className="text-sm">🔥</span> {event.streakAtPost}</span>
-                                        )}
-                                        {hasBootcampStreak && (
-                                            <>
-                                                {event.streakAtPost !== undefined && event.streakAtPost >= 0 && <span className="text-neutral-300 shrink-0">|</span>}
-                                                <span className="flex items-center gap-0.5 text-[#D96E4A] whitespace-nowrap shrink-0"><span className="text-sm">🎖️</span> {event.bootcampStreakAtPost}</span>
-                                            </>
-                                        )}
-                                        {hasHighestStreak && rankName && (
-                                            <>
-                                                {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak) && <span className="text-neutral-300 shrink-0">|</span>}
-                                                <span className="text-xs font-bold px-2 py-0.5 bg-[#E8EFE9] text-[#2B3B2C] rounded-full whitespace-nowrap shrink-0 inline-flex items-center gap-1">
-                                                    <RankBadge rank={rankName} size="sm" className="w-3.5 h-3.5" />
-                                                    {rankName}
-                                                </span>
-                                            </>
-                                        )}
-                                    </div>
-                                    {/* Malet star pa egen rad. Lag det i samma
-                                        rad som streaksiffrorna radbrots det och
-                                        lamnade ett hangande | efter sig. */}
-                                    {event.goalTextAtPost && (
-                                        <p className="text-xs text-neutral-500 font-medium mb-1.5 leading-snug">
-                                            {event.goalTextAtPost}
-                                        </p>
-                                    )}
-                                    {event.progressAtPost !== undefined && event.progressAtPost > 0 && (
-                                        <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
-                                            <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })()}
-                        {/* ------------------------- */}
-                    </div>
-
-                    <div className="absolute top-4 right-4 flex items-start gap-2">
+                    <div className="flex items-start gap-2 shrink-0">
                         <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
                             {new Date(event.timestamp).toLocaleString('sv-SE', {
                                 ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
@@ -806,7 +732,80 @@ export const TimelineEventCard: FC<{
                         )}
                     </div>
                 </div>
-                
+
+                    {event.type !== 'user_post' && event.title && (
+                        <p className="text-base text-neutral-dark leading-snug">{event.title}</p>
+                    )}
+                    
+                    {/* --- COMPACT STATS ROW --- */}
+                    {!isGlobalPost && !isCoachPersona && (() => {
+                        // Fallback to current user profile or buddy details if event doesn't have the highest streak
+                        let effectiveHighestStreak = event.highestBootcampStreak;
+                        if (effectiveHighestStreak === undefined || effectiveHighestStreak === 0) {
+                            if (event.userId === currentUser.uid) {
+                                effectiveHighestStreak = userProfile.highestBootcampStreak;
+                            } else {
+                                const buddy = buddyDetails.find(b => b.uid === event.userId);
+                                if (buddy) {
+                                    effectiveHighestStreak = buddy.highestBootcampStreak;
+                                }
+                            }
+                        }
+
+                        const hasBootcampStreak = event.bootcampStreakAtPost !== undefined && event.bootcampStreakAtPost >= 0;
+                        const hasHighestStreak = effectiveHighestStreak !== undefined && effectiveHighestStreak >= 0;
+                        
+                        if (!(
+                            (event.streakAtPost !== undefined && event.streakAtPost >= 0) || 
+                            hasBootcampStreak || 
+                            hasHighestStreak ||
+                            event.goalTextAtPost || 
+                            (event.progressAtPost !== undefined && event.progressAtPost > 0)
+                        )) {
+                            return null;
+                        }
+
+                        const rankName = hasHighestStreak ? getBootcampRankInfo(effectiveHighestStreak!, 0, 'fas1').currentRank : '';
+
+                        return (
+                            <div className="mt-1 mb-2 w-full min-w-0">
+                                <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-neutral-500 font-medium mb-1.5 min-w-0">
+                                    {event.streakAtPost !== undefined && event.streakAtPost >= 0 && (
+                                        <span className="flex items-center gap-0.5 text-[#D96E4A] whitespace-nowrap shrink-0"><span className="text-sm">🔥</span> {event.streakAtPost}</span>
+                                    )}
+                                    {hasBootcampStreak && (
+                                        <>
+                                            {event.streakAtPost !== undefined && event.streakAtPost >= 0 && <span className="text-neutral-300 shrink-0">|</span>}
+                                            <span className="flex items-center gap-0.5 text-[#D96E4A] whitespace-nowrap shrink-0"><span className="text-sm">🎖️</span> {event.bootcampStreakAtPost}</span>
+                                        </>
+                                    )}
+                                    {hasHighestStreak && rankName && (
+                                        <>
+                                            {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak) && <span className="text-neutral-300 shrink-0">|</span>}
+                                            <span className="text-xs font-bold px-2 py-0.5 bg-[#E8EFE9] text-[#2B3B2C] rounded-full whitespace-nowrap shrink-0 inline-flex items-center gap-1">
+                                                <RankBadge rank={rankName} size="sm" className="w-3.5 h-3.5" />
+                                                {rankName}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                                {/* Malet star pa egen rad. Lag det i samma
+                                    rad som streaksiffrorna radbrots det och
+                                    lamnade ett hangande | efter sig. */}
+                                {event.goalTextAtPost && (
+                                    <p className="text-xs text-neutral-500 font-medium mb-1.5 leading-snug">
+                                        {event.goalTextAtPost}
+                                    </p>
+                                )}
+                                {event.progressAtPost !== undefined && event.progressAtPost > 0 && (
+                                    <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
+                                        <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
+
                 {event.category && event.type === 'user_post' && (
                     <span className="inline-block px-2.5 py-0.5 mt-1 rounded text-xs font-semibold bg-neutral-light dark:bg-neutral-dark text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
                         {event.icon} {event.category === 'workout' ? 'Träning' : event.category === 'food' ? 'Mat' : event.category === 'pepp' ? 'Pepp' : event.category === 'question' ? 'Fråga' : 'Allmänt'}
