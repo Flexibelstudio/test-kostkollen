@@ -663,13 +663,13 @@ export const TimelineEventCard: FC<{
         <div className="flex items-start gap-3">
             <Avatar photoURL={displayPhotoURL} gender={event.gender} size={48} />
             <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
+                <div className="flex items-start">
                     <div className="flex flex-col min-w-0 flex-1">
                         {/* Namnet och rubriken lag tidigare i samma flexrad med
                             flex-wrap. Da brots raden mellan namnet och rubriken,
                             och en ensam emoji kunde hamna pa tredje raden. Nu ar
                             namnraden sin egen rad och rubriken sin. */}
-                        <p className="text-base text-neutral-dark font-medium leading-tight flex items-center gap-1.5 min-w-0">
+                        <p className="text-base text-neutral-dark font-medium leading-tight flex items-center gap-1.5 min-w-0 pr-24">
                             <span className="font-bold truncate min-w-0">{displayName}</span>
                             {!isCurrentUser && !isGlobalPost && !isCoachPersona && !isBorje && !isDeletedAuthor && onAddFriend && !buddyDetails.some(b => b.uid === event.userId) && (
                                 sentFriendRequests.has(event.userId) ? (
@@ -758,13 +758,15 @@ export const TimelineEventCard: FC<{
                                                 </span>
                                             </>
                                         )}
-                                        {event.goalTextAtPost && (
-                                            <>
-                                                {((event.streakAtPost !== undefined && event.streakAtPost >= 0) || hasBootcampStreak || (hasHighestStreak && rankName)) && <span className="text-neutral-300 shrink-0">|</span>}
-                                                <span className="min-w-0">{event.goalTextAtPost}</span>
-                                            </>
-                                        )}
                                     </div>
+                                    {/* Malet star pa egen rad. Lag det i samma
+                                        rad som streaksiffrorna radbrots det och
+                                        lamnade ett hangande | efter sig. */}
+                                    {event.goalTextAtPost && (
+                                        <p className="text-xs text-neutral-500 font-medium mb-1.5 leading-snug">
+                                            {event.goalTextAtPost}
+                                        </p>
+                                    )}
                                     {event.progressAtPost !== undefined && event.progressAtPost > 0 && (
                                         <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
                                             <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
@@ -776,7 +778,7 @@ export const TimelineEventCard: FC<{
                         {/* ------------------------- */}
                     </div>
 
-                    <div className="flex items-start gap-2 ml-2">
+                    <div className="absolute top-4 right-4 flex items-start gap-2">
                         <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
                             {new Date(event.timestamp).toLocaleString('sv-SE', {
                                 ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
