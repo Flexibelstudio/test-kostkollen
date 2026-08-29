@@ -2140,6 +2140,26 @@ export async function createStripePortalSession(): Promise<string> {
     return (result.data as any).url;
 }
 
+export interface OrphanCleanupResult {
+    dryRun?: boolean;
+    orphanCount: number;
+    orphanIds: string[];
+    posts?: number;
+    comments?: number;
+}
+
+/**
+ * Kor serverstadningen som tar bort publicProfiles vars users/{uid} ar borta
+ * (raderade konton) och anonymiserar deras inlagg och kommentarer.
+ * dryRun = true raknar bara, andrar ingenting.
+ */
+export async function cleanupOrphanedProfiles(dryRun: boolean): Promise<OrphanCleanupResult> {
+    if (!functions) throw new Error("Functions not initialized");
+    const cleanup = httpsCallable(functions, 'cleanupOrphanedProfiles');
+    const result = await cleanup({ dryRun });
+    return result.data as OrphanCleanupResult;
+}
+
 export async function fetchTotalMealsCount(userId: string): Promise<number> {
     if (!db) return 0;
     try {

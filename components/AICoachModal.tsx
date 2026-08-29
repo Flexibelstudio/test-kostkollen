@@ -192,6 +192,9 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
     }
   };
 
+  // Sant sa fort anvandaren skickat nagot sjalv (chip eller egen fraga).
+  const hasStartedChatting = messages.some(m => m.sender === 'user');
+
   const suggestionChips = [
     "Visa min viktkurva",
     "Hur har min vecka sett ut?",
@@ -274,7 +277,9 @@ const AICoachModal: React.FC<AICoachModalProps> = ({ show, onClose, analysisCont
             </main>
 
             <footer className="p-4 border-t border-neutral-light/70 flex-shrink-0 bg-white">
-                <div className="flex flex-wrap gap-2 mb-3">
+                {/* Forslagschipsen forsvinner sa fort man stallt sin forsta
+                    fraga - da far chatten hela hojden. */}
+                <div className={`flex flex-wrap gap-2 mb-3 ${hasStartedChatting ? 'hidden' : ''}`}>
                     {suggestionChips.map(chip => (
                         <button 
                             key={chip}

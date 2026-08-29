@@ -28,28 +28,35 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
     const [selectedBuddyIds, setSelectedBuddyIds] = useState<string[]>([]);
     const [isCreating, setIsCreating] = useState(false);
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+    // Utmaningskortet ar ihopfallt som standard nar ingen utmaning pagar,
+    // sa att man kommer at sina kompisar utan att scrolla forbi det.
+    const [isExpanded, setIsExpanded] = useState(false);
 
     // If no active challenge, show the "Starta utmaning" card
     if (!challenge) {
         return (
-            <div className="bg-[#F6E2D9]/70 border border-[#D96E4A]/30 rounded-2xl p-5 shadow-sm space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-[#D96E4A] text-white flex items-center justify-center shadow-md flex-shrink-0">
-                            <Trophy className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <h3 className="font-serif text-xl font-bold text-neutral-dark">
-                                7-dagars Matloggningsutmaning
-                            </h3>
-                            <p className="text-base text-neutral-600 mt-0.5 leading-relaxed">
-                                Utmana dina kompisar att logga maten varje dag i sju dagar. Tävla i konsekvens, inte i resultat!
-                            </p>
-                        </div>
+            <div className="bg-[#F6E2D9]/70 border border-[#D96E4A]/30 rounded-2xl px-4 py-3 shadow-sm">
+                <button
+                    type="button"
+                    onClick={() => setIsExpanded(v => !v)}
+                    className="w-full flex items-center gap-3 text-left cursor-pointer"
+                    aria-expanded={isExpanded}
+                >
+                    <div className="w-9 h-9 rounded-lg bg-[#D96E4A] text-white flex items-center justify-center shadow-sm flex-shrink-0">
+                        <Trophy className="w-5 h-5 text-white" />
                     </div>
-                </div>
+                    <h3 className="font-serif text-base font-bold text-neutral-dark flex-1 min-w-0">
+                        7-dagars Matloggningsutmaning
+                    </h3>
+                    <ChevronRight className={`w-5 h-5 text-[#D96E4A] flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                </button>
 
-                <div className="pt-1 flex items-center justify-between gap-3">
+                <div className={isExpanded ? 'block' : 'hidden'}>
+                <p className="text-base text-neutral-600 mt-3 leading-relaxed">
+                    Utmana dina kompisar att logga maten varje dag i sju dagar. Tävla i konsekvens, inte i resultat!
+                </p>
+
+                <div className="pt-3 flex items-center justify-between gap-3">
                     <p className="text-base text-neutral-500 font-medium">
                         {buddyDetails.length === 0 
                             ? 'Bjud in kompisar först för att kunna utmana dem.' 
@@ -68,6 +75,7 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                     >
                         <Sparkles className="w-4 h-4" /> Starta utmaning
                     </button>
+                </div>
                 </div>
 
                 {/* Create Challenge Modal */}

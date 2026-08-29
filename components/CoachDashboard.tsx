@@ -17,7 +17,8 @@ import {
     bulkApproveMembers,
     bulkUpdateUserRole,
     createUserPost,
-    updateUserDocument
+    updateUserDocument,
+    cleanupOrphanedProfiles
 } from '../services/firestoreService';
 import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
@@ -31,6 +32,88 @@ import DevelopmentTestingTool from './DevelopmentTestingTool';
 import { isTestingToolAllowed, TESTING_TOOL_ALLOWED_HOSTNAMES } from '../utils/testingToolHostnames';
 
 type SortableKeys = keyof CoachViewMember;
+
+/**
+ * Stadverktyg for raderade konton.
+ * Nar en anvandare raderas i Firebase Auth/Firestore kan deras publicProfile
+ * bli kvar som en "spokprofil" - den dyker upp i kompissok och i flodet.
+ * Knappen nedan kor molnfunktionen cleanupOrphanedProfiles som tar bort
+ * profilerna och anonymiserar deras inlagg och kommentarer.
+ */
+const OrphanCleanupCard: React.FC<{
+    setToastNotification: (t: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
+}> = ({ setToastNotification }) => {
+    const [isBusy, setIsBusy] = useState(false);
+    const [foundCount, setFoundCount] = useState<number | null>(null);
+
+    const handleScan = async () => {
+        setIsBusy(true);
+        try {
+            const res = await cleanupOrphanedProfiles(true);
+            setFoundCount(res.orphanCount);
+            setToastNotification({
+                message: res.orphanCount === 0
+                    ? 'Inga kvarglömda profiler hittades.'
+                    : `Hittade ${res.orphanCount} kvarglömd${res.orphanCount === 1 ? ' profil' : 'a profiler'}.`,
+                type: 'info'
+            });
+        } catch (e: any) {
+            setToastNotification({ message: e?.message || 'Kunde inte söka igenom profilerna.', type: 'error' });
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleClean = async () => {
+        setIsBusy(true);
+        try {
+            const res = await cleanupOrphanedProfiles(false);
+            setFoundCount(0);
+            setToastNotification({
+                message: `Klart: ${res.orphanCount} profil(er) borttagna, ${res.posts ?? 0} inlägg och ${res.comments ?? 0} kommentarer anonymiserade.`,
+                type: 'success'
+            });
+        } catch (e: any) {
+            setToastNotification({ message: e?.message || 'Städningen misslyckades.', type: 'error' });
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    return (
+        <div className="mt-8 bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
+            <h3 className="font-bold text-neutral-dark text-base mb-1">Städa bort raderade konton</h3>
+            <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
+                Tar bort profiler vars konto är raderat, så att de inte längre går att söka upp eller bli kompis med. Deras inlägg och kommentarer görs anonyma. Sök igenom först – då ändras ingenting.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+                <button
+                    type="button"
+                    onClick={handleScan}
+                    disabled={isBusy}
+                    className="px-4 py-2 bg-white border border-neutral-light text-primary font-bold rounded-xl hover:bg-primary-50 transition-colors shadow-sm disabled:opacity-50"
+                >
+                    {isBusy ? 'Arbetar…' : 'Sök igenom'}
+                </button>
+                {foundCount !== null && foundCount > 0 && (
+                    <button
+                        type="button"
+                        onClick={handleClean}
+                        disabled={isBusy}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                    >
+                        Rensa {foundCount} profil{foundCount === 1 ? '' : 'er'}
+                    </button>
+                )}
+                {foundCount !== null && (
+                    <span className="text-sm text-neutral-500">
+                        {foundCount === 0 ? 'Inget att städa.' : `${foundCount} hittade.`}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+};
 
 // --- UI COMPONENTS ---
 
@@ -1219,6 +1302,10 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         )
                     )}
                 </div>
+
+                {(userRole === 'coach' || userRole === 'admin') && (
+                    <OrphanCleanupCard setToastNotification={setToastNotification} />
+                )}
             </>
         )}
       </main>

@@ -398,13 +398,14 @@ const BuddyCard: FC<{
                                     )}
                                 </span>
                             )}
-                            {((buddy.currentStreak !== undefined && buddy.currentStreak >= 0) || Math.max(buddy.highestBootcampStreak || 0, buddy.bootcampStreak || 0) >= 0) && goalDescription && (
-                                <span className="text-neutral-300 shrink-0">|</span>
-                            )}
-                            {goalDescription && (
-                                <span className="truncate min-w-0">{goalDescription}</span>
-                            )}
                         </p>
+                        {/* Malet fick tidigare dela rad med streaksiffrorna och
+                            trunkerades bort. Nu har det en egen rad. */}
+                        {goalDescription && (
+                            <p className="text-xs text-neutral mt-0.5 leading-snug break-words">
+                                {goalDescription}
+                            </p>
+                        )}
                     </div>
                 </div>
                 
@@ -663,9 +664,13 @@ export const TimelineEventCard: FC<{
         <div className="flex items-start gap-3">
             <Avatar photoURL={displayPhotoURL} gender={event.gender} size={48} />
             <div className="flex-1 min-w-0">
-                {/* Rad 1: namn, datum och knappar. Rubrik och statistik
-                    ligger UNDER raden och far darfor hela bredden. */}
-                <div className="flex items-start justify-between gap-2">
+                {/* Rad 1: namn, datum och knappar.
+                    GRID i stallet for flex: kolumn 1 ar minmax(0,1fr) och far
+                    krympa/trunkeras hur mycket som helst, kolumn 2 ar "auto"
+                    och far alltid exakt den plats den behover. Darfor kan
+                    datum + dela + soptunna aldrig hamna pa en egen rad,
+                    oavsett hur langt namnet eller badgarna ar. */}
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
                         {/* Namnet och rubriken lag tidigare i samma flexrad med
                             flex-wrap. Da brots raden mellan namnet och rubriken,
                             och en ensam emoji kunde hamna pa tredje raden. Nu ar
@@ -698,11 +703,6 @@ export const TimelineEventCard: FC<{
                                     Officiellt
                                 </span>
                             ) : null}
-                            {event.bootcampId && event.type === 'user_post' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-[#F6E2D9] text-[#D96E4A]">
-                                    🎖️ General Börjes Bootcamp
-                                </span>
-                            )}
                         </p>
                     <div className="flex items-start gap-2 shrink-0">
                         <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
@@ -733,7 +733,17 @@ export const TimelineEventCard: FC<{
                     </div>
                 </div>
 
-                    {event.type !== 'user_post' && event.title && (
+                    {/* Bootcamp-badgen ar bred och lag tidigare i namnraden.
+                        Den har nu en egen rad under namnet. */}
+                    {event.bootcampId && event.type === 'user_post' && (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-xs font-bold bg-[#F6E2D9] text-[#D96E4A]">
+                            🎖️ General Börjes Bootcamp
+                        </span>
+                    )}
+
+                    {/* Streak-inlagg: rubriken "haller i sin streak!" ar
+                        overflodig - 🔥-chipet under visar redan samma sak. */}
+                    {event.type !== 'user_post' && event.type !== 'streak' && event.title && (
                         <p className="text-base text-neutral-dark leading-snug">{event.title}</p>
                     )}
                     
@@ -1137,25 +1147,10 @@ const FriendManagementView: FC<{
                             onChallengeUpdated={fetchData}
                             setToastNotification={setToastNotification}
                         />
-                        {buddyDetails.length < 3 && (
-                            <div className="bg-[#F6E2D9]/60 border border-[#D96E4A]/30 p-4 rounded-xl flex items-center justify-between gap-4">
-                                <div>
-                                    <p className="text-base font-bold text-[#56524D]">
-                                        Du har {buddyDetails.length === 0 ? 'inga' : buddyDetails.length} {buddyDetails.length === 1 ? 'kompis' : 'kompisar'} ännu
-                                    </p>
-                                    <p className="text-base text-neutral-600 mt-0.5">
-                                        Det är betydligt roligare och lättare att nå sina mål tillsammans. Bjud in någon du vill peppa - och bli peppad av.
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowInviteOptionsModal(true)}
-                                    className="flex-shrink-0 px-4 py-2 bg-[#D96E4A] hover:bg-[#C05A38] text-white text-base font-bold rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
-                                >
-                                    <UserPlusIcon className="w-4 h-4" /> Bjud in
-                                </button>
-                            </div>
-                        )}
+                        {/* Den stora "Bjud in"-rutan lag har tidigare. Den var en
+                            dubblett av den grona remsan hogst upp och gjorde att
+                            man fick scrolla forbi tva inbjudningar innan man kom
+                            till sina kompisar. Borttagen. */}
                         <div className="relative">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                             <input 
