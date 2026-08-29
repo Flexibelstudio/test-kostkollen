@@ -715,7 +715,7 @@ export const TimelineEventCard: FC<{
                         {isCurrentUser && onShare && (
                             <button 
                                 onClick={() => onShare(event)}
-                                className="text-neutral-400 hover:text-primary transition-colors p-0.5 ml-1"
+                                className="text-neutral-400 hover:text-primary transition-colors p-0.5"
                                 title="Dela till chatt"
                             >
                                 <ShareIcon className="w-4 h-4" />
@@ -724,7 +724,7 @@ export const TimelineEventCard: FC<{
                         {isCurrentUser && (
                             <button 
                                 onClick={handleDelete}
-                                className="text-neutral-400 hover:text-red-500 transition-colors p-0.5 ml-1"
+                                className="text-neutral-400 hover:text-red-500 transition-colors p-0.5"
                                 title="Ta bort inlägg"
                             >
                                 <TrashIcon className="w-4 h-4" />

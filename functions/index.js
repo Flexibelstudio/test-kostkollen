@@ -1551,6 +1551,95 @@ exports.onChatMessageUpdated = functions.firestore
  * Den här funktionen finns för att testverktyget ska kunna köra hela flödet utan
  * betalning – och vägrar därför köra i produktionsprojektet.
  */
+/**
+ * Städar upp efter konton som raderades innan onUserDeleted fanns på plats.
+ *
+ * Går igenom publicProfiles och letar efter speglingar vars användardokument
+ * inte längre finns. De tas bort - det är de som gör att raderade personer
+ * fortfarande dyker upp i vänsökningen - och deras inlägg och kommentarer
+ * anonymiseras på samma sätt som den vanliga raderingen gör.
+ *
+ * Bara coacher och administratörer får köra den, och den är avsedd att köras
+ * en gång. Den är idempotent, så det gör ingen skada att köra den igen.
+ */
+exports.cleanupOrphanedProfiles = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Inloggning krävs.");
+  }
+
+  const callerDoc = await db.collection("users").doc(context.auth.uid).get();
+  const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+  if (callerRole !== "coach" && callerRole !== "admin") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Bara coacher och administratörer får köra städningen.",
+    );
+  }
+
+  const dryRun = data && data.dryRun === true;
+  const profilesSnap = await db.collection("publicProfiles").get();
+
+  const orphanIds = [];
+  for (const profile of profilesSnap.docs) {
+    const userSnap = await db.collection("users").doc(profile.id).get();
+    if (!userSnap.exists) orphanIds.push(profile.id);
+  }
+
+  if (dryRun) {
+    return { dryRun: true, orphanCount: orphanIds.length, orphanIds };
+  }
+
+  let posts = 0;
+  let comments = 0;
+
+  for (const userId of orphanIds) {
+    try {
+      await db.collection("publicProfiles").doc(userId).delete();
+    } catch (error) {
+      logger.error(`Kunde inte ta bort publicProfiles/${userId}`, error);
+    }
+
+    try {
+      const postsSnap = await db
+        .collection("communityTimeline")
+        .where("userId", "==", userId)
+        .get();
+      let batch = db.batch();
+      let ops = 0;
+      for (const doc of postsSnap.docs) {
+        batch.update(doc.ref, { userName: DELETED_USER_NAME, userPhotoURL: null });
+        ops += 1;
+        posts += 1;
+        if (ops >= 400) { await batch.commit(); batch = db.batch(); ops = 0; }
+      }
+      if (ops > 0) await batch.commit();
+    } catch (error) {
+      logger.error(`Kunde inte anonymisera inlägg för ${userId}`, error);
+    }
+
+    try {
+      const commentsSnap = await db
+        .collectionGroup("comments")
+        .where("authorUid", "==", userId)
+        .get();
+      let batch = db.batch();
+      let ops = 0;
+      for (const doc of commentsSnap.docs) {
+        batch.update(doc.ref, { authorName: DELETED_USER_NAME, authorPhotoURL: null });
+        ops += 1;
+        comments += 1;
+        if (ops >= 400) { await batch.commit(); batch = db.batch(); ops = 0; }
+      }
+      if (ops > 0) await batch.commit();
+    } catch (error) {
+      logger.error(`Kunde inte anonymisera kommentarer för ${userId}`, error);
+    }
+  }
+
+  logger.log(`Städning klar: ${orphanIds.length} profiler, ${posts} inlägg, ${comments} kommentarer.`);
+  return { orphanCount: orphanIds.length, posts, comments, orphanIds };
+});
+
 exports.devGrantBootcampAccess = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Inloggning krävs.");
