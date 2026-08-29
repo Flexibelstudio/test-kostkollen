@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense, lazy } from 'react';
 import { CreatePostWidget } from './CommunityView';
 import { CreateGroupView, ChatWindow } from './ChatRoomsView';
 import { CoachViewMember, UserRole, UserProfileData, Chat } from '../types';
@@ -28,7 +28,9 @@ import { EditorialPostsAdminView } from './EditorialPostsAdminView';
 import { BootcampLedningscentral } from './BootcampLedningscentral';
 import { Avatar } from './UserProfileModal';
 import { TrendingUp, FlaskConical } from 'lucide-react';
-import DevelopmentTestingTool from './DevelopmentTestingTool';
+// Testverktyget laddas forst nar man klickar pa fliken (bara staging/localhost).
+// Da foljer inte dess ~1900 rader med i huvudbundlen, allra minst i prod.
+const DevelopmentTestingTool = lazy(() => import('./DevelopmentTestingTool'));
 import { isTestingToolAllowed, TESTING_TOOL_ALLOWED_HOSTNAMES } from '../utils/testingToolHostnames';
 
 type SortableKeys = keyof CoachViewMember;
@@ -1128,9 +1130,11 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             />
         ) : activeTab === 'tests' && isTestingToolEnabled ? (
             <div className="max-w-4xl mx-auto">
-                <DevelopmentTestingTool 
-                    userProfile={userProfile}
-                />
+                <Suspense fallback={<div className="py-12"><LoadingSpinner /></div>}>
+                    <DevelopmentTestingTool 
+                        userProfile={userProfile}
+                    />
+                </Suspense>
             </div>
         ) : (
             <>

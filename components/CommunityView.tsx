@@ -670,7 +670,7 @@ export const TimelineEventCard: FC<{
                     och far alltid exakt den plats den behover. Darfor kan
                     datum + dela + soptunna aldrig hamna pa en egen rad,
                     oavsett hur langt namnet eller badgarna ar. */}
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                         {/* Namnet och rubriken lag tidigare i samma flexrad med
                             flex-wrap. Da brots raden mellan namnet och rubriken,
                             och en ensam emoji kunde hamna pa tredje raden. Nu ar
@@ -704,8 +704,8 @@ export const TimelineEventCard: FC<{
                                 </span>
                             ) : null}
                         </p>
-                    <div className="flex items-start gap-2 shrink-0">
-                        <span className="text-xs text-neutral whitespace-nowrap mt-0.5">
+                    <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-xs text-neutral whitespace-nowrap leading-none">
                             {new Date(event.timestamp).toLocaleString('sv-SE', {
                                 ...(new Date(event.timestamp).toDateString() === new Date().toDateString() 
                                     ? { hour: '2-digit', minute: '2-digit' } 
@@ -715,7 +715,7 @@ export const TimelineEventCard: FC<{
                         {isCurrentUser && onShare && (
                             <button 
                                 onClick={() => onShare(event)}
-                                className="text-neutral-400 hover:text-primary transition-colors p-0.5"
+                                className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-primary transition-colors"
                                 title="Dela till chatt"
                             >
                                 <ShareIcon className="w-4 h-4" />
@@ -724,7 +724,7 @@ export const TimelineEventCard: FC<{
                         {isCurrentUser && (
                             <button 
                                 onClick={handleDelete}
-                                className="text-neutral-400 hover:text-red-500 transition-colors p-0.5"
+                                className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors"
                                 title="Ta bort inlägg"
                             >
                                 <TrashIcon className="w-4 h-4" />
@@ -768,9 +768,7 @@ export const TimelineEventCard: FC<{
                         if (!(
                             (event.streakAtPost !== undefined && event.streakAtPost >= 0) || 
                             hasBootcampStreak || 
-                            hasHighestStreak ||
-                            event.goalTextAtPost || 
-                            (event.progressAtPost !== undefined && event.progressAtPost > 0)
+                            hasHighestStreak
                         )) {
                             return null;
                         }
@@ -778,8 +776,8 @@ export const TimelineEventCard: FC<{
                         const rankName = hasHighestStreak ? getBootcampRankInfo(effectiveHighestStreak!, 0, 'fas1').currentRank : '';
 
                         return (
-                            <div className="mt-1 mb-2 w-full min-w-0">
-                                <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-neutral-500 font-medium mb-1.5 min-w-0">
+                            <div className="mt-0.5 mb-1.5 w-full min-w-0">
+                                <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-neutral-500 font-medium mb-0.5 min-w-0">
                                     {event.streakAtPost !== undefined && event.streakAtPost >= 0 && (
                                         <span className="flex items-center gap-0.5 text-[#D96E4A] whitespace-nowrap shrink-0"><span className="text-sm">🔥</span> {event.streakAtPost}</span>
                                     )}
@@ -799,19 +797,11 @@ export const TimelineEventCard: FC<{
                                         </>
                                     )}
                                 </div>
-                                {/* Malet star pa egen rad. Lag det i samma
-                                    rad som streaksiffrorna radbrots det och
-                                    lamnade ett hangande | efter sig. */}
-                                {event.goalTextAtPost && (
-                                    <p className="text-xs text-neutral-500 font-medium mb-1.5 leading-snug">
-                                        {event.goalTextAtPost}
-                                    </p>
-                                )}
-                                {event.progressAtPost !== undefined && event.progressAtPost > 0 && (
-                                    <div className="h-1 w-full bg-neutral-light dark:bg-neutral-dark rounded-full overflow-hidden">
-                                        <div className="h-full bg-primary" style={{width: `${event.progressAtPost}%`}} />
-                                    </div>
-                                )}
+                                {/* Malet visas inte pa inlaggskorten i flodet.
+                                    Det finns kvar pa kompiskortet under
+                                    "Mina kompisar". */}
+                                {/* Framstegsstapeln horde ihop med maltexten
+                                    och ar borttagen tillsammans med den. */}
                             </div>
                         );
                     })()}

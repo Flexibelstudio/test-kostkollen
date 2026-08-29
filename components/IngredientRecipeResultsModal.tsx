@@ -43,6 +43,14 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
 }) => {
   const [portionsToLog, setPortionsToLog] = useState<{ [recipeTitle: string]: string }>({});
   const [selectedMealTypes, setSelectedMealTypes] = useState<{ [recipeTitle: string]: MealType | null }>({});
+  // Vilka recept som har loggpanelen utfalld. Ihopfalld som standard sa att
+  // man ser flera recept utan att scrolla forbi maltidstyp och portioner.
+  const [openLogPanels, setOpenLogPanels] = useState<Set<string>>(new Set());
+  const toggleLogPanel = (title: string) => setOpenLogPanels(prev => {
+    const next = new Set(prev);
+    if (next.has(title)) next.delete(title); else next.add(title);
+    return next;
+  });
 
   useEffect(() => {
     // Initialize portion state when new recipes are loaded
@@ -222,7 +230,8 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                           </div>
                         )}
                         
-                        <div className="pt-2 space-y-3">
+                        {openLogPanels.has(recipe.title) && (
+                        <div className="pt-2 space-y-3 animate-fade-in">
                             <div>
                                 <label className="block text-sm font-medium text-neutral-dark mb-1">Måltidstyp</label>
                                 <MealTypeSelector 
@@ -245,15 +254,22 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                                 />
                                 <p className="text-xs text-neutral-500 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                             </div>
+                            <button
+                              onClick={() => handleLog(recipe)}
+                              disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0 || !selectedMealTypes[recipe.title]}
+                              className="w-full px-4 py-2.5 text-base font-bold text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
+                            >
+                              <LogIcon className="w-4 h-4 mr-2" /> Logga måltid
+                            </button>
                         </div>
+                        )}
 
                         <div className="flex gap-2 mt-2">
                           <button
-                            onClick={() => handleLog(recipe)}
-                            disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0 || !selectedMealTypes[recipe.title]}
-                            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
+                            onClick={() => toggleLogPanel(recipe.title)}
+                            className={`flex-1 px-4 py-2 text-sm font-bold rounded-md shadow-sm active:scale-95 interactive-transition flex items-center justify-center ${openLogPanels.has(recipe.title) ? 'bg-neutral-light text-neutral-dark' : 'bg-primary text-white hover:bg-primary-darker'}`}
                           >
-                            <LogIcon className="w-4 h-4 mr-2" /> Logga Recept
+                            {openLogPanels.has(recipe.title) ? 'Avbryt' : <><LogIcon className="w-4 h-4 mr-2" /> Logga måltid</>}
                           </button>
                           <button
                             onClick={() => handleShareRecipe(recipe)}
