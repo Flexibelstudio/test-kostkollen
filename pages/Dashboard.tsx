@@ -53,7 +53,6 @@ import {
 } from '../services/geminiService';
 import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
 import { recordModalRenderStart, recordFirestoreSaveStart, finishPhotoPipeline } from '../utils/photoPipelineProfiler';
-import PhotoTimingPanel from '../components/PhotoTimingPanel';
 import { pushModalState, replaceModalState, closeModalState, subscribeToHistory } from '../utils/navigationHistory';
 
 // Modaler
@@ -1832,8 +1831,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             {appStatus !== 'idle' && appStatus !== 'searching_recipe' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
             
-            {/* Diskret tidsmätningspanel (endast synlig under TESTING_TOOL_ALLOWED_HOSTNAMES) */}
-            <PhotoTimingPanel />
+            {/* Den flytande tidsmatningsknappen lag har. Den var i vagen pa
+                startsidan i staging, och exakt samma siffror finns redan under
+                Coach -> Testverktyg -> Fotomatningshistorik. Matningen sjalv
+                kors fortfarande (photoPipelineProfiler). */}
         </div>
     );
 };
