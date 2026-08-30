@@ -123,10 +123,11 @@ const CourseCard: React.FC<{
   hasStarted: boolean;
   isLocked?: boolean;
   lockedReason?: string;
+  lockedLabel?: string;
   isBootcamp?: boolean;
   lessonTitles?: string[];
   onPreview?: () => void;
-}> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason, isBootcamp, lessonTitles, onPreview }) => {
+}> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason, lockedLabel, isBootcamp, lessonTitles, onPreview }) => {
 
   const baseClasses = `bg-white dark:bg-[#2B2825] p-6 rounded-[22px] shadow-soft-xl border border-[#F1EAE0] dark:border-[#484440] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75' : 'hover:scale-[1.01]'}`;
 
@@ -200,7 +201,7 @@ const CourseCard: React.FC<{
                         </div>
                     )}
                     <div className={`w-full py-2.5 px-4 flex flex-col items-center justify-center text-center rounded-2xl border ${'bg-[#F1EAE0] border-[#F1EAE0] text-[#7A756E]'}`}>
-                        <span className="text-sm font-bold mb-0.5">Låst</span>
+                        <span className="text-sm font-bold mb-0.5">{lockedLabel || 'Låst'}</span>
                         <span className="text-xs">{lockedReason}</span>
                     </div>
                     {onPreview && (
@@ -299,18 +300,12 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
       const isMkStarted = !!userProgress['m-lektion1']?.unlockedAt;
       const isBootcampStarted = !!activeBootcamp;
 
-      if (courseId !== 'praktisk-viktkontroll' && isPvStarted) {
-          alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
-          return;
-      }
-      if (courseId !== 'maxa-klimakteriet' && isMkStarted) {
-          alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
-          return;
-      }
-      if (courseId !== 'bootcamp' && isBootcampStarted) {
-          alert("Du kan bara gå en kurs/bootcamp i taget. Avsluta din pågående kurs för att starta en ny.");
-          return;
-      }
+      // Kort for en kurs man inte kan starta visar redan "Pagaende kurs" i
+      // stallet for "Starta kursen", sa hit kommer man normalt aldrig.
+      // Behalls som skyddsnat - ingen alert-ruta.
+      if (courseId !== 'praktisk-viktkontroll' && isPvStarted) return;
+      if (courseId !== 'maxa-klimakteriet' && isMkStarted) return;
+      if (courseId !== 'bootcamp' && isBootcampStarted) return;
     }
 
     if (courseId === 'bootcamp') {
@@ -324,10 +319,17 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
     <>
         <div className="animate-fade-in flex flex-col gap-3 pb-28 sm:pb-32">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {ALL_COURSES.map(course => {
+            {(() => {
+              // Vilken kurs/bootcamp anvandaren redan gar, om nagon.
+              const pvStarted = !!userProgress['lektion1']?.unlockedAt;
+              const mkStarted = !!userProgress['m-lektion1']?.unlockedAt;
+              const bcStarted = !!activeBootcamp;
+              const ongoingId = bcStarted ? 'bootcamp' : pvStarted ? 'praktisk-viktkontroll' : mkStarted ? 'maxa-klimakteriet' : null;
+              return ALL_COURSES.map(course => {
                 let hasStarted = false;
                 let isLocked = false;
                 let lockedReason = '';
+                let lockedLabel = '';
 
                 if (course.id === 'praktisk-viktkontroll') {
                   hasStarted = !!userProgress['lektion1']?.unlockedAt;
@@ -341,6 +343,14 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
                   hasStarted = !!activeBootcamp; 
                 }
 
+                // Man kan bara ga en kurs/bootcamp i taget. I stallet for en
+                // alert-ruta efter klicket visar vi det direkt pa kortet.
+                if (!hasStarted && !isLocked && ongoingId && ongoingId !== course.id) {
+                  isLocked = true;
+                  lockedLabel = 'En kurs i taget';
+                  lockedReason = 'Du kan bara delta i en kurs åt gången.';
+                }
+
                 return (
                     <CourseCard
                         key={course.id}
@@ -351,6 +361,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
                         hasStarted={hasStarted} 
                         isLocked={isLocked}
                         lockedReason={lockedReason}
+                        lockedLabel={lockedLabel}
                         isBootcamp={course.id === 'bootcamp'}
                         lessonTitles={
                           course.id === 'praktisk-viktkontroll' ? courseLessons.map(l => l.title)
@@ -360,7 +371,8 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
                         onPreview={isLocked && course.id !== 'bootcamp' ? () => onPreviewLesson(course.id) : undefined}
                     />
                 );
-            })}
+              });
+            })()}
             </div>
         </div>
         {selectedCourseForInfo && (
