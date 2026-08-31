@@ -196,44 +196,51 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
 
     const isChallengeFinished = currentDayNum > 7 || challenge.status === 'completed';
 
-    return (
-        <div className="bg-[#FAF8F5] border border-[#D96E4A]/30 rounded-2xl p-5 shadow-sm space-y-5">
-            {/* Challenge Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200/80 pb-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-[#D96E4A] text-white flex items-center justify-center shadow-md flex-shrink-0">
-                        <Trophy className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h3 className="font-serif text-xl font-bold text-neutral-dark">
-                                {challenge.title || '7-dagars matloggningsutmaning'}
-                            </h3>
-                            <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${
-                                isChallengeFinished 
-                                    ? 'bg-[#84A98C]/20 text-[#56524D]' 
-                                    : 'bg-[#F6E2D9] text-[#D96E4A]'
-                            }`}>
-                                {isChallengeFinished ? 'Slutförd' : `Dag ${currentDayNum} av 7`}
-                            </span>
-                        </div>
-                        <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5" />
-                            {challenge.startDate} till {challenge.endDate}
-                        </p>
-                    </div>
-                </div>
+    // Egen status visas redan i den ihopfallda rubriken, sa man slipper
+    // fella ut kortet bara for att se hur man ligger till.
+    const self = activeParticipants.find(pp => pp.uid === currentUserId);
+    const selfLoggedCount = self ? dates.filter(d => self.dailyStatus?.[d] === true).length : 0;
 
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <button
-                        type="button"
-                        onClick={() => setShowLeaveConfirm(true)}
-                        className="px-3 py-1.5 text-base font-semibold text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                        title="Lämna utmaningen"
-                    >
-                        <LogOut className="w-4 h-4" /> Lämna
-                    </button>
+    return (
+        <div className={`bg-[#FAF8F5] border border-[#D96E4A]/30 rounded-2xl px-4 py-3.5 shadow-sm ${isExpanded ? 'space-y-5' : ''}`}>
+            {/* Rubrikrad - hela raden ar knappen som faller ut kortet */}
+            <button
+                type="button"
+                onClick={() => setIsExpanded(v => !v)}
+                className="w-full flex items-center gap-3 text-left cursor-pointer"
+                aria-expanded={isExpanded}
+            >
+                <div className="w-10 h-10 rounded-xl bg-[#D96E4A] text-white flex items-center justify-center shadow-sm flex-shrink-0">
+                    <Trophy className="w-5 h-5 text-white" />
                 </div>
+                <div className="min-w-0 flex-1">
+                    <h3 className="font-serif text-base font-bold text-neutral-dark leading-snug">
+                        {challenge.title || '7-dagars matloggningsutmaning'}
+                    </h3>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                        {isChallengeFinished
+                            ? 'Slutförd'
+                            : `Dag ${currentDayNum} av 7 · du har loggat ${selfLoggedCount} av 7`}
+                    </p>
+                </div>
+                <ChevronRight className={`w-5 h-5 text-[#D96E4A] flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+            </button>
+
+            <div className={isExpanded ? 'block space-y-5' : 'hidden'}>
+            {/* Datum och Lamna-knapp */}
+            <div className="flex items-center justify-between gap-3 border-b border-neutral-200/80 pb-4 pt-4">
+                <p className="text-xs text-neutral-500 flex items-center gap-1.5 min-w-0">
+                    <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{challenge.startDate} till {challenge.endDate}</span>
+                </p>
+                <button
+                    type="button"
+                    onClick={() => setShowLeaveConfirm(true)}
+                    className="px-3 py-1.5 text-base font-semibold text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1 cursor-pointer flex-shrink-0"
+                    title="Lämna utmaningen"
+                >
+                    <LogOut className="w-4 h-4" /> Lämna
+                </button>
             </div>
 
             {/* Leave Confirmation Modal */}
@@ -368,6 +375,7 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
                         );
                     })}
                 </div>
+            </div>
             </div>
         </div>
     );
