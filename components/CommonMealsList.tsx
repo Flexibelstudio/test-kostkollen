@@ -1,150 +1,229 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { CommonMeal, NutritionalInfo } from '../types.ts';
-import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon, SmileIcon } from './icons.tsx';
+import { CheckIcon, XMarkIcon, PencilIcon, TrashIcon, SmileIcon, BookmarkIcon, ArrowRightIcon } from './icons.tsx';
 import { 
   MoreHorizontal, 
   Soup, Egg, Sandwich, CupSoda, Drumstick, Beef, Fish, Salad, Carrot,
   Pizza, Coffee, Cake, Cookie, IceCream, Apple, Utensils, Croissant, Wine
 } from 'lucide-react';
-import { playAudio } from '../services/audioService.ts';
+import { resolveUpdatedNutrients } from '../utils/nutritionTotals.ts';
+import { fileToSquareThumbnail } from '../utils/imageUtils.ts';
+import { estimateFiberForFood } from '../services/geminiService.ts';
 
 interface CommonMealsListProps {
   commonMeals: CommonMeal[];
   onLogCommonMeal: (commonMeal: CommonMeal) => void;
   onDeleteCommonMeal: (commonMealId: string) => void;
-  onUpdateCommonMeal: (commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) => void;
+  onUpdateCommonMeal: (commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo; imageUrl?: string | null }) => void;
   onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled?: boolean;
   isBootcamp?: boolean;
+  /** true = rendera utan eget vitt kort (inbäddad i annat kort, t.ex. under makrostaplarna) */
+  embedded?: boolean;
 }
 
 // Helper to match a Lucide icon and color theme based on the meal name
 const getMealIcon = (name: string) => {
   const n = name.toLowerCase();
   const iconProps = { className: "w-6 h-6", strokeWidth: 2 };
+  const defaultTheme = { bg: 'bg-[#F6E2D9]', text: 'text-[#D96E4A]' };
 
   // Drinks (Coffee/Tea)
   if (n.includes('kaffe') || n.includes('te ') || n.includes('latte') || n.includes('espresso') || n.includes('cappuccino')) {
-    return { icon: <Coffee {...iconProps} />, bg: 'bg-amber-100', text: 'text-amber-700' };
+    return { icon: <Coffee {...iconProps} />, ...defaultTheme };
   }
   
   // Drinks (Cold)
   if (n.includes('smoothie') || n.includes('shake') || n.includes('dryck') || n.includes('vatten') || n.includes('juice') || n.includes('läsk') || n.includes('saft') || n.includes('mjölk')) {
-    return { icon: <CupSoda {...iconProps} />, bg: 'bg-blue-100', text: 'text-blue-600' };
+    return { icon: <CupSoda {...iconProps} />, ...defaultTheme };
   }
   
   // Alcohol
   if (n.includes('öl') || n.includes('vin') || n.includes('cider') || n.includes('bubbel')) {
-     return { icon: <Wine {...iconProps} />, bg: 'bg-purple-100', text: 'text-purple-700' };
+     return { icon: <Wine {...iconProps} />, ...defaultTheme };
   }
 
   // Breakfast / Porridge / Dairy
   if (n.includes('gröt') || n.includes('havre') || n.includes('oat') || n.includes('soppa') || n.includes('yoghurt') || n.includes('fil') || n.includes('kvarg') || n.includes('bowl') || n.includes('flingor') || n.includes('müsli')) {
-    return { icon: <Soup {...iconProps} />, bg: 'bg-pink-100', text: 'text-pink-600' }; 
+    return { icon: <Soup {...iconProps} />, ...defaultTheme }; 
   }
 
   // Eggs
   if (n.includes('ägg') || n.includes('omelett') || n.includes('kokt')) {
-    return { icon: <Egg {...iconProps} />, bg: 'bg-yellow-100', text: 'text-yellow-600' };
+    return { icon: <Egg {...iconProps} />, ...defaultTheme };
   }
 
   // Bread / Sandwiches
   if (n.includes('bröd') || n.includes('macka') || n.includes('toast') || n.includes('smörgås') || n.includes('knäcke') || n.includes('baguette') || n.includes('fralla')) {
-    return { icon: <Sandwich {...iconProps} />, bg: 'bg-orange-100', text: 'text-orange-600' };
+    return { icon: <Sandwich {...iconProps} />, ...defaultTheme };
   }
   if (n.includes('croissant') || n.includes('bulle') || n.includes('wiener')) {
-      return { icon: <Croissant {...iconProps} />, bg: 'bg-amber-100', text: 'text-amber-700' };
+      return { icon: <Croissant {...iconProps} />, ...defaultTheme };
   }
 
   // Poultry
   if (n.includes('kyckling') || n.includes('fågel') || n.includes('kalkon') || n.includes('anka')) {
-    return { icon: <Drumstick {...iconProps} />, bg: 'bg-orange-100', text: 'text-orange-700' };
+    return { icon: <Drumstick {...iconProps} />, ...defaultTheme };
   }
 
   // Meat
   if (n.includes('kött') || n.includes('biff') || n.includes('burgare') || n.includes('färs') || n.includes('korv') || n.includes('stek') || n.includes('skinka') || n.includes('bacon')) {
-    return { icon: <Beef {...iconProps} />, bg: 'bg-red-100', text: 'text-red-700' };
+    return { icon: <Beef {...iconProps} />, ...defaultTheme };
   }
 
   // Fish/Seafood
   if (n.includes('fisk') || n.includes('lax') || n.includes('torsk') || n.includes('räkor') || n.includes('skaldjur') || n.includes('tonfisk') || n.includes('sushi')) {
-    return { icon: <Fish {...iconProps} />, bg: 'bg-cyan-100', text: 'text-cyan-700' };
+    return { icon: <Fish {...iconProps} />, ...defaultTheme };
   }
 
   // Green / Veg
   if (n.includes('sallad') || n.includes('grönsak') || n.includes('vegetarisk') || n.includes('vegan') || n.includes('avokado') || n.includes('böna') || n.includes('lins')) {
-    return { icon: <Salad {...iconProps} />, bg: 'bg-green-100', text: 'text-green-600' };
+    return { icon: <Salad {...iconProps} />, ...defaultTheme };
   }
   if (n.includes('morot') || n.includes('rotfrukt') || n.includes('potatis')) {
-      return { icon: <Carrot {...iconProps} />, bg: 'bg-orange-50', text: 'text-orange-600' };
+      return { icon: <Carrot {...iconProps} />, ...defaultTheme };
   }
 
   // Pizza / Fast food
   if (n.includes('pizza') || n.includes('taco') || n.includes('kebab')) {
-    return { icon: <Pizza {...iconProps} />, bg: 'bg-yellow-100', text: 'text-yellow-700' };
+    return { icon: <Pizza {...iconProps} />, ...defaultTheme };
   }
 
   // Sweets
   if (n.includes('kaka') || n.includes('tårta') || n.includes('bakelse')) {
-    return { icon: <Cake {...iconProps} />, bg: 'bg-pink-100', text: 'text-pink-500' };
+    return { icon: <Cake {...iconProps} />, ...defaultTheme };
   }
   if (n.includes('kex') || n.includes('cookie') || n.includes('godis') || n.includes('choklad')) {
-    return { icon: <Cookie {...iconProps} />, bg: 'bg-amber-100', text: 'text-amber-800' };
+    return { icon: <Cookie {...iconProps} />, ...defaultTheme };
   }
   if (n.includes('glass') || n.includes('sorbet')) {
-      return { icon: <IceCream {...iconProps} />, bg: 'bg-purple-100', text: 'text-purple-600' };
+      return { icon: <IceCream {...iconProps} />, ...defaultTheme };
   }
 
   // Fruit
   if (n.includes('äpple') || n.includes('banan') || n.includes('frukt') || n.includes('bär') || n.includes('päron') || n.includes('apelsin')) {
-    return { icon: <Apple {...iconProps} />, bg: 'bg-green-100', text: 'text-green-700' };
+    return { icon: <Apple {...iconProps} />, ...defaultTheme };
   }
 
   // Default
-  return { icon: <Utensils {...iconProps} />, bg: 'bg-neutral-100', text: 'text-neutral-600' };
+  return { icon: <Utensils {...iconProps} />, ...defaultTheme };
 };
 
 const CommonMealCard: React.FC<{
   meal: CommonMeal;
   onLog: (meal: CommonMeal) => void;
   onDelete: (id: string) => void;
-  onUpdate: (id: string, data: { name: string; nutritionalInfo: NutritionalInfo }) => void;
+  onUpdate: (id: string, data: { name: string; nutritionalInfo: NutritionalInfo; imageUrl?: string | null }) => void;
   onShowRating?: (nutritionalInfo: NutritionalInfo) => void;
   disabled: boolean;
   isBootcamp?: boolean;
 }> = ({ meal, onLog, onDelete, onUpdate, onShowRating, disabled, isBootcamp }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  // Korten ligger i en vagratt scrollande behallare. En meny som ritas inuti
+  // kortet klipps darfor bort vid kortkanten - den maste ut ur flodet helt.
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
+
+  const openMenu = () => {
+    const rect = menuButtonRef.current?.getBoundingClientRect();
+    if (rect) {
+      setMenuPosition({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    }
+    setShowMenu(true);
+  };
 
   // Edit state
   const [editedName, setEditedName] = useState(meal.name);
-  const [editedCalories, setEditedCalories] = useState(meal.nutritionalInfo.calories.toString());
-  const [editedProtein, setEditedProtein] = useState(meal.nutritionalInfo.protein.toString());
-  const [editedCarbs, setEditedCarbs] = useState(meal.nutritionalInfo.carbohydrates.toString());
-  const [editedFat, setEditedFat] = useState(meal.nutritionalInfo.fat.toString());
+  const [editedCalories, setEditedCalories] = useState(Math.round(meal.nutritionalInfo.calories).toString());
+  const [editedProtein, setEditedProtein] = useState(Math.round(meal.nutritionalInfo.protein).toString());
+  const [editedCarbs, setEditedCarbs] = useState(Math.round(meal.nutritionalInfo.carbohydrates).toString());
+  const [editedFat, setEditedFat] = useState(Math.round(meal.nutritionalInfo.fat).toString());
+  const [editedImage, setEditedImage] = useState<string | null>(meal.imageUrl || null);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [editedFiber, setEditedFiber] = useState<string>(
+    typeof meal.nutritionalInfo.fiber === 'number' ? String(meal.nutritionalInfo.fiber) : ''
+  );
+  const [fiberBusy, setFiberBusy] = useState(false);
+  const [fiberError, setFiberError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isEditing) {
       setEditedName(meal.name);
-      setEditedCalories(meal.nutritionalInfo.calories.toString());
-      setEditedProtein(meal.nutritionalInfo.protein.toString());
-      setEditedCarbs(meal.nutritionalInfo.carbohydrates.toString());
-      setEditedFat(meal.nutritionalInfo.fat.toString());
+      setEditedCalories(Math.round(meal.nutritionalInfo.calories).toString());
+      setEditedProtein(Math.round(meal.nutritionalInfo.protein).toString());
+      setEditedCarbs(Math.round(meal.nutritionalInfo.carbohydrates).toString());
+      setEditedFat(Math.round(meal.nutritionalInfo.fat).toString());
+      setEditedImage(meal.imageUrl || null);
+      setImageError(null);
+      setEditedFiber(typeof meal.nutritionalInfo.fiber === 'number' ? String(meal.nutritionalInfo.fiber) : '');
+      setFiberError(null);
     }
   }, [isEditing, meal]);
 
+  /**
+   * Vanliga val som sparades innan fibrerna infordes har inget varde alls.
+   * Att spara om dem hjalper inte - varden bars med oforandrat - sa har far
+   * anvandaren lata AI:n rakna ut det utifran namn, kalorier och kolhydrater.
+   */
+  const handleEstimateFiber = async () => {
+    setFiberBusy(true);
+    setFiberError(null);
+    try {
+      const value = await estimateFiberForFood(
+        editedName.trim() || meal.name,
+        parseFloat(editedCalories.replace(',', '.')) || meal.nutritionalInfo.calories,
+        parseFloat(editedCarbs.replace(',', '.')) || meal.nutritionalInfo.carbohydrates
+      );
+      setEditedFiber(String(value));
+    } catch (error) {
+      setFiberError(error instanceof Error ? error.message : 'Kunde inte räkna ut fibrerna.');
+    } finally {
+      setFiberBusy(false);
+    }
+  };
+
+  const handleImageSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setImageBusy(true);
+    setImageError(null);
+    try {
+      setEditedImage(await fileToSquareThumbnail(file));
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : 'Bilden kunde inte läsas in.');
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
   const handleSave = () => {
+    const updatedNutrients = resolveUpdatedNutrients(meal.nutritionalInfo, {
+      foodItem: meal.nutritionalInfo.foodItem,
+      calories: editedCalories,
+      protein: editedProtein,
+      carbohydrates: editedCarbs,
+      fat: editedFat,
+    });
     const updatedData = {
       name: editedName.trim(),
       nutritionalInfo: {
+        ...updatedNutrients,
         foodItem: editedName.trim(),
-        calories: Math.round(parseFloat(editedCalories) || 0),
-        protein: Math.round(parseFloat(editedProtein) || 0),
-        carbohydrates: Math.round(parseFloat(editedCarbs) || 0),
-        fat: Math.round(parseFloat(editedFat) || 0),
       },
+      // null i stallet for undefined - undefined stryks bort innan skrivningen,
+      // och da hade en borttagen bild aldrig raderats i databasen.
+      imageUrl: editedImage ?? null,
     };
+    const fiberValue = editedFiber.trim() === '' ? undefined : parseFloat(editedFiber.replace(',', '.'));
+    if (typeof fiberValue === 'number' && !isNaN(fiberValue)) {
+      updatedData.nutritionalInfo.fiber = Math.max(0, fiberValue);
+    }
     onUpdate(meal.id, updatedData);
     setIsEditing(false);
     setShowMenu(false);
@@ -152,17 +231,69 @@ const CommonMealCard: React.FC<{
 
   const createNumericHandler = (setter: React.Dispatch<React.SetStateAction<string>>) => {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
-      const { value } = e.target;
-      if (value === '') { setter('0'); return; }
-      if (/^\d+$/.test(value)) { setter(String(parseInt(value, 10))); }
+      const val = e.target.value.replace(',', '.');
+      if (val === '') { setter('0'); return; }
+      if (/^\d*\.?\d*$/.test(val)) { setter(val); }
     };
   };
 
   const inputClass = "block w-full px-2 py-1.5 bg-neutral-light/50 border border-neutral-light rounded-md text-sm focus:ring-primary focus:border-primary";
 
   if (isEditing) {
-    return (
-      <div className="bg-white shadow-soft-xl rounded-2xl p-4 border-2 border-primary-lighter relative space-y-3 animate-fade-in col-span-2 sm:col-span-1">
+    // Redigeringen lag tidigare inuti sjalva kortet. Nar korten blev lagre fick
+    // sex falt samsas om 118 px och formularet blev obrukbart. Den ligger nu
+    // som en egen ruta ovanpa sidan i stallet.
+    return createPortal(
+      <div
+        className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[130] p-4 animate-fade-in"
+        onClick={() => setIsEditing(false)}
+        role="dialog"
+        aria-modal="true"
+      >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white shadow-soft-xl rounded-2xl p-5 w-full max-w-sm max-h-[85vh] overflow-y-auto space-y-3 animate-scale-in">
+        <h3 className="text-lg font-serif font-medium text-[#56524D] mb-1">Redigera vanligt val</h3>
+
+        {/* Bilden ar frivillig. Ett foto gor valet mycket snabbare att hitta i
+            raden an ett generiskt ikonval. */}
+        <div className="flex items-center gap-3">
+          <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#F1EAE0] border border-neutral-light flex items-center justify-center flex-shrink-0">
+            {editedImage ? (
+              <img src={editedImage} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <Utensils className="w-6 h-6 text-[#D96E4A]/60" />
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={imageBusy}
+              className="text-sm font-semibold text-primary hover:text-primary-darker text-left disabled:opacity-50"
+            >
+              {imageBusy ? 'Läser in…' : editedImage ? 'Byt bild' : 'Lägg till bild'}
+            </button>
+            {editedImage && !imageBusy && (
+              <button
+                type="button"
+                onClick={() => setEditedImage(null)}
+                className="text-sm text-neutral-500 hover:text-red-600 text-left"
+              >
+                Ta bort bild
+              </button>
+            )}
+          </div>
+          <input
+            type="file"
+            accept="image/*"
+            ref={imageInputRef}
+            onChange={handleImageSelected}
+            className="hidden"
+            aria-hidden="true"
+          />
+        </div>
+        {imageError && <p className="text-xs text-red-600">{imageError}</p>}
         <div>
           <label className="block text-xs font-semibold text-neutral-dark mb-1">Namn</label>
           <input
@@ -174,27 +305,49 @@ const CommonMealCard: React.FC<{
         </div>
         {meal.nutritionalInfo.foodItem && (
           <div className="bg-neutral-light/30 p-2 rounded-lg border border-neutral-light">
-            <label className="block text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-0.5">Ursprungligt innehåll</label>
+            <label className="block text-xs uppercase tracking-wider font-bold text-neutral-500 mb-0.5">Ursprungligt innehåll</label>
             <p className="text-xs text-neutral-dark italic break-words">{meal.nutritionalInfo.foodItem}</p>
           </div>
         )}
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-xs font-medium text-neutral">Kcal</label>
-            <input type="number" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} className={inputClass} />
+            <input type="number" min="0" step="any" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} className={inputClass} />
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral">Protein</label>
-            <input type="number" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} className={inputClass} />
+            <input type="number" min="0" step="any" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} className={inputClass} />
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral">Kolh</label>
-            <input type="number" value={editedCarbs} onChange={createNumericHandler(setEditedCarbs)} className={inputClass} />
+            <input type="number" min="0" step="any" value={editedCarbs} onChange={createNumericHandler(setEditedCarbs)} className={inputClass} />
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral">Fett</label>
-            <input type="number" value={editedFat} onChange={createNumericHandler(setEditedFat)} className={inputClass} />
+            <input type="number" min="0" step="any" value={editedFat} onChange={createNumericHandler(setEditedFat)} className={inputClass} />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral">Fibrer</label>
+            <input type="number" min="0" step="any" value={editedFiber} onChange={createNumericHandler(setEditedFiber)} placeholder="–" className={inputClass} />
+          </div>
+        </div>
+
+        {/* Val sparade fore fibrerna infordes har inget varde. Har fylls det i. */}
+        <div>
+          <button
+            type="button"
+            onClick={handleEstimateFiber}
+            disabled={fiberBusy}
+            className="text-sm font-semibold text-primary hover:text-primary-darker disabled:opacity-50"
+          >
+            {fiberBusy ? 'Räknar ut…' : editedFiber ? 'Räkna om fibrerna' : 'Räkna ut fibrer'}
+          </button>
+          {!editedFiber && !fiberBusy && (
+            <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">
+              Det här valet sparades innan fibrerna räknades och bidrar därför med 0 g i dag.
+            </p>
+          )}
+          {fiberError && <p className="text-xs text-red-600 mt-1">{fiberError}</p>}
         </div>
         <div className="flex justify-between items-center mt-2">
           {onShowRating && (
@@ -206,83 +359,96 @@ const CommonMealCard: React.FC<{
             </button>
           )}
           <div className="flex justify-end space-x-2 ml-auto">
-            <button onClick={() => setIsEditing(false)} className="p-2 text-neutral hover:bg-neutral-light rounded-full"><XMarkIcon className="w-5 h-5" /></button>
-            <button onClick={handleSave} className="p-2 text-white bg-primary hover:bg-primary-darker rounded-full shadow-sm"><CheckIcon className="w-5 h-5" /></button>
+            <button onClick={() => setIsEditing(false)} className="p-2 text-neutral hover:bg-neutral-light rounded-full" aria-label="Avbryt"><XMarkIcon className="w-5 h-5" /></button>
+            <button onClick={handleSave} className="p-2 text-white bg-primary hover:bg-primary-darker rounded-full shadow-sm" aria-label="Spara"><CheckIcon className="w-5 h-5" /></button>
           </div>
         </div>
       </div>
+      </div>,
+      document.body
     );
   }
 
   const { icon, bg, text } = getMealIcon(meal.name);
 
   return (
-    <div className={`relative group ${isBootcamp ? 'bg-white dark:!bg-[#2A3B2C] dark:border-[#4A5B4C]' : 'bg-white'} rounded-2xl border border-neutral-light shadow-sm hover:shadow-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`relative group w-full h-[118px] snap-start ${'bg-white'} rounded-2xl border border-neutral-light shadow-soft-sm hover:shadow-soft-md transition-all duration-200 ${disabled ? 'opacity-60' : ''}`}>
       {/* Menu Trigger */}
       <div className="absolute top-2 right-2 z-20">
-        <button 
-          onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+        <button
+          ref={menuButtonRef}
+          onClick={(e) => { e.stopPropagation(); showMenu ? setShowMenu(false) : openMenu(); }}
           className="p-1.5 text-neutral-400 hover:text-neutral-dark rounded-full hover:bg-neutral-light transition-colors"
+          aria-label={`Alternativ för ${meal.name}`}
         >
           <MoreHorizontal className="w-5 h-5" />
         </button>
-        
-        {showMenu && (
-          <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-neutral-light z-30 animate-scale-in origin-top-right overflow-hidden">
-            <button 
+      </div>
+
+      {/* Menyn ritas i body med fast position, annars klipps den av kortet
+          och av den vagratt scrollande raden runt omkring. */}
+      {showMenu && menuPosition && createPortal(
+        <>
+          <div className="fixed inset-0 z-[130]" onClick={() => setShowMenu(false)} />
+          <div
+            className="fixed w-36 bg-white rounded-xl shadow-soft-xl border border-neutral-light z-[131] animate-scale-in origin-top-right overflow-hidden"
+            style={{ top: menuPosition.top, right: menuPosition.right }}
+          >
+            <button
               onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowMenu(false); }}
-              className="w-full text-left px-3 py-2 text-sm text-neutral-dark hover:bg-neutral-light flex items-center gap-2"
+              className="w-full text-left px-3 py-2.5 text-sm text-neutral-dark hover:bg-neutral-light flex items-center gap-2"
             >
               <PencilIcon className="w-3.5 h-3.5" /> Redigera
             </button>
-            <button 
+            <button
               onClick={(e) => { e.stopPropagation(); onDelete(meal.id); setShowMenu(false); }}
-              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-neutral-light"
+              className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-neutral-light"
             >
               <TrashIcon className="w-3.5 h-3.5" /> Ta bort
             </button>
           </div>
-        )}
-      </div>
+        </>,
+        document.body
+      )}
 
       {/* Main Clickable Area */}
       <button
         onClick={() => !disabled && !showMenu && onLog(meal)}
         disabled={disabled}
-        className="w-full h-full p-4 flex flex-col items-center justify-center text-center cursor-pointer outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-2xl active:scale-95 transition-transform"
+        className="w-full h-full px-3 py-2.5 flex flex-col items-center justify-center text-center cursor-pointer outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-2xl active:scale-95 transition-transform"
       >
         {/* Updated Icon Container with Squircle and dynamic color */}
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 shadow-sm ${bg} ${text}`}>
-          {icon}
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1.5 shadow-soft-sm shrink-0 overflow-hidden ${meal.imageUrl ? 'bg-[#F1EAE0]' : `${bg} ${text}`}`}>
+          {meal.imageUrl ? (
+            <img src={meal.imageUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            icon
+          )}
         </div>
         
-        <h4 className="font-bold text-neutral-dark text-sm leading-tight mb-1 line-clamp-2 w-full">
+        <h4 className="font-bold text-neutral-dark text-sm leading-tight mb-1 line-clamp-2 w-full break-words">
           {meal.name}
         </h4>
-        <p className="text-xs font-medium text-neutral-500 bg-neutral-light/50 px-2 py-0.5 rounded-full">
+        <p className="text-xs font-medium text-neutral-500 bg-neutral-light/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
           {meal.nutritionalInfo.calories.toFixed(0)} kcal
         </p>
       </button>
       
-      {/* Overlay click to close menu */}
-      {showMenu && (
-        <div className="fixed inset-0 z-10 cursor-default" onClick={() => setShowMenu(false)}></div>
-      )}
     </div>
   );
 };
 
-export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false, isBootcamp = false }) => {
+export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, onLogCommonMeal, onDeleteCommonMeal, onUpdateCommonMeal, onShowRating, disabled = false, isBootcamp = false, embedded = false }) => {
   const [mealIdToConfirmDelete, setMealIdToConfirmDelete] = useState<string | null>(null);
+  const [showAllMeals, setShowAllMeals] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleDeleteRequest = (mealId: string) => {
-    playAudio('uiClick');
     setMealIdToConfirmDelete(mealId);
   };
   
   const handleConfirmDelete = () => {
     if (mealIdToConfirmDelete) {
-      playAudio('uiClick');
       onDeleteCommonMeal(mealIdToConfirmDelete);
       setMealIdToConfirmDelete(null);
     }
@@ -290,41 +456,88 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
   
   const handleLogClick = (meal: CommonMeal) => {
     if (disabled) return;
-    playAudio('uiClick');
     onLogCommonMeal(meal);
+    // Loggar man fran hela listan ar man klar - da ska rutan inte bli kvar.
+    setShowAllMeals(false);
   };
+
+  // Mest använda först. Vid lika antal: senast använd, därefter nyast sparad.
+  // Val som aldrig loggats (useCount saknas) hamnar sist men behåller inbördes ordning.
+  const sortedMeals = useMemo(() => {
+    return [...commonMeals].sort((a, b) => {
+      const countDiff = (b.useCount || 0) - (a.useCount || 0);
+      if (countDiff !== 0) return countDiff;
+      const usedDiff = (b.lastUsedAt || 0) - (a.lastUsedAt || 0);
+      if (usedDiff !== 0) return usedDiff;
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+  }, [commonMeals]);
+
+  // Vid få val ska rutan krympa: 1-3 val ryms på en rad, fler staplas i två.
+  // Grid-klasserna måste vara kompletta strängar - Tailwind kan inte tolka ihopsatta klassnamn.
+  const rowsClass = sortedMeals.length <= 3 ? 'grid-rows-1' : 'grid-rows-2';
+  // Två kolumner får plats. Fler kort än så betyder att raden går att scrolla,
+  // och det måste synas - annars tror användaren att listan tar slut vid kort två.
+  const visibleColumns = 2;
+  const rowCount = sortedMeals.length <= 3 ? 1 : 2;
+  const isScrollable = sortedMeals.length > visibleColumns * rowCount;
+  // Antalet som INTE syns. Ett rent totalantal svarar pa fel fraga - det man
+  // undrar ar om det finns mer an det man ser, och at vilket hall.
+  const hiddenCount = Math.max(0, sortedMeals.length - visibleColumns * rowCount);
+
+  const visibleInModal = searchQuery.trim()
+    ? sortedMeals.filter(m => m.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    : sortedMeals;
 
   const mealToConfirm = mealIdToConfirmDelete ? commonMeals.find(cm => cm.id === mealIdToConfirmDelete) : null;
 
   return (
     <>
-      <div className={`${isBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">📌</span>
-            <h3 className="text-lg font-bold text-neutral-dark">Mina vanliga val</h3>
+      <div className={embedded
+        ? 'w-full'
+        : `${'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} p-6 rounded-[22px] shadow-soft-xl border`}>
+        <div className={`flex items-center justify-between ${embedded ? 'mb-2.5' : 'mb-4'}`}>
+          <div className="flex items-center gap-2.5">
+            <BookmarkIcon className={`${embedded ? 'w-4 h-4' : 'w-5 h-5'} text-[#D96E4A]`} />
+            <h3 className={`${embedded ? 'text-sm font-bold uppercase tracking-wider text-[#7A756E]' : 'text-lg font-serif font-medium text-[#56524D]'} dark:text-[#FAF6EF]`}>Mina vanliga val</h3>
           </div>
+
+          {/* Ligger har uppe i stallet for under korten - raden var tom anda,
+              och under korten kostade den en hel textrad. */}
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(''); setShowAllMeals(true); }}
+              className="flex items-center gap-1 text-[11px] font-semibold text-[#D96E4A] hover:text-[#C05A38] whitespace-nowrap flex-shrink-0 px-1.5 py-1 -mr-1.5 rounded-lg hover:bg-[#F6E2D9] transition-colors"
+            >
+              +{hiddenCount} fler
+              <ArrowRightIcon className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {disabled && commonMeals.length > 0 && (
-          <p className="text-xs text-orange-500 text-center mb-4 bg-orange-50 p-2 rounded-lg border border-orange-100">
+          <p className="text-xs text-[#D96E4A] text-center mb-4 bg-[#F6E2D9] p-2.5 rounded-xl border border-[#EAC5B8]">
             Loggning av vanliga val är inaktiverad för detta datum.
           </p>
         )}
         
         {commonMeals.length === 0 ? (
-           <div className="text-center py-8 bg-neutral-light/30 rounded-2xl border border-dashed border-neutral-light">
-             <div className="text-4xl mb-2 opacity-50">🍽️</div>
-             <p className="text-sm text-neutral font-medium">Inga sparade val än.</p>
-             <p className="text-xs text-neutral-400 mt-1 px-4">
-              Spara en måltid med <span className="inline-block bg-gray-100 rounded px-1 text-black">📌</span>-knappen för att se den här.
-            </p>
+           <div className={`text-center bg-[#FAF6EF] dark:bg-[#34302C] rounded-[22px] border border-[#F1EAE0] dark:border-[#484440] ${embedded ? 'py-3 px-3' : 'py-8 px-4'}`}>
+             <Utensils className={`text-[#D96E4A]/60 mx-auto ${embedded ? 'w-5 h-5 mb-1' : 'w-8 h-8 mb-2'}`} />
+             <p className={`text-[#56524D] dark:text-[#FAF6EF] font-medium ${embedded ? 'text-xs' : 'text-base'}`}>Inga sparade val än.</p>
+             {!embedded && (
+               <p className="text-sm text-[#7A756E] dark:text-[#C2BCB4] mt-1 max-w-xs mx-auto leading-relaxed">
+                Spara din favoritmåltid med spar-knappen när du loggat för att snabbt hitta den här igen.
+              </p>
+             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-            {commonMeals.map((meal) => (
+          <div className="relative">
+            <div className={`grid ${rowsClass} grid-flow-col auto-cols-[calc(50%-0.3125rem)] items-start gap-2.5 overflow-x-auto snap-x snap-mandatory scrollbar-none no-scrollbar -mx-1 px-1 pb-2`}>
+            {sortedMeals.map((meal) => (
               <CommonMealCard
-                key={meal.timestamp}
+                key={meal.id}
                 meal={meal}
                 onLog={handleLogClick}
                 onDelete={handleDeleteRequest}
@@ -334,9 +547,88 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
                 isBootcamp={isBootcamp}
               />
             ))}
+            </div>
+
+            {/* Toningen ar kvar och gor det tyngsta jobbet: man SER att nasta
+                kort fortsatter utanfor bild. Texten uppe i hornet ar ett
+                komplement, inte huvudsignalen. */}
+            {isScrollable && (
+              <div className="pointer-events-none absolute top-0 right-0 h-full w-10 bg-gradient-to-l from-white dark:from-[#2B2825] to-transparent" />
+            )}
           </div>
         )}
       </div>
+
+      {/* Hela listan. Med manga val racker inte en svepbar rad - tio svep i tva
+          rader ar ingen bra vag till maten man ater varje dag. Har visas allt
+          pa en gang, med sokning nar listan blivit lang. */}
+      {showAllMeals && createPortal(
+        <div
+          className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[125] p-4 animate-fade-in"
+          onClick={() => setShowAllMeals(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Alla vanliga val"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#2B2825] w-full sm:max-w-2xl rounded-[22px] shadow-soft-xl max-h-[85vh] flex flex-col animate-scale-in"
+          >
+            <div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-b border-[#F1EAE0] dark:border-[#484440]">
+              <h3 className="text-lg font-serif font-medium text-[#56524D] dark:text-[#FAF6EF]">
+                Mina vanliga val
+                <span className="ml-2 text-sm font-sans text-[#7A756E]">{sortedMeals.length} st</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAllMeals(false)}
+                className="p-2 text-[#7A756E] hover:text-[#56524D] rounded-full hover:bg-neutral-light transition-colors flex-shrink-0"
+                aria-label="Stäng"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sokfaltet dyker upp forst nar listan blivit sa lang att den
+                behovs - vid sex val ar det bara i vagen. */}
+            {sortedMeals.length > 6 && (
+              <div className="px-4 sm:px-5 pt-4">
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Sök bland dina val…"
+                  className="w-full px-3 py-2.5 bg-[#FAF6EF] dark:bg-[#34302C] border border-neutral-light dark:border-[#484440] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[#D96E4A] focus:border-transparent"
+                />
+              </div>
+            )}
+
+            <div className="overflow-y-auto p-4 sm:p-5">
+              {visibleInModal.length === 0 ? (
+                <p className="text-center text-sm text-[#7A756E] py-8">
+                  Inget val matchar ”{searchQuery}”.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {visibleInModal.map((meal) => (
+                    <CommonMealCard
+                      key={meal.id}
+                      meal={meal}
+                      onLog={handleLogClick}
+                      onDelete={handleDeleteRequest}
+                      onUpdate={onUpdateCommonMeal}
+                      onShowRating={onShowRating}
+                      disabled={disabled}
+                      isBootcamp={isBootcamp}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {mealToConfirm && (
         <div 

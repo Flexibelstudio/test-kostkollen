@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, CheckCircleIcon, FireIcon, CalendarIcon, ChatBubbleLeftRightIcon } from './icons';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BootcampParticipant, EveningReport, UserProfileData, GoalSettings, WeightLogEntry, WeeklyCalorieBank, BuddyDetails } from '../types';
-import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal, completeBootcampOnboarding } from '../services/bootcampService';
+import { subscribeToUserEveningReports, submitEveningReport, recalculateStreak, getBootcampStepGoal, completeBootcampOnboarding, isSoloCohort } from '../services/bootcampService';
 import { fetchMealLogsForDate, fetchWaterLog, saveWeightLog } from '../services/firestoreService';
 import { auth } from '../firebase';
 import ToastNotification from './ToastNotification';
@@ -13,7 +13,12 @@ import LogWeightModal from './LogWeightModal';
 import UserProfileModal from './UserProfileModal';
 import { InformationCircleIcon } from './icons';
 import { getDateUID } from '../utils/dateUtils';
+import { sumMealNutrients } from '../utils/nutritionTotals';
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
+import { BootcampDiplomaGalleryModal } from './BootcampDiplomaGalleryModal';
+import { RankBadge } from './RankBadge';
+import { getBootcampAccessDetails, ALL_BOOTCAMP_ONBOARDING_TASKS } from '../utils/accessControl';
+import { Award, Volume2, VolumeX } from 'lucide-react';
 
 interface BootcampDashboardProps {
   participant: BootcampParticipant;
@@ -27,20 +32,36 @@ interface BootcampDashboardProps {
   onAddFriend?: (userId: string, userName: string) => void;
   onSaveProfileAndGoals?: (profileUpdates: UserProfileData, goalUpdates: GoalSettings) => Promise<void>;
   onSaveWeightLog?: (data: Omit<WeightLogEntry, 'id'>) => Promise<void>;
+  /**
+   * Truppens flöde, färdigrenderat av App med samma CommunityView som vanligt.
+   * Skickas som ett element i stället för ett tjugotal proppar, så att flödet
+   * har EN kodväg och EN olästräknare. Inget flöde flyttas hit - det speglas.
+   */
+  bootcampFeedSlot?: React.ReactNode;
+  /** Tar användaren till startsidan där Grundutbildningen ligger. */
+  onNavigateHome?: () => void;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog }) => {
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog, bootcampFeedSlot, onNavigateHome }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
+  const [redDayConfirm, setRedDayConfirm] = useState<{ stepsNum: number; reasons: string[] } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
+  const [showDiplomaGallery, setShowDiplomaGallery] = useState(false);
+  const [isSpeakingQuote, setIsSpeakingQuote] = useState(false);
+  const [activeSection, setActiveSection] = useState<'rapport' | 'flode'>('rapport');
 
   // Waiting Room state
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [tempProfile, setTempProfile] = useState<UserProfileData | null>(null);
-  const [hasCompletedWeight, setHasCompletedWeight] = useState(participant.bootcampOnboardingCompleted || false);
+  // Steg 1 i Väntrummet får inte bara leva i komponentens minne. Gjorde man
+  // startmätningen och lämnade sidan innan målen var satta, såg steget oavklarat
+  // ut igen vid återbesök. Härled det från en faktisk mätning gjord efter
+  // inmönstringen istället.
+  const [weightSavedThisSession, setHasCompletedWeight] = useState(false);
 
   // Form state
   const [loggedAllMeals, setLoggedAllMeals] = useState(false);
@@ -58,6 +79,25 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   }, []);
 
   const todayStr = getDateUID(new Date());
+
+  // joinedAt kan vara antingen ett tal (klienten skriver Date.now()) eller en
+  // Firestore-Timestamp (serverskrivna dokument). Jämför man ett tal med ett
+  // Timestamp-objekt blir resultatet NaN och steg 1 kunde aldrig bli grönt.
+  const toMillis = (value: any): number => {
+    if (!value) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (value.seconds !== undefined) return value.seconds * 1000;
+    const parsed = new Date(value).getTime();
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const joinedAtMs = toMillis(participant.joinedAt)
+    || (participant.originalStartDate ? new Date(participant.originalStartDate).getTime() : 0);
+  const hasWeighInSinceJoining = (weightLogs || []).some(log => (log.loggedAt || 0) >= joinedAtMs);
+  const hasCompletedWeight = weightSavedThisSession
+    || participant.bootcampOnboardingCompleted
+    || hasWeighInSinceJoining;
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = getDateUID(yesterday);
@@ -108,8 +148,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           fetchWaterLog(auth.currentUser!.uid, targetDateStr)
         ]);
         
-        const totalProtein = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.protein, 0);
-        const totalCalories = meals.reduce((acc, meal) => acc + meal.nutritionalInfo.calories, 0);
+        const { calories: totalCalories, protein: totalProtein } = sumMealNutrients(meals);
         
         // Kcal-kravet: Får inte gå över målet (0 kcal marginal, men sparpott får användas).
         // Får ligga under målet, men max 20% under (för att bygga sparpott utan att svälta).
@@ -148,6 +187,23 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
     fetchProgress();
   }, [targetDateStr, goals.calorieGoal, goals.proteinGoal, editingYesterday, yesterdayReport, weeklyBank, userProfile.goalType]);
 
+  /**
+   * Vad som saknas for en gron dag. Anvands bade for att avgora om vi ska
+   * fraga en extra gang och for att kunna visa exakt VAD som ar rott - att
+   * bara saga "det blir en rod dag" hjalper ingen som glomt kryssa i en ruta.
+   */
+  const getRedDayReasons = (stepsNum: number): string[] => {
+    const targetSteps = getBootcampStepGoal(userProfile.activityLevel, participant.status);
+    const reasons: string[] = [];
+    if (!loggedAllMeals) reasons.push('Alla måltider är inte loggade');
+    if (!proteinMet) reasons.push('Proteinmålet är inte uppnått');
+    if (!waterMet) reasons.push('Vattenmålet är inte uppnått');
+    if (stepsNum < targetSteps) {
+      reasons.push(`Stegen räcker inte till (${stepsNum.toLocaleString()} av ${targetSteps.toLocaleString()})`);
+    }
+    return reasons;
+  };
+
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) return;
@@ -158,10 +214,26 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       return;
     }
 
+    // En rod dag bryter streaken och gar inte att angra. Da ska rapporten
+    // aldrig ga ivag pa ett slarvigt tryck - vi visar vad som ar rott och
+    // later anvandaren ga tillbaka och ratta.
+    const reasons = getRedDayReasons(stepsNum);
+    if (reasons.length > 0) {
+      setRedDayConfirm({ stepsNum, reasons });
+      return;
+    }
+
+    await submitReport(stepsNum);
+  };
+
+  const submitReport = async (stepsNum: number) => {
+    if (!auth.currentUser) return;
+
     const targetSteps = getBootcampStepGoal(userProfile.activityLevel, participant.status);
     const stepsMet = stepsNum >= targetSteps;
     const isGreenDay = loggedAllMeals && proteinMet && waterMet && stepsMet;
 
+    setRedDayConfirm(null);
     setIsSubmitting(true);
     try {
       await submitEveningReport(participant.cohortId, auth.currentUser.uid, {
@@ -231,7 +303,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       const isUsingInBody = data.skeletalMuscleMassKg != null || data.bodyFatMassKg != null;
       
       let startDate = participant.originalStartDate ? new Date(participant.originalStartDate) : new Date();
-      if (participant.cohortId === 'solo' || participant.cohortId === 'solo_group') {
+      if (isSoloCohort(participant.cohortId)) {
         startDate = new Date();
       }
       const targetDate = new Date(startDate);
@@ -275,7 +347,15 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
     }
   };
 
-  const isWaitingRoom = !participant.bootcampOnboardingCompleted || (participant.originalStartDate && participant.originalStartDate > todayStr);
+  // Grundutbildningen är den enda grinden in i de 12 veckorna. Väntrummet frågade
+  // tidigare efter startmätning och mål igen - samma sak som uppgiften
+  // 'weigh_in_and_goal' i Grundutbildningen - och de två kunde hamna i otakt.
+  const onboardingDetails = getBootcampAccessDetails(userProfile);
+  const waitingForOnboarding = onboardingDetails.hasBootcamp
+    ? onboardingDetails.isOnboarding
+    : !participant.bootcampOnboardingCompleted;
+  const waitingForStartDate = !!(participant.originalStartDate && participant.originalStartDate > todayStr);
+  const isWaitingRoom = waitingForOnboarding || waitingForStartDate;
 
   if (isWaitingRoom) {
     return (
@@ -302,10 +382,15 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           </div>
           <h1 className="text-3xl font-black text-neutral-darker mb-4">Väntrummet</h1>
           
-          {participant.originalStartDate && participant.originalStartDate > todayStr ? (
+          {waitingForStartDate ? (
             <p className="text-lg text-neutral-600 mb-8">
-              Din trupp drar igång den <strong className="text-primary">{participant.originalStartDate}</strong>. 
-              Tills dess kan du förbereda dig genom att göra din startmätning och sätta dina mål.
+              Din trupp drar igång den <strong className="text-primary">{participant.originalStartDate}</strong>.
+              Tills dess kan du göra klart Grundutbildningen på startsidan.
+            </p>
+          ) : onboardingDetails.hasBootcamp ? (
+            <p className="text-lg text-neutral-600 mb-8">
+              Innan du kan börja rapportera ska du göra klart Grundutbildningen – där ingår
+              startmätningen och dina mål. Den öppnas automatiskt efter {onboardingDetails.onboardingDaysLeft === 0 ? 'tre dagar' : `${onboardingDetails.onboardingDaysLeft} dagar`}.
             </p>
           ) : (
             <p className="text-lg text-neutral-600 mb-8">
@@ -313,52 +398,71 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             </p>
           )}
 
-          <div className="space-y-4">
-            <div className={`p-4 rounded-xl border ${hasCompletedWeight ? 'bg-green-50 border-green-200' : 'bg-neutral-50 border-neutral-200'} flex items-center justify-between`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasCompletedWeight ? 'bg-green-500 text-white' : 'bg-neutral-200 text-neutral-500'}`}>
-                  1
-                </div>
-                <span className={`font-bold ${hasCompletedWeight ? 'text-green-700' : 'text-neutral-dark'}`}>Startmätning</span>
+          {/* Grundutbildningens status. Uppgifterna bockas av på startsidan -
+              vi visar bara läget här så att inga två listor kan hamna i otakt.
+              Saknas grundutbildningen visas i stället det gamla väntrummet. */}
+          {onboardingDetails.hasBootcamp ? (
+            <div className="text-left bg-[#FAF6EF] border border-[#F1EAE0] rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-[#56524D]">Grundutbildningen</span>
+                <span className="text-sm font-bold text-[#D96E4A]">
+                  {onboardingDetails.onboardingTasksCompleted.length}/{ALL_BOOTCAMP_ONBOARDING_TASKS.length} klara
+                </span>
               </div>
-              {hasCompletedWeight ? (
-                <CheckCircleIcon className="w-6 h-6 text-green-500" />
-              ) : (
-                <button 
-                  onClick={() => setShowWeightModal(true)}
-                  className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-darker transition-colors"
+              <div className="w-full bg-[#F1EAE0] rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-[#D96E4A] h-full rounded-full transition-all duration-500"
+                  style={{ width: `${onboardingDetails.onboardingProgressPercent}%` }}
+                ></div>
+              </div>
+              <p className="text-sm text-[#7A756E] mt-3 leading-relaxed">
+                Uppgifterna gör du på startsidan. Där ingår startmätning och mål,
+                logga med foto, logga via sök, logga vatten och läsa morgonbriefingen.
+              </p>
+              {onNavigateHome && (
+                <button
+                  onClick={onNavigateHome}
+                  className="mt-4 w-full py-3 px-6 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl active:scale-95 transition-all"
                 >
-                  Gör nu
+                  Till Grundutbildningen
                 </button>
               )}
             </div>
-
-            <div className={`p-4 rounded-xl border ${participant.bootcampOnboardingCompleted ? 'bg-green-50 border-green-200' : 'bg-neutral-50 border-neutral-200'} flex items-center justify-between`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${participant.bootcampOnboardingCompleted ? 'bg-green-500 text-white' : 'bg-neutral-200 text-neutral-500'}`}>
-                  2
+          ) : (
+            /* Ingen grundutbildning på kontot (inget bootcampAccess från betalningen).
+               Då är det gamla väntrummet enda vägen vidare - annars står användaren
+               kvar och pekas mot ett kort som aldrig visas. */
+            <div className="space-y-4">
+              <div className={`p-4 rounded-xl border ${hasCompletedWeight ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasCompletedWeight ? 'bg-[#7BA05B] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>1</div>
+                  <span className={`font-bold ${hasCompletedWeight ? 'text-[#2B3B2C]' : 'text-[#56524D]'}`}>Startmätning</span>
                 </div>
-                <span className={`font-bold ${participant.bootcampOnboardingCompleted ? 'text-green-700' : 'text-neutral-dark'}`}>Sätt dina mål</span>
+                {hasCompletedWeight ? (
+                  <CheckCircleIcon className="w-6 h-6 text-[#7BA05B]" />
+                ) : (
+                  <button onClick={() => setShowWeightModal(true)} className="px-4 py-2 bg-[#D96E4A] text-white font-bold rounded-lg hover:bg-[#C05A38] transition-colors">Gör nu</button>
+                )}
               </div>
-              {participant.bootcampOnboardingCompleted ? (
-                <CheckCircleIcon className="w-6 h-6 text-green-500" />
-              ) : (
-                <button 
-                  onClick={() => {
-                    if (!hasCompletedWeight) {
-                      setToast({ message: 'Gör startmätningen först!', type: 'info' });
-                    } else {
-                      setShowProfileModal(true);
-                    }
-                  }}
-                  disabled={!hasCompletedWeight}
-                  className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-darker transition-colors disabled:opacity-50"
-                >
-                  Gör nu
-                </button>
-              )}
+              <div className={`p-4 rounded-xl border ${participant.bootcampOnboardingCompleted ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${participant.bootcampOnboardingCompleted ? 'bg-[#7BA05B] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>2</div>
+                  <span className={`font-bold ${participant.bootcampOnboardingCompleted ? 'text-[#2B3B2C]' : 'text-[#56524D]'}`}>Sätt dina mål</span>
+                </div>
+                {participant.bootcampOnboardingCompleted ? (
+                  <CheckCircleIcon className="w-6 h-6 text-[#7BA05B]" />
+                ) : (
+                  <button
+                    onClick={() => { if (!hasCompletedWeight) { setToast({ message: 'Gör startmätningen först!', type: 'info' }); } else { setShowProfileModal(true); } }}
+                    disabled={!hasCompletedWeight}
+                    className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-darker transition-colors disabled:opacity-50"
+                  >
+                    Gör nu
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {showWeightModal && createPortal(
@@ -369,6 +473,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
               onSave={handleWeightSaved} 
               measurementMethod="unknown" 
               hideComment={true}
+              weightLogs={weightLogs}
+              prefillFromProfile={{
+                weightKg: userProfile.currentWeightKg,
+                skeletalMuscleMassKg: userProfile.skeletalMuscleMassKg,
+                bodyFatMassKg: userProfile.bodyFatMassKg,
+              }}
             />
           </div>,
           document.body
@@ -413,6 +523,28 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         Tillbaka till Kurser
       </button>
 
+      {bootcampFeedSlot && (
+        <div className="flex bg-neutral-100 dark:bg-[#34302C] p-1 rounded-xl mb-6">
+          <button
+            onClick={() => setActiveSection('rapport')}
+            className={`flex-1 py-2 px-4 rounded-lg font-bold text-base transition-colors ${activeSection === 'rapport' ? 'bg-white dark:bg-[#2B2825] text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+          >
+            Lägesrapport
+          </button>
+          <button
+            onClick={() => setActiveSection('flode')}
+            className={`flex-1 py-2 px-4 rounded-lg font-bold text-base transition-colors ${activeSection === 'flode' ? 'bg-white dark:bg-[#2B2825] text-primary shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+          >
+            Truppens flöde
+          </button>
+        </div>
+      )}
+
+      {bootcampFeedSlot && activeSection === 'flode' ? (
+        <div className="-mx-2 sm:mx-0">{bootcampFeedSlot}</div>
+      ) : (
+      <>
+
       {/* Header */}
       <div className="bg-neutral-darker text-white rounded-3xl shadow-soft-xl mb-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
@@ -426,7 +558,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             <div className="text-left">
               <h1 className="text-2xl font-extrabold uppercase tracking-wider">Lägesrapport</h1>
               <p className="text-neutral-300 text-sm font-medium">
-                {(participant.cohortId === 'solo' || participant.cohortId === 'solo_group') ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDTRÄNING' : 'FAS 2: ELIT'}
+                {isSoloCohort(participant.cohortId) ? 'SOLO-UPPDRAG' : 'TRUPP-UPPDRAG'} • {participant.status === 'fas1' ? 'FAS 1: GRUNDFAS' : 'FAS 2: ELIT'}
               </p>
             </div>
           </div>
@@ -441,26 +573,30 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             <div className="flex gap-2 sm:gap-4 justify-center w-full max-w-md mx-auto">
               <div className="bg-black/40 px-2 py-2.5 rounded-2xl border border-white/10 flex flex-col items-center flex-1">
                 <div className="h-3.5 mb-0.5"></div>
-                <div className="h-8 flex items-center gap-1 text-orange-400 mb-1 whitespace-nowrap">
+                <div className="h-8 flex items-center gap-1 text-primary mb-1 whitespace-nowrap">
                   <FireIcon className="w-6 h-6 shrink-0" />
                   <span className="font-bold text-2xl leading-none">{participant.currentStreak}</span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Nuvarande</span>
+                <span className="text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Nuvarande</span>
               </div>
               
               <div className="bg-black/40 px-2 py-2.5 rounded-2xl border border-white/10 flex flex-col items-center flex-1">
                 <div className="h-3.5 mb-0.5 flex items-end justify-center">
-                  <span className="font-bold text-[11px] text-primary whitespace-nowrap leading-none">
+                  <span className="font-bold text-xs text-primary whitespace-nowrap leading-none">
                     {participant.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
                   </span>
                 </div>
-                <div className="h-8 flex items-center gap-1 text-primary mb-1 whitespace-nowrap shrink-0">
-                  <ShieldCheckIcon className="w-5 h-5 shrink-0" />
-                  <span className="font-bold text-xl leading-none whitespace-nowrap shrink-0 text-green-400">
+                <div className="h-8 flex items-center gap-1.5 text-primary mb-1 whitespace-nowrap shrink-0">
+                  <RankBadge 
+                    rank={getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).currentRank} 
+                    size="sm" 
+                    className="w-6 h-6 shrink-0" 
+                  />
+                  <span className="font-bold text-xl leading-none whitespace-nowrap shrink-0 text-primary">
                     {getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).currentRank}
                   </span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Rang</span>
+                <span className="text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Rang</span>
               </div>
 
               <div className="bg-black/40 px-2 py-2.5 rounded-2xl border border-white/10 flex flex-col items-center flex-1">
@@ -471,37 +607,93 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                     {getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).nextRank ? getBootcampRankInfo(Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0), participant.currentStreak || 0, participant.status).daysToNext : 0}
                   </span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Dagar Kvar</span>
+                <span className="text-xs text-neutral-400 uppercase tracking-wider font-bold text-center mt-auto">Dagar Kvar</span>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* TV Screen - Generalens Briefing (Dynamic based on Phase) */}
-      <div className="bg-neutral-darker text-white rounded-3xl shadow-soft-xl mb-6 p-6 border border-white/5">
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
-          Sändning från Högkvarteret
-        </h2>
-        <div className="w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-neutral-dark bg-black relative aspect-video">
-          <video 
-            controls 
-            preload="metadata"
-            className="w-full h-full object-cover"
-            key={participant.status} // Force re-render when status changes
-          >
-            <source 
-              src={participant.status === 'fas1' ? "/general-fas1.mp4" : "/general-fas2.mp4"} 
-              type="video/mp4" 
-            />
-            Din webbläsare stöder inte videouppspelning.
-          </video>
-          <div className="absolute top-4 left-4 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded tracking-wider">
-            REC • {participant.status === 'fas1' ? 'FAS 1' : 'FAS 2'}
+      {/* Generalens Order & Grad (Börjes order for current rank) */}
+      {(() => {
+        const currentRankInfo = getBootcampRankInfo(
+          Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0),
+          participant.currentStreak || 0,
+          participant.status
+        );
+
+        const toggleSpeechQuote = () => {
+          if (!('speechSynthesis' in window)) return;
+          if (isSpeakingQuote) {
+            window.speechSynthesis.cancel();
+            setIsSpeakingQuote(false);
+          } else {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(`General Börjes order för ${currentRankInfo.currentRank}. ${currentRankInfo.rankDef.quote}`);
+            utterance.lang = 'sv-SE';
+            utterance.rate = 0.95;
+            utterance.onend = () => setIsSpeakingQuote(false);
+            utterance.onerror = () => setIsSpeakingQuote(false);
+            setIsSpeakingQuote(true);
+            window.speechSynthesis.speak(utterance);
+          }
+        };
+
+        return (
+          <div className="bg-[#3D3935] text-[#FAF6EF] rounded-3xl shadow-soft-xl mb-6 p-6 border border-[#D96E4A]/30 relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-[#D96E4A]/30">
+              <div className="flex items-center gap-3">
+                <RankBadge rank={currentRankInfo.currentRank} size="md" className="w-12 h-12 sm:w-14 sm:h-14 shrink-0" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#D96E4A] animate-pulse"></span>
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#D96E4A]">
+                      GENERALENS ORDER • {currentRankInfo.currentRank.toUpperCase()}
+                    </p>
+                  </div>
+                  <p className="text-xs text-[#FAF6EF]/70 font-medium">
+                    {currentRankInfo.rankDef.achievementText}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleSpeechQuote}
+                  className={`p-2 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5 ${
+                    isSpeakingQuote 
+                      ? 'bg-[#D96E4A] text-white animate-pulse' 
+                      : 'bg-white/10 hover:bg-white/20 text-[#FAF6EF]'
+                  }`}
+                  title="Läs upp Börjes order"
+                >
+                  {isSpeakingQuote ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  <span>{isSpeakingQuote ? 'Tysta' : 'Läs upp'}</span>
+                </button>
+
+                <button
+                  onClick={() => setShowDiplomaGallery(true)}
+                  className="px-3 py-1.5 bg-[#D96E4A] hover:bg-[#C05A38] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md active:scale-95"
+                >
+                  <Award className="w-4 h-4" />
+                  <span>Mina Diplom</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-[#2B2825] rounded-2xl p-4 sm:p-5 border border-[#D96E4A]/20">
+              <p className="text-base sm:text-lg italic font-normal leading-relaxed text-[#FAF6EF]/90">
+                "{currentRankInfo.rankDef.quote}"
+              </p>
+              <div className="mt-3 text-right">
+                <span className="text-xs font-bold tracking-wider text-[#D96E4A] font-serif">
+                  — General Börje, Högkvarteret
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Veckans Uppdrag (Weekly Assignment) */}
       {(() => {
@@ -534,16 +726,16 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         // Show if it's Sunday/Monday morning, OR if they haven't logged this week (delayed)
         if (isSunday || isMondayMorning || isDelayed) {
           return (
-            <div className={`mb-6 p-5 rounded-2xl border-2 shadow-sm flex items-center justify-between ${hasLoggedThisWeek ? 'bg-green-50 border-green-200' : (isDelayed ? 'bg-red-50 border-red-200' : 'bg-primary-50 border-primary-200')}`}>
+            <div className={`mb-6 p-5 rounded-2xl border-2 shadow-sm flex items-center justify-between ${hasLoggedThisWeek ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : (isDelayed ? 'bg-red-50 border-red-200' : 'bg-[#F6E2D9] border-[#D96E4A]/30')}`}>
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${hasLoggedThisWeek ? 'bg-green-100 text-green-600' : (isDelayed ? 'bg-red-100 text-red-600' : 'bg-primary-100 text-primary-darker')}`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${hasLoggedThisWeek ? 'bg-[#7BA05B] text-white' : (isDelayed ? 'bg-red-100 text-red-600' : 'bg-[#F6E2D9] text-[#D96E4A]')}`}>
                   {hasLoggedThisWeek ? <CheckCircleIcon className="w-8 h-8" /> : '⚖️'}
                 </div>
                 <div>
-                  <h3 className={`text-lg font-bold ${hasLoggedThisWeek ? 'text-green-800' : (isDelayed ? 'text-red-800' : 'text-primary-darker')}`}>
+                  <h3 className={`text-lg font-bold ${hasLoggedThisWeek ? 'text-[#2B3B2C]' : (isDelayed ? 'text-red-800' : 'text-[#56524D]')}`}>
                     Veckans Uppdrag: Invägning
                   </h3>
-                  <p className={`text-sm ${hasLoggedThisWeek ? 'text-green-700' : (isDelayed ? 'text-red-700 font-medium' : 'text-primary-dark')}`}>
+                  <p className={`text-sm ${hasLoggedThisWeek ? 'text-[#3E523F]' : (isDelayed ? 'text-red-700 font-medium' : 'text-[#7A756E]')}`}>
                     {hasLoggedThisWeek 
                       ? 'Bra jobbat! Du har loggat din vikt för denna vecka.' 
                       : (isDelayed 
@@ -557,7 +749,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                   onClick={() => {
                     window.dispatchEvent(new CustomEvent('open-log-weight-modal'));
                   }}
-                  className={`px-4 py-2 rounded-lg font-bold text-white shadow-sm transition-transform active:scale-95 ${isDelayed ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary-darker'}`}
+                  className={`px-4 py-2 rounded-lg font-bold text-white shadow-sm transition-transform active:scale-95 ${isDelayed ? 'bg-red-600 hover:bg-red-700' : 'bg-[#D96E4A] hover:bg-[#C05A38]'}`}
                 >
                   Logga nu
                 </button>
@@ -578,13 +770,13 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
-                <CheckCircleIcon className="w-6 h-6 text-primary" />
+                <CheckCircleIcon className="w-6 h-6 text-[#D96E4A]" />
                 {editingYesterday ? 'Gårdagens Kvällsrapport' : 'Dagens Kvällsrapport'}
               </h2>
               {!editingYesterday && canEditYesterday && (
                 <button 
                   onClick={() => setEditingYesterday(true)}
-                  className="text-sm font-bold text-orange-600 hover:text-orange-700 underline"
+                  className="text-sm font-bold text-[#D96E4A] hover:text-[#C05A38] underline"
                 >
                   Rätta gårdagen
                 </button>
@@ -592,16 +784,16 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             </div>
 
             {(!editingYesterday && hasReportedToday) ? (
-              <div className="p-6 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 text-center">
-                <CheckCircleIcon className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-400 mb-2">Rapport inlämnad!</h3>
-                <p className="text-emerald-600 dark:text-emerald-300">
+              <div className="p-6 bg-[#E8EFE9] dark:bg-[#34302C] rounded-2xl border border-[#7BA05B]/40 text-center">
+                <CheckCircleIcon className="w-12 h-12 text-[#7BA05B] mx-auto mb-3" />
+                <h3 className="text-lg font-bold text-[#2B3B2C] dark:text-[#FAF6EF] mb-2">Rapport inlämnad!</h3>
+                <p className="text-[#3E523F] dark:text-[#C2BCB4]">
                   Du har lämnat din rapport för idag. Generalen har mottagit den. Vila upp dig inför morgondagen.
                 </p>
                 {canEditYesterday && (
                   <button 
                     onClick={() => setEditingYesterday(true)}
-                    className="mt-4 px-4 py-2 bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300 rounded-full font-bold text-sm hover:bg-orange-200 dark:hover:bg-orange-800/60 transition-colors"
+                    className="mt-4 px-4 py-2 bg-[#F6E2D9] text-[#D96E4A] rounded-full font-bold text-sm hover:bg-[#F1EAE0] transition-colors"
                   >
                     Rätta gårdagens rapport
                   </button>
@@ -610,26 +802,26 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             ) : (
               <form onSubmit={handleSubmitReport} className="space-y-6">
                 {editingYesterday && (
-                  <div className="p-4 bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-400 rounded-2xl mb-4 flex justify-between items-center">
+                  <div className="p-4 bg-[#F6E2D9] text-[#D96E4A] rounded-2xl mb-4 flex justify-between items-center">
                     <span>Du redigerar gårdagens rapport ({yesterdayStr}).</span>
                     <button type="button" onClick={() => setEditingYesterday(false)} className="text-sm font-bold underline">Avbryt</button>
                   </div>
                 )}
                 <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400 rounded-2xl text-sm mb-4">
+                  <div className="p-4 bg-[#F1EAE0] text-[#56524D] rounded-2xl text-sm mb-4">
                     <p>
                       <strong>OBS:</strong> Mat, protein och vatten hämtas automatiskt från din loggbok. 
                       Om du saknar något, gå tillbaka till Hem-fliken och logga det innan du skickar in rapporten.
                     </p>
                   </div>
 
-                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${loggedAllMeals ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${loggedAllMeals ? 'bg-emerald-500 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
+                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${loggedAllMeals ? 'bg-[#84A98C]/10 border-[#84A98C]/30' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${loggedAllMeals ? 'bg-[#84A98C] text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
                       <CheckCircleIcon className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <span className={`font-bold block ${loggedAllMeals ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Kalorimålet</span>
-                      <span className={`text-sm ${loggedAllMeals ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
+                      <span className={`font-bold block ${loggedAllMeals ? 'text-neutral-dark dark:text-white' : 'text-neutral-dark dark:text-white'}`}>Kalorimålet</span>
+                      <span className={`text-sm ${loggedAllMeals ? 'text-[#84A98C] dark:text-[#84A98C]' : 'text-neutral-500 dark:text-neutral-400'}`}>
                         {userProfile.goalType === 'gain_muscle' 
                           ? (loggedAllMeals ? 'Du har nått ditt minimiintag för muskelbyggnad.' : 'Du måste nå ditt minimiintag (TDEE) för att bygga muskler.')
                           : (loggedAllMeals ? 'Du ligger inom din kaloribudget (eller täcks av sparpotten).' : 'Du måste ligga inom din kaloribudget (max 20% under, ej över utan sparpott).')
@@ -638,35 +830,35 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                     </div>
                   </div>
 
-                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${proteinMet ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${proteinMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
+                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${proteinMet ? 'bg-[#84A98C]/10 border-[#84A98C]/30' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${proteinMet ? 'bg-[#84A98C] text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
                       <CheckCircleIcon className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <span className={`font-bold flex items-center ${proteinMet ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>
+                      <span className={`font-bold flex items-center ${proteinMet ? 'text-neutral-dark dark:text-white' : 'text-neutral-dark dark:text-white'}`}>
                         Proteinkravet
                         <button 
                             type="button" 
                             onClick={() => setShowProteinInfoModal(true)}
-                            className={`ml-1.5 transition-colors ${proteinMet ? 'text-emerald-600 hover:text-emerald-800' : 'text-neutral-400 hover:text-primary'}`}
+                            className={`ml-1.5 transition-colors ${proteinMet ? 'text-[#84A98C] hover:text-primary' : 'text-neutral-400 hover:text-primary'}`}
                             aria-label="Information om proteinmål"
                         >
                             <InformationCircleIcon className="w-4 h-4" />
                         </button>
                       </span>
-                      <span className={`text-sm ${proteinMet ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
+                      <span className={`text-sm ${proteinMet ? 'text-[#84A98C] dark:text-[#84A98C]' : 'text-neutral-500 dark:text-neutral-400'}`}>
                         {proteinMet ? `Du har nått ditt mål (${goals.proteinGoal}g).` : `Du har inte nått ditt proteinmål (${goals.proteinGoal}g).`}
                       </span>
                     </div>
                   </div>
 
-                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${waterMet ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${waterMet ? 'bg-emerald-500 text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
+                  <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${waterMet ? 'bg-[#84A98C]/10 border-[#84A98C]/30' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${waterMet ? 'bg-[#84A98C] text-white' : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400'}`}>
                       <CheckCircleIcon className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <span className={`font-bold block ${waterMet ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-dark dark:text-white'}`}>Vätskekontroll</span>
-                      <span className={`text-sm ${waterMet ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-500 dark:text-neutral-400'}`}>
+                      <span className={`font-bold block ${waterMet ? 'text-neutral-dark dark:text-white' : 'text-neutral-dark dark:text-white'}`}>Vätskekontroll</span>
+                      <span className={`text-sm ${waterMet ? 'text-[#84A98C] dark:text-[#84A98C]' : 'text-neutral-500 dark:text-neutral-400'}`}>
                         {waterMet ? 'Du har druckit minst 2 liter vatten.' : 'Du har inte druckit 2 liter vatten än.'}
                       </span>
                     </div>
@@ -692,7 +884,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                       className="w-6 h-6 rounded text-primary focus:ring-primary"
                     />
                     <div className="flex-1">
-                      <span className="font-bold text-neutral-dark dark:text-white block">Styrketräning</span>
+                      <span className="font-bold text-neutral-dark dark:text-white block">Styrketräning (valfritt)</span>
                       <span className="text-sm text-neutral-500 dark:text-neutral-400">Jag har genomfört ett träningspass idag.</span>
                     </div>
                   </label>
@@ -736,8 +928,8 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                   />
                 </div>
 
-                <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-2xl border border-orange-200 dark:border-orange-800/50">
-                  <p className="text-sm text-orange-800 dark:text-orange-400 font-medium">
+                <div className="bg-[#F6E2D9] p-4 rounded-2xl border border-primary/20">
+                  <p className="text-sm text-neutral-dark font-medium">
                     <strong>OBS:</strong> Om du inte kan kryssa i alla boxar och har minst {getBootcampStepGoal(userProfile.activityLevel, participant.status).toLocaleString()} steg, kommer detta att registreras som en <strong className="text-red-600 dark:text-red-400">Röd Dag</strong> och din streak bryts.
                   </p>
                 </div>
@@ -771,7 +963,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                     <span className="text-sm font-medium text-neutral-dark dark:text-white">{report.date}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-neutral-500 dark:text-neutral-400">{report.steps} steg</span>
-                      <div className={`w-3 h-3 rounded-full ${report.isGreenDay ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                      <div className={`w-3 h-3 rounded-full ${report.isGreenDay ? 'bg-[#84A98C]' : 'bg-red-500'}`}></div>
                     </div>
                   </div>
                 ))}
@@ -787,6 +979,72 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                 <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
             </div>
         </div>
+      )}
+
+      {showDiplomaGallery && (
+        <BootcampDiplomaGalleryModal
+          longestStreak={Math.max(participant.longestStreak || 0, userProfile.highestBootcampStreak || 0)}
+          userName={userProfile.name || 'Soldat'}
+          status={participant.status}
+          onClose={() => setShowDiplomaGallery(false)}
+        />
+      )}
+
+      {/* Sista kontrollen före en röd dag. Rapporten bryter streaken och går
+          inte att ångra, så användaren ska se exakt vad som saknas och få
+          chansen att gå tillbaka i stället för att bara trycka igenom. */}
+      {redDayConfirm && (
+        <div
+          className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 animate-fade-in"
+          onClick={() => setRedDayConfirm(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="bg-white dark:bg-[#2B2825] w-full max-w-md rounded-[22px] shadow-soft-xl p-6 animate-scale-in"
+          >
+            <h3 className="text-xl font-bold text-neutral-dark dark:text-white mb-2">
+              Det här blir en röd dag
+            </h3>
+            <p className="text-sm text-neutral-600 dark:text-[#C2BCB4] mb-4">
+              {editingYesterday
+                ? 'Gårdagens rapport registreras som röd om du skickar den så här.'
+                : 'Skickar du rapporten så här bryts din streak. Det går inte att ångra.'}
+            </p>
+
+            <ul className="space-y-2 mb-5">
+              {redDayConfirm.reasons.map(reason => (
+                <li key={reason} className="flex items-start gap-2 text-sm text-neutral-dark dark:text-[#FAF6EF]">
+                  <span className="w-2 h-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
+                  <span>{reason}</span>
+                </li>
+              ))}
+            </ul>
+
+            <p className="text-sm text-neutral-600 dark:text-[#C2BCB4] mb-5">
+              Stämmer det? Har du glömt kryssa i något är det bara att gå tillbaka och rätta.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => setRedDayConfirm(null)}
+                className="flex-1 py-3 bg-[#F1EAE0] dark:bg-[#3A3632] text-neutral-dark dark:text-[#FAF6EF] font-bold rounded-xl hover:bg-[#E2D8CC] transition-colors"
+              >
+                Gå tillbaka
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => submitReport(redDayConfirm.stepsNum)}
+                className="flex-1 py-3 bg-neutral-darker text-white font-bold rounded-xl hover:bg-black transition-colors disabled:opacity-50"
+              >
+                Ja, skicka ändå
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
       )}
     </div>
   );

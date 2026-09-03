@@ -23,6 +23,13 @@ export interface NutritionalInfo {
   protein: number;
   carbohydrates: number;
   fat: number;
+  /**
+   * Kostfiber i gram. Valfritt med flit: alla loggar som skapades innan
+   * fibrerna infordes saknar vardet, och da ska det behandlas som "vet ej"
+   * och inte som noll. Fibrer ingar redan i kolhydratgrammen och paverkar
+   * darfor varken kalorimalet eller sparpotten.
+   */
+  fiber?: number;
   foodItem?: string; // Optional: Gemini might provide this
 }
 
@@ -92,6 +99,15 @@ export interface CommonMeal {
   timestamp: number;
   name: string;
   nutritionalInfo: NutritionalInfo;
+  /** Antal gånger valet loggats. Styr sorteringen – mest använda först. */
+  useCount?: number;
+  /** Tidsstämpel för senaste loggning. Skiljeförfarande vid lika useCount. */
+  lastUsedAt?: number;
+  /**
+   * Valfri miniatyrbild som data-URL. Ligger i dokumentet i stället för i
+   * Storage, så den försvinner automatiskt när valet raderas.
+   */
+  imageUrl?: string;
 }
 
 export interface DailyWaterLog {
@@ -124,6 +140,8 @@ export interface PastDaySummary {
   carbohydrateGoal: number;
   consumedFat: number;
   fatGoal: number;
+  /** Summerade fibrer for dagen. Saknas for dagar loggade fore fibrerna infordes. */
+  consumedFiber?: number;
   goalType: GoalType;
   isBinaryOrigin?: boolean;
   waterGoalMet?: boolean;
@@ -196,9 +214,60 @@ export interface NotificationSettings {
   milestoneNudge: boolean;
 }
 
+export interface CommunitySharingSettings {
+  weight: boolean;      // vikt
+  achievement: boolean; // bragder
+  streak: boolean;      // streak
+  course: boolean;      // kurs
+  level: boolean;       // nivå
+  goal: boolean;        // mål
+}
+
+/**
+ * Kostval. Styr bade vad coachen foreslar och vilka recept appen tar fram.
+ * 'omnivore' ar standard och betyder inga begransningar alls.
+ */
+export type DietaryPreference = 'omnivore' | 'pescetarian' | 'vegetarian' | 'vegan';
+
+export type BootcampOnboardingTaskId =
+  | 'log_meal_photo'
+  | 'log_meal_search'
+  | 'log_water'
+  | 'weigh_in_and_goal'
+  | 'read_morning_briefing';
+
+/**
+ * Grundutbildningens framsteg. Ligger SEPARAT från bootcampAccess eftersom
+ * användaren måste få skriva detta från appen, medan bootcampAccess är
+ * betalningskritiskt och bara får skrivas av servern (Stripe-webhooken).
+ */
+export interface BootcampOnboardingProgress {
+  tasksCompleted: BootcampOnboardingTaskId[];
+  completedAt?: string | null;
+}
+
+export interface BootcampGraduationState {
+  seen?: boolean;
+  seenAt?: string | null;
+  decision?: 'accepted' | 'declined' | 'dismissed' | null;
+}
+
+export interface BootcampAccess {
+  purchaseDate: string;
+  onboardingCompletedDate: string | null;
+  bootcampStartDate: string | null;
+  accessExpiresDate: string | null;
+  onboardingTasksCompleted: BootcampOnboardingTaskId[];
+  graduationSeen?: boolean;
+  graduationSeenAt?: string | null;
+  graduationDecision?: 'accepted' | 'declined' | 'dismissed' | null;
+}
+
 export interface UserProfileData {
   name?: string;
   hasCompletedBootcamp?: boolean;
+  /** När kom igång-checklistans 100 kcal-bonus delades ut. Spärr mot dubbel utdelning. */
+  onboardingBonusGrantedAt?: number;
   currentWeightKg?: number;
   heightCm?: number;
   ageYears?: number;
@@ -217,6 +286,7 @@ export interface UserProfileData {
   goalCompletionDate?: string;
   goalStartDate?: string; // New field to lock the timeline start date
   isSearchable?: boolean;
+  communitySharingSettings?: CommunitySharingSettings;
   goalStartWeight?: number;
   goalStartMuscleMassKg?: number;
   goalStartFatMassKg?: number;
@@ -224,12 +294,20 @@ export interface UserProfileData {
   completedGoals?: CompletedGoal[];
   notificationSettings: NotificationSettings;
   preferredWeighInDay?: DayOfWeek;
+  /** Kostval. Saknas det tolkas det som 'omnivore'. */
+  dietaryPreference?: DietaryPreference;
   // New fields for course access management
   isCourseActive?: boolean;
   courseInterest?: boolean;
   coachStyle: CoachStyle; // New field for coaching style
   highestBootcampStreak?: number; // New field for lifetime bootcamp streak
+  plateauAnalysis?: PlateauAnalysisState;
+  bootcampOnboarding?: BootcampOnboardingProgress;
+  bootcampGraduation?: BootcampGraduationState;
   
+  // Bootcamp Access
+  bootcampAccess?: BootcampAccess;
+
   // Subscription fields
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
   currentPeriodEnd?: string; // ISO date string
@@ -276,6 +354,94 @@ export interface FirestoreUserDocument extends Omit<UserProfileData, "name"> {
   lastFoodReminderSent?: string;
   lastInactivityReminderSent?: string;
   lastMilestoneNudgeSentFor?: string;
+  plateauAnalysis?: PlateauAnalysisState;
+  dietaryPreference?: DietaryPreference;
+  bootcampOnboarding?: BootcampOnboardingProgress;
+  bootcampGraduation?: BootcampGraduationState;
+}
+
+// --- Plateau Analysis Types ---
+
+export type PlateauAnalysisStatus =
+  | 'not_enough_data'
+  | 'low_logging_rate'
+  | 'recomposition_progress'
+  | 'fat_loss_steady'
+  | 'measuring_week_in_progress'
+  | 'measuring_week_recommended'
+  | 'adjustment_recommended'
+  | 'intake_too_low'
+  | 'human_handover';
+
+export interface PlateauLoggingGapAnalysis {
+  lowIntakeDaysCount: number; // Dagar med < 60% av BMR
+  weekendVsWeekdayDifference: {
+    hasSignificantDifference: boolean;
+    weekdayAvgCalories: number;
+    weekendAvgCalories: number;
+    diffKcal: number;
+  };
+  missingDinnerDaysCount: number;
+  missingDrinksCount: number;
+  totalDays: number;
+  loggedDays: number;
+  loggingPercentage: number;
+}
+
+export interface PlateauAlternativeAction {
+  id: 'steps' | 'protein' | 'strength' | 'diet_break';
+  title: string;
+  description: string;
+  rationale: string;
+}
+
+export interface PlateauAdjustment {
+  currentCalorieGoal: number;
+  proposedCalorieGoal: number;
+  reductionAmountKcal: number;
+  isFloorReached: boolean;
+  bmr: number;
+  hardFloor: number;
+  reductionsRemaining: number;
+}
+
+export interface PlateauAnalysisResult {
+  date: string; // YYYY-MM-DD
+  status: PlateauAnalysisStatus;
+  measurementMethod: 'inbody' | 'scale';
+  isPlateau: boolean;
+  periodDays: number;
+  loggingPercentage: number;
+  
+  startRollingAvgWeight?: number;
+  endRollingAvgWeight?: number;
+  weightDeltaKg?: number;
+
+  startRollingAvgFatKg?: number;
+  endRollingAvgFatKg?: number;
+  fatDeltaKg?: number;
+
+  startRollingAvgMuscleKg?: number;
+  endRollingAvgMuscleKg?: number;
+  muscleDeltaKg?: number;
+
+  loggingGaps?: PlateauLoggingGapAnalysis;
+  adjustment?: PlateauAdjustment;
+  alternatives?: PlateauAlternativeAction[];
+  handoverReason?: 'max_reductions_reached' | 'intake_already_low' | 'scale_needs_inbody';
+  suggestInBody?: boolean;
+
+  coachBriefingText: string;
+  disclaimer: string;
+}
+
+export interface PlateauAnalysisState {
+  lastPlateauAnalysisDate?: string; // YYYY-MM-DD
+  plateauReductionCount?: number; // 0, 1, 2
+  measuringWeekActive?: boolean;
+  measuringWeekStartDate?: string; // YYYY-MM-DD
+  measuringWeekCompletedDate?: string; // YYYY-MM-DD
+  lastPlateauResult?: PlateauAnalysisResult;
 }
 
 // --- Gamification & Achievements ---
@@ -544,6 +710,7 @@ export interface CoachViewMember {
   };
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
   stripeCustomerId?: string | null;
+  bootcampAccess?: BootcampAccess;
   weeklyWeightChange?: number;
   ageYears?: number;
   gender: Gender;
@@ -621,10 +788,24 @@ export interface Chat {
 
 // --- Community & Social Types ---
 
+export interface PublicProfile {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  displayNameLower: string;
+  isCoach?: boolean;
+}
+
+export interface ChatMemberUser {
+  uid: string;
+  name: string;
+  photoURL?: string;
+  isCoach: boolean;
+}
+
 export interface Peppkompis {
   uid: string;
   name: string;
-  email: string;
   photoURL?: string;
   gender?: Gender;
 }
@@ -633,8 +814,8 @@ export interface PeppkompisRequest {
   id: string;
   fromUid: string;
   fromName: string;
-  fromEmail: string;
   toUid: string;
+  toName?: string;
   status: "pending" | "accepted" | "declined";
   createdAt: number;
 }
@@ -713,6 +894,10 @@ export interface ScheduledPost {
   status: 'pending' | 'published';
   createdAt: number;
   createdBy: string;
+  isEditorial?: boolean;
+  senderType?: 'kostloggen' | 'coach' | 'user';
+  senderName?: string;
+  title?: string;
 }
 
 export interface Reactions {
@@ -794,6 +979,9 @@ export interface TimelineEvent {
   gender: Gender;
   visibleTo?: string[];
   isGlobal?: boolean;
+  isEditorial?: boolean;
+  senderType?: 'kostloggen' | 'coach' | 'user';
+  senderName?: string;
   
   // Historical context for posts
   streakAtPost?: number;
@@ -802,4 +990,29 @@ export interface TimelineEvent {
   goalTextAtPost?: string;
   progressAtPost?: number;
   bootcampId?: string;
+}
+
+// --- Challenge Types ---
+
+export interface ChallengeParticipant {
+  uid: string;
+  name: string;
+  photoURL?: string;
+  joinedAt: number;
+  leftAt?: number | null;
+  dailyStatus: { [dateString: string]: boolean };
+}
+
+export interface Challenge {
+  id: string;
+  createdBy: string;
+  createdByName: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  status: 'active' | 'completed';
+  participants: { [uid: string]: ChallengeParticipant };
+  participantUids: string[];
+  createdAt: number;
+  updatedAt: number;
 }

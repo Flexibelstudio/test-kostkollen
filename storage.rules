@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Hjälpfunktion för att kolla om användaren är inloggad
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Hjälpfunktion för att kolla om filen är en bild och under 5MB
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*')
+             && request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // Regler för profilbilder
+    match /profile_images/{userId}/{fileName} {
+      // Alla inloggade kan se profilbilder
+      allow read: if isAuthenticated();
+      // Bara användaren själv får ladda upp/ändra sin profilbild, och det måste vara en bild under 5MB
+      allow write: if isAuthenticated() && request.auth.uid == userId && isValidImage();
+    }
+
+    // Regler för bilder i flödet (timeline)
+    match /timeline_images/{userId}/{fileName} {
+      // Alla inloggade kan se bilder i flödet
+      allow read: if isAuthenticated();
+      // Bara användaren själv får ladda upp bilder till sin egen mapp, och det måste vara en bild under 5MB
+      allow write: if isAuthenticated() && request.auth.uid == userId && isValidImage();
+    }
+    
+    // Regler för kommentarer
+    match /comment_images/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId && isValidImage();
+    }
+
+    // Stäng allt annat för säkerhets skull
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

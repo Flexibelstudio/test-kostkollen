@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User } from 'firebase/auth';
-import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings } from '../types';
+import { UserProfileData, Chat, ChatMessage, Peppkompis, BuddyDetails, ChatType, ChatMemberSettings, ChatMemberUser } from '../types';
 import { subscribeToUserChats, subscribeToPublicRooms, subscribeToChatMessages, sendMessage, createChat, joinPublicRoom, updateLastRead, updateNotificationSettings, addMembersToChat, editMessage, deleteMessage, deleteChat, removeMemberFromChat, updateChatName, toggleReactionMessage, approveMember, rejectMember, leaveChat } from '../services/chatService';
 import { Avatar } from './UserProfileModal';
 import { SearchIcon, PlusIcon, ChevronLeftIcon, BellIcon, UserPlusIcon, SmileIcon, CheckIcon } from './icons';
@@ -153,8 +153,8 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
         <div className="p-4 flex flex-col h-full bg-neutral-light/30">
             <div className="flex-shrink-0">
                 <nav className="flex items-center -mb-px border-b border-neutral-light">
-                    <button onClick={() => setActiveTab('my_chats')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'my_chats' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina chattar</button>
-                    <button onClick={() => setActiveTab('discover')} className={`py-2 px-4 font-medium text-sm border-b-2 ${activeTab === 'discover' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Upptäck</button>
+                    <button onClick={() => setActiveTab('my_chats')} className={`py-2 px-4 font-medium text-base border-b-2 ${activeTab === 'my_chats' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Mina chattar</button>
+                    <button onClick={() => setActiveTab('discover')} className={`py-2 px-4 font-medium text-base border-b-2 ${activeTab === 'discover' ? 'border-primary text-primary' : 'border-transparent text-neutral hover:text-primary'}`}>Upptäck</button>
                     <div className="flex-grow"></div>
                     <button 
                         onClick={() => setIsCreatingGroup(true)}
@@ -173,7 +173,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                         type="search" 
                         value={searchQuery} 
                         onChange={e => setSearchQuery(e.target.value)} 
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-light rounded-md focus:ring-primary focus:border-primary bg-white dark:bg-neutral-darker text-base"
                         placeholder={activeTab === 'my_chats' ? "Sök bland dina chattar..." : "Sök efter öppna rum..."}
                     />
                 </div>
@@ -191,8 +191,8 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                         ))
                     ) : (
                         <div className="text-center py-10">
-                            <p className="text-neutral-dark font-medium">{searchQuery ? 'Inga chattar matchade din sökning.' : 'Du är inte med i några chattar än.'}</p>
-                            {!searchQuery && <p className="text-neutral text-sm mt-1">Skapa en ny grupp eller upptäck öppna rum!</p>}
+                            <p className="text-neutral-dark font-medium text-base">{searchQuery ? 'Inga chattar matchade din sökning.' : 'Du är inte med i några chattar än.'}</p>
+                            {!searchQuery && <p className="text-neutral text-base mt-1">Skapa en ny grupp eller upptäck öppna rum!</p>}
                         </div>
                     )
                 ) : (
@@ -203,27 +203,27 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                             <div key={chat.id} className="bg-white p-4 rounded-xl shadow-sm border border-neutral-light flex justify-between items-center">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-neutral-dark text-[17px]">{chat.name}</h3>
+                                        <h3 className="font-bold text-neutral-dark text-lg">{chat.name}</h3>
                                         {chat.isSystemGroup && (
-                                            <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">OFFICIELL</span>
+                                            <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">OFFICIELL</span>
                                         )}
                                     </div>
-                                    <p className="text-[15px] text-neutral">{chat.description}</p>
-                                    <p className="text-sm text-neutral mt-1 flex items-center gap-1">
+                                    <p className="text-base text-neutral">{chat.description}</p>
+                                    <p className="text-base text-neutral mt-1 flex items-center gap-1">
                                         <UsersIcon className="w-3.5 h-3.5" /> {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'} • Skapad av {creatorName}
                                     </p>
                                 </div>
                                 {chat.pendingMembers?.includes(currentUser.uid) ? (
                                     <button 
                                         disabled
-                                        className="px-4 py-2 bg-gray-100 text-neutral font-semibold rounded-lg cursor-not-allowed"
+                                        className="px-4 py-2 bg-gray-100 text-neutral font-semibold rounded-lg cursor-not-allowed text-base"
                                     >
                                         Väntar...
                                     </button>
                                 ) : (
                                     <button 
                                         onClick={() => handleJoinPublicRoom(chat)}
-                                        className="px-4 py-2 bg-primary-100 text-primary-darker font-semibold rounded-lg hover:bg-primary-200 transition-colors"
+                                        className="px-4 py-2 bg-primary-100 text-primary-darker font-semibold rounded-lg hover:bg-primary-200 transition-colors text-base"
                                     >
                                         Gå med
                                     </button>
@@ -232,7 +232,7 @@ export const ChatRoomsView: React.FC<ChatRoomsViewProps> = ({ currentUser, userP
                         )})
                     ) : (
                         <div className="text-center py-10">
-                            <p className="text-neutral-dark font-medium">{searchQuery ? 'Inga rum matchade din sökning.' : 'Inga nya öppna rum att upptäcka just nu.'}</p>
+                            <p className="text-neutral-dark font-medium text-base">{searchQuery ? 'Inga rum matchade din sökning.' : 'Inga nya öppna rum att upptäcka just nu.'}</p>
                         </div>
                     )
                 )}
@@ -254,18 +254,18 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
     return (
         <div 
             onClick={onClick}
-            className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-1 cursor-pointer hover:bg-gray-50 transition-colors ${hasUnread ? 'border-primary bg-primary-50/30' : 'border-neutral-light'}`}
+            className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-1 cursor-pointer hover:bg-[#FAF6EF] transition-colors ${hasUnread ? 'border-primary bg-primary-50/30' : 'border-neutral-light'}`}
         >
             <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2 min-w-0 pr-2">
-                    <h3 className={`truncate text-[17px] ${hasUnread ? 'font-black text-neutral-darker' : 'font-bold text-neutral-dark'}`}>{chat.name || 'Gruppchatt'}</h3>
+                    <h3 className={`truncate text-lg ${hasUnread ? 'font-black text-neutral-darker' : 'font-bold text-neutral-dark'}`}>{chat.name || 'Gruppchatt'}</h3>
                     {chat.isSystemGroup && (
-                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">OFFICIELL</span>
+                        <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">OFFICIELL</span>
                     )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                     {hasPendingRequests && (
-                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                             {pendingCount}
                         </span>
                     )}
@@ -278,10 +278,10 @@ const ChatListItem: React.FC<{ chat: Chat, currentUser: User, onClick: () => voi
             </div>
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                    {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
-                     chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
-                     chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
-                    <p className={`text-[15px] truncate ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
+                    {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : 
+                     chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : 
+                     chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : null}
+                    <p className={`text-base truncate ${hasUnread ? 'text-neutral-dark font-semibold' : 'text-neutral'}`}>
                         {chat.lastMessage ? `${chat.lastMessage.senderId === currentUser.uid ? 'Du' : chat.lastMessage.senderName || 'Någon'}: ${chat.lastMessage.text}` : 'Inga meddelanden än'}
                     </p>
                 </div>
@@ -319,7 +319,7 @@ export const ChatWindow: React.FC<{
     const [showAdminMenu, setShowAdminMenu] = useState(false);
     const [showPendingMembers, setShowPendingMembers] = useState(false);
     const [showMembersList, setShowMembersList] = useState(false);
-    const [allMemberDetails, setAllMemberDetails] = useState<BuddyDetails[]>([]);
+    const [allMemberDetails, setAllMemberDetails] = useState<ChatMemberUser[]>([]);
     const [isLoadingMembers, setIsLoadingMembers] = useState(false);
     const [newChatName, setNewChatName] = useState(chat.name || '');
     const [optimisticName, setOptimisticName] = useState(chat.name || '');
@@ -573,7 +573,7 @@ export const ChatWindow: React.FC<{
             onAddFriend(userId, userName);
         } else {
             try {
-                await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare', email: currentUser.email || '' }, userId);
+                await sendFriendRequest({ uid: currentUser.uid, name: userProfile.name || 'Användare' }, userId);
                 setToastNotification({ message: `Vänförfrågan skickad till ${userName}!`, type: 'success' });
             } catch (error: any) {
                 setToastNotification({ message: error.message || 'Kunde inte skicka förfrågan.', type: 'error' });
@@ -740,7 +740,7 @@ export const ChatWindow: React.FC<{
                     ) : (
                         allMemberDetails.map(member => {
                             const isMemberAdmin = chat.admins?.includes(member.uid) || chat.createdBy === member.uid;
-                            const isMemberCoach = member.role === 'coach';
+                            const isMemberCoach = member.isCoach === true;
                             const isMe = member.uid === currentUser.uid;
                             const isBuddy = buddyDetails.some(b => b.uid === member.uid);
 
@@ -749,17 +749,17 @@ export const ChatWindow: React.FC<{
                                     <div className="flex items-center gap-3">
                                         <Avatar photoURL={member.photoURL} size={40} />
                                         <div>
-                                            <p className="font-bold text-neutral-dark flex items-center gap-2">
-                                                {member.name} {isMe && <span className="text-xs font-normal text-neutral">(Du)</span>}
+                                            <p className="font-bold text-base text-neutral-dark flex items-center gap-2">
+                                                {member.name} {isMe && <span className="text-base font-normal text-neutral">(Du)</span>}
                                             </p>
                                             <div className="flex items-center gap-2 mt-0.5">
                                                 {isMemberCoach && (
-                                                    <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                                                    <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
                                                         <ShieldIcon className="w-3 h-3" /> Coach
                                                     </span>
                                                 )}
                                                 {isMemberAdmin && !isMemberCoach && (
-                                                    <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                    <span className="bg-[#F6E2D9] text-[#D96E4A] text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                                                         Admin
                                                     </span>
                                                 )}
@@ -769,17 +769,17 @@ export const ChatWindow: React.FC<{
                                     <div className="flex items-center gap-2">
                                         {!isMe && !isBuddy && (
                                             sentFriendRequests.has(member.uid) ? (
-                                                <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
-                                                    <CheckIcon className="w-4 h-4" />
+                                                <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-[#E8EFE9] rounded-full text-xs font-bold text-[#2B3B2C] shadow-sm border border-[#7BA05B]/40">
+                                                    <CheckIcon className="w-3.5 h-3.5" />
                                                     <span>Skickad</span>
                                                 </div>
                                             ) : (
                                                 <button 
                                                     onClick={() => handleAddFriendAction(member.uid, member.name)}
-                                                    className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
+                                                    className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-primary-50 hover:bg-primary-100 rounded-full text-base font-bold text-primary transition-colors cursor-pointer shadow-sm"
                                                     title="Lägg till kompis"
                                                 >
-                                                    <UsersIcon className="w-4 h-4" />
+                                                    <UsersIcon className="w-3.5 h-3.5" />
                                                     <span>+</span>
                                                 </button>
                                             )
@@ -843,7 +843,7 @@ export const ChatWindow: React.FC<{
                                                     setToastNotification({ message: 'Kunde inte godkänna.', type: 'error' });
                                                 }
                                             }}
-                                            className="px-3 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary-darker transition-colors"
+                                            className="px-3 py-1.5 bg-primary text-white text-base font-bold rounded-lg hover:bg-primary-darker transition-colors"
                                         >
                                             Godkänn
                                         </button>
@@ -856,7 +856,7 @@ export const ChatWindow: React.FC<{
                                                     setToastNotification({ message: 'Kunde inte neka.', type: 'error' });
                                                 }
                                             }}
-                                            className="px-3 py-1.5 bg-red-100 text-red-600 text-sm font-bold rounded-lg hover:bg-red-200 transition-colors"
+                                            className="px-3 py-1.5 bg-red-100 text-red-600 text-base font-bold rounded-lg hover:bg-red-200 transition-colors"
                                         >
                                             Neka
                                         </button>
@@ -975,7 +975,7 @@ export const ChatWindow: React.FC<{
                                             }
                                             setIsEditingName(false);
                                         }}
-                                        className="text-xs bg-primary text-white px-2 py-1 rounded hover:bg-primary-dark"
+                                        className="text-base bg-primary text-white px-2 py-1 rounded hover:bg-primary-dark"
                                     >
                                         Spara
                                     </button>
@@ -984,16 +984,16 @@ export const ChatWindow: React.FC<{
                                 <div className="flex items-center gap-2">
                                     <h2 className="text-lg font-bold text-neutral-dark leading-tight">{optimisticName || 'Gruppchatt'}</h2>
                                     {chat.isSystemGroup && (
-                                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">OFFICIELL</span>
+                                        <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">OFFICIELL</span>
                                     )}
                                 </div>
                             )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                            {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : 
-                             chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : 
-                             chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" /> : null}
-                            <p className="text-sm text-neutral">
+                            {chat.type === 'public_room' ? <GlobeIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : 
+                             chat.type === 'private_group' ? <LockIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : 
+                             chat.type === 'coach_group' ? <ShieldIcon className="w-3.5 h-3.5 text-[#D96E4A] flex-shrink-0" /> : null}
+                            <p className="text-base text-neutral">
                                 {chat.members.length} {chat.members.length === 1 ? 'medlem' : 'medlemmar'}
                                 {creatorName && ` • Skapad av ${creatorName}`}
                             </p>
@@ -1022,17 +1022,17 @@ export const ChatWindow: React.FC<{
                         </button>
                         {showSettings && (
                             <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-neutral-light py-1 z-20">
-                                <button onClick={() => handleSettingChange('all')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'all' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
+                                <button onClick={() => handleSettingChange('all')} className={`w-full text-left px-4 py-2 text-base flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'all' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
                                     <BellIcon className="w-4 h-4" /> Alla meddelanden
                                 </button>
-                                <button onClick={() => handleSettingChange('mentions')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'mentions' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
+                                <button onClick={() => handleSettingChange('mentions')} className={`w-full text-left px-4 py-2 text-base flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'mentions' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
                                     <AtSignIcon className="w-4 h-4" /> Endast @mentions
                                 </button>
-                                <button onClick={() => handleSettingChange('mute')} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'mute' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
+                                <button onClick={() => handleSettingChange('mute')} className={`w-full text-left px-4 py-2 text-base flex items-center gap-2 hover:bg-gray-50 ${currentSetting === 'mute' ? 'text-primary font-bold' : 'text-neutral-dark'}`}>
                                     <BellOffIcon className="w-4 h-4" /> Stör ej (Mute)
                                 </button>
                                 <div className="border-t border-neutral-light my-1"></div>
-                                <button onClick={() => { setShowMembersList(true); setShowSettings(false); }} className="w-full text-left px-4 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 text-neutral-dark">
+                                <button onClick={() => { setShowMembersList(true); setShowSettings(false); }} className="w-full text-left px-4 py-2 text-base flex items-center gap-2 hover:bg-gray-50 text-neutral-dark">
                                     <UsersIcon className="w-4 h-4" /> Visa medlemmar
                                 </button>
                                 <div className="border-t border-neutral-light my-1"></div>
@@ -1047,7 +1047,7 @@ export const ChatWindow: React.FC<{
                                         }
                                     }
                                     setShowSettings(false);
-                                }} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2">
+                                }} className="w-full text-left px-4 py-2 text-base text-red-500 hover:bg-red-50 flex items-center gap-2">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg> Lämna grupp
                                 </button>
                             </div>
@@ -1058,23 +1058,23 @@ export const ChatWindow: React.FC<{
                             <button onClick={() => { setShowAdminMenu(!showAdminMenu); setShowSettings(false); }} className="p-2 text-neutral hover:text-neutral-dark rounded-full hover:bg-gray-100 relative">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                 {chat.pendingMembers && chat.pendingMembers.length > 0 && (
-                                    <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full transform translate-x-1/4 -translate-y-1/4">
+                                    <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full transform translate-x-1/4 -translate-y-1/4">
                                         {chat.pendingMembers.length}
                                     </span>
                                 )}
                             </button>
                             {showAdminMenu && (
                                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-neutral-light py-1 z-20">
-                                    <button onClick={() => { setIsEditingName(true); setShowAdminMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-neutral-dark hover:bg-gray-50 flex items-center gap-2">
+                                    <button onClick={() => { setIsEditingName(true); setShowAdminMenu(false); }} className="w-full text-left px-4 py-2 text-base text-neutral-dark hover:bg-gray-50 flex items-center gap-2">
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg> Byt namn
                                     </button>
                                     {chat.requiresApproval && (
-                                        <button onClick={() => { setShowPendingMembers(true); setShowAdminMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-neutral-dark hover:bg-gray-50 flex items-center gap-2 justify-between">
+                                        <button onClick={() => { setShowPendingMembers(true); setShowAdminMenu(false); }} className="w-full text-left px-4 py-2 text-base text-neutral-dark hover:bg-gray-50 flex items-center gap-2 justify-between">
                                             <div className="flex items-center gap-2">
                                                 <UsersIcon className="w-4 h-4" /> Förfrågningar
                                             </div>
                                             {chat.pendingMembers && chat.pendingMembers.length > 0 && (
-                                                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{chat.pendingMembers.length}</span>
+                                                <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{chat.pendingMembers.length}</span>
                                             )}
                                         </button>
                                     )}
@@ -1089,7 +1089,7 @@ export const ChatWindow: React.FC<{
                                             }
                                         }
                                         setShowAdminMenu(false);
-                                    }} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2">
+                                    }} className="w-full text-left px-4 py-2 text-base text-red-500 hover:bg-red-50 flex items-center gap-2">
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> Radera grupp
                                     </button>
                                 </div>
@@ -1137,20 +1137,20 @@ export const ChatWindow: React.FC<{
                             {showHeader && !isMe && (
                                 <div className="flex items-center gap-2 mb-1 ml-1">
                                     <Avatar photoURL={msg.senderPhotoURL} size={24} />
-                                    <span className="text-sm font-bold text-neutral-dark">{msg.senderName}</span>
+                                    <span className="text-base font-bold text-neutral-dark">{msg.senderName}</span>
                                     {msg.senderId !== currentUser.uid && !buddyDetails.some(b => b.uid === msg.senderId) && (
                                         sentFriendRequests.has(msg.senderId) ? (
-                                            <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-green-50 rounded-full text-[12px] font-bold text-green-600 shadow-sm border border-green-200">
-                                                <CheckIcon className="w-4 h-4" />
+                                            <div className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-[#E8EFE9] rounded-full text-xs font-bold text-[#2B3B2C] shadow-sm border border-[#2B3B2C]/20">
+                                                <CheckIcon className="w-3.5 h-3.5" />
                                                 <span>Skickad</span>
                                             </div>
                                         ) : (
                                             <button 
                                                 onClick={() => handleAddFriendAction(msg.senderId, msg.senderName)}
-                                                className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 rounded-full text-[12px] font-bold text-primary transition-colors cursor-pointer shadow-sm"
+                                                className="ml-1 flex items-center flex-shrink-0 gap-1 px-3 py-1 bg-primary-50 hover:bg-primary-100 rounded-full text-base font-bold text-primary transition-colors cursor-pointer shadow-sm"
                                                 title="Lägg till kompis"
                                             >
-                                                <UsersIcon className="w-4 h-4" />
+                                                <UsersIcon className="w-3.5 h-3.5" />
                                                 <span>+</span>
                                             </button>
                                         )
@@ -1167,8 +1167,8 @@ export const ChatWindow: React.FC<{
                                 className={`max-w-[80%] px-4 py-2 rounded-2xl relative group select-none transition-all active:scale-[0.985] duration-100 ${isMe ? 'bg-primary text-white rounded-br-sm' : isNewMessage ? 'bg-primary-50 border border-primary-200 text-neutral-dark rounded-bl-sm shadow-sm' : 'bg-white border border-neutral-light text-neutral-dark rounded-bl-sm shadow-sm'} ${hasReactions ? 'mb-3' : ''}`}
                             >
                                 {msg.replyTo && (
-                                    <div className={`mb-2 p-2 rounded-lg text-sm border-l-4 ${isMe ? 'bg-black/20 border-white/50 text-white/90' : 'bg-neutral-light/50 border-primary text-neutral-dark'}`}>
-                                        <div className="font-bold text-sm mb-0.5">{msg.replyTo.senderName}</div>
+                                    <div className={`mb-2 p-2 rounded-lg text-base border-l-4 ${isMe ? 'bg-black/20 border-white/50 text-white/90' : 'bg-neutral-light/50 border-primary text-neutral-dark'}`}>
+                                        <div className="font-bold text-base mb-0.5">{msg.replyTo.senderName}</div>
                                         <div className="truncate opacity-90">{msg.replyTo.text || (msg.replyTo.imageUrl ? 'Bild' : '')}</div>
                                     </div>
                                 )}
@@ -1178,7 +1178,7 @@ export const ChatWindow: React.FC<{
                                             <span className="text-xl">{msg.sharedEventPreview.icon}</span>
                                             <span className="font-bold text-base">{msg.sharedEventPreview.title}</span>
                                         </div>
-                                        <p className="text-sm opacity-90 line-clamp-2">{msg.sharedEventPreview.description}</p>
+                                        <p className="text-base opacity-90 line-clamp-2">{msg.sharedEventPreview.description}</p>
                                     </div>
                                 )}
                                 {msg.imageUrl && (
@@ -1281,7 +1281,7 @@ export const ChatWindow: React.FC<{
                                                 toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', emoji, !hasReacted);
                                             }} 
                                             onMouseDown={(e) => e.preventDefault()}
-                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all active:scale-95 border shadow-sm
+                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs transition-all active:scale-95 border shadow-sm
                                                 ${hasReacted 
                                                     ? 'bg-primary-50 border-primary text-primary-darker' 
                                                     : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
@@ -1300,7 +1300,7 @@ export const ChatWindow: React.FC<{
                                             const hasReacted = msg.likes?.includes(currentUser.uid);
                                             toggleReactionMessage(chat.id, msg.id, currentUser.uid, userProfile.name || 'Användare', '❤️', !hasReacted);
                                         }}
-                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all active:scale-95 border shadow-sm
+                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs transition-all active:scale-95 border shadow-sm
                                             ${msg.likes?.includes(currentUser.uid)
                                                 ? 'bg-primary-50 border-primary text-primary-darker' 
                                                 : 'bg-white dark:bg-neutral-darker border-neutral-light dark:border-neutral-dark text-neutral-600 dark:text-neutral-300'
@@ -1312,7 +1312,7 @@ export const ChatWindow: React.FC<{
                                 )}
                             </div>
 
-                            <span className="text-[10px] text-neutral mt-1 mx-1">
+                            <span className="text-xs text-neutral mt-1 mx-1">
                                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                             
@@ -1332,7 +1332,7 @@ export const ChatWindow: React.FC<{
                                         );
                                     })}
                                     {latestReadMessageIds.get(msg.id)!.length > 3 && (
-                                        <span className="text-[10px] text-neutral ml-1">+{latestReadMessageIds.get(msg.id)!.length - 3}</span>
+                                        <span className="text-xs text-neutral ml-1">+{latestReadMessageIds.get(msg.id)!.length - 3}</span>
                                     )}
                                 </div>
                             )}
@@ -1344,7 +1344,7 @@ export const ChatWindow: React.FC<{
             {/* Input */}
             <div className="flex-shrink-0 bg-white border-t border-neutral-light p-3">
                 {editingMessageId && (
-                    <div className="flex items-center justify-between bg-neutral-light/50 px-3 py-2 rounded-t-lg border-b border-gray-200 text-sm text-neutral-dark">
+                    <div className="flex items-center justify-between bg-neutral-light/50 px-3 py-2 rounded-t-lg border-b border-gray-200 text-base text-neutral-dark">
                         <span className="flex items-center gap-1">
                             <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                             Redigerar meddelande
@@ -1366,7 +1366,7 @@ export const ChatWindow: React.FC<{
                     <div className="flex items-center justify-between bg-neutral-light/50 p-2 rounded-t-xl border-x border-t border-neutral-light -mb-3 pb-4 relative z-0">
                         <div className="flex flex-col min-w-0">
                             <span className="text-xs font-bold text-primary">Svarar {replyingToMessage.senderName}</span>
-                            <span className="text-sm text-neutral-dark truncate">
+                            <span className="text-base text-neutral-dark truncate">
                                 {replyingToMessage.text || (replyingToMessage.imageUrl ? 'Bild' : '')}
                             </span>
                         </div>
@@ -1390,7 +1390,7 @@ export const ChatWindow: React.FC<{
                                     className={`w-full text-left px-4 py-2 flex items-center gap-2 hover:bg-gray-50 ${idx === mentionIndex ? 'bg-primary-50' : ''}`}
                                 >
                                     <Avatar photoURL={member.photoURL} size={24} />
-                                    <span className="font-medium text-neutral-dark">{member.name}</span>
+                                    <span className="font-medium text-base text-neutral-dark">{member.name}</span>
                                 </button>
                             ))}
                         </div>
@@ -1519,23 +1519,23 @@ export const CreateGroupView: React.FC<{
             </div>
             <form onSubmit={handleCreate} className="p-4 space-y-4 overflow-y-auto">
                 <div>
-                    <label className="block text-sm font-medium text-neutral-dark mb-1">Gruppnamn</label>
+                    <label className="block text-base font-medium text-neutral-dark mb-1">Gruppnamn</label>
                     <input 
                         type="text" 
                         value={name}
                         onChange={e => setName(e.target.value)}
-                        className="w-full px-4 py-2 border border-neutral-light rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                        className="w-full px-4 py-2 text-base border border-neutral-light rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
                         placeholder="T.ex. Tjejmilen 2026"
                         required
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-neutral-dark mb-1">Beskrivning (valfritt)</label>
+                    <label className="block text-base font-medium text-neutral-dark mb-1">Beskrivning (valfritt)</label>
                     <input 
                         type="text" 
                         value={description}
                         onChange={e => setDescription(e.target.value)}
-                        className="w-full px-4 py-2 border border-neutral-light rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                        className="w-full px-4 py-2 text-base border border-neutral-light rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
                         placeholder="Vad handlar gruppen om?"
                     />
                 </div>
@@ -1547,14 +1547,14 @@ export const CreateGroupView: React.FC<{
                         onChange={e => setIsPublic(e.target.checked)}
                         className="w-5 h-5 text-primary rounded focus:ring-primary"
                     />
-                    <label htmlFor="isPublic" className="text-sm text-neutral-dark">
+                    <label htmlFor="isPublic" className="text-base text-neutral-dark">
                         <span className="font-bold block">Öppet rum</span>
                         <span className="text-neutral">Alla i appen kan se och gå med i detta rum.</span>
                     </label>
                 </div>
 
                 {isPublic && (
-                    <div className="mt-4 flex items-center gap-3 p-3 bg-orange-50/50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <div className="mt-4 flex items-center gap-3 p-3 bg-[#F6E2D9]/50 rounded-lg border border-[#D96E4A]/30">
                         <input 
                             type="checkbox" 
                             id="requiresApproval"
@@ -1562,7 +1562,7 @@ export const CreateGroupView: React.FC<{
                             onChange={e => setRequiresApproval(e.target.checked)}
                             className="w-5 h-5 text-primary rounded focus:ring-primary"
                         />
-                        <label htmlFor="requiresApproval" className="text-sm text-neutral-dark">
+                        <label htmlFor="requiresApproval" className="text-base text-neutral-dark">
                             <span className="font-bold block">Kräver godkännande</span>
                             <span className="text-neutral">Admin måste godkänna nya medlemmar innan de kan delta.</span>
                         </label>
@@ -1570,7 +1570,7 @@ export const CreateGroupView: React.FC<{
                 )}
 
                 {(userProfile as any).role === 'coach' && isPublic && !hideSystemGroupOption && (
-                    <div className="mt-4 flex items-center gap-3 p-3 bg-purple-50/50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <div className="mt-4 flex items-center gap-3 p-3 bg-[#F1EAE0]/50 rounded-lg border border-neutral-light">
                         <input 
                             type="checkbox" 
                             id="isSystemGroup"
@@ -1578,7 +1578,7 @@ export const CreateGroupView: React.FC<{
                             onChange={e => setIsSystemGroup(e.target.checked)}
                             className="w-5 h-5 text-primary rounded focus:ring-primary"
                         />
-                        <label htmlFor="isSystemGroup" className="text-sm text-neutral-dark">
+                        <label htmlFor="isSystemGroup" className="text-base text-neutral-dark">
                             <span className="font-bold block">Officiell Systemgrupp</span>
                             <span className="text-neutral">Markera som en officiell grupp från Kostloggen.</span>
                         </label>
@@ -1587,7 +1587,7 @@ export const CreateGroupView: React.FC<{
 
                 {!isPublic && (
                     <div className="mt-4 bg-gray-50 dark:bg-neutral-dark p-3 rounded-lg border border-neutral-light dark:border-neutral-600">
-                        <label className="block text-sm font-medium text-neutral-dark dark:text-white mb-2">Vem får bjuda in fler personer?</label>
+                        <label className="block text-base font-medium text-neutral-dark dark:text-white mb-2">Vem får bjuda in fler personer?</label>
                         <div className="flex flex-col gap-2">
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input 
@@ -1598,7 +1598,7 @@ export const CreateGroupView: React.FC<{
                                     onChange={() => setInvitePermission('everyone')}
                                     className="text-primary focus:ring-primary"
                                 />
-                                <span className="text-sm text-neutral-dark dark:text-gray-200">Alla i gruppen</span>
+                                <span className="text-base text-neutral-dark dark:text-gray-200">Alla i gruppen</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input 
@@ -1609,7 +1609,7 @@ export const CreateGroupView: React.FC<{
                                     onChange={() => setInvitePermission('admin_only')}
                                     className="text-primary focus:ring-primary"
                                 />
-                                <span className="text-sm text-neutral-dark dark:text-gray-200">Bara jag (Admin)</span>
+                                <span className="text-base text-neutral-dark dark:text-gray-200">Bara jag (Admin)</span>
                             </label>
                         </div>
                     </div>
@@ -1617,7 +1617,7 @@ export const CreateGroupView: React.FC<{
 
                 {!isPublic && buddyDetails.length > 0 && (
                     <div className="mt-4">
-                        <label className="block text-sm font-medium text-neutral-dark mb-2">Bjud in kompisar</label>
+                        <label className="block text-base font-medium text-neutral-dark mb-2">Bjud in kompisar</label>
                         <div className="space-y-2 max-h-48 overflow-y-auto border border-neutral-light rounded-lg p-2">
                             {buddyDetails.map(buddy => (
                                 <div 
@@ -1632,7 +1632,7 @@ export const CreateGroupView: React.FC<{
                                         className="w-4 h-4 text-primary rounded focus:ring-primary"
                                     />
                                     <Avatar photoURL={buddy.photoURL} size={32} />
-                                    <span className="font-medium text-sm text-neutral-dark">{buddy.name}</span>
+                                    <span className="font-medium text-base text-neutral-dark">{buddy.name}</span>
                                 </div>
                             ))}
                         </div>

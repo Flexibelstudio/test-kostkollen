@@ -314,10 +314,10 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
         setProfile(initialProfile);
     };
     
-    const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed";
-    const compactInputClass = "w-20 text-center px-2 py-1.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-base disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300 disabled:cursor-not-allowed";
-    const stepperButtonClass = "px-2.5 py-1 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary active:scale-90 text-lg font-semibold interactive-transition disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed";
-    const manualInputClass = "block w-full px-3 py-2 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed font-medium text-right pr-8";
+    const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-[#F1EAE0]/50 disabled:text-neutral-500 disabled:border-neutral-light disabled:cursor-not-allowed";
+    const compactInputClass = "w-20 text-center px-2 py-1.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-base disabled:bg-[#F1EAE0]/50 disabled:text-neutral-500 disabled:border-neutral-light disabled:cursor-not-allowed";
+    const stepperButtonClass = "px-2.5 py-1 text-neutral-dark bg-neutral-light hover:bg-[#E5DCD0] rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary active:scale-90 text-lg font-semibold interactive-transition disabled:bg-[#F1EAE0]/50 disabled:text-neutral-400 disabled:cursor-not-allowed";
+    const manualInputClass = "block w-full px-3 py-2 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base disabled:bg-[#F1EAE0]/50 disabled:text-neutral-500 disabled:border-neutral-light disabled:cursor-not-allowed font-medium text-right pr-8";
 
 
     return (
@@ -510,7 +510,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                                 )}
                                 <div className="mt-4">
                                     <label htmlFor="goalCompletionDate" className="block text-xs font-medium text-neutral-dark mb-1">Eget måldatum (valfritt)</label>
-                                    <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass.replace('disabled:bg-gray-100', 'bg-white')} min={new Date().toISOString().split('T')[0]}/>
+                                    <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass.replace('disabled:bg-[#F1EAE0]/50', 'bg-white')} min={new Date().toISOString().split('T')[0]}/>
                                 </div>
                             </section>
 
@@ -518,8 +518,8 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                              {timeline.paceFeedback && (
                                 <div className={`mt-3 p-3 rounded-md text-sm font-medium animate-fade-in ${
                                     timeline.paceFeedback.type === 'error' ? 'bg-red-100 text-red-800' :
-                                    timeline.paceFeedback.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-blue-100 text-blue-800'
+                                    timeline.paceFeedback.type === 'warning' ? 'bg-[#F6E2D9] text-[#56524D]' :
+                                    'bg-[#F6E2D9] text-[#56524D]'
                                 }`}>
                                     {timeline.paceFeedback.text}
                                 </div>
@@ -535,7 +535,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
 
                     {/* Save/Cancel Buttons */}
                     <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-neutral-light/70">
-                        <button type="button" onClick={handleCancel} className="px-5 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md active:scale-95 transform interactive-transition">
+                        <button type="button" onClick={handleCancel} className="px-5 py-2.5 text-base font-medium text-neutral-dark bg-neutral-light hover:bg-[#E5DCD0] rounded-md active:scale-95 transform interactive-transition">
                             Avbryt
                         </button>
                         <button type="submit" className="px-5 py-2.5 text-base font-medium text-white bg-primary hover:bg-primary-darker rounded-md shadow-sm active:scale-95 transform interactive-transition">
@@ -583,7 +583,7 @@ const ProfileAndGoalEditor: React.FC<ProfileAndGoalEditorProps> = ({
                     </div>
                     
                     {showSavedMessage && (
-                        <div className="p-3 bg-green-100 text-green-700 rounded-md text-center text-sm font-medium flex items-center justify-center animate-fade-in">
+                        <div className="p-3 bg-[#E8EFE9] text-[#2B3B2C] rounded-md text-center text-sm font-medium flex items-center justify-center animate-fade-in">
                             <CheckCircleIcon className="w-5 h-5 mr-2" /> Profil & mål sparade!
                         </div>
                     )}

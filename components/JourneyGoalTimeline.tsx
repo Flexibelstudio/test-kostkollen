@@ -80,21 +80,21 @@ const GoalTimeline: React.FC<{
             
             {paceFeedback && (
                 <div className={`p-3 mb-5 rounded-xl text-sm font-medium ${
-                    paceFeedback.type === 'warning' ? 'bg-yellow-50 text-yellow-800 border border-yellow-100' :
+                    paceFeedback.type === 'warning' ? 'bg-[#F6E2D9] text-[#56524D] border border-[#D96E4A]/20' :
                     paceFeedback.type === 'error' ? 'bg-red-50 text-red-800 border border-red-100' :
-                    'bg-blue-50 text-blue-800 border border-blue-100'
+                    'bg-[#F6E2D9] text-[#56524D] border border-[#D96E4A]/20'
                 }`}>
                 {paceFeedback.text}
                 </div>
             )}
 
             {metrics && metrics.isOffTrack && onAdjustGoal && (
-                <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl">
-                    <h4 className="font-bold text-orange-800 mb-2">Du ligger efter din plan</h4>
+                <div className="mb-6 p-4 bg-[#F6E2D9]/40 border border-[#D96E4A]/30 rounded-xl">
+                    <h4 className="font-bold text-[#56524D] mb-2">Du ligger efter din plan</h4>
                     
                     {isBootcampActive ? (
                         <div>
-                            <p className="text-sm text-orange-700 mb-3">
+                            <p className="text-sm text-[#56524D] mb-3">
                                 Med din nuvarande takt beräknas du landa på <strong>{metrics.projectedFinalWeight.toFixed(1)} kg</strong> vid bootcampens slut.
                             </p>
                             {!metrics.isHealthyPace && (
@@ -104,7 +104,7 @@ const GoalTimeline: React.FC<{
                                     </p>
                                     <button 
                                         onClick={() => onAdjustGoal('auto_adjust')}
-                                        className="w-full py-2 bg-orange-600 text-white text-sm font-bold rounded-lg hover:bg-orange-700 transition-colors"
+                                        className="w-full py-2 bg-[#D96E4A] text-white text-sm font-bold rounded-lg hover:bg-[#C05A38] transition-colors"
                                     >
                                         Justera till ett hälsosamt mål
                                     </button>
@@ -113,21 +113,21 @@ const GoalTimeline: React.FC<{
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            <p className="text-sm text-orange-700 mb-3">
+                            <p className="text-sm text-[#56524D] mb-3">
                                 För att nå ditt mål i tid krävs nu en takt på <strong>{Math.abs(metrics.requiredPacePerWeek).toFixed(1)} kg/vecka</strong>.
                             </p>
                             <div className="flex flex-col gap-2">
                                 {metrics.isHealthyPace && (
                                     <button 
                                         onClick={() => onAdjustGoal('pace')}
-                                        className="w-full py-2 bg-white border border-orange-300 text-orange-800 text-sm font-bold rounded-lg hover:bg-orange-100 transition-colors"
+                                        className="w-full py-2 bg-white border border-[#D96E4A]/40 text-[#56524D] text-sm font-bold rounded-lg hover:bg-[#F6E2D9] transition-colors"
                                     >
                                         Behåll måldatum (kräver tuffare tempo)
                                     </button>
                                 )}
                                 <button 
                                     onClick={() => onAdjustGoal('date')}
-                                    className="w-full py-2 bg-orange-600 text-white text-sm font-bold rounded-lg hover:bg-orange-700 transition-colors"
+                                    className="w-full py-2 bg-[#D96E4A] text-white text-sm font-bold rounded-lg hover:bg-[#C05A38] transition-colors"
                                 >
                                     Flytta fram måldatum (behåll hållbart tempo)
                                 </button>
@@ -155,7 +155,7 @@ const GoalTimeline: React.FC<{
                                         : 'bg-neutral-light')
                                 }
                             `} style={{ transform: 'translateX(-50%)' }}>
-                                {status === 'on_track' && <CheckCircleIcon className="w-full h-full text-green-500" />}
+                                {status === 'on_track' && <CheckCircleIcon className="w-full h-full text-[#2B3B2C]" />}
                                 {status === 'off_track' && <XCircleIcon className="w-full h-full text-red-500" />}
                                 {status === 'neutral' && !milestone.isFinal && <div className="w-3 h-3 bg-white rounded-full"></div>}
                                 {milestone.isFinal && status === 'neutral' && <span className="text-xs">🏁</span>}
@@ -167,7 +167,7 @@ const GoalTimeline: React.FC<{
                                     <span className={`text-sm font-bold ${milestone.isFinal ? 'text-primary-darker' : 'text-neutral-dark'}`}>
                                         {milestone.dateString}
                                     </span>
-                                    {milestone.isFinal && <span className="text-[10px] bg-primary-100 text-primary-darker px-1.5 py-0.5 rounded uppercase font-bold tracking-wide">Mål</span>}
+                                    {milestone.isFinal && <span className="text-xs bg-primary-100 text-primary-darker px-2 py-0.5 rounded uppercase font-bold tracking-wide">Mål</span>}
                                 </div>
                                 <p className="text-xs text-neutral">
                                     {milestone.targetDescription}

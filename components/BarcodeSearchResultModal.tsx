@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { NutritionalInfo, BarcodeScannedFoodInfo, MealType } from '../types.ts';
 import { FireIcon, ProteinIcon, LeafIcon, CheckIcon, XMarkIcon, BarcodeIcon, PencilIcon } from './icons.tsx';
-import { playAudio } from '../services/audioService.ts';
 import MealTypeSelector from './MealTypeSelector';
 
 type Unit = 'g' | 'ml' | 'dl' | 'msk' | 'tsk' | 'st' | 'portion';
@@ -45,10 +44,13 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
       }
 
       setCalculatedNutrients({
-        calories: Math.round(scanResult.nutrientsPer100g.calories * multiplier),
-        protein: Number((scanResult.nutrientsPer100g.protein * multiplier).toFixed(1)),
-        carbohydrates: Number((scanResult.nutrientsPer100g.carbohydrates * multiplier).toFixed(1)),
-        fat: Number((scanResult.nutrientsPer100g.fat * multiplier).toFixed(1)),
+        calories: scanResult.nutrientsPer100g.calories * multiplier,
+        protein: scanResult.nutrientsPer100g.protein * multiplier,
+        carbohydrates: scanResult.nutrientsPer100g.carbohydrates * multiplier,
+        fat: scanResult.nutrientsPer100g.fat * multiplier,
+        fiber: typeof scanResult.nutrientsPer100g.fiber === 'number'
+          ? scanResult.nutrientsPer100g.fiber * multiplier
+          : undefined,
       });
     }
   }, [amount, unit, scanResult]);
@@ -70,7 +72,6 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
 
   const handleLog = () => {
     if (!scanResult || !selectedMealType) return;
-    playAudio('uiClick');
     onLog({
       ...calculatedNutrients,
       foodItem: `${scanResult.name} (${scanResult.brand}) (${amount} ${unit})`
@@ -129,7 +130,7 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
                       <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                   </div>
                   {(unit === 'portion' || unit === 'st') && (
-                      <p className="text-[10px] text-neutral-500 mt-1.5 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
+                      <p className="text-xs text-neutral-500 mt-1.5 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                   )}
               </div>
                <div>
@@ -151,10 +152,10 @@ const BarcodeSearchResultModal: React.FC<BarcodeSearchResultModalProps> = ({ sho
           <div className="pt-4 mt-2 border-t border-neutral-light/60">
               <h4 className="font-semibold text-neutral-dark mb-2">Beräknat näringsinnehåll:</h4>
               <div className="grid grid-cols-2 gap-x-5 gap-y-2 p-3 bg-neutral-light/70 rounded-md">
-                  <div className="flex items-center"><FireIcon className="w-4 h-4 mr-1 text-red-500" /> Kalorier: {calculatedNutrients.calories} kcal</div>
-                  <div className="flex items-center"><ProteinIcon className="w-4 h-4 mr-1 text-primary" /> Protein: {calculatedNutrients.protein} g</div>
-                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-yellow-500" /> Kolhydrater: {calculatedNutrients.carbohydrates} g</div>
-                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-orange-500" /> Fett: {calculatedNutrients.fat} g</div>
+                  <div className="flex items-center"><FireIcon className="w-4 h-4 mr-1 text-red-500" /> Kalorier: {Math.round(calculatedNutrients.calories)} kcal</div>
+                  <div className="flex items-center"><ProteinIcon className="w-4 h-4 mr-1 text-primary" /> Protein: {calculatedNutrients.protein.toFixed(1)} g</div>
+                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-[#7A756E]" /> Kolhydrater: {calculatedNutrients.carbohydrates.toFixed(1)} g</div>
+                  <div className="flex items-center"><LeafIcon className="w-4 h-4 mr-1 text-[#D96E4A]" /> Fett: {calculatedNutrients.fat.toFixed(1)} g</div>
               </div>
           </div>
           

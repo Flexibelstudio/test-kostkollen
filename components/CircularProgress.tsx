@@ -19,8 +19,8 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
   max,
   size = 120,
   strokeWidth = 10,
-  color = 'text-primary',
-  trackColor = 'text-gray-200', // Default explicitly to a visible gray
+  color = '#D96E4A',
+  trackColor = '#F1EAE0',
   label,
   subLabel,
   icon,
@@ -32,8 +32,9 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
   const percentage = Math.min(Math.max(value / safeMax, 0), 1); // Clamp between 0 and 1 for the bar visual
   const dashOffset = circumference - percentage * circumference;
 
-  // If color is a hex code, apply it via style, otherwise assume it's a tailwind class
+  // If color/trackColor is a hex code, apply via stroke attribute directly
   const isHexColor = color.startsWith('#');
+  const isHexTrack = trackColor.startsWith('#');
   
   return (
     <div className="relative flex flex-col items-center justify-center" style={{ width: size, height: size }}>
@@ -43,14 +44,14 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
         viewBox={`0 0 ${size} ${size}`}
         className="transform -rotate-90"
       >
-        {/* Track - Always visible gray ring */}
+        {/* Track - Always visible sand/gray ring */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          className={trackColor}
-          stroke="currentColor"
+          stroke={isHexTrack ? trackColor : 'currentColor'}
+          className={!isHexTrack ? trackColor : ''}
           strokeWidth={strokeWidth}
         />
         {/* Progress - Colored ring filling up */}
@@ -76,8 +77,8 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
         ) : (
           <>
             {icon && <div className="mb-1">{icon}</div>}
-            {label && <span className="text-xl font-bold text-neutral-dark leading-none">{label}</span>}
-            {subLabel && <span className="text-xs text-neutral font-medium mt-0.5">{subLabel}</span>}
+            {label && <span className="text-xl font-serif font-medium text-[#56524D] dark:text-[#FAF6EF] leading-none">{label}</span>}
+            {subLabel && <span className="text-xs text-[#7A756E] dark:text-[#C2BCB4] font-medium mt-0.5">{subLabel}</span>}
           </>
         )}
       </div>

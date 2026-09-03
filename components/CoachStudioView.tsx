@@ -260,12 +260,12 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
                 <div className="relative shrink-0">
                   <img src={coach.imageUrl} alt={coach.label} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-neutral-200" />
                   <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                    <span className="text-[8px] sm:text-[10px]">{coach.emoji}</span>
+                    <span className="text-xs">{coach.emoji}</span>
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <p className="font-bold text-neutral-dark text-[10px] sm:text-sm truncate">{coach.label}</p>
-                  <p className="text-[9px] sm:text-xs text-neutral capitalize truncate hidden sm:block">{coach.roleTitle}</p>
+                  <p className="font-bold text-neutral-dark text-xs sm:text-sm truncate">{coach.label}</p>
+                  <p className="text-xs text-neutral capitalize truncate hidden sm:block">{coach.roleTitle}</p>
                 </div>
               </button>
             ))}
@@ -324,10 +324,10 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
 
           {/* Publish Bar (if draft exists) */}
           {currentDraft && !isGenerating && (
-            <div className="p-4 bg-emerald-50 border-t border-emerald-100 flex items-center justify-between gap-4 animate-fade-in">
+            <div className="p-4 bg-[#E8EFE9] border-t border-[#2B3B2C]/20 flex items-center justify-between gap-4 animate-fade-in">
                 <div className="flex-1">
-                    <p className="text-sm font-medium text-emerald-800">Nöjd med utkastet?</p>
-                    <p className="text-xs text-emerald-600">
+                    <p className="text-sm font-medium text-[#2B3B2C]">Nöjd med utkastet?</p>
+                    <p className="text-xs text-[#2B3B2C]/80">
                       {onPublish 
                         ? (initialTitle ? 'Dina ändringar kommer att sparas i mallen.' : 'Det kommer att sparas som en mall.') 
                         : `Det kommer att publiceras i communityt som ${COACH_PERSONAS[selectedCoach].label}.`}
@@ -336,7 +336,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
                 <button
                     onClick={handlePublish}
                     disabled={isPublishing}
-                    className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                    className="px-6 py-2.5 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
                 >
                     {isPublishing ? (
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -373,7 +373,7 @@ Om användaren ber dig ändra något, skriv om hela inlägget med ändringarna a
                 <Send className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-[10px] text-neutral-400 mt-2 text-center">
+            <p className="text-xs text-neutral-400 mt-2 text-center">
                 Tryck på Enter för att skicka, Shift + Enter för ny rad.
             </p>
           </div>

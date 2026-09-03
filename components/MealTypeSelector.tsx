@@ -23,32 +23,32 @@ const MealTypeSelector: React.FC<MealTypeSelectorProps> = ({ selectedType, onSel
     // Färger som matchar MealSectionCard på startsidan
     const colors = {
         breakfast: {
-            bg: "bg-orange-100",
-            text: "text-orange-700",
-            border: "border-orange-200",
-            hoverBorder: "hover:border-orange-400",
-            activeBorder: "border-orange-600 ring-1 ring-orange-600"
+            bg: "bg-[#F6E2D9]",
+            text: "text-[#D96E4A]",
+            border: "border-[#F6E2D9]",
+            hoverBorder: "hover:border-[#D96E4A]/50",
+            activeBorder: "border-[#D96E4A] ring-1 ring-[#D96E4A]"
         },
         lunch: {
-            bg: "bg-green-100",
-            text: "text-green-700",
-            border: "border-green-200",
-            hoverBorder: "hover:border-green-400",
-            activeBorder: "border-green-600 ring-1 ring-green-600"
+            bg: "bg-[#F6E2D9]",
+            text: "text-[#D96E4A]",
+            border: "border-[#F6E2D9]",
+            hoverBorder: "hover:border-[#D96E4A]/50",
+            activeBorder: "border-[#D96E4A] ring-1 ring-[#D96E4A]"
         },
         dinner: {
-            bg: "bg-indigo-100",
-            text: "text-indigo-700",
-            border: "border-indigo-200",
-            hoverBorder: "hover:border-indigo-400",
-            activeBorder: "border-indigo-600 ring-1 ring-indigo-600"
+            bg: "bg-[#F6E2D9]",
+            text: "text-[#D96E4A]",
+            border: "border-[#F6E2D9]",
+            hoverBorder: "hover:border-[#D96E4A]/50",
+            activeBorder: "border-[#D96E4A] ring-1 ring-[#D96E4A]"
         },
         snack: {
-            bg: "bg-purple-100",
-            text: "text-purple-700",
-            border: "border-purple-200",
-            hoverBorder: "hover:border-purple-400",
-            activeBorder: "border-purple-600 ring-1 ring-purple-600"
+            bg: "bg-[#F6E2D9]",
+            text: "text-[#D96E4A]",
+            border: "border-[#F6E2D9]",
+            hoverBorder: "hover:border-[#D96E4A]/50",
+            activeBorder: "border-[#D96E4A] ring-1 ring-[#D96E4A]"
         }
     };
 

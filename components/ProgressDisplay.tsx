@@ -80,9 +80,9 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
       // ZON 1: Under TDEE floor -> orange bar
       orangeSegmentWidth = (currentRounded / displayMax) * 100;
       greenSegmentWidth = 0;
-      statusColorClass = 'text-orange-500 font-semibold';
+      statusColorClass = 'text-[#D96E4A] font-semibold';
       descriptiveMessage = `Ät ${(tdeeFloor - currentRounded).toFixed(0)} ${unit} till för att nå ditt muskelbyggande mål.`;
-      descriptiveMessageColorClass = 'text-orange-500';
+      descriptiveMessageColorClass = 'text-[#D96E4A]';
       orangeTitle = `På väg mot ditt minimum ${tdeeFloor} ${unit}`;
     } else {
       // ZON 2 & 3: At or above TDEE floor
@@ -100,9 +100,9 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
         greenSegmentWidth = ((optimalCeiling - tdeeFloor) / (displayMax - tdeeFloor)) * 100;
         const surplusOverGold = currentRounded - optimalCeiling;
         orangeSegmentWidth = (surplusOverGold / displayMax) * 100;
-        statusColorClass = 'text-orange-600 font-semibold';
+        statusColorClass = 'text-[#D96E4A] font-semibold';
         descriptiveMessage = `Du har ett stort kaloriöverskott, vilket kan leda till ökad fettinlagring.`;
-        descriptiveMessageColorClass = 'text-orange-600';
+        descriptiveMessageColorClass = 'text-[#D96E4A]';
         orangeTitle = `Stort överskott över ${optimalCeiling} ${unit}`;
       }
     }
@@ -145,17 +145,17 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
         orangeSegmentWidth = (orangeSegmentValue / effectiveDisplayGoal) * 100;
 
         if (amountCoveredByBankTodayRounded > 0 && orangeSegmentValue === 0) {
-          statusColorClass = 'text-blue-600 font-semibold';
+          statusColorClass = 'text-[#56524D] font-semibold';
           descriptiveMessage = `Du använde ${amountCoveredByBankTodayRounded.toFixed(0)} ${unit} från din sparpott.`;
-          descriptiveMessageColorClass = 'text-blue-600';
+          descriptiveMessageColorClass = 'text-[#56524D]';
         } else if (amountCoveredByBankTodayRounded > 0 && orangeSegmentValue > 0) {
-          statusColorClass = 'text-orange-600 font-semibold';
+          statusColorClass = 'text-[#D96E4A] font-semibold';
           descriptiveMessage = `Du överskred målet med ${orangeSegmentValue.toFixed(0)} ${unit} (efter ${amountCoveredByBankTodayRounded.toFixed(0)} ${unit} från sparpott).`;
-          descriptiveMessageColorClass = 'text-orange-600';
+          descriptiveMessageColorClass = 'text-[#D96E4A]';
         } else {
-          statusColorClass = 'text-orange-500 font-semibold';
+          statusColorClass = 'text-[#D96E4A] font-semibold';
           descriptiveMessage = `Du har överskridit ditt mål med ${excessOverGoal.toFixed(0)} ${unit}.`;
-          descriptiveMessageColorClass = 'text-orange-500';
+          descriptiveMessageColorClass = 'text-[#D96E4A]';
         }
       } else {
         // Edge cases (t.ex. goal=0)
@@ -178,9 +178,9 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
     blueSegmentWidth = 0;
 
     if (currentRounded > goalRounded && goalRounded > 0) {
-      statusColorClass = 'text-orange-500 font-semibold';
+      statusColorClass = 'text-[#D96E4A] font-semibold';
       descriptiveMessage = `Du har överskridit ditt mål med ${(currentRounded - goalRounded).toFixed(0)} ${unit}.`;
-      descriptiveMessageColorClass = 'text-orange-500';
+      descriptiveMessageColorClass = 'text-[#D96E4A]';
     } else if (currentRounded >= goalRounded && goalRounded > 0) {
       statusColorClass = 'text-primary-darker font-semibold';
       descriptiveMessage = `Perfekt! Du har nått ditt mål på ${goalRounded.toFixed(0)} ${unit}.`;
@@ -242,7 +242,7 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
         
         {isGainMuscleGoal && orangeSegmentWidth > 0 && currentRounded < Math.round(goal - CALORIE_ADJUSTMENT.gain_muscle) && (
              <div
-                className="bg-orange-400 h-full transition-all duration-300 ease-out"
+                className="bg-[#D96E4A] h-full transition-all duration-300 ease-out"
                 style={{ width: `${orangeSegmentWidth}%` }}
                 title={orangeTitle}
             />
@@ -250,7 +250,7 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
         
         {greenSegmentWidth > 0 && (
           <div
-            className={`h-full transition-all duration-300 ease-out ${isGainMuscleGoal ? 'bg-green-500' : 'bg-primary'}`}
+            className={`h-full transition-all duration-300 ease-out ${isGainMuscleGoal ? 'bg-[#2B3B2C]' : 'bg-primary'}`}
             style={{ width: `${greenSegmentWidth}%` }}
             title={isGainMuscleGoal ? `Optimalt överskott: ${currentRounded} ${unit}` : `Intag: ${currentRounded} ${unit}`}
           />
@@ -258,7 +258,7 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
 
         {blueSegmentWidth > 0 && (
           <div
-            className="bg-blue-500 h-full transition-all duration-300 ease-out"
+            className="bg-[#7A756E] h-full transition-all duration-300 ease-out"
             style={{ width: `${blueSegmentWidth}%` }}
             title={`Använder ${amountCoveredByBankTodayRounded.toFixed(0)} ${unit} från sparpotten`}
           />
@@ -266,7 +266,7 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
 
         {!isGainMuscleGoal && orangeSegmentWidth > 0 && (
           <div
-            className="bg-orange-400 h-full transition-all duration-300 ease-out"
+            className="bg-[#D96E4A] h-full transition-all duration-300 ease-out"
             style={{ width: `${orangeSegmentWidth}%` }}
             title={`Överskridit mål (efter ev. bank)`}
           />
@@ -274,7 +274,7 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
         
         {isGainMuscleGoal && orangeSegmentWidth > 0 && currentRounded > goal && (
              <div
-                className="bg-orange-400 h-full transition-all duration-300 ease-out"
+                className="bg-[#D96E4A] h-full transition-all duration-300 ease-out"
                 style={{ width: `${orangeSegmentWidth}%` }}
                 title={orangeTitle}
             />

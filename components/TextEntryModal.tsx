@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { SearchedFoodInfo, MealType } from '../types.ts';
 import { getNutritionalInfoForTextSearch } from '../services/geminiService.ts';
 import { CheckIcon, XMarkIcon, SearchIcon, PencilIcon } from './icons.tsx';
-import { playAudio } from '../services/audioService.ts';
 import MealTypeSelector from './MealTypeSelector';
+import { resolveNutritionalFieldValue } from '../utils/nutritionTotals.ts';
 
 interface TextEntryModalProps {
   show: boolean;
@@ -94,7 +94,6 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
         e.preventDefault();
         if (!query.trim()) return;
 
-        playAudio('uiClick');
         setIsLoading(true);
         setError(null);
         setSearchResult(null);
@@ -111,19 +110,29 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
     
     const handleLog = () => {
         if (!selectedMealType) return;
-        playAudio('uiClick');
         const numQuantity = parseFloat(quantity) || 0;
         const finalServingDescription = numQuantity === 1 
           ? editedServingDescription
           : `${numQuantity.toLocaleString('sv-SE')} × ${baseValues?.servingDescription || editedServingDescription}`;
     
+        const baseCalories = (baseValues?.calories || 0) * numQuantity;
+        const baseProtein = (baseValues?.protein || 0) * numQuantity;
+        const baseCarbs = (baseValues?.carbohydrates || 0) * numQuantity;
+        const baseFat = (baseValues?.fat || 0) * numQuantity;
+
         const dataToLog: SearchedFoodInfo = {
           foodItem: editedFoodItem,
           servingDescription: finalServingDescription, 
-          calories: Math.round(parseFloat(editedCalories) || 0),
-          protein: Math.round(parseFloat(editedProtein) || 0),
-          carbohydrates: Math.round(parseFloat(editedCarbohydrates) || 0),
-          fat: Math.round(parseFloat(editedFat) || 0),
+          calories: baseValues ? resolveNutritionalFieldValue(baseCalories, editedCalories) : (parseFloat(editedCalories.replace(',', '.')) || 0),
+          protein: baseValues ? resolveNutritionalFieldValue(baseProtein, editedProtein) : (parseFloat(editedProtein.replace(',', '.')) || 0),
+          carbohydrates: baseValues ? resolveNutritionalFieldValue(baseCarbs, editedCarbohydrates) : (parseFloat(editedCarbohydrates.replace(',', '.')) || 0),
+          fat: baseValues ? resolveNutritionalFieldValue(baseFat, editedFat) : (parseFloat(editedFat.replace(',', '.')) || 0),
+          // Fibrer redigeras inte for hand, men maste folja med antalet portioner.
+          // Byggdes objektet falt for falt utan fibern forsvann den pa vagen in
+          // i loggen och dagens fiberrad fylldes aldrig i.
+          fiber: typeof baseValues?.fiber === 'number'
+            ? baseValues.fiber * numQuantity
+            : (typeof searchResult?.fiber === 'number' ? searchResult.fiber * numQuantity : undefined),
         };
         onLog(dataToLog, { saveAsCommon, mealType: selectedMealType }); 
         handleClose();
@@ -147,13 +156,13 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
     
     const createNumericHandler = (setter: React.Dispatch<React.SetStateAction<string>>) => {
         return (e: React.ChangeEvent<HTMLInputElement>) => {
-            const { value } = e.target;
-            if (value === '') {
+            const val = e.target.value.replace(',', '.');
+            if (val === '') {
                 setter('0');
                 return;
             }
-            if (/^\d+$/.test(value)) {
-                setter(String(parseInt(value, 10)));
+            if (/^\d*\.?\d*$/.test(val)) {
+                setter(val);
             }
         };
     };
@@ -259,7 +268,7 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
                                         <input type="text" id="quantityTextModal" value={quantity} onChange={handleQuantityChange} className={`${inputClass} pr-8`} placeholder="1" inputMode="decimal" />
                                         <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                                     </div>
-                                    <p className="text-[10px] text-neutral-500 mt-1.5 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
+                                    <p className="text-xs text-neutral-500 mt-1.5 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                                 </div>
                             </div>
 
@@ -267,33 +276,40 @@ const TextEntryModal: React.FC<TextEntryModalProps> = ({
                                 <div>
                                     <label htmlFor="caloriesTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kalorier">🔥</span>Kalorier (kcal)</label>
                                     <div className="relative">
-                                        <input type="number" id="caloriesTextModal" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                        <input type="number" id="caloriesTextModal" value={editedCalories} onChange={createNumericHandler(setEditedCalories)} min="0" step="any" className={`${inputClass} pr-8`} />
                                         <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                                     </div>
                                 </div>
                                 <div>
                                     <label htmlFor="proteinTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Protein">💪</span>Protein (g)</label>
                                      <div className="relative">
-                                        <input type="number" id="proteinTextModal" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                        <input type="number" id="proteinTextModal" value={editedProtein} onChange={createNumericHandler(setEditedProtein)} min="0" step="any" className={`${inputClass} pr-8`} />
                                         <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                                     </div>
                                 </div>
                                 <div>
                                     <label htmlFor="carbohydratesTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Kolhydrater">🍞</span>Kolhydrater (g)</label>
                                     <div className="relative">
-                                        <input type="number" id="carbohydratesTextModal" value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                        <input type="number" id="carbohydratesTextModal" value={editedCarbohydrates} onChange={createNumericHandler(setEditedCarbohydrates)} min="0" step="any" className={`${inputClass} pr-8`} />
                                         <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                                     </div>
                                 </div>
                                 <div>
                                     <label htmlFor="fatTextModal" className={`${labelClass} flex items-center`}><span className="w-4 h-4 mr-1 flex items-center justify-center" role="img" aria-label="Fett">🥑</span>Fett (g)</label>
                                     <div className="relative">
-                                        <input type="number" id="fatTextModal" value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="1" className={`${inputClass} pr-8`} />
+                                        <input type="number" id="fatTextModal" value={editedFat} onChange={createNumericHandler(setEditedFat)} min="0" step="any" className={`${inputClass} pr-8`} />
                                         <PencilIcon className="absolute top-1/2 right-2.5 -translate-y-1/2 w-4 h-4 text-neutral/50 pointer-events-none" />
                                     </div>
                                 </div>
                             </div>
-                            
+
+                            {typeof searchResult?.fiber === 'number' && (
+                                <p className="mt-3 text-sm text-neutral-600 flex items-center gap-1.5">
+                                    <span className="w-4 h-4 flex items-center justify-center" role="img" aria-label="Fibrer">🌾</span>
+                                    Fibrer: {(searchResult.fiber * (parseFloat(quantity) || 0)).toFixed(1)} g
+                                </p>
+                            )}
+
                             <div className="mt-4 pt-3 border-t border-neutral-light/60">
                                 <label htmlFor="saveAsCommonText" className="flex items-center text-base text-neutral-dark cursor-pointer">
                                     <input type="checkbox" id="saveAsCommonText" name="saveAsCommon" checked={saveAsCommon} onChange={(e) => setSaveAsCommon(e.target.checked)} className="h-5 w-5 text-primary border-neutral-light rounded focus:ring-primary mr-2.5" />

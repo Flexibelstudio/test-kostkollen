@@ -1,12 +1,17 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle } from '../types.ts';
-import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS } from '../constants.ts';
+import { UserProfileData, Gender, ActivityLevel, GoalType, CalculatedNutritionalRecommendations, GoalSettings, AIStructuredFeedbackResponse, NotificationSettings, DayOfWeek, CoachStyle, CommunitySharingSettings } from '../types.ts';
+import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS, DEFAULT_COMMUNITY_SHARING_SETTINGS } from '../constants.ts';
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
-import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon } from './icons.tsx';
+import { getBootcampAccessDetails } from '../utils/accessControl.ts';
+import { DIETARY_PREFERENCE_OPTIONS } from '../utils/dietaryPreference';
+import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon, UserPlusIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
 import ToastNotification from './ToastNotification';
 import ProteinInfoModal from './ProteinInfoModal';
+import { shareAppInvite } from '../utils/shareUtils.ts';
+import { rebalanceManualGoals, getManualGoalWarnings, minimumFatGrams } from '../utils/goalBalancing';
+import type { ManualGoalField } from '../utils/goalBalancing';
 
 
 export const Avatar: React.FC<{
@@ -57,13 +62,15 @@ interface UserProfileModalProps {
   onSave: (profile: UserProfileData, goals: GoalSettings, newPhotoDataUrl?: string | null) => void;
   onClose: () => void;
   isOnboarding: boolean;
-  onboardingStep?: 'form' | 'feedback';
+  onboardingStep?: 'form' | 'feedback' | 'invite';
   aiFeedbackLoading?: boolean;
   aiFeedbackMessage?: AIStructuredFeedbackResponse | string | null;
   aiFeedbackError?: string | null;
   onSubscribeToPush: (force?: boolean) => Promise<boolean>;
   isBootcampOnboarding?: boolean;
   isBootcampActive?: boolean;
+  onFinishOnboarding?: () => void;
+  onGoToInviteStep?: () => void;
 }
 
 const resizeImage = (file: File, maxSize: number): Promise<string> => {
@@ -175,22 +182,90 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onSubscribeToPush,
   isBootcampOnboarding = false,
   isBootcampActive = false,
+  onFinishOnboarding,
+  onGoToInviteStep,
 }) => {
 
     const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
     const [isSubscribing, setIsSubscribing] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
+    const [isInviteShared, setIsInviteShared] = useState(false);
     
+    // Kontrollera om coachen är låst under pågående bootcamp (eller grundutbildning).
+    // Möjligheten att välja coach öppnas efter fullföljd Bootcamp (examen) eller för användare med abonnemang.
+    const bootcampDetails = getBootcampAccessDetails(initialProfile);
+    const isCoachLocked = isBootcampOnboarding || isBootcampActive || (bootcampDetails.hasBootcamp && !bootcampDetails.isExpired);
+
+    // Mätmetoden fryses när de 84 dagarna börjar - byter man måttstock mitt i
+    // programmet blir nollpunkten, och därmed diplomet, meningslöst.
+    //
+    // Men under Grundutbildningen ska den gå att växla. Den som gissat en vikt
+    // vid registreringen och gör InBody dagen efter måste kunna byta innan
+    // programmet startar, annars sitter hon fast med fel metod i tolv veckor.
+    const isDuringBootcampOnboarding = isBootcampOnboarding || bootcampDetails.isOnboarding;
+    const isMeasurementMethodLocked = isBootcampActive && !isDuringBootcampOnboarding;
+
+    // Målen fryses av samma skäl och vid samma tidpunkt, men det är ett eget
+    // lås - under Grundutbildningen SKA man kunna sätta dem, det är en av
+    // uppgifterna.
+    const isBootcampGoalLocked = isBootcampActive && !isDuringBootcampOnboarding;
+
+    const getInitialProfileForState = useCallback(() => {
+      const details = getBootcampAccessDetails(initialProfile);
+      const isOngoingBootcamp = isBootcampOnboarding || isBootcampActive || (details.hasBootcamp && !details.isExpired);
+
+      // Vid onboarding får bootcamp-användare alltid Börje ('hard') från start
+      if (isOnboarding) {
+        return {
+          name: initialProfile?.name || undefined,
+          photoURL: initialProfile?.photoURL || undefined,
+          currentWeightKg: initialProfile?.currentWeightKg || undefined,
+          heightCm: initialProfile?.heightCm || undefined,
+          ageYears: initialProfile?.ageYears || undefined,
+          gender: initialProfile?.gender || DEFAULT_USER_PROFILE.gender,
+          activityLevel: initialProfile?.activityLevel || DEFAULT_USER_PROFILE.activityLevel,
+          goalType: initialProfile?.goalType || deriveEffectiveGoalType({}),
+          measurementMethod: initialProfile?.measurementMethod || 'inbody',
+          desiredWeightChangeKg: initialProfile?.desiredWeightChangeKg || undefined,
+          skeletalMuscleMassKg: initialProfile?.skeletalMuscleMassKg || undefined,
+          bodyFatMassKg: initialProfile?.bodyFatMassKg || undefined,
+          desiredFatMassChangeKg: initialProfile?.desiredFatMassChangeKg || undefined,
+          desiredMuscleMassChangeKg: initialProfile?.desiredMuscleMassChangeKg || undefined,
+          goalCompletionDate: initialProfile?.goalCompletionDate || undefined,
+          isCourseActive: false,
+          courseInterest: false,
+          isSearchable: true, // Default to searchable for new users
+          notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
+          dietaryPreference: initialProfile?.dietaryPreference || 'omnivore',
+          // Vid vanlig registrering ska coachen VÄLJAS, inte tilldelas. Att
+          // förvälja Börje gjorde dels att valet inte syntes - många upptäckte
+          // aldrig att Maja och Erik finns - dels att någon som bara vill logga
+          // mat möttes av bootcamptonen. Är det en bootcampregistrering behåller
+          // vi Börje, för då är han coachen.
+          coachStyle: initialProfile?.coachStyle
+            || (isBootcampOnboarding ? 'hard' : DEFAULT_USER_PROFILE.coachStyle),
+        } as UserProfileData;
+      }
+      // Vid redigering: behåll befintligt sparat värde för användaren, eller standardvärde om låst
+      return {
+          ...DEFAULT_USER_PROFILE,
+          ...(initialProfile || {}),
+          coachStyle: initialProfile?.coachStyle || (isOngoingBootcamp ? 'hard' : DEFAULT_USER_PROFILE.coachStyle)
+      } as UserProfileData;
+    }, [isOnboarding, initialProfile, isBootcampOnboarding, isBootcampActive]);
+
+    const [profile, setProfile] = useState<UserProfileData>(getInitialProfileForState());
+
     // Get Persona Details based on profile
-    const coachStyle = initialProfile.coachStyle || 'balanced';
-    const persona = COACH_PERSONAS[coachStyle] || COACH_PERSONAS['balanced'];
+    const activeCoachStyle = isCoachLocked ? 'hard' : (profile.coachStyle || initialProfile?.coachStyle || (isOnboarding ? 'hard' : 'balanced'));
+    const persona = COACH_PERSONAS[activeCoachStyle] || COACH_PERSONAS['hard'];
     
     // Theme colors based on coach style
-    let coachTheme = { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', iconBg: 'bg-blue-100', iconText: 'text-blue-600' };
-    if (coachStyle === 'soft') {
-        coachTheme = { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-800', iconBg: 'bg-green-100', iconText: 'text-green-600' };
-    } else if (coachStyle === 'hard') {
+    let coachTheme = { bg: 'bg-[#F6E2D9]/40', border: 'border-[#F6E2D9]', text: 'text-[#D96E4A]', iconBg: 'bg-[#F6E2D9]', iconText: 'text-[#D96E4A]' };
+    if (activeCoachStyle === 'soft') {
+        coachTheme = { bg: 'bg-[#E8EFE9]', border: 'border-[#7BA05B]/40', text: 'text-[#2B3B2C]', iconBg: 'bg-[#E8EFE9]', iconText: 'text-[#7BA05B]' };
+    } else if (activeCoachStyle === 'hard') {
         coachTheme = { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800', iconBg: 'bg-red-100', iconText: 'text-red-600' };
     }
 
@@ -214,80 +289,43 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         setIsSubscribing(false);
     };
 
-  const activityLevelOptions: { value: ActivityLevel; emoji: string; label: string; description: string; example: string }[] = [
-    {
-      value: 'sedentary',
-      emoji: '🪑',
-      label: 'Stillasittande',
-      description: 'Lite vardagsrörelse och ingen eller mycket lite träning.',
-      example: 'Exempel: stillasittande jobb, bilpendling, ingen träning i veckan.'
-    },
-    {
-      value: 'light',
-      emoji: '🚶',
-      label: 'Lätt aktiv',
-      description: 'Viss vardagsrörelse och/eller träning 1–3 gånger per vecka.',
-      example: 'Exempel: promenader, hushållsarbete, cykel till jobbet eller kortare träningspass ibland.'
-    },
-    {
-      value: 'moderate',
-      emoji: '🧘',
-      label: 'Medelaktiv',
-      description: 'Regelbunden rörelse och träning 3–5 gånger per vecka.',
-      example: 'Exempel: styrketräning, gruppträning, yoga, cykling eller aktiv fritid.'
-    },
-    {
-      value: 'active',
-      emoji: '🏋️',
-      label: 'Högaktiv',
-      description: 'Daglig träning eller ett aktivt arbete där du står, går eller rör dig mycket.',
-      example: 'Exempel: 6–7 träningspass i veckan, eller jobb som pedagog, PT eller inom vård och omsorg.'
-    },
-    {
-      value: 'very_active',
-      emoji: '🔥',
-      label: 'Extremt aktiv',
-      description: 'Hård träning och/eller fysiskt krävande arbete – ofta flera pass per dag.',
-      example: 'Exempel: idrottare, byggarbetare som tränar tungt, dubbelpass eller mycket hög träningsvolym.'
-    }
-  ];
-
-  const getInitialProfileForState = useCallback(() => {
-    // For onboarding, we want to use any pre-filled data (like weight from Bootcamp onboarding)
-    // but ensure we have sensible defaults for other fields.
-    if (isOnboarding) {
-      return {
-        name: initialProfile?.name || undefined,
-        photoURL: initialProfile?.photoURL || undefined,
-        currentWeightKg: initialProfile?.currentWeightKg || undefined,
-        heightCm: initialProfile?.heightCm || undefined,
-        ageYears: initialProfile?.ageYears || undefined,
-        gender: initialProfile?.gender || DEFAULT_USER_PROFILE.gender,
-        activityLevel: initialProfile?.activityLevel || DEFAULT_USER_PROFILE.activityLevel,
-        goalType: initialProfile?.goalType || deriveEffectiveGoalType({}),
-        measurementMethod: initialProfile?.measurementMethod || 'inbody',
-        desiredWeightChangeKg: initialProfile?.desiredWeightChangeKg || undefined,
-        skeletalMuscleMassKg: initialProfile?.skeletalMuscleMassKg || undefined,
-        bodyFatMassKg: initialProfile?.bodyFatMassKg || undefined,
-        desiredFatMassChangeKg: initialProfile?.desiredFatMassChangeKg || undefined,
-        desiredMuscleMassChangeKg: initialProfile?.desiredMuscleMassChangeKg || undefined,
-        goalCompletionDate: initialProfile?.goalCompletionDate || undefined,
-        isCourseActive: false,
-        courseInterest: false,
-        isSearchable: true, // Default to searchable for new users
-        notificationSettings: initialProfile?.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings,
-        coachStyle: isBootcampOnboarding ? 'hard' : (initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle),
-      } as UserProfileData;
-    }
-    // For editing, use the complete existing profile but ensure defaults for new fields
-    return {
-        ...DEFAULT_USER_PROFILE,
-        ...(initialProfile || {}),
-        coachStyle: (isBootcampActive || isBootcampOnboarding) ? 'hard' : (initialProfile?.coachStyle || DEFAULT_USER_PROFILE.coachStyle)
-    } as UserProfileData;
-  }, [isOnboarding, initialProfile, isBootcampOnboarding, isBootcampActive]);
-
-  const [profile, setProfile] = useState<UserProfileData>(getInitialProfileForState());
+    const activityLevelOptions: { value: ActivityLevel; emoji: string; label: string; description: string; example: string }[] = [
+      {
+        value: 'sedentary',
+        emoji: '🪑',
+        label: 'Stillasittande',
+        description: 'Lite vardagsrörelse och ingen eller mycket lite träning.',
+        example: 'Exempel: stillasittande jobb, bilpendling, ingen träning i veckan.'
+      },
+      {
+        value: 'light',
+        emoji: '🚶',
+        label: 'Lätt aktiv',
+        description: 'Viss vardagsrörelse och/eller träning 1–3 gånger per vecka.',
+        example: 'Exempel: promenader, hushållsarbete, cykel till jobbet eller kortare träningspass ibland.'
+      },
+      {
+        value: 'moderate',
+        emoji: '🧘',
+        label: 'Medelaktiv',
+        description: 'Regelbunden rörelse och träning 3–5 gånger per vecka.',
+        example: 'Exempel: styrketräning, gruppträning, yoga, cykling eller aktiv fritid.'
+      },
+      {
+        value: 'active',
+        emoji: '🏋️',
+        label: 'Högaktiv',
+        description: 'Daglig träning eller ett aktivt arbete där du står, går eller rör dig mycket.',
+        example: 'Exempel: 6–7 träningspass i veckan, eller jobb som pedagog, PT eller inom vård och omsorg.'
+      },
+      {
+        value: 'very_active',
+        emoji: '🔥',
+        label: 'Extremt aktiv',
+        description: 'Hård träning och/eller fysiskt krävande arbete – ofta flera pass per dag.',
+        example: 'Exempel: idrottare, byggarbetare som tränar tungt, dubbelpass eller mycket hög träningsvolym.'
+      }
+    ];
   const [newPhotoDataUrl, setNewPhotoDataUrl] = useState<string | null>(null);
   const [isSoundMuted, setIsSoundMuted] = useState<boolean>(() => {
     try {
@@ -406,10 +444,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleManualGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
       const numValue = parseInt(value, 10) || 0;
-      setManualGoals(prev => ({
-          ...prev,
-          [name]: numValue
-      }));
+      // Kalorimålet är låset: ändrar man protein eller fett justeras kolhydraterna
+      // så att summan håller. Ändrar man kolhydraterna ger fettet vika, ner till
+      // sitt golv. Se utils/goalBalancing.ts.
+      setManualGoals(prev => rebalanceManualGoals(prev, name as ManualGoalField, numValue));
   };
 
   const handleNotificationSettingChange = (setting: keyof NotificationSettings) => {
@@ -420,6 +458,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             [setting]: !(prev.notificationSettings?.[setting] ?? true)
         }
     }));
+  };
+
+  const handleCommunitySharingChange = (setting: keyof CommunitySharingSettings) => {
+    setProfile(prev => {
+      const current = prev.communitySharingSettings || DEFAULT_COMMUNITY_SHARING_SETTINGS;
+      return {
+        ...prev,
+        communitySharingSettings: {
+          ...current,
+          [setting]: !current[setting]
+        }
+      };
+    });
   };
 
   const handleToggleSound = () => {
@@ -528,7 +579,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const inputClass = "mt-1.5 block w-full px-3.5 py-2.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-base";
   const selectClass = inputClass;
   const compactInputClass = "w-20 text-center px-2 py-1.5 bg-white border border-neutral-light rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-base";
-  const stepperButtonClass = "px-2.5 py-1 text-neutral-dark bg-neutral-light hover:bg-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary active:scale-90 text-lg font-semibold interactive-transition";
+  const stepperButtonClass = "px-2.5 py-1 text-neutral-dark bg-neutral-light hover:bg-[#E5DCD0] rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary active:scale-90 text-lg font-semibold interactive-transition";
 
   const goalTypeDisplayMap: Record<GoalType, string> = {
     lose_fat: 'Minska fettmassa / vikt',
@@ -541,7 +592,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     ? (
         !!profile.name?.trim() &&
         !!profile.gender &&
-        (isBootcampOnboarding || !!profile.coachStyle) &&
         (profile.currentWeightKg || 0) > 0 && 
         (profile.heightCm || 0) > 0 && 
         (profile.ageYears || 0) > 0
@@ -569,11 +619,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             {isBootcampOnboarding ? 'Starta Bootcamp' :
              isOnboarding && onboardingStep === 'form' ? 'Din resa börjar här' :
              isOnboarding && onboardingStep === 'feedback' ? `Coach: ${persona.label}, ${persona.roleTitle}` :
+             isOnboarding && onboardingStep === 'invite' ? 'Vem ska heja på dig?' :
              'Redigera Profil'}
           </h2>
         </div>
         <button
-          onClick={onClose}
+          onClick={isOnboarding && onboardingStep === 'invite' ? (onFinishOnboarding || onClose) : onClose}
           disabled={isOnboarding && onboardingStep === 'form'}
           className="p-2 text-neutral hover:text-red-500 rounded-md hover:bg-red-100 active:scale-90 transform interactive-transition disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Stäng profilinställningar"
@@ -597,8 +648,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       )}
       
       {isBootcampOnboarding && (
-        <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl mb-6">
-          <p className="text-sm text-orange-800 font-medium">
+        <div className="bg-[#F6E2D9]/50 border border-[#D96E4A]/30 p-4 rounded-2xl mb-6">
+          <p className="text-sm text-[#56524D] font-medium">
             <strong>Viktigt:</strong> När du startar bootcampen sätts ditt mål automatiskt till "Gå ner i vikt". 
             Dina kalorier och makros kommer att räknas om baserat på dina nya värden.
           </p>
@@ -642,12 +693,73 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           
           <div className="mt-8 text-center">
             <button
-              onClick={onClose}
+              onClick={() => {
+                if (onGoToInviteStep) {
+                  onGoToInviteStep();
+                } else if (onFinishOnboarding) {
+                  onFinishOnboarding();
+                } else {
+                  onClose();
+                }
+              }}
               disabled={aiFeedbackLoading}
               className="w-full sm:w-auto px-10 py-4 bg-primary text-white text-xl font-bold rounded-2xl shadow-lg hover:bg-primary-darker focus:outline-none focus:ring-4 focus:ring-primary/30 active:scale-95 transform interactive-transition disabled:opacity-60"
             >
-              Kör igång!
+              Fortsätt
             </button>
+          </div>
+        </div>
+      ) : isOnboarding && onboardingStep === 'invite' ? (
+        <div className="animate-fade-in flex flex-col items-center text-center p-4 sm:p-6 space-y-6">
+          <div className="w-20 h-20 bg-[#F6E2D9] text-[#D96E4A] rounded-full flex items-center justify-center shadow-inner my-2">
+            <UserPlusIcon className="w-10 h-10 text-[#D96E4A]" />
+          </div>
+
+          <div className="space-y-3 max-w-md">
+            <h3 className="text-2xl sm:text-3xl font-bold text-neutral-dark">
+              Vem ska heja på dig?
+            </h3>
+            <p className="text-base text-neutral-600 leading-relaxed">
+              Resan blir betydligt lättare med någon som peppar. Bjud in en vän till Kostloggen så kan ni följa varandras framsteg och peppa varandra på vägen!
+            </p>
+          </div>
+
+          <div className="w-full max-w-sm space-y-4 pt-2">
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await shareAppInvite();
+                if (res.copied) {
+                  setToast({ message: 'Inbjudan kopierad till urklipp!', type: 'success' });
+                } else if (res.shared) {
+                  setToast({ message: 'Inbjudan delad!', type: 'success' });
+                }
+                setIsInviteShared(true);
+              }}
+              className="w-full py-4 px-6 bg-[#D96E4A] hover:bg-[#C05A38] text-white text-lg font-bold rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <UserPlusIcon className="w-6 h-6" /> Bjud in en kompis
+            </button>
+
+            {isInviteShared ? (
+              <button
+                type="button"
+                onClick={onFinishOnboarding || onClose}
+                className="w-full py-3.5 px-6 bg-[#2B3B2C] text-white text-base font-bold rounded-2xl shadow-md hover:bg-[#1f2b20] active:scale-95 transition-all"
+              >
+                Kör igång!
+              </button>
+            ) : (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={onFinishOnboarding || onClose}
+                  className="text-sm font-medium text-neutral-400 hover:text-neutral-600 underline py-2 transition-colors cursor-pointer"
+                >
+                  Hoppa över
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -658,7 +770,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <div className="flex items-center gap-5">
                         <Avatar photoURL={newPhotoDataUrl || profile.photoURL} gender={profile.gender} size={80} />
                         <div>
-                            <label htmlFor="photoUpload" className="cursor-pointer px-4 py-2 bg-neutral-light hover:bg-gray-300 text-neutral-dark font-medium rounded-md shadow-sm interactive-transition">
+                            <label htmlFor="photoUpload" className="cursor-pointer px-4 py-2 bg-neutral-light hover:bg-[#E5DCD0] text-neutral-dark font-medium rounded-md shadow-sm interactive-transition">
                                 Välj ny bild...
                             </label>
                             <input type="file" id="photoUpload" className="hidden" accept="image/png, image/jpeg" onChange={handleImageSelect} />
@@ -698,7 +810,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     onClick={() => handleProfileChange({ target: { name: 'gender', value: 'female', type: 'text' } })}
                                     className={`py-3 px-4 rounded-xl border text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                         profile.gender === 'female'
-                                            ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20 shadow-sm'
+                                            ? 'bg-[#F6E2D9] border-[#D96E4A] text-[#56524D] ring-2 ring-[#D96E4A]/20 shadow-sm'
                                             : 'bg-white border-neutral-200 text-neutral-dark hover:border-neutral-300'
                                     }`}
                                 >
@@ -709,7 +821,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     onClick={() => handleProfileChange({ target: { name: 'gender', value: 'male', type: 'text' } })}
                                     className={`py-3 px-4 rounded-xl border text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                         profile.gender === 'male'
-                                            ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20 shadow-sm'
+                                            ? 'bg-[#F6E2D9] border-[#D96E4A] text-[#56524D] ring-2 ring-[#D96E4A]/20 shadow-sm'
                                             : 'bg-white border-neutral-200 text-neutral-dark hover:border-neutral-300'
                                     }`}
                                 >
@@ -721,65 +833,101 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </section>
             )}
             
-            <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
-                <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
-                
-                {(isBootcampOnboarding || isBootcampActive) && (
-                    <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start text-orange-800">
-                        <InformationCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
-                        <p className="text-sm">
-                            Du deltar just nu i en bootcamp och har därför Börje som din dedikerade coach. Det går inte att byta coach under pågående bootcamp.
-                        </p>
-                    </div>
-                )}
+            {/* Coachvalet visas ÄVEN under onboardingen. Det var dolt där, vilket
+                gjorde att nya användare aldrig upptäckte att Maja och Erik finns -
+                och att feedbacken efter profilen kom från en coach de inte valt.
+                Vid bootcampregistrering visar samma sektion i stället Börje som
+                låst, med förklaringen att valet öppnas efter examen. */}
+                <section aria-labelledby="coach-style-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                    {isCoachLocked ? (
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 id="coach-style-heading" className="text-xl sm:text-2xl font-semibold text-neutral-dark">Din Coach</h4>
+                                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#F6E2D9] text-[#D96E4A] border border-[#D96E4A]/30">
+                                    Bootcamp
+                                </span>
+                            </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
-                        const p = COACH_PERSONAS[style];
-                        
-                        let colorClasses;
-                        let iconBgClass;
-                        if (style === 'soft') {
-                            colorClasses = 'bg-green-50 text-green-700 border-green-200';
-                            iconBgClass = 'bg-green-100 text-green-600';
-                        } else if (style === 'balanced') {
-                            colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
-                            iconBgClass = 'bg-blue-100 text-blue-600';
-                        } else {
-                            colorClasses = 'bg-red-50 text-red-700 border-red-200';
-                            iconBgClass = 'bg-red-100 text-red-600';
-                        }
-
-                        const isSelected = profile.coachStyle === style;
-                        const isDisabled = isBootcampOnboarding || isBootcampActive;
-
-                        return (
-                            <button
-                                type="button"
-                                key={style}
-                                onClick={() => {
-                                    if (isDisabled) {
-                                        setToast({ message: "Du kan inte byta coach under en pågående bootcamp.", type: 'error' });
-                                        return;
-                                    }
-                                    setProfile(prev => ({ ...prev, coachStyle: style }));
-                                }}
-                                className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center ${
-                                    isSelected
-                                        ? `${colorClasses} shadow-md`
-                                        : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300 text-neutral-dark'
-                                } ${isDisabled && !isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform ${isSelected ? 'scale-110 ' + iconBgClass : 'bg-white text-neutral-600'}`}>
-                                    {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover rounded-xl" /> : p.emoji}
+                            <div className="p-4 bg-[#FAF6EF] border border-[#F1EAE0] rounded-2xl flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                                <div className="w-16 h-16 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[#F1EAE0] border-2 border-[#D96E4A] shadow-sm">
+                                    {COACH_PERSONAS.hard.imageUrl ? (
+                                        <img src={COACH_PERSONAS.hard.imageUrl} alt={COACH_PERSONAS.hard.label} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-2xl">{COACH_PERSONAS.hard.emoji}</span>
+                                    )}
                                 </div>
-                                <span className="font-bold text-sm">{p.label}, {p.roleTitle}</span>
-                                <span className="text-xs opacity-80 mt-1">{p.description}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </section>
+                                <div className="flex-1 text-center sm:text-left">
+                                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                        <span className="font-bold text-base text-[#56524D]">{COACH_PERSONAS.hard.label}, {COACH_PERSONAS.hard.roleTitle}</span>
+                                    </div>
+                                    <p className="text-sm text-[#7A756E] mt-1.5 leading-relaxed">
+                                        Under din 12-veckors Bootcamp är General Börje din fasta coach. Möjligheten att välja mellan Maja, Erik och Börje öppnas efter examen i samband med ditt fortsatta abonnemang.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <h4 id="coach-style-heading" className="text-2xl font-semibold text-neutral-dark mb-3">Välj vem du vill bli coachad av *</h4>
+                            <p className="text-sm text-neutral-600 mb-4">
+                                Välj den personlighet som passar dig bäst. Du kan byta coach när du vill i ditt abonnemang.
+                            </p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {(Object.keys(COACH_PERSONAS) as CoachStyle[]).map(style => {
+                                    const p = COACH_PERSONAS[style];
+                                    const isSelected = (profile.coachStyle || initialProfile?.coachStyle || 'balanced') === style;
+
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={style}
+                                            onClick={() => setProfile(prev => ({ ...prev, coachStyle: style }))}
+                                            className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center cursor-pointer ${
+                                                isSelected
+                                                    ? 'bg-[#F6E2D9] text-[#56524D] border-[#D96E4A] shadow-md'
+                                                    : 'bg-[#FAF6EF] border-[#F1EAE0] hover:border-[#D96E4A]/50 text-[#56524D]'
+                                            }`}
+                                        >
+                                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform bg-[#F1EAE0] border border-[#FAF6EF] overflow-hidden ${isSelected ? 'ring-2 ring-[#D96E4A]' : ''}`}>
+                                                {p.imageUrl ? <img src={p.imageUrl} alt={p.label} className="w-full h-full object-cover" /> : p.emoji}
+                                            </div>
+                                            <span className="font-bold text-sm text-[#56524D]">{p.label}, {p.roleTitle}</span>
+                                            <span className="text-xs text-[#7A756E] mt-1">{p.description}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </section>
+
+                <section aria-labelledby="dietary-preference-heading" className="mt-5 pt-5 border-t border-neutral-light/50">
+                    <h4 id="dietary-preference-heading" className="text-2xl font-semibold text-neutral-dark mb-2">Kostval</h4>
+                    <p className="text-sm text-neutral mb-4">
+                        Styr vad coachen föreslår och vilka recept appen tar fram. Söker du själv på en viss råvara får du alltid den.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                        {DIETARY_PREFERENCE_OPTIONS.map(opt => {
+                            const isSelected = (profile.dietaryPreference || 'omnivore') === opt.value;
+                            return (
+                                <button
+                                    type="button"
+                                    key={opt.value}
+                                    onClick={() => handleProfileChange({ target: { name: 'dietaryPreference', value: opt.value, type: 'select' } } as any)}
+                                    className={`text-left p-3 rounded-2xl border-2 transition-all duration-200 ${
+                                        isSelected
+                                            ? 'bg-primary-50 border-primary shadow-md'
+                                            : 'bg-neutral-light/60 border-neutral-light hover:border-gray-300'
+                                    }`}
+                                >
+                                    <p className={`font-bold ${isSelected ? 'text-primary-darker' : 'text-neutral-dark'}`}>{opt.label}</p>
+                                    <p className="text-xs text-neutral-600 leading-snug mt-0.5">{opt.description}</p>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
 
             {isOnboarding && (
                 <>
@@ -821,17 +969,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => !isBootcampActive && setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
-                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isBootcampActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    disabled={isBootcampActive}
+                                    onClick={() => !isMeasurementMethodLocked && setProfile(prev => ({ ...prev, measurementMethod: 'inbody' }))}
+                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'inbody' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isMeasurementMethodLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={isMeasurementMethodLocked}
                                 >
                                     InBody / Avancerad våg
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => !isBootcampActive && setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
-                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isBootcampActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    disabled={isBootcampActive}
+                                    onClick={() => !isMeasurementMethodLocked && setProfile(prev => ({ ...prev, measurementMethod: 'scale' }))}
+                                    className={`flex-1 text-center px-4 py-3 rounded-lg border-2 font-semibold transition-colors duration-200 ${profile.measurementMethod === 'scale' ? 'bg-primary-100/70 border-primary text-primary-darker' : 'bg-neutral-light border-neutral-light hover:border-gray-300'} ${isMeasurementMethodLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={isMeasurementMethodLocked}
                                 >
                                     Vanlig våg
                                 </button>
@@ -861,9 +1009,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                              <div className="animate-fade-in">
                                 <label htmlFor="desiredWeightChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad viktförändring (kg)</label>
                                 <div className="flex items-center space-x-2">
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad viktförändring" disabled={isBootcampActive}>-</button>
-                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampActive} />
-                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad viktförändring" disabled={isBootcampActive}>+</button>
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad viktförändring" disabled={isBootcampGoalLocked}>-</button>
+                                    <input type="number" name="desiredWeightChangeKg" id="desiredWeightChangeKg" value={profile.desiredWeightChangeKg == null ? '' : profile.desiredWeightChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampGoalLocked} />
+                                    <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredWeightChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad viktförändring" disabled={isBootcampGoalLocked}>+</button>
                                 </div>
                                 <p className="text-xs text-neutral mt-1">Negativt för minskning (t.ex. -5){!isBootcampOnboarding && ', positivt för ökning'}.</p>
                             </div>
@@ -872,9 +1020,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 <div>
                                     <label htmlFor="desiredFatMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad fettmassaförändring (kg)</label>
                                     <div className="flex items-center space-x-2">
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad fettmassaförändring" disabled={isBootcampActive}>-</button>
-                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampActive} />
-                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad fettmassaförändring" disabled={isBootcampActive}>+</button>
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad fettmassaförändring" disabled={isBootcampGoalLocked}>-</button>
+                                        <input type="number" name="desiredFatMassChangeKg" id="desiredFatMassChangeKg" value={profile.desiredFatMassChangeKg == null ? '' : profile.desiredFatMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" max={isBootcampOnboarding ? "0" : undefined} placeholder="0.0" disabled={isBootcampGoalLocked} />
+                                        <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredFatMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad fettmassaförändring" disabled={isBootcampGoalLocked}>+</button>
                                     </div>
                                     <p className="text-xs text-neutral mt-1">Sätt ett mål för antingen fett eller muskler.</p>
                                 </div>
@@ -882,9 +1030,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                     <div>
                                         <label htmlFor="desiredMuscleMassChangeKg" className="block text-base font-medium text-neutral-dark mb-1.5">Önskad muskelmassaförändring (kg)</label>
                                         <div className="flex items-center space-x-2">
-                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad muskelmassaförändring" disabled={isBootcampActive}>-</button>
-                                            <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" min="0" placeholder="0.0" disabled={isBootcampActive} />
-                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad muskelmassaförändring" disabled={isBootcampActive}>+</button>
+                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'decrease')} className={stepperButtonClass} aria-label="Minska önskad muskelmassaförändring" disabled={isBootcampGoalLocked}>-</button>
+                                            <input type="number" name="desiredMuscleMassChangeKg" id="desiredMuscleMassChangeKg" value={profile.desiredMuscleMassChangeKg == null ? '' : profile.desiredMuscleMassChangeKg} onChange={handleProfileChange} className={compactInputClass} step="0.1" min="0" placeholder="0.0" disabled={isBootcampGoalLocked} />
+                                            <button type="button" onClick={() => handleAdjustBodyCompGoal('desiredMuscleMassChangeKg', 'increase')} className={stepperButtonClass} aria-label="Öka önskad muskelmassaförändring" disabled={isBootcampGoalLocked}>+</button>
                                         </div>
                                         <p className="text-xs text-neutral mt-1">Sätt ett mål för antingen fett eller muskler.</p>
                                     </div>
@@ -895,7 +1043,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         {!isBootcampOnboarding && (
                             <div className="mt-5">
                                 <label htmlFor="goalCompletionDate" className="block text-base font-medium text-neutral-dark mb-1.5">Måldatum</label>
-                                <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} disabled={isBootcampActive} />
+                                <input type="date" name="goalCompletionDate" id="goalCompletionDate" value={profile.goalCompletionDate || ''} onChange={handleProfileChange} className={inputClass} min={new Date().toISOString().split('T')[0]} disabled={isBootcampGoalLocked} />
                                 <p className="text-xs text-neutral mt-1">När vill du ha uppnått detta mål?</p>
                             </div>
                         )}
@@ -1019,6 +1167,40 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                         />
                                     </div>
                                 </div>
+
+                                {isManualGoalMode && (() => {
+                                    const w = getManualGoalWarnings(manualGoals);
+                                    return (
+                                        <div className="mt-1 space-y-2">
+                                            <p className="text-xs text-neutral flex items-center justify-between gap-2 px-1">
+                                                <span>
+                                                    {manualGoals.proteinGoal} g protein · {manualGoals.carbohydrateGoal} g kolhydrater · {manualGoals.fatGoal} g fett
+                                                </span>
+                                                <span className={w.exceedsCalorieGoal ? 'font-bold text-[#D96E4A]' : 'font-bold text-neutral-dark'}>
+                                                    {Math.round(w.macroCalories)} kcal
+                                                </span>
+                                            </p>
+                                            <p className="text-xs text-neutral px-1">
+                                                Kalorimålet håller – ändrar du protein eller fett justeras kolhydraterna automatiskt.
+                                            </p>
+                                            {w.exceedsCalorieGoal && (
+                                                <p className="text-xs font-semibold text-[#D96E4A] bg-[#F6E2D9] border border-[#EAC5B8] rounded-lg px-3 py-2">
+                                                    Protein och fett tar mer än hela kalorimålet. Sänk något av dem, eller höj kalorierna.
+                                                </p>
+                                            )}
+                                            {w.proteinIsHigh && !w.exceedsCalorieGoal && (
+                                                <p className="text-xs text-[#56524D] bg-[#F1EAE0]/70 border border-[#F1EAE0] rounded-lg px-3 py-2">
+                                                    Proteinet står för {Math.round(w.proteinShare * 100)} % av energin. Det är högt – det lämnar lite plats åt kolhydrater och fett.
+                                                </p>
+                                            )}
+                                            {w.fatAtFloor && !w.exceedsCalorieGoal && (
+                                                <p className="text-xs text-[#56524D] bg-[#F1EAE0]/70 border border-[#F1EAE0] rounded-lg px-3 py-2">
+                                                    Fettet ligger på sin nedre gräns ({minimumFatGrams(manualGoals.calorieGoal)} g) och sänks inte mer.
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         ) : (
                             <p className="text-neutral">Fyll i dina personliga detaljer ovan för att se rekommendationer.</p>
@@ -1032,9 +1214,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <h3 className="text-xl font-bold text-neutral-dark px-1">Inställningar</h3>
 
                     {/* Community Card */}
-                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shadow-sm">
+                    <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light space-y-4">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm">
                                 <UserGroupIcon className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Community</h4>
@@ -1046,12 +1228,77 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             checked={profile.isSearchable ?? false}
                             onChange={() => setProfile(prev => ({...prev, isSearchable: !prev.isSearchable}))}
                          />
+
+                        <div className="pt-3 border-t border-neutral-light/60">
+                            <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-3 px-1">Vad som delas med dina kompisar</h5>
+                            <div className="space-y-3">
+                                <ToggleSwitch
+                                    id="share_weight"
+                                    label="Vägningsloggar (Vikt)"
+                                    description="Dela automatiskt när du loggar en ny vikt."
+                                    checked={profile.communitySharingSettings?.weight ?? false}
+                                    onChange={() => handleCommunitySharingChange('weight')}
+                                />
+                                <ToggleSwitch
+                                    id="share_achievement"
+                                    label="Bragder & Utmärkelser"
+                                    description="Dela när du låser upp utmärkelser."
+                                    checked={profile.communitySharingSettings?.achievement ?? true}
+                                    onChange={() => handleCommunitySharingChange('achievement')}
+                                />
+                                <ToggleSwitch
+                                    id="share_streak"
+                                    label="Streaks & Svit"
+                                    description="Dela när du uppnår milstolpar för streak."
+                                    checked={profile.communitySharingSettings?.streak ?? true}
+                                    onChange={() => handleCommunitySharingChange('streak')}
+                                />
+                                <ToggleSwitch
+                                    id="share_course"
+                                    label="Kurser"
+                                    description="Dela dina framsteg i utbildningar."
+                                    checked={profile.communitySharingSettings?.course ?? true}
+                                    onChange={() => handleCommunitySharingChange('course')}
+                                />
+                                <ToggleSwitch
+                                    id="share_level"
+                                    label="Nivåer"
+                                    description="Dela när du går upp i nivå."
+                                    checked={profile.communitySharingSettings?.level ?? true}
+                                    onChange={() => handleCommunitySharingChange('level')}
+                                />
+                                <ToggleSwitch
+                                    id="share_goal"
+                                    label="Mål"
+                                    description="Dela uppnådda hälsomål."
+                                    checked={profile.communitySharingSettings?.goal ?? true}
+                                    onChange={() => handleCommunitySharingChange('goal')}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-neutral-light/60">
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const res = await shareAppInvite();
+                                    if (res.copied) {
+                                        setToast({ message: 'Inbjudan kopierad till urklipp!', type: 'success' });
+                                    } else if (res.shared) {
+                                        setToast({ message: 'Inbjudan delad!', type: 'success' });
+                                    }
+                                }}
+                                className="w-full py-3 px-4 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 text-sm"
+                            >
+                                <UserPlusIcon className="w-4 h-4" /> Bjud in en kompis
+                            </button>
+                        </div>
                     </div>
 
                     {/* Sound Card */}
                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 shadow-sm">
+                            <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm">
                                 <Volume2 className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Ljud & Feedback</h4>
@@ -1059,7 +1306,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                          <ToggleSwitch
                             id="appSound"
                             label="App-ljud"
-                            description="Ljudeffekter för klick, notiser och milstolpar."
+                            description="Ljudeffekter för framgångsrik loggning och uppnådda milstolpar."
                             checked={!isSoundMuted}
                             onChange={handleToggleSound}
                          />
@@ -1068,7 +1315,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     {/* Notifications Card */}
                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600 shadow-sm">
+                            <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm">
                                 <BellIcon className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Notiser</h4>
@@ -1170,7 +1417,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                      {/* Push Notification Card */}
                      <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-600 shadow-sm">
+                            <div className="w-12 h-12 rounded-xl bg-[#E8EFE9] flex items-center justify-center text-[#7BA05B] shadow-sm">
                                 <Smartphone className="w-6 h-6" />
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Enhet & Pushnotiser</h4>
@@ -1179,8 +1426,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                          <div className="p-4 bg-neutral-light/40 rounded-xl space-y-3">
                             {permissionStatus === 'granted' && (
                                 <div className="space-y-3">
-                                    <div className="flex items-center text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
-                                        <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0" />
+                                    <div className="flex items-center text-[#2B3B2C] bg-[#E8EFE9] p-3 rounded-lg border border-[#7BA05B]/40">
+                                        <CheckCircleIcon className="w-5 h-5 mr-2 flex-shrink-0 text-[#7BA05B]" />
                                         <span className="font-medium">Notisrättigheter är godkända i denna webbläsare.</span>
                                     </div>
                                     <button
@@ -1195,7 +1442,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                             <><BellIcon className="w-4 h-4 mr-2" /> Registrera denna enhet på nytt</>
                                         )}
                                     </button>
-                                    <p className="text-[11px] text-neutral-400 text-center leading-normal">
+                                    <p className="text-xs text-neutral-400 text-center leading-normal">
                                         Klicka här om du har bytt enhet eller inte får dina notiser. Det tvingar webbläsaren att registrera din mottagare i databasen på nytt.
                                     </p>
                                 </div>

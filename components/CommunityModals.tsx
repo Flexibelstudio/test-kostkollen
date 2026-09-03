@@ -7,7 +7,6 @@ import { Avatar } from './UserProfileModal';
 import { XMarkIcon, CameraIcon, CheckIcon, SmileIcon, TrashIcon, PlusIcon } from './icons';
 import { Users as UsersIcon, Image as ImageIcon, Send, ThumbsUp } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
-import { playAudio } from '../services/audioService';
 
 // ==========================================
 // 1. FLOATING REACTION PICKER (FACEBOOK STYLE)
@@ -150,11 +149,11 @@ export const FloatingReactionPicker: FC<FloatingReactionPickerProps> = ({
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <div className="w-full flex items-center justify-between px-3 pb-2 mb-2 border-b border-neutral-100 dark:border-neutral-800">
-                                    <span className="text-sm font-bold text-neutral-700 dark:text-neutral-200">Välj emoji</span>
+                                    <span className="text-base font-bold text-neutral-700 dark:text-neutral-200">Välj emoji</span>
                                     <button
                                         type="button"
                                         onClick={() => setShowFullPicker(false)}
-                                        className="text-xs font-semibold text-primary dark:text-primary-light hover:underline px-2 py-1 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-md transition-colors cursor-pointer"
+                                        className="text-base font-semibold text-primary dark:text-primary-light hover:underline px-2 py-1 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-md transition-colors cursor-pointer"
                                     >
                                         Stäng
                                     </button>
@@ -375,7 +374,7 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
                                                 <Avatar photoURL={buddyInfo?.photoURL} size={48} />
                                                 <div className="absolute -bottom-1 -right-2 flex items-center -space-x-1 select-none">
                                                     {item.emojis.map((em, idx) => (
-                                                        <div key={idx} className="w-5.5 h-5.5 rounded-full bg-white dark:bg-neutral-950 shadow-md border border-neutral-100 dark:border-neutral-800 flex items-center justify-center text-[11px] select-none shrink-0" style={{ zIndex: 10 + idx }}>
+                                                        <div key={idx} className="w-5.5 h-5.5 rounded-full bg-white dark:bg-neutral-950 shadow-md border border-neutral-100 dark:border-neutral-800 flex items-center justify-center text-xs select-none shrink-0" style={{ zIndex: 10 + idx }}>
                                                             {em}
                                                         </div>
                                                     ))}
@@ -383,15 +382,15 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
                                             </div>
 
                                             <div>
-                                                <h4 className="font-bold text-[15px] text-neutral-800 dark:text-neutral-100 flex items-center gap-1.5">
+                                                <h4 className="font-bold text-base text-neutral-800 dark:text-neutral-100 flex items-center gap-1.5">
                                                     {isMe ? 'Du' : item.name}
                                                     {isFriend && (
-                                                        <span className="text-[10px] bg-green-50 dark:bg-green-950/30 text-green-600 px-1.5 py-0.5 rounded-full border border-green-100 font-bold">
+                                                        <span className="text-xs bg-[#84A98C]/10 dark:bg-[#84A98C]/20 text-[#84A98C] px-2 py-0.5 rounded-full border border-[#84A98C]/30 font-bold">
                                                             Kompis
                                                         </span>
                                                     )}
                                                 </h4>
-                                                <p className="text-xs text-neutral-400">
+                                                <p className="text-base text-neutral-400">
                                                     {isMe ? 'Skaparen av ögonblicket' : 'Kostloggen-medlem'}
                                                 </p>
                                             </div>
@@ -400,16 +399,16 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
                                         {/* Friend Request Trigger */}
                                         {!isMe && !isFriend && onAddFriend && (
                                             isPending ? (
-                                                <div className="flex items-center gap-1 px-3 py-1.5 bg-green-50 rounded-full text-xs font-bold text-green-600 border border-green-100">
+                                                <div className="flex items-center gap-1 px-3 py-1.5 bg-[#84A98C]/10 rounded-full text-base font-bold text-[#84A98C] border border-[#84A98C]/30">
                                                     <CheckIcon className="w-4 h-4" />
                                                     <span>Skickad</span>
                                                 </div>
                                             ) : (
                                                 <button 
                                                     onClick={() => onAddFriend(item.uid, item.name)}
-                                                    className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/20 dark:hover:bg-primary-950/40 rounded-full text-xs font-bold text-primary dark:text-primary-light transition-colors cursor-pointer shadow-sm border border-primary-100/30"
+                                                    className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/20 dark:hover:bg-primary-950/40 rounded-full text-base font-bold text-primary dark:text-primary-light transition-colors cursor-pointer shadow-sm border border-primary-100/30"
                                                 >
-                                                    <UsersIcon className="w-3.5 h-3.5" />
+                                                    <UsersIcon className="w-4 h-4" />
                                                     <span>+ Kompis</span>
                                                 </button>
                                             )
@@ -419,7 +418,7 @@ export const ReactionsBottomSheet: FC<ReactionsBottomSheetProps> = ({
                             })
                         ) : (
                             <div className="text-center py-10">
-                                <p className="text-neutral-400">Inga reaktioner hittades för denna kategori.</p>
+                                <p className="text-base text-neutral-400">Inga reaktioner hittades för denna kategori.</p>
                             </div>
                         )}
                     </div>
@@ -496,7 +495,6 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
         e.preventDefault();
         if ((!newComment.trim() && !commentImage) || isSubmitting) return;
         setIsSubmitting(true);
-        playAudio('uiClick');
 
         try {
             await onAddComment(event, newComment, commentImage || undefined);
@@ -593,7 +591,7 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                 )}
                             </div>
                             <span className="text-xs text-neutral-300">|</span>
-                            <span className="font-bold text-[15px] text-neutral-800 dark:text-neutral-100">
+                            <span className="font-bold text-base text-neutral-800 dark:text-neutral-100">
                                 Kommentarer ({event.comments?.length || 0})
                             </span>
                         </div>
@@ -629,12 +627,12 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                         <Avatar photoURL={comment.authorPhotoURL} size={36} />
                                         <div className="flex-1 min-w-0">
                                             {/* Comment Bubble base */}
-                                            <div className="rounded-2xl rounded-tl-none px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 text-sm relative">
+                                            <div className="rounded-2xl rounded-tl-none px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 text-base relative">
                                                 {/* Trash icon for comment author */}
                                                 {onDeleteComment && isMyComment && (
                                                     <button
                                                         onClick={(e) => {
-                                                            e.preventDefault();
+                                                             e.preventDefault();
                                                             if (window.confirm("Är du säker på att du vill ta bort kommentaren?")) {
                                                                 onDeleteComment(event.id, comment.id);
                                                             }
@@ -647,19 +645,19 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                 )}
 
                                                 <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                                                    <p className="font-bold text-neutral-800 dark:text-neutral-100 text-[14px]">
+                                                    <p className="font-bold text-neutral-800 dark:text-neutral-100 text-base">
                                                         {isMyComment ? 'Du' : comment.authorName}
                                                     </p>
                                                     {!isMyComment && onAddFriend && !buddyDetails.some(b => b.uid === comment.authorUid) && (
                                                         sentFriendRequests.has(comment.authorUid) ? (
-                                                            <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-50 rounded-md text-[9px] font-bold text-green-600 border border-green-100 leading-none">
+                                                            <div className="flex items-center gap-0.5 px-2 py-0.5 bg-[#84A98C]/10 rounded-md text-xs font-bold text-[#84A98C] border border-[#84A98C]/30 leading-none">
                                                                 <CheckIcon className="w-2.5 h-2.5" />
                                                                 <span>Skickad</span>
                                                             </div>
                                                         ) : (
                                                             <button 
                                                                 onClick={() => onAddFriend(comment.authorUid, comment.authorName)}
-                                                                className="flex items-center gap-0.5 px-1.5 py-0.5 bg-primary-100/80 hover:bg-primary-100 rounded-md text-[9px] font-bold text-primary transition-colors cursor-pointer leading-none"
+                                                                className="flex items-center gap-0.5 px-2 py-0.5 bg-primary-100/80 hover:bg-primary-100 rounded-md text-base font-bold text-primary transition-colors cursor-pointer leading-none"
                                                                 title="Lägg till kompis"
                                                             >
                                                                 <span>+ Kompis</span>
@@ -685,9 +683,9 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                 {hasReactions && (
                                                     <div 
                                                         onClick={() => {
-                                                            setShowReactionOverlayFor(comment.id);
+                                                             setShowReactionOverlayFor(comment.id);
                                                         }}
-                                                        className="absolute -bottom-2.5 right-2 flex items-center gap-1 bg-white dark:bg-neutral-700 shadow-md border border-neutral-200 dark:border-neutral-600 rounded-full px-2 py-0.5 text-[10px] z-10 cursor-pointer hover:scale-108 active:scale-95 transition-all select-none"
+                                                        className="absolute -bottom-2.5 right-2 flex items-center gap-1 bg-white dark:bg-neutral-700 shadow-md border border-neutral-200 dark:border-neutral-600 rounded-full px-2 py-0.5 text-xs z-10 cursor-pointer hover:scale-108 active:scale-95 transition-all select-none"
                                                     >
                                                         {Object.entries(comment.reactions || {}).map(([emoji, users]) => {
                                                             const count = Object.keys(users).length;
@@ -705,10 +703,10 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
 
                                             {/* Sub Action Bar: Time indicator / React Trigger details */}
                                             <div className="flex items-center gap-3 mt-1.5 ml-2.5 select-none relative">
-                                                <span className="text-[12px] text-neutral-400">
+                                                <span className="text-xs text-neutral-400">
                                                     {new Date(comment.timestamp).toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}
                                                 </span>
-                                                <span className="text-[12px] text-neutral-300">·</span>
+                                                <span className="text-xs text-neutral-300">·</span>
 
                                                 {/* Hold trigger or simple click React trigger */}
                                                 <div className="relative">
@@ -724,10 +722,10 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                             });
                                                             setActiveCommentReactionId(activeCommentReactionId === comment.id ? null : comment.id);
                                                         }}
-                                                        className={`flex items-center gap-1.5 text-[12.5px] font-bold hover:underline cursor-pointer transition-colors
+                                                        className={`flex items-center gap-1.5 text-base font-bold hover:underline cursor-pointer transition-colors
                                                             ${userReactionEmoji ? 'text-primary dark:text-primary-light font-extrabold' : 'text-neutral-500 hover:text-neutral-800'}`}
                                                     >
-                                                        <ThumbsUp className="w-3.5 h-3.5 shrink-0 text-neutral-500 dark:text-neutral-400" />
+                                                        <ThumbsUp className="w-4 h-4 shrink-0 text-neutral-500 dark:text-neutral-400" />
                                                         <span>{userReactionEmoji ? 'Gillar' : 'Gilla'}</span>
                                                     </button>
 
@@ -735,14 +733,14 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                                     <AnimatePresence>
                                                         {activeCommentReactionId === comment.id && (
                                                             <FloatingReactionPicker 
-                                                                 isOpen={true} 
-                                                                 currentUserReaction={userReactionEmoji}
-                                                                 onSelectEmoji={(emoji) => {
-                                                                     onToggleCommentReaction(event, comment.id, emoji);
-                                                                     setActiveCommentReactionId(null);
-                                                                 }}
-                                                                 onClose={() => setActiveCommentReactionId(null)}
-                                                                 triggerRect={commentReactionTriggerRect}
+                                                                isOpen={true} 
+                                                                currentUserReaction={userReactionEmoji}
+                                                                onSelectEmoji={(emoji) => {
+                                                                    onToggleCommentReaction(event, comment.id, emoji);
+                                                                    setActiveCommentReactionId(null);
+                                                                }}
+                                                                onClose={() => setActiveCommentReactionId(null)}
+                                                                triggerRect={commentReactionTriggerRect}
                                                             />
                                                         )}
                                                     </AnimatePresence>
@@ -753,7 +751,7 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                         {/* Nested Reaction list Bottom-sheet modal viewer proxy */}
                                         {showReactionOverlayFor === comment.id && (
                                             <ReactionsBottomSheet 
-                                                isOpen={true}
+                                                isOpen={true} 
                                                 onClose={() => setShowReactionOverlayFor(null)}
                                                 reactions={comment.reactions || {}}
                                                 currentUser={currentUser}
@@ -768,8 +766,8 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                         ) : (
                             <div className="text-center py-10">
                                 <span className="text-3xl">💬</span>
-                                <h3 className="font-bold text-neutral-500 dark:text-neutral-400 mt-2">Inga kommentarer än</h3>
-                                <p className="text-neutral-400 text-sm mt-1">Bli först med att kommentera det här inlägget!</p>
+                                <h3 className="font-bold text-base text-neutral-600 dark:text-neutral-300 mt-2">Inga kommentarer än</h3>
+                                <p className="text-neutral-400 text-base mt-1">Bli först med att kommentera det här inlägget!</p>
                             </div>
                         )}
                         <div ref={commentsListEndRef} />
@@ -799,7 +797,7 @@ export const CommentsBottomSheet: FC<CommentsBottomSheetProps> = ({
                                     value={newComment}
                                     onChange={(e) => setNewComment(e.target.value)}
                                     placeholder={`Kommentera som ${userProfile.name || 'Du'}...`}
-                                    className="flex-1 bg-transparent text-sm text-neutral-850 dark:text-neutral-100 focus:outline-none placeholder-neutral-400 py-1"
+                                    className="flex-1 bg-transparent text-base text-neutral-850 dark:text-neutral-100 focus:outline-none placeholder-neutral-400 py-1"
                                     disabled={isSubmitting}
                                 />
                                 

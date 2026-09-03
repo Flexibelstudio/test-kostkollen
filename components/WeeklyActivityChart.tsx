@@ -1,10 +1,10 @@
 
 import React, { useMemo } from 'react';
 import { PastDaysSummaryCollection } from '../types';
-import { Dumbbell } from 'lucide-react';
+import { Dumbbell, Leaf } from 'lucide-react';
 import { ArrowLeftIcon, ArrowRightIcon } from './icons';
 import { getISOWeekNumber } from '../utils/dateUtils';
-import { MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL } from '../constants';
+import { MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, FIBER_DAILY_TARGET_GRAMS } from '../constants';
 
 interface DailyStats {
     calories: number;
@@ -12,6 +12,7 @@ interface DailyStats {
     proteinGoalMet: boolean;
     waterGoalMet: boolean;
     goalMet: boolean;
+    fiberGoalMet?: boolean;
 }
 
 interface WeeklyActivityChartProps {
@@ -81,7 +82,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   const weekNumber = getISOWeekNumber(monday);
 
   return (
-    <div className={`${isBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
+    <div className={`${'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
       <div className="flex justify-center items-center mb-6 relative">
         <div className="flex items-center gap-4">
             <button 
@@ -127,6 +128,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             let proteinGoalMet = false;
             let waterGoalMet = false;
             let goalMet = false;
+            let fiberGoalMet = false;
 
             const summary = pastDaysSummary[dayISO];
 
@@ -135,6 +137,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 calorieGoal = currentViewStats.calorieGoal;
                 proteinGoalMet = currentViewStats.proteinGoalMet;
                 waterGoalMet = currentViewStats.waterGoalMet;
+                fiberGoalMet = Boolean(currentViewStats.fiberGoalMet);
                 
                 const minSafe = calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
                 const overage = Math.max(0, calories - calorieGoal);
@@ -153,19 +156,27 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 proteinGoalMet = summary.proteinGoalMet;
                 waterGoalMet = summary.waterGoalMet || false;
                 goalMet = summary.goalMet;
+                // Dagar loggade innan fibrerna infordes saknar faltet helt och
+                // far ingen markor - de ska inte se ut som misslyckanden.
+                fiberGoalMet = typeof summary.consumedFiber === 'number'
+                    && summary.consumedFiber >= FIBER_DAILY_TARGET_GRAMS;
             }
             
             const dayLabel = day.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '').charAt(0).toUpperCase();
             const hasLog = calories > 0;
             
-            let barColor = 'bg-neutral-100'; 
-            
+            // Stapeln ska visa samma sak som dagens ring pa startsidan:
+            // under minimigransen = orange, over budget = morkt orange, mal natt = gront.
+            const minSafeForDay = calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
+            let barColor = 'bg-[#F1EAE0]';
+
             if (hasLog) {
-                // Nu använder vi den uppdaterade goalMet som inkluderar sparpott-räddning
                 if (goalMet) {
-                    barColor = 'bg-primary'; 
+                    barColor = 'bg-[#7BA05B]';
+                } else if (calories < minSafeForDay) {
+                    barColor = 'bg-[#D96E4A]';
                 } else {
-                    barColor = 'bg-secondary'; 
+                    barColor = 'bg-[#C05A38]';
                 }
             }
 
@@ -177,7 +188,7 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             const surplus = Math.max(0, calories - calorieGoal);
             const isOverGoal = calories > calorieGoal;
 
-            const dayLabelColor = waterGoalMet ? 'text-blue-500 font-bold' : (isViewing ? 'text-neutral-dark font-bold' : 'text-neutral');
+            const dayLabelColor = waterGoalMet ? 'text-[#7BA05B] font-bold' : (isViewing ? 'text-[#56524D] dark:text-[#FAF6EF] font-bold' : 'text-[#7A756E] dark:text-[#C2BCB4]');
 
             return (
                 <button
@@ -188,12 +199,12 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 >
                     <div className="relative w-full flex flex-col items-center justify-end h-full pb-6">
                         {isOverGoal && !showSpinner && (
-                            <span className="absolute -top-6 text-[10px] sm:text-xs font-bold text-secondary animate-fade-in">
+                            <span className="absolute -top-6 text-xs font-bold text-[#C05A38] animate-fade-in">
                                 +{surplus.toFixed(0)}
                             </span>
                         )}
 
-                        <div className={`w-full max-w-[24px] sm:max-w-[32px] h-full bg-neutral-light/40 rounded-full relative overflow-hidden flex flex-col-reverse justify-start ${isViewing ? 'ring-2 ring-offset-2 ring-primary/30' : ''}`}>
+                        <div className={`w-full max-w-[24px] sm:max-w-[32px] h-full bg-[#F1EAE0] dark:bg-[#34302C] border border-[#E2D8CC] dark:border-[#484440] rounded-full relative overflow-hidden flex flex-col-reverse justify-start ${isViewing ? 'ring-2 ring-offset-2 ring-[#D96E4A]' : ''}`}>
                             {showSpinner ? (
                                 <div className="w-full h-full flex items-end justify-center pb-2 animate-fade-in">
                                      <div className="w-5 h-5 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
@@ -206,6 +217,12 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                                     {proteinGoalMet && hasLog && (
                                         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-full flex justify-center">
                                             <Dumbbell className="w-3 h-3 sm:w-4 sm:h-4 text-white drop-shadow-sm" />
+                                        </div>
+                                    )}
+                                    {/* Fibermarkoren sitter hogst upp i stapeln sa den aldrig krockar med hanteln. */}
+                                    {fiberGoalMet && hasLog && (
+                                        <div className="absolute top-1 left-1/2 -translate-x-1/2 w-full flex justify-center">
+                                            <Leaf className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white drop-shadow-sm" />
                                         </div>
                                     )}
                                 </div>

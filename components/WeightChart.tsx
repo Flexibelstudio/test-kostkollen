@@ -132,7 +132,7 @@ const WeightChart: React.FC<WeightChartProps> = ({ data }) => {
                     <LegendItem 
                         label="Muskler" 
                         icon={<Dumbbell className="w-4 h-4" />} 
-                        colorClass="bg-orange-400"
+                        colorClass="bg-[#D96E4A]"
                         isActive={seriesVisibility.muscle} 
                         onClick={() => handleLegendClick('muscle')} 
                     />
@@ -141,7 +141,7 @@ const WeightChart: React.FC<WeightChartProps> = ({ data }) => {
                     <LegendItem 
                         label="Fett" 
                         icon={<PieChart className="w-4 h-4" />} 
-                        colorClass="bg-yellow-400"
+                        colorClass="bg-[#7A756E]"
                         isActive={seriesVisibility.fat} 
                         onClick={() => handleLegendClick('fat')} 
                     />

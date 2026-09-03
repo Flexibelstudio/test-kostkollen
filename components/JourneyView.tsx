@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { PastDaysSummaryCollection, WeightLogEntry, UserProfileData, GoalType, GoalSettings, Achievement, Reactions, AIDataForJourneyAnalysis, StreakSaver, BootcampParticipant } from '../types';
 import { PencilIcon, TrophyIcon, SparklesIcon, PlusIcon, ScaleIcon, ExclamationTriangleIcon } from './icons';
 import { Dumbbell, PieChart, Target } from 'lucide-react';
@@ -8,6 +8,7 @@ import GoalTimeline from './JourneyGoalTimeline.tsx';
 import ProfileAndGoalEditor from './JourneyProfileEditor.tsx';
 import AchievementsView from './AchievementsView.tsx';
 import { COACH_PERSONAS } from '../constants';
+import { pushViewState, subscribeToHistory } from '../utils/navigationHistory';
 
 interface JourneyViewProps {
   pastDaysData: PastDaysSummaryCollection;
@@ -16,7 +17,7 @@ interface JourneyViewProps {
   goals: GoalSettings;
   onSaveProfileAndGoals: (profile: UserProfileData, goals: GoalSettings) => void;
   onOpenLogWeightModal: () => void;
-  playAudio: (sound: any, volume?: number) => void;
+  playAudio?: (sound: any, volume?: number) => void;
   viewingDate: Date;
   setViewingDate: (date: Date) => void;
   currentDate: Date;
@@ -54,6 +55,22 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
     if(initialTab === 'achievements') return 'achievements';
     return 'goals'; 
   });
+
+  useEffect(() => {
+    const unsubscribe = subscribeToHistory((state) => {
+      if (state.view === 'journey' && state.tab && (state.tab === 'goals' || state.tab === 'achievements')) {
+        setActiveTab(state.tab as Tab);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleTabChange = (tab: Tab) => {
+    if (tab !== activeTab) {
+      pushViewState({ view: 'journey', tab });
+      setActiveTab(tab);
+    }
+  };
 
   const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
   
@@ -367,7 +384,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                 {userProfile.measurementMethod === 'inbody' && (
                     <div className="flex gap-4 w-full justify-center">
                         <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
-                            <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 mb-2">
+                            <div className="w-10 h-10 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] mb-2">
                                 <Dumbbell className="w-5 h-5" />
                             </div>
                             <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Muskler</span>
@@ -380,7 +397,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                         </div>
                         
                         <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col items-center border border-neutral-light shadow-sm">
-                            <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600 mb-2">
+                            <div className="w-10 h-10 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] mb-2">
                                 <PieChart className="w-5 h-5" />
                             </div>
                             <span className="text-xs font-bold text-neutral-500 uppercase mb-0.5">Fett</span>
@@ -414,13 +431,13 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
             <div className="bg-white dark:bg-neutral-darker p-2 rounded-2xl shadow-soft-lg border border-neutral-light">
                 <div className="flex p-1 bg-neutral-light/50 rounded-xl">
                     <button
-                        onClick={() => setActiveTab('goals')}
+                        onClick={() => handleTabChange('goals')}
                         className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'goals' ? 'bg-white dark:bg-neutral-dark text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark dark:hover:text-white'}`}
                     >
                         Mål & Framsteg
                     </button>
                     <button
-                        onClick={() => setActiveTab('achievements')}
+                        onClick={() => handleTabChange('achievements')}
                         className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${activeTab === 'achievements' ? 'bg-white dark:bg-neutral-dark text-primary shadow-sm' : 'text-neutral hover:text-neutral-dark dark:hover:text-white'}`}
                     >
                         Bragder
@@ -453,23 +470,22 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                             </div>
 
                             {goalProgress >= 100 && !userProfile.mainGoalCompleted && (
-                                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-5 rounded-2xl border border-emerald-200 dark:border-emerald-800 shadow-sm animate-fade-in">
+                                <div className="bg-[#84A98C]/10 p-5 rounded-2xl border border-[#84A98C]/30 shadow-sm animate-fade-in">
                                     <div className="flex items-start gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center text-xl shrink-0">
+                                        <div className="w-10 h-10 rounded-full bg-[#84A98C]/20 flex items-center justify-center text-xl shrink-0">
                                             🎉
                                         </div>
                                         <div className="flex-1">
-                                            <h4 className="font-extrabold text-emerald-800 dark:text-emerald-400 text-base">
+                                            <h4 className="font-extrabold text-[#56524D] text-base">
                                                 Du har nått ditt mål i förväg!
                                             </h4>
-                                            <p className="text-sm text-neutral-dark dark:text-neutral-200 mt-1 leading-relaxed">
+                                            <p className="text-sm text-neutral-dark mt-1 leading-relaxed">
                                                 Enastående disciplin! Eftersom du deltar i ett pågående bootcamp kan du nu välja hur du vill spendera resten av tiden:
                                             </p>
                                             
                                             <div className="mt-4 flex flex-col md:flex-row gap-2.5">
                                                 <button
                                                     onClick={async () => {
-                                                        playAudio('uiClick');
                                                         const updatedProfile = { 
                                                             ...userProfile, 
                                                             mainGoalCompleted: true 
@@ -477,17 +493,16 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                                                         await onSaveProfileAndGoals(updatedProfile, goals);
                                                         setToastNotification({ message: 'Framgången registrerad! Fortsätt på samma resa bootcampen ut.', type: 'success' });
                                                     }}
-                                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-xl text-xs sm:text-sm shadow-sm transition-all active:scale-95 text-center"
+                                                    className="flex-1 bg-[#84A98C] hover:bg-[#6b8f73] text-white font-bold py-2.5 px-3 rounded-xl text-xs sm:text-sm shadow-sm transition-all active:scale-95 text-center"
                                                 >
                                                     Fortsätt som vanligt
                                                 </button>
                                                 <button
                                                     onClick={() => {
-                                                        playAudio('uiClick');
                                                         setIsProfileEditing(true);
                                                         setIsFullGoalEdit(true);
                                                     }}
-                                                    className="flex-1 bg-white hover:bg-neutral-50 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-bold py-2.5 px-3 rounded-xl text-xs sm:text-sm shadow-xs transition-all active:scale-95 text-center"
+                                                    className="flex-1 bg-white hover:bg-neutral-light text-[#56524D] border border-[#84A98C]/40 font-bold py-2.5 px-3 rounded-xl text-xs sm:text-sm shadow-xs transition-all active:scale-95 text-center"
                                                 >
                                                     Sätt nytt mål / Bibehålla
                                                 </button>
@@ -550,7 +565,7 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
             {isSpeedDialOpen && (
                 <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
-                    <button onClick={() => { playAudio('uiClick'); setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                    <button onClick={() => { setShowAICoachModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
                         <span className="bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">Chatta med {coachName}</span>
                         <div className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white dark:bg-neutral-darker overflow-hidden border-2 border-primary">
                             {userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
@@ -560,30 +575,25 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                             )}
                         </div>
                     </button>
-                    <button onClick={() => { playAudio('uiClick'); setShowResetConfirmModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                    <button onClick={() => { setShowResetConfirmModal(true); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
                         <span className="bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">Nytt Mål</span>
                         <div className="w-12 h-12 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-secondary-darker transition-colors"><Target className="w-6 h-6" /></div>
                     </button>
-                    <button onClick={() => { playAudio('uiClick'); onOpenLogWeightModal(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
+                    <button onClick={() => { onOpenLogWeightModal(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
                         <span className="bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">Logga Vikt</span>
                         <div className="w-12 h-12 bg-primary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-darker transition-colors"><ScaleIcon className="w-6 h-6" /></div>
                     </button>
                 </div>
             )}
+            {/* Samma knapp som pa startsidan. Har satt tidigare coachens ansikte
+                nar menyn var stangd, vilket inte lastes som "lagg till" - plusset
+                sager vad knappen gor, och den ser likadan ut pa bada sidorna. */}
             <button 
-                onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
-                className={`pointer-events-auto w-16 h-16 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 border-primary ${isSpeedDialOpen ? 'bg-red-500 text-white rotate-45 border-red-500' : 'bg-white dark:bg-neutral-darker text-primary'}`}
+                onClick={() => { setIsSpeedDialOpen(!isSpeedDialOpen); }}
+                className={`pointer-events-auto w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden ${isSpeedDialOpen ? 'bg-[#56524D] text-white rotate-45' : 'bg-[#D96E4A] text-white hover:bg-[#C05A38]'}`}
                 aria-label="Lägg till"
             >
-                {isSpeedDialOpen ? (
-                    <PlusIcon className="w-8 h-8" />
-                ) : (
-                    userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? (
-                        <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={coachName} className="w-full h-full object-cover" />
-                    ) : (
-                        <PlusIcon className="w-8 h-8" />
-                    )
-                )}
+                <PlusIcon className="w-7 h-7" />
             </button>
         </div>
       )}
@@ -620,12 +630,12 @@ export const JourneyView: React.FC<JourneyViewProps> = (props) => {
                         </p>
                         <div className="flex justify-end space-x-3">
                             <button onClick={() => setShowResetConfirmModal(false)} className="px-5 py-2.5 text-neutral-dark dark:text-neutral-light bg-neutral-light hover:bg-gray-300 rounded-xl active:scale-95 transition-all font-medium">Avbryt</button>
-                            <button onClick={handleStartNewGoal} className="px-5 py-2.5 text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl active:scale-95 transition-all font-medium">Ja, nytt uppdrag!</button>
+                            <button onClick={handleStartNewGoal} className="px-5 py-2.5 text-white bg-primary hover:bg-primary-darker rounded-xl active:scale-95 transition-all font-medium">Ja, nytt uppdrag!</button>
                         </div>
                     </>
                 ) : (
                     <>
-                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-yellow-500"/> Sätta ett nytt mål?</h3>
+                        <h3 className="text-lg font-semibold text-neutral-dark mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2 text-[#D96E4A]"/> Sätta ett nytt mål?</h3>
                         <p className="text-neutral mb-6 text-sm leading-relaxed">
                             Detta kommer att markera ditt nuvarande mål som slutfört och låter dig ställa in ett nytt. Vill du fortsätta?
                         </p>

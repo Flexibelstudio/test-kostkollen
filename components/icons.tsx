@@ -420,3 +420,60 @@ export const CreditCardIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ classN
     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
   </svg>
 );
+
+export const KostloggenLogo: React.FC<{ className?: string; size?: number }> = ({ className, size = 48 }) => (
+  <div className={`flex items-center gap-3.5 ${className || ''}`}>
+    <div className="w-12 h-12 rounded-full bg-[#D96E4A] flex items-center justify-center text-white shadow-md flex-shrink-0">
+      <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2a10 10 0 1 0 10 10H12V2z" />
+        <path d="M12 12 2.1 12a10 10 0 0 0 17.8 5.9" />
+        <path d="M20.2 6.5A10 10 0 0 0 12 2v10l8.2-5.5z" />
+      </svg>
+    </div>
+    <div className="flex flex-col">
+      <span className="font-serif font-medium text-xl text-[#56524D] dark:text-[#FAF6EF] tracking-tight leading-none">
+        Kostloggen<span className="text-[#D96E4A]">.se</span>
+      </span>
+      <span className="text-xs font-sans text-[#7A756E] dark:text-[#C2BCB4] tracking-widest uppercase mt-0.5">
+        Din hälsoresa
+      </span>
+    </div>
+  </div>
+);
+
+export const CoachAvatar: React.FC<{ coachKey?: 'borje' | 'erik' | 'maja' | string; className?: string }> = ({ coachKey = 'borje', className = "w-12 h-12" }) => {
+  const key = coachKey.toLowerCase();
+  
+  if (key.includes('borje') || key.includes('börje') || key.includes('hard')) {
+    return (
+      <div className={`rounded-full bg-[#56524D] text-white flex items-center justify-center shadow-md overflow-hidden ${className}`}>
+        <svg className="w-2/3 h-2/3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z" />
+          <path d="M12 8v8" />
+          <path d="M8 12h8" />
+        </svg>
+      </div>
+    );
+  }
+  
+  if (key.includes('maja') || key.includes('soft')) {
+    return (
+      <div className={`rounded-full bg-[#F6E2D9] text-[#D96E4A] flex items-center justify-center shadow-md overflow-hidden ${className}`}>
+        <svg className="w-2/3 h-2/3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+        </svg>
+      </div>
+    );
+  }
+
+  // Default / Erik / PT
+  return (
+    <div className={`rounded-full bg-[#F1EAE0] text-[#D96E4A] flex items-center justify-center shadow-md overflow-hidden ${className}`}>
+      <svg className="w-2/3 h-2/3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    </div>
+  );
+};
+

@@ -62,18 +62,18 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course
 
         <div className="space-y-6 text-base text-neutral-dark dark:text-neutral-200 leading-relaxed">
           {course.id === 'bootcamp' && (
-            <div className="w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-neutral-dark bg-black relative aspect-video mb-6">
-              <video 
-                controls 
-                preload="metadata"
-                className="w-full h-full object-cover"
-              >
-                <source src="/general-briefing.mp4" type="video/mp4" />
-                Din webbläsare stöder inte videouppspelning.
-              </video>
-              <div className="absolute top-4 left-4 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded animate-pulse">
-                LIVE FEED • HÖGKVARTERET
+            <div className="w-full rounded-2xl p-5 bg-[#56524D] text-[#FAF6EF] shadow-lg border-2 border-[#D96E4A] mb-6">
+              <div className="flex items-center justify-between mb-2 pb-2 border-b border-[#D96E4A]/30">
+                <span className="text-xs font-bold uppercase tracking-widest text-[#D96E4A]">
+                  GENERALENS ORDER • HÖGKVARTERET
+                </span>
+                <span className="text-xs bg-[#D96E4A] text-white px-2 py-0.5 rounded-full font-bold">
+                  BOOTCAMP
+                </span>
               </div>
+              <p className="text-sm font-medium leading-relaxed italic text-[#FAF6EF]/90">
+                "Välkommen till truppen. Här råder inga undantag och inga ursäkter. Varje loggad måltid bygger din disciplin och befordrar din grad."
+              </p>
             </div>
           )}
 
@@ -98,14 +98,14 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course
                 Under din tid i Bootcampen kommer din disciplin att belönas. Genom att bygga en streak av godkända dagar klättrar du i graderna. Din grad baseras på din längsta streak, så du förlorar aldrig din högsta uppnådda grad!
               </p>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Soldat</span><span className="font-bold">0 dagar</span></div>
-                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Korpral</span><span className="font-bold">7 dagar</span></div>
-                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Sergeant</span><span className="font-bold">14 dagar</span></div>
-                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Fänrik</span><span className="font-bold">25 dagar</span></div>
-                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Löjtnant</span><span className="font-bold">35 dagar</span></div>
-                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Kapten</span><span className="font-bold">50 dagar</span></div>
-                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Major</span><span className="font-bold">65 dagar</span></div>
-                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>General</span><span className="font-bold">80 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Soldat <span className="text-xs text-neutral-500">(Fas 1)</span></span><span className="font-bold">0 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Korpral <span className="text-xs text-neutral-500">(Fas 1)</span></span><span className="font-bold">7 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Sergeant <span className="text-xs text-neutral-500">(Fas 2)</span></span><span className="font-bold">14 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Fänrik <span className="text-xs text-neutral-500">(Fas 2)</span></span><span className="font-bold">25 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Löjtnant <span className="text-xs text-neutral-500">(Fas 2)</span></span><span className="font-bold">35 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Kapten <span className="text-xs text-neutral-500">(Fas 2)</span></span><span className="font-bold">50 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>Major <span className="text-xs text-neutral-500">(Fas 2)</span></span><span className="font-bold">65 dagar</span></div>
+                <div className="flex justify-between bg-white dark:bg-neutral-900 p-2 rounded"><span>General <span className="text-xs text-neutral-500">(Fas 2)</span></span><span className="font-bold">80 dagar</span></div>
               </div>
             </div>
           )}
@@ -118,7 +118,7 @@ const CourseInfoModal: React.FC<CourseInfoModalProps> = ({ onClose, show, course
                         {course.reviews!.map((review, index) => (
                             <div key={index} className="w-full flex-shrink-0 px-4 space-y-4 text-left">
                                 <h4 className="text-xl font-bold text-neutral-dark dark:text-white flex items-center gap-2">
-                                    <span className="text-yellow-400 text-2xl">⭐</span>
+                                    <span className="text-[#D96E4A] text-2xl">⭐</span>
                                     <span>"{review.quote}"</span>
                                 </h4>
                                 <p className="text-base text-neutral-dark dark:text-neutral-300 italic leading-relaxed">

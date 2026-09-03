@@ -13,6 +13,8 @@ import {
 } from '../types';
 import { 
     DEFAULT_WATER_GOAL_ML,
+    FIBER_DAILY_TARGET_GRAMS,
+    LEVEL_DEFINITIONS,
     MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
     LOCAL_STORAGE_KEYS,
     COACH_PERSONAS
@@ -20,17 +22,24 @@ import {
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
 import WaterLogger from '../components/WaterLogger';
+import MacroCard from '../components/MacroCard';
 import { PlusIcon, CameraIcon, RecipeIcon, BarcodeIcon, SearchIcon, CheckIcon, ArrowLeftIcon, ArrowRightIcon, TrophyIcon, SparklesIcon, XMarkIcon, BookmarkIcon, ShieldCheckIcon } from '../components/icons';
 import { PiggyBank, Coffee, Sandwich, CookingPot, Apple, Flame } from 'lucide-react';
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
 import { getDateUID, getSuggestedMealType } from '../utils/dateUtils';
 import { 
+    sumMealNutrients, 
+    calculateRemainingCalories, 
+    getMealDateUID 
+} from '../utils/nutritionTotals';
+import { 
     addMealLog as addMealLogFirestore, 
     setWaterLog, 
     addCommonMeal, 
     deleteCommonMeal as deleteCommonMealFromDB, 
     updateCommonMeal,
+    incrementCommonMealUsage,
     deleteMealLog,
     updateMealLog,
     setPastDaySummary as setPastDaySummaryFirestore,
@@ -43,11 +52,14 @@ import {
     analyzeNutritionLabelImage 
 } from '../services/geminiService';
 import { getFoodInfoFromBarcode } from '../services/openFoodFactsService';
+import { recordModalRenderStart, recordFirestoreSaveStart, finishPhotoPipeline } from '../utils/photoPipelineProfiler';
+import { pushModalState, replaceModalState, closeModalState, subscribeToHistory } from '../utils/navigationHistory';
 
 // Modaler
 import CameraModal from '../components/CameraModal';
 import TextEntryModal from '../components/TextEntryModal';
 import ProteinInfoModal from '../components/ProteinInfoModal';
+import InfoPopoverModal from '../components/InfoPopoverModal';
 import RecipeChoiceModal from '../components/RecipeChoiceModal';
 import RecipeModal from '../components/RecipeModal';
 import IngredientCaptureModal from '../components/IngredientCaptureModal';
@@ -66,6 +78,11 @@ import MealStructureGuide from '../components/MealStructureGuide';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import CoinFallEffect from '../components/CoinFallEffect';
 import CommonMealsList from '../components/CommonMealsList';
+import BootcampOnboardingCard from '../components/BootcampOnboardingCard';
+import ReadOnlyBanner from '../components/ReadOnlyBanner';
+import { completeBootcampOnboardingTask, checkAndAdvanceBootcampAccess } from '../services/bootcampAccessService';
+import { hasAppAccess, isReadOnlyUser, getBootcampAccessDetails } from '../utils/accessControl';
+import { BootcampOnboardingTaskId } from '../types';
 
 // Helper function for image resizing
 const resizeImageForLog = (file: File, maxSize: number): Promise<string> => {
@@ -177,12 +194,12 @@ const getGoalShortDescription = (
     desiredMuscleChange?: number
 ): string => {
     if (method === 'scale' && desiredWeightChange) {
-        return `Mål: ${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange.toFixed(1).replace('.', ',')} kg`;
+        return `${desiredWeightChange > 0 ? '+' : ''}${desiredWeightChange.toFixed(1).replace('.', ',')} kg`;
     } else if (method === 'inbody') {
-        if (desiredFatChange) return `Mål: ${desiredFatChange > 0 ? '+' : ''}${desiredFatChange.toFixed(1).replace('.', ',')} kg fett`;
-        if (desiredMuscleChange) return `Mål: ${desiredMuscleChange > 0 ? '+' : ''}${desiredMuscleChange.toFixed(1).replace('.', ',')} kg muskler`;
+        if (desiredFatChange) return `${desiredFatChange > 0 ? '+' : ''}${desiredFatChange.toFixed(1).replace('.', ',')} kg fett`;
+        if (desiredMuscleChange) return `${desiredMuscleChange > 0 ? '+' : ''}${desiredMuscleChange.toFixed(1).replace('.', ',')} kg muskler`;
     }
-    return 'Mål: Bibehålla vikten';
+    return 'Bibehålla vikten';
 };
 
 interface DashboardProps {
@@ -207,9 +224,12 @@ interface DashboardProps {
     onShareRecipe?: (recipeText: string) => void;
     onOpenBootcamp?: () => void;
     onOpenSubscription?: () => void;
+    isReadOnly?: boolean;
+    onOpenGraduationOffer?: () => void;
 }
 
 import { getBootcampRankInfo } from '../utils/bootcampUtils';
+import { RankBadge } from '../components/RankBadge';
 
 const Dashboard: React.FC<DashboardProps> = ({ 
     checklistState,
@@ -231,12 +251,15 @@ const Dashboard: React.FC<DashboardProps> = ({
     hasCompletedTodaysReport,
     onShareRecipe,
     onOpenBootcamp,
-    onOpenSubscription
+    onOpenSubscription,
+    isReadOnly = false,
+    onOpenGraduationOffer,
 }) => {
     const {
         currentUser,
         goals,
         userProfile,
+        setUserProfile,
         dailyLog,
         setDailyLog,
         waterLoggedMl,
@@ -261,6 +284,55 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Modal states
     const [showCameraModal, setShowCameraModal] = useState(false);
     const [showTextEntryModal, setShowTextEntryModal] = useState(false);
+
+    // Auto-advance Bootcamp Grundutbildning om 3 dygn passerat
+    useEffect(() => {
+        if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
+            checkAndAdvanceBootcampAccess(currentUser.uid, userProfile).then(res => {
+                if (res.updated && res.bootcampAccess) {
+                    setUserProfile(prev => ({ ...prev, bootcampAccess: res.bootcampAccess! }));
+                }
+            });
+        }
+    }, [currentUser, userProfile?.bootcampAccess, setUserProfile]);
+
+    const handleBootcampOnboardingTaskAction = (taskId: BootcampOnboardingTaskId) => {
+        switch (taskId) {
+            case 'log_meal_photo':
+                handleTakePhoto();
+                break;
+            case 'log_meal_search':
+                handleSearchText();
+                break;
+            case 'log_water':
+                handleLogWater(250);
+                if (waterLoggerRef.current) {
+                    waterLoggerRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+                break;
+            case 'weigh_in_and_goal':
+                window.dispatchEvent(new CustomEvent('open-log-weight-modal'));
+                break;
+            case 'read_morning_briefing':
+                onOpenAICoach();
+                if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
+                    completeBootcampOnboardingTask(currentUser.uid, 'read_morning_briefing', userProfile).then(updated => {
+                        if (updated) {
+                            setUserProfile(prev => ({
+                            ...prev,
+                            bootcampAccess: updated,
+                            // Spegla listan lokalt också, annars läser nästa uppgift en gammal profil
+                            bootcampOnboarding: {
+                                ...(prev.bootcampOnboarding || { completedAt: null }),
+                                tasksCompleted: updated?.onboardingTasksCompleted || prev.bootcampOnboarding?.tasksCompleted || [],
+                            },
+                        }));
+                        }
+                    });
+                }
+                break;
+        }
+    };
     const [showRecipeChoiceModal, setShowRecipeChoiceModal] = useState(false);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
     const [showMyRecipesModal, setShowMyRecipesModal] = useState(false);
@@ -284,6 +356,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [scannedFoodInfo, setScannedFoodInfo] = useState<BarcodeScannedFoodInfo | null>(null);
     const [imageAnalysisResult, setImageAnalysisResult] = useState<NutritionalInfo | null>(null);
     const [analyzedImageDataUrl, setAnalyzedImageDataUrl] = useState<string | null>(null);
+    const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState<boolean>(false);
     const [recipeSuggestions, setRecipeSuggestions] = useState<RecipeSuggestion[] | null>(null);
     const [identifiedIngredients, setIdentifiedIngredients] = useState<string[]>([]);
     const [ingredientImages, setIngredientImages] = useState<string[]>([]);
@@ -300,9 +373,46 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [showBonusCoin, setShowBonusCoin] = useState(false);
     const [activeMealSection, setActiveMealSection] = useState<MealType | null>(null); // Lifted state for open section
     const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
+    const [infoPopover, setInfoPopover] = useState<'fiber' | 'streak' | null>(null);
+
+    // Nasta niva i streaken. Finns ingen kvar ar man pa den hogsta.
+    const nextLevel = useMemo(
+        () => LEVEL_DEFINITIONS.find(l => l.requiredStreak > streakData.currentStreak) || null,
+        [streakData.currentStreak]
+    );
+
+    // Den hogsta nivan man passerat. Anvands for att markera var man star i listan.
+    const currentLevel = useMemo(() => {
+        const passed = LEVEL_DEFINITIONS.filter(l => l.requiredStreak <= streakData.currentStreak);
+        return passed.length > 0 ? passed[passed.length - 1] : LEVEL_DEFINITIONS[0];
+    }, [streakData.currentStreak]);
 
     const bankRef = useRef<HTMLDivElement>(null);
     const waterLoggerRef = useRef<HTMLDivElement>(null);
+
+    // Sync modal state with history popstate
+    useEffect(() => {
+        const unsubscribe = subscribeToHistory((state) => {
+            setShowCameraModal(state.modal === 'camera');
+            setShowImageAnalysisResultModal(state.modal === 'imageAnalysis');
+            setShowTextEntryModal(state.modal === 'textEntry');
+            setShowRecipeChoiceModal(state.modal === 'recipeChoice');
+            setShowRecipeModal(state.modal === 'recipe');
+            setShowMyRecipesModal(state.modal === 'myRecipes');
+            setShowIngredientCaptureModal(state.modal === 'ingredientCapture');
+            setShowIngredientRecipeResultsModal(state.modal === 'ingredientResults');
+            setShowBarcodeScannerModal(state.modal === 'barcodeScanner');
+            setShowBarcodeSearchResultModal(state.modal === 'barcodeResult');
+            setShowNutritionLabelResultModal(state.modal === 'nutritionLabel');
+            setShowFoodRatingModal(state.modal === 'foodRating');
+            setShowProteinInfoModal(state.modal === 'proteinInfo');
+            if (state.modal !== 'saveCommonMeal') {
+                setMealToSaveAsCommon(null);
+                setShowSaveCommonMealModal(false);
+            }
+        });
+        return unsubscribe;
+    }, []);
 
     // Derived values
     const isViewingToday = useMemo(() => {
@@ -328,48 +438,32 @@ const Dashboard: React.FC<DashboardProps> = ({
         return viewingDate.getDay() === 1;
     }, [viewingDate]);
 
-    const totalNutrients = useMemo(() => dailyLog.reduce(
-        (acc, meal) => {
-            acc.calories += meal.nutritionalInfo.calories;
-            acc.protein += meal.nutritionalInfo.protein;
-            acc.carbohydrates += meal.nutritionalInfo.carbohydrates;
-            acc.fat += meal.nutritionalInfo.fat;
-            return acc;
-        },
-        { calories: 0, protein: 0, carbohydrates: 0, fat: 0 }
-    ), [dailyLog]);
+    const totalNutrients = useMemo(() => sumMealNutrients(dailyLog), [dailyLog]);
 
     // --- DYNAMIC BANK CALCULATION START ---
     const availableBank = isViewingMonday ? 0 : weeklyBank.bankedCalories;
-    const rawCaloriesOver = Math.max(0, totalNutrients.calories - goals.calorieGoal);
-    const calculatedBankUsage = Math.min(rawCaloriesOver, availableBank);
-    const netCaloriesOver = Math.max(0, rawCaloriesOver - calculatedBankUsage);
-    const remainingBankDisplay = Math.max(0, availableBank - calculatedBankUsage);
-    const minSafeCalories = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
-    const caloriesRemaining = Math.max(0, goals.calorieGoal - totalNutrients.calories);
-    
-    const isOverBudget = rawCaloriesOver > 0;
-    const isFullyCoveredByBank = isOverBudget && netCaloriesOver === 0;
-    const isNetOverBudget = netCaloriesOver > 0;
+    const remainingCalc = useMemo(() => {
+        return calculateRemainingCalories(
+            goals.calorieGoal,
+            totalNutrients.calories,
+            availableBank,
+            userProfile?.goalType
+        );
+    }, [goals.calorieGoal, totalNutrients.calories, availableBank, userProfile?.goalType]);
 
-    let currentGoalMet = false;
-    if (totalNutrients.calories >= minSafeCalories) {
-        if (userProfile?.goalType === 'gain_muscle') {
-            currentGoalMet = totalNutrients.calories >= (goals.calorieGoal - 300);
-        } else {
-            currentGoalMet = totalNutrients.calories <= (goals.calorieGoal + availableBank);
-        }
-    }
-
-    let progressColor = "text-primary";
-    
-    if (totalNutrients.calories < minSafeCalories) {
-        progressColor = "text-secondary"; 
-    } else if (isNetOverBudget) {
-        progressColor = "text-secondary"; 
-    } else if (isFullyCoveredByBank) {
-        progressColor = "text-blue-500"; 
-    }
+    const {
+        rawCaloriesOver,
+        calculatedBankUsage,
+        netCaloriesOver,
+        remainingBankDisplay,
+        minSafeCalories,
+        caloriesRemaining,
+        isOverBudget,
+        isFullyCoveredByBank,
+        isNetOverBudget,
+        goalMet: currentGoalMet,
+        progressColor
+    } = remainingCalc;
     // --- DYNAMIC BANK CALCULATION END ---
 
     const groupedMeals = useMemo(() => {
@@ -405,21 +499,18 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     // Navigation Handlers
     const handlePrevWeek = () => {
-        playAudio('uiClick');
         const newDate = new Date(viewingDate);
         newDate.setDate(newDate.getDate() - 7);
         onDateSelect(newDate);
     };
 
     const handleNextWeek = () => {
-        playAudio('uiClick');
         const newDate = new Date(viewingDate);
         newDate.setDate(newDate.getDate() + 7);
         onDateSelect(newDate);
     };
 
     const handleJumpToToday = () => {
-        playAudio('uiClick');
         onDateSelect(new Date());
     };
 
@@ -430,23 +521,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         const viewingUID = getDateUID(viewingDate);
         const currentUID = getDateUID(currentDate);
 
-        const totals = currentLogs.reduce((acc, meal) => ({
-            calories: acc.calories + meal.nutritionalInfo.calories,
-            protein: acc.protein + meal.nutritionalInfo.protein,
-            carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
-            fat: acc.fat + meal.nutritionalInfo.fat,
-        }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
-
-        const minSafe = goals.calorieGoal * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
-        let goalMet = false;
-        
-        if (totals.calories >= minSafe) {
-            if (userProfile.goalType === 'gain_muscle') {
-                goalMet = totals.calories >= (goals.calorieGoal - 300);
-            } else {
-                goalMet = totals.calories <= (goals.calorieGoal + availableBank);
-            }
-        }
+        const totals = sumMealNutrients(currentLogs);
+        const { goalMet } = calculateRemainingCalories(
+            goals.calorieGoal,
+            totals.calories,
+            availableBank,
+            userProfile.goalType
+        );
 
         // --- STREAK LOGIC: Check previous day to determine new streak ---
         const dayBefore = new Date(viewingDate);
@@ -477,6 +558,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             carbohydrateGoal: goals.carbohydrateGoal,
             consumedFat: totals.fat,
             fatGoal: goals.fatGoal,
+            // Bara om dagen faktiskt har fibervarden. Skrivs 0 in for gamla
+            // dagar blir veckosnittet missvisande i flera veckor framat.
+            ...(totals.hasFiberData ? { consumedFiber: totals.fiber } : {}),
             goalType: userProfile.goalType,
             waterGoalMet: currentWater >= DEFAULT_WATER_GOAL_ML,
             streakForThisDay: newStreak, 
@@ -577,7 +661,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
 
         // 3. Räkna ut "Sanningen" från loggen
-        const actualCalories = dailyLog.reduce((acc, m) => acc + m.nutritionalInfo.calories, 0);
+        const actualCalories = sumMealNutrients(dailyLog).calories;
         
         // 4. Hämta nuvarande status
         const summary = pastDaysSummary[viewingUID];
@@ -596,9 +680,13 @@ const Dashboard: React.FC<DashboardProps> = ({
     // Handlers
     const handleAddMealToLog = async (
         data: LoggedMeal | Omit<LoggedMeal, 'id'> | NutritionalInfo | SearchedFoodInfo, 
-        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean; portionMultiplier?: number }
+        options?: { saveAsCommon?: boolean; mealType?: MealType; skipRatingModal?: boolean; portionMultiplier?: number; loggedWithPhoto?: boolean }
     ) => {
         if (!currentUser) return;
+        if (!hasAppAccess(userProfile)) {
+            onOpenSubscription?.();
+            return;
+        }
         
         const timestamp = Date.now();
         const mealType = options?.mealType || defaultMealTypeForModal || 'breakfast'; 
@@ -632,10 +720,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (multiplier !== 1) {
             newMeal.nutritionalInfo = {
                 ...newMeal.nutritionalInfo,
-                calories: Math.round(newMeal.nutritionalInfo.calories * multiplier),
-                protein: Math.round(newMeal.nutritionalInfo.protein * multiplier),
-                carbohydrates: Math.round(newMeal.nutritionalInfo.carbohydrates * multiplier),
-                fat: Math.round(newMeal.nutritionalInfo.fat * multiplier),
+                calories: newMeal.nutritionalInfo.calories * multiplier,
+                protein: newMeal.nutritionalInfo.protein * multiplier,
+                carbohydrates: newMeal.nutritionalInfo.carbohydrates * multiplier,
+                fat: newMeal.nutritionalInfo.fat * multiplier,
+                fiber: typeof newMeal.nutritionalInfo.fiber === 'number'
+                    ? newMeal.nutritionalInfo.fiber * multiplier
+                    : undefined,
             };
         }
 
@@ -660,19 +751,50 @@ const Dashboard: React.FC<DashboardProps> = ({
                 }]); 
             }
 
+            recordFirestoreSaveStart();
             await addMealLogFirestore(currentUser.uid, newMeal.id, newMeal); 
+            finishPhotoPipeline(); 
             
             if (options?.skipRatingModal) {
                 setToastNotification({ message: 'Måltid loggad!', type: 'success' });
             } else {
                 // Show Food Rating Modal instead of just toast
                 setFoodRatingData({ nutritionalInfo: newMeal.nutritionalInfo, mealType: newMeal.mealType });
+                pushModalState('foodRating');
                 setShowFoodRatingModal(true);
             }
             playAudio('logSuccess');
 
             if (checklistState && !checklistState.items.mealLogged) {
                 onChecklistUpdate('mealLogged');
+            }
+
+            // Grundutbildning inmönstrings-uppgifter
+            if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate) {
+                // Flaggan sätts av det anrop som faktiskt kommer från kameraflödet.
+                // Tidigare lästes cameraMode, som initieras till 'mealAnalysis' och
+                // aldrig nollställs - då räknades ALLA måltider som foto. Att bara ta
+                // bort den vände på felet: inget hade imageUrl eller source==='camera',
+                // så då kunde i stället fotouppgiften aldrig bockas i.
+                const isPhoto = Boolean(
+                    options?.loggedWithPhoto
+                    || newMeal.imageUrl
+                    || (newMeal.nutritionalInfo && (newMeal.nutritionalInfo as any).source === 'camera')
+                );
+                const taskId: BootcampOnboardingTaskId = isPhoto ? 'log_meal_photo' : 'log_meal_search';
+                completeBootcampOnboardingTask(currentUser.uid, taskId, userProfile).then(updated => {
+                    if (updated) {
+                        setUserProfile(prev => ({
+                            ...prev,
+                            bootcampAccess: updated,
+                            // Spegla listan lokalt också, annars läser nästa uppgift en gammal profil
+                            bootcampOnboarding: {
+                                ...(prev.bootcampOnboarding || { completedAt: null }),
+                                tasksCompleted: updated?.onboardingTasksCompleted || prev.bootcampOnboarding?.tasksCompleted || [],
+                            },
+                        }));
+                    }
+                });
             }
 
         } catch (error) {
@@ -721,14 +843,32 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const handleLogWater = async (amount: number) => {
         if (!currentUser) return;
+        if (!hasAppAccess(userProfile)) {
+            onOpenSubscription?.();
+            return;
+        }
         const newAmount = waterLoggedMl + amount;
         setWaterLoggedMl(newAmount);
         recalculateAndSaveSummary(dailyLog, newAmount);
-        playAudio('waterSplash');
         try {
             await setWaterLog(currentUser.uid, getDateUID(viewingDate), newAmount);
             if (checklistState && !checklistState.items.waterLogged && newAmount > 0) {
                 onChecklistUpdate('waterLogged');
+            }
+            if (currentUser && userProfile?.bootcampAccess && !userProfile.bootcampAccess.onboardingCompletedDate && newAmount > 0) {
+                completeBootcampOnboardingTask(currentUser.uid, 'log_water', userProfile).then(updated => {
+                    if (updated) {
+                        setUserProfile(prev => ({
+                            ...prev,
+                            bootcampAccess: updated,
+                            // Spegla listan lokalt också, annars läser nästa uppgift en gammal profil
+                            bootcampOnboarding: {
+                                ...(prev.bootcampOnboarding || { completedAt: null }),
+                                tasksCompleted: updated?.onboardingTasksCompleted || prev.bootcampOnboarding?.tasksCompleted || [],
+                            },
+                        }));
+                    }
+                });
             }
         } catch (error) {
             console.error("Error logging water:", error);
@@ -755,10 +895,20 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const confirmCommonMealLog = (type: MealType) => {
         if (showCommonMealsPopup) {
+            const loggedMeal = showCommonMealsPopup;
             handleAddMealToLog(
-                showCommonMealsPopup.nutritionalInfo, 
+                loggedMeal.nutritionalInfo, 
                 { mealType: type, skipRatingModal: true, portionMultiplier: selectedCommonMealPortion }
             );
+            // Räkna upp användningen så att de mest använda valen hamnar först.
+            // Sorteringen ska aldrig kunna stoppa loggningen, därför tyst felhantering.
+            setCommonMeals(prev => prev.map(cm => cm.id === loggedMeal.id
+                ? { ...cm, useCount: (cm.useCount || 0) + 1, lastUsedAt: Date.now() }
+                : cm));
+            if (currentUser) {
+                incrementCommonMealUsage(currentUser.uid, loggedMeal.id)
+                    .catch(err => console.error('Kunde inte uppdatera användningsräknaren', err));
+            }
             setShowCommonMealsPopup(null);
             setSelectedCommonMealType(null);
             setSelectedCommonMealPortion(1);
@@ -777,7 +927,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     };
 
-    const handleUpdateCommonMeal = async (id: string, data: { name: string; nutritionalInfo: NutritionalInfo }) => {
+    const handleUpdateCommonMeal = async (id: string, data: { name: string; nutritionalInfo: NutritionalInfo; imageUrl?: string | null }) => {
         if (!currentUser) return;
         setCommonMeals(prev => prev.map(cm => cm.id === id ? { ...cm, ...data } : cm));
         try {
@@ -789,25 +939,33 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
     };
 
-    const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, type: MealType | null = null) => {
+    const openModalWithType = (setter: React.Dispatch<React.SetStateAction<boolean>>, modalName?: string, type: MealType | null = null) => {
+        if (!hasAppAccess(userProfile)) {
+            onOpenSubscription?.();
+            return;
+        }
         const typeToUse = type || activeMealSection || getSuggestedMealType();
         setDefaultMealTypeForModal(typeToUse);
         setActiveMealSection(null);
+        if (modalName) {
+            pushModalState(modalName);
+        }
         setter(true);
         setIsSpeedDialOpen(false);
     }
 
-    const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal);
-    const handleSearchText = () => openModalWithType(setShowTextEntryModal);
+    const handleScanBarcode = () => openModalWithType(setShowBarcodeScannerModal, 'barcodeScanner');
+    const handleSearchText = () => openModalWithType(setShowTextEntryModal, 'textEntry');
     const handleTakePhoto = () => {
         setCameraMode('mealAnalysis'); 
-        openModalWithType(setShowCameraModal);
+        openModalWithType(setShowCameraModal, 'camera');
     };
-    const handleFindRecipe = () => {
+    const handleRecipes = () => {
         setSearchedRecipe(null);
-        openModalWithType(setShowRecipeChoiceModal); 
+        openModalWithType(setShowRecipeChoiceModal, 'recipeChoice'); 
     };
-    const handleMyRecipes = () => openModalWithType(setShowMyRecipesModal);
+    const handleFindRecipe = handleRecipes;
+    const handleMyRecipes = () => openModalWithType(setShowMyRecipesModal, 'myRecipes');
 
     const handleSaveRecipe = async (recipe: RecipeSuggestion) => {
         if (!currentUser) return;
@@ -840,7 +998,56 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
 
     return (
-        <div className="flex flex-col gap-3 pb-0 relative">
+        <div className="flex flex-col gap-3 pb-28 sm:pb-32 relative">
+            {/* Datumremsa. Sitter klistrad hogst upp sa lange man inte star pa
+                idag - datumet i rubriken scrollar bort sa fort man borjar
+                justera i matloggen, och da tappar man latt bort vilken dag man
+                faktiskt andrar i. */}
+            {!isViewingToday && (
+                <div className={`sticky top-0 z-30 -mx-1 px-3 py-2 rounded-b-xl shadow-soft-sm flex items-center justify-between gap-3 text-sm ${
+                    isEditableView
+                        ? 'bg-[#F6E2D9] text-[#8E3B1E] border-b border-[#E9B9A5]'
+                        : 'bg-[#F1EAE0] text-[#56524D] border-b border-[#E2D8CC]'
+                }`}>
+                    <span className="font-semibold truncate">
+                        {isEditableView
+                            ? `Du redigerar igår · ${formattedViewingDate}`
+                            : `Låst · ${formattedViewingDate} går inte att ändra`}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => onDateSelect(new Date())}
+                        className="font-bold underline underline-offset-2 whitespace-nowrap flex-shrink-0"
+                    >
+                        Gå till idag
+                    </button>
+                </div>
+            )}
+
+            {/* Läsläge Banner */}
+            {isReadOnly && (
+                <ReadOnlyBanner 
+                    onOpenOffer={() => {
+                        if (onOpenGraduationOffer) {
+                            onOpenGraduationOffer();
+                        } else {
+                            onOpenSubscription?.();
+                        }
+                    }} 
+                />
+            )}
+
+            {/* Börjes Grundutbildning Kort under inmönstring.
+                Gatet går via getBootcampAccessDetails och inte via fältets blotta
+                existens - ett halvskrivet bootcampAccess utan purchaseDate ska
+                inte ge grundutbildning till någon som inte köpt bootcampen. */}
+            {getBootcampAccessDetails(userProfile).isOnboarding && (
+                <BootcampOnboardingCard 
+                    userProfile={userProfile}
+                    onActionClick={handleBootcampOnboardingTaskAction}
+                />
+            )}
+
             {/* Gratisperiod Nedräkningsrad */}
             {userProfile.subscriptionStatus === 'trialing' && userProfile.currentPeriodEnd && (() => {
                 const getTrialDaysLeftLocal = (endStr: string) => {
@@ -863,21 +1070,21 @@ const Dashboard: React.FC<DashboardProps> = ({
                 const daysLeft = getTrialDaysLeftLocal(userProfile.currentPeriodEnd);
                 const dateStr = formatTrialEndDateLocal(userProfile.currentPeriodEnd);
                 
-                const text = daysLeft <= 4 
+                const text = daysLeft > 3 
                     ? `Gratisperiod: ${daysLeft} ${daysLeft === 1 ? 'dag' : 'dagar'} kvar`
-                    : `${daysLeft} dagar kvar av din gratisperiod · Första dragningen ${dateStr} (95 kr)`;
+                    : `${daysLeft} ${daysLeft === 1 ? 'dag' : 'dagar'} kvar av din gratisperiod · Första dragningen ${dateStr} (95 kr)`;
 
                 return (
                     <button 
                         type="button"
                         onClick={onOpenSubscription}
-                        className="w-full bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-100 dark:border-emerald-900/30 px-4 py-3.5 rounded-2xl flex items-center justify-between transition-all active:scale-[0.99] text-xs sm:text-sm font-semibold shadow-sm"
+                        className="w-full bg-[#F6E2D9] hover:bg-[#F6E2D9]/80 text-primary border border-primary/20 px-4 py-3.5 rounded-2xl flex items-center justify-between transition-all active:scale-[0.99] text-xs sm:text-sm font-semibold shadow-sm"
                     >
                         <div className="flex items-center gap-2 text-left">
-                            <span className="text-emerald-500">✨</span>
+                            <span className="text-primary">✨</span>
                             <span>{text}</span>
                         </div>
-                        <ArrowRightIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 ml-2" />
+                        <ArrowRightIcon className="w-4 h-4 text-primary flex-shrink-0 ml-2" />
                     </button>
                 );
             })()}
@@ -897,19 +1104,27 @@ const Dashboard: React.FC<DashboardProps> = ({
             {activeBootcamp && (() => {
                 const rankInfo = getBootcampRankInfo(Math.max(activeBootcamp.longestStreak || 0, userProfile.highestBootcampStreak || 0), activeBootcamp.currentStreak || 0, activeBootcamp.status);
                 return (
-                <div className="bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden">
+                <div
+                    onClick={() => onOpenBootcamp?.()}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenBootcamp?.(); } }}
+                    role={onOpenBootcamp ? 'button' : undefined}
+                    tabIndex={onOpenBootcamp ? 0 : undefined}
+                    aria-label={onOpenBootcamp ? 'Öppna bootcampen' : undefined}
+                    className={`bg-white dark:!bg-[#2A3B2C] rounded-3xl shadow-soft-xl p-5 border border-[#4A5B4C] relative overflow-hidden ${onOpenBootcamp ? 'cursor-pointer hover:shadow-soft-2xl active:scale-[0.99] transition-all focus:outline-none focus:ring-2 focus:ring-[#D96E4A] focus:ring-offset-2' : ''}`}>
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-[#3A4B3C] flex items-center justify-center text-white">
-                                <ShieldCheckIcon className="w-5 h-5" />
+                            <div className="w-8 h-8 rounded-full bg-[#3A4B3C] flex items-center justify-center text-white overflow-hidden p-0.5">
+                                <RankBadge rank={rankInfo.currentRank} size="sm" className="w-full h-full" />
                             </div>
                             <h3 className="text-lg font-bold text-neutral-dark dark:text-white">Bootcamp Lägesrapport</h3>
+                            {onOpenBootcamp && <ArrowRightIcon className="w-4 h-4 text-[#D96E4A] flex-shrink-0" />}
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="text-xs font-bold px-2 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 rounded-full">
                                 {activeBootcamp.status === 'fas1' ? 'Fas 1' : 'Fas 2'}
                             </span>
-                            <span className="text-xs font-bold px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full">
+                            <span className="text-xs font-bold px-2.5 py-1 bg-[#E8EFE9] text-[#2B3B2C] rounded-full inline-flex items-center gap-1">
+                                <RankBadge rank={rankInfo.currentRank} size="sm" className="w-4 h-4" />
                                 {rankInfo.currentRank}
                             </span>
                         </div>
@@ -918,7 +1133,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div>
                             <p className="text-xs font-bold text-neutral-500 dark:text-neutral-300 uppercase tracking-wider">Streak</p>
                             <p className="text-xl font-extrabold text-neutral-dark dark:text-white flex items-center gap-1">
-                                {activeBootcamp.currentStreak} <Flame className="w-5 h-5 text-orange-500" />
+                                {activeBootcamp.currentStreak} <Flame className="w-5 h-5 text-[#D96E4A]" />
                             </p>
                         </div>
                         <div className="text-right">
@@ -930,9 +1145,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </p>
                         </div>
                     </div>
-                    <div className="w-full bg-neutral-light dark:bg-[#1A2B1C] rounded-full h-2 mt-2 overflow-hidden">
+                    <div className="w-full bg-neutral-light rounded-full h-2 mt-2 overflow-hidden">
                         <div 
-                            className="bg-green-500 h-full rounded-full transition-all duration-500" 
+                            className="bg-[#D96E4A] h-full rounded-full transition-all duration-500" 
                             style={{ width: `${rankInfo.progress}%` }}
                         ></div>
                     </div>
@@ -941,16 +1156,16 @@ const Dashboard: React.FC<DashboardProps> = ({
             })()}
 
             {/* Top Date & Progress Card */}
-            <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${activeBootcamp ? 'bg-white dark:!bg-[#2A3B2C] border-[#4A5B4C]' : 'bg-white border-neutral-light'}`}>
+            <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${'bg-white border-neutral-light'}`}>
                 {activeBootcamp && (
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#4A5B4C] text-white text-[10px] font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
-                        <TrophyIcon className="w-3 h-3 text-yellow-400" />
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 bg-[#D96E4A] text-white text-xs font-bold px-3 py-1 rounded-b-lg uppercase tracking-widest flex items-center gap-1 shadow-md z-10">
+                        <TrophyIcon className="w-3 h-3 text-[#F6E2D9]" />
                         Bootcamp Aktiv
                     </div>
                 )}
                 <div className="flex flex-col items-center">
                     {/* Date Nav */}
-                    <div className={`flex items-center justify-center gap-4 mb-6 w-full px-6 ${activeBootcamp ? 'mt-2' : ''}`}>
+                    <div className={`flex items-center justify-center gap-4 mb-6 w-full px-6 ${''}`}>
                         <button onClick={() => onDateSelect(new Date(viewingDate.getTime() - 86400000))} className="p-2 rounded-full hover:bg-neutral-light transition-colors"><ArrowLeftIcon className="w-5 h-5 text-neutral-dark" /></button>
                         <div className="text-center">
                             <h2 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">{formattedViewingDate}</h2>
@@ -979,7 +1194,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 size={180}
                                 strokeWidth={14}
                                 color={progressColor}
-                                trackColor="text-neutral-light"
+                                trackColor="#F1EAE0"
                                 centerContent={
                                     <div className="text-center">
                                         <span className="text-sm font-medium text-neutral-dark mb-1 block">
@@ -1007,235 +1222,251 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
 
                     {/* Macros Integrated */}
-                    <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full px-4 sm:px-6">
-                        {/* Kolhydrater */}
-                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
-                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Kolhydrater</p>
-                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
-                                {Math.round(totalNutrients.carbohydrates)}/{goals.carbohydrateGoal}g
-                            </p>
-                            <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-blue-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.carbohydrates / goals.carbohydrateGoal) * 100, 100)}%` }}></div>
-                            </div>
-                        </div>
-                        {/* Protein */}
-                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
-                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider flex items-center justify-center">
-                                Protein
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowProteinInfoModal(true)}
-                                    className="ml-1 text-neutral-400 hover:text-primary transition-colors"
-                                    aria-label="Information om proteinmål"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-                                      <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
-                                    </svg>
-                                </button>
-                            </p>
-                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
-                                {Math.round(totalNutrients.protein)}/{goals.proteinGoal}g
-                            </p>
-                            <div className="w-full bg-pink-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-pink-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.protein / goals.proteinGoal) * 100, 100)}%` }}></div>
-                            </div>
-                        </div>
-                        {/* Fett */}
-                        <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-neutral-50 border-neutral-light'} rounded-2xl p-3 sm:p-4 border text-center`}>
-                            <p className="text-[10px] sm:text-xs font-bold text-neutral-dark mb-1 uppercase tracking-wider">Fett</p>
-                            <p className="text-xs sm:text-sm text-neutral-500 mb-2">
-                                {Math.round(totalNutrients.fat)}/{goals.fatGoal}g
-                            </p>
-                            <div className="w-full bg-purple-100 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-purple-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((totalNutrients.fat / goals.fatGoal) * 100, 100)}%` }}></div>
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full px-4 sm:px-6 items-stretch">
+                        <MacroCard 
+                            label="Kolhydrater"
+                            current={totalNutrients.carbohydrates}
+                            goal={goals.carbohydrateGoal}
+                            trackColor="#EAE0D8"
+                            barColor="#A6826B"
+                            isBootcamp={!!activeBootcamp}
+                        />
+                        <MacroCard 
+                            label="Protein"
+                            current={totalNutrients.protein}
+                            goal={goals.proteinGoal}
+                            trackColor="#F6E2D9"
+                            barColor="#D96E4A"
+                            isBootcamp={!!activeBootcamp}
+                            onInfoClick={() => { pushModalState('proteinInfo'); setShowProteinInfoModal(true); }}
+                            infoAriaLabel="Information om proteinmål"
+                        />
+                        <MacroCard 
+                            label="Fett"
+                            current={totalNutrients.fat}
+                            goal={goals.fatGoal}
+                            trackColor="#E8EFE9"
+                            barColor="#7BA05B"
+                            isBootcamp={!!activeBootcamp}
+                        />
+                        {/* Fibrer ligger som fjarde kort, jamnt med de andra. Malet ar
+                            ett riktmarke - kortet blir aldrig rott, och coachen skaller
+                            aldrig pa lagt fiberintag. Har dagen inga fibervarden alls
+                            visas ett streck i stallet for en nolla. */}
+                        <MacroCard
+                            label="Fibrer"
+                            current={totalNutrients.fiber}
+                            goal={FIBER_DAILY_TARGET_GRAMS}
+                            trackColor="#F4E9D7"
+                            barColor="#C99B4A"
+                            isBootcamp={!!activeBootcamp}
+                            displayValue={totalNutrients.hasFiberData ? undefined : `–/${FIBER_DAILY_TARGET_GRAMS}g`}
+                            onInfoClick={() => setInfoPopover('fiber')}
+                            infoAriaLabel="Information om fibrer"
+                        />
                     </div>
+
+                    {/* Mina vanliga val – kort, två i bredd, scrollas i sidled */}
+                    {commonMeals && commonMeals.length > 0 && (
+                        <div className="w-full px-4 sm:px-6 mt-3 pt-3 border-t border-neutral-light/70 dark:border-[#484440]/60">
+                            <CommonMealsList
+                                commonMeals={commonMeals}
+                                onLogCommonMeal={handleCommonMealLog}
+                                onDeleteCommonMeal={handleDeleteCommonMeal}
+                                onUpdateCommonMeal={handleUpdateCommonMeal}
+                                onShowRating={(nutritionalInfo) => {
+                                    setFoodRatingData({ nutritionalInfo, mealType: 'snack' });
+                                    pushModalState('foodRating');
+                                    setShowFoodRatingModal(true);
+                                }}
+                                disabled={!isEditableView}
+                                isBootcamp={!!activeBootcamp}
+                                embedded
+                            />
+                        </div>
+                    )}
+
                 </div>
             </div>
 
-            {/* Layout Columns */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                
-                {/* Left Column */}
-                <div className="flex flex-col gap-3">
-                    {/* Water & Streak/Bank */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div ref={waterLoggerRef} className="h-full">
-                            <WaterLogger
-                                currentWaterMl={waterLoggedMl}
-                                waterGoalMl={DEFAULT_WATER_GOAL_ML}
-                                onLogWater={(amount) => handleLogWater(amount)}
-                                onResetWater={handleResetWater}
-                                disabled={!isEditableView}
-                                isBootcamp={!!activeBootcamp}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-3">
-                            {/* Streak Card */}
-                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
-                                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 shadow-sm relative z-10">
-                                    <Flame className="w-6 h-6" />
-                                </div>
-                                <div className="relative z-10 flex-1">
-                                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5">Streak</p>
-                                    <p className="text-2xl font-extrabold text-neutral-dark leading-none">
-                                        {streakData.currentStreak} 
-                                        <span className="text-sm font-medium text-neutral ml-1">dagar</span>
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Goal Progress Card */}
-                            <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-4 rounded-2xl shadow-soft-lg border flex items-center gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300`}>
-                                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary-darker shadow-sm relative z-10 shrink-0">
-                                    <TrophyIcon className="w-6 h-6" />
-                                </div>
-                                <div className="relative z-10 flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-0.5">
-                                        <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ditt Mål</p>
-                                        <span className="text-xs font-bold text-primary whitespace-nowrap">
-                                            {`${Math.round(calculateProgressPercentage(
-                                                userProfile.measurementMethod,
-                                                userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                                                userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                                                userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                                                userProfile.mainGoalCompleted
-                                            ))}%`} klart
-                                        </span>
-                                    </div>
-                                    <p className="text-sm font-bold text-neutral-dark leading-tight line-clamp-2 mb-1.5">
-                                        {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
-                                            userProfile.measurementMethod,
-                                            userProfile.desiredWeightChangeKg,
-                                            userProfile.desiredFatMassChangeKg,
-                                            userProfile.desiredMuscleMassChangeKg
-                                        )}
-                                    </p>
-                                    <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
-                                        <div 
-                                            className="bg-primary h-full rounded-full transition-all duration-500" 
-                                            style={{ 
-                                                width: `${calculateProgressPercentage(
-                                                    userProfile.measurementMethod,
-                                                    userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
-                                                    userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
-                                                    userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
-                                                    userProfile.mainGoalCompleted
-                                                )}%` 
-                                            }}
-                                        ></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Weekly Activity */}
-                    <WeeklyActivityChart 
-                        pastDaysSummary={pastDaysSummary}
-                        currentAppDate={new Date()}
-                        viewingDate={viewingDate}
-                        onDateSelect={onDateSelect}
-                        onPrevWeek={handlePrevWeek}
-                        onNextWeek={handleNextWeek}
-                        onToday={handleJumpToToday}
-                        goalType={userProfile.goalType} 
-                        currentViewStats={{ 
-                            calories: totalNutrients.calories,
-                            calorieGoal: goals.calorieGoal,
-                            proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
-                            waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML,
-                            goalMet: currentGoalMet
-                        }}
-                        isSummarizingYesterday={isSummarizingYesterday}
-                        bankedCalories={weeklyBank.bankedCalories}
-                        isBootcamp={!!activeBootcamp}
-                    />
-                </div>
-
-                {/* Right Column */}
-                <div className="flex flex-col gap-3">
-                    
-                    <CommonMealsList 
-                        commonMeals={commonMeals}
-                        onLogCommonMeal={handleCommonMealLog}
-                        onDeleteCommonMeal={handleDeleteCommonMeal}
-                        onUpdateCommonMeal={handleUpdateCommonMeal}
-                        onShowRating={(nutritionalInfo) => {
-                            setFoodRatingData({ nutritionalInfo, mealType: 'snack' }); // default to snack for rating display
-                            setShowFoodRatingModal(true);
-                        }}
+            {/* Vatten, Streak & Ditt Mål (Snabbåtkomst ovanför matloggen) */}
+            <div className="grid grid-cols-2 gap-3 items-stretch">
+                <div ref={waterLoggerRef} className="h-full flex flex-col">
+                    <WaterLogger
+                        currentWaterMl={waterLoggedMl}
+                        waterGoalMl={DEFAULT_WATER_GOAL_ML}
+                        onLogWater={(amount) => handleLogWater(amount)}
+                        onResetWater={handleResetWater}
                         disabled={!isEditableView}
                         isBootcamp={!!activeBootcamp}
                     />
-
-                    {/* Meal Sections (Matlogg) */}
-                    <div className={`${activeBootcamp ? 'bg-white dark:!bg-[#3A4B3C] border-[#4A5B4C]' : 'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
+                </div>
+                <div className="flex flex-col h-full gap-3">
+                    {/* Streak Card */}
+                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
+                            <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <MealSectionCard 
-                                title="Frukost" 
-                                icon={<Coffee className="w-6 h-6" />} 
-                                meals={mealsBySection.breakfast} 
-                                onDeleteMeal={handleDeleteMeal}
-                                onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
-                                isEditable={isEditableView}
-                                isOpen={activeMealSection === 'breakfast'}
-                                onOpen={() => setActiveMealSection('breakfast')}
-                                onClose={() => setActiveMealSection(null)}
-                                recommendedCalories={Math.round(goals.calorieGoal * 0.25)}
-                                isBootcamp={!!activeBootcamp}
-                            />
-                            <MealSectionCard 
-                                title="Lunch" 
-                                icon={<Sandwich className="w-6 h-6" />} 
-                                meals={mealsBySection.lunch} 
-                                onDeleteMeal={handleDeleteMeal}
-                                onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
-                                isEditable={isEditableView}
-                                isOpen={activeMealSection === 'lunch'}
-                                onOpen={() => setActiveMealSection('lunch')}
-                                onClose={() => setActiveMealSection(null)}
-                                recommendedCalories={Math.round(goals.calorieGoal * 0.35)}
-                                isBootcamp={!!activeBootcamp}
-                            />
-                            <MealSectionCard 
-                                title="Middag" 
-                                icon={<CookingPot className="w-6 h-6" />} 
-                                meals={mealsBySection.dinner} 
-                                onDeleteMeal={handleDeleteMeal}
-                                onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
-                                isEditable={isEditableView}
-                                isOpen={activeMealSection === 'dinner'}
-                                onOpen={() => setActiveMealSection('dinner')}
-                                onClose={() => setActiveMealSection(null)}
-                                recommendedCalories={Math.round(goals.calorieGoal * 0.30)}
-                                isBootcamp={!!activeBootcamp}
-                            />
-                            <MealSectionCard 
-                                title="Mellanmål" 
-                                icon={<Apple className="w-6 h-6" />} 
-                                meals={mealsBySection.snack} 
-                                onDeleteMeal={handleDeleteMeal}
-                                onUpdateMeal={handleUpdateMeal}
-                                onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); setShowSaveCommonMealModal(true); }}
-                                isEditable={isEditableView}
-                                isOpen={activeMealSection === 'snack'}
-                                onOpen={() => setActiveMealSection('snack')}
-                                onClose={() => setActiveMealSection(null)}
-                                recommendedCalories={Math.round(goals.calorieGoal * 0.10)}
-                                isBootcamp={!!activeBootcamp}
-                            />
+                        <div className="relative z-10 flex-1 min-w-0">
+                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider whitespace-nowrap flex items-center leading-none">
+                                Streak
+                                <button
+                                    type="button"
+                                    onClick={() => setInfoPopover('streak')}
+                                    className="ml-1 text-neutral-400 hover:text-primary transition-colors inline-flex items-center justify-center leading-none"
+                                    aria-label="Information om streak"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 block">
+                                        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </p>
+                            <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-none truncate mt-1">
+                                {streakData.currentStreak} 
+                                <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
+                            </p>
+                            {/* Kortet ar lika hogt som vattenkortet bredvid och
+                                hade gott om oanvand luft, sa nasta niva far en
+                                egen rad och kan radbryta i stallet for att kapas. */}
+                            {nextLevel && (
+                                <p className="text-[11px] text-neutral-500 leading-tight mt-1">
+                                    {nextLevel.requiredStreak - streakData.currentStreak} dagar till {nextLevel.name}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    {/* Goal Progress Card */}
+                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${'bg-primary-100 text-primary-darker'} flex items-center justify-center shadow-sm relative z-10 shrink-0`}>
+                            <TrophyIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+                        </div>
+                        <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
+                            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Ditt Mål</p>
+                            <p className="text-sm font-bold text-neutral-dark leading-tight truncate">
+                                {userProfile.mainGoalCompleted ? 'Mål uppnått!' : getGoalShortDescription(
+                                    userProfile.measurementMethod,
+                                    userProfile.desiredWeightChangeKg,
+                                    userProfile.desiredFatMassChangeKg,
+                                    userProfile.desiredMuscleMassChangeKg
+                                )}
+                            </p>
+                            <div className="flex items-center justify-between text-xs font-bold text-primary mt-1 mb-1">
+                                <span className="whitespace-nowrap">
+                                    {`${Math.round(calculateProgressPercentage(
+                                        userProfile.measurementMethod,
+                                        userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                        userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                        userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                        userProfile.mainGoalCompleted
+                                    ))}% klart`}
+                                </span>
+                            </div>
+                            <div className="w-full bg-neutral-light rounded-full h-1.5 overflow-hidden">
+                                <div 
+                                    className="bg-primary h-full rounded-full transition-all duration-500" 
+                                    style={{ 
+                                        width: `${calculateProgressPercentage(
+                                            userProfile.measurementMethod,
+                                            userProfile.goalStartWeight, userProfile.currentWeightKg, userProfile.desiredWeightChangeKg,
+                                            userProfile.goalStartFatMassKg, userProfile.bodyFatMassKg, userProfile.desiredFatMassChangeKg,
+                                            userProfile.goalStartMuscleMassKg, userProfile.skeletalMuscleMassKg, userProfile.desiredMuscleMassChangeKg,
+                                            userProfile.mainGoalCompleted
+                                        )}%` 
+                                    }}
+                                ></div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Meal Sections (Matlogg - Placerad högt upp för snabbaste loggning) */}
+            <div className={`${'bg-white border-neutral-light'} p-5 rounded-3xl shadow-soft-xl border`}>
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-neutral-dark uppercase tracking-wider">Matlogg</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <MealSectionCard 
+                        title="Frukost" 
+                        icon={<Coffee className="w-6 h-6" />} 
+                        meals={mealsBySection.breakfast} 
+                        onDeleteMeal={handleDeleteMeal}
+                        onUpdateMeal={handleUpdateMeal}
+                        onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
+                        isEditable={isEditableView}
+                        isOpen={activeMealSection === 'breakfast'}
+                        onOpen={() => setActiveMealSection('breakfast')}
+                        onClose={() => setActiveMealSection(null)}
+                        recommendedCalories={Math.round(goals.calorieGoal * 0.25)}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                    <MealSectionCard 
+                        title="Lunch" 
+                        icon={<Sandwich className="w-6 h-6" />} 
+                        meals={mealsBySection.lunch} 
+                        onDeleteMeal={handleDeleteMeal}
+                        onUpdateMeal={handleUpdateMeal}
+                        onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
+                        isEditable={isEditableView}
+                        isOpen={activeMealSection === 'lunch'}
+                        onOpen={() => setActiveMealSection('lunch')}
+                        onClose={() => setActiveMealSection(null)}
+                        recommendedCalories={Math.round(goals.calorieGoal * 0.35)}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                    <MealSectionCard 
+                        title="Middag" 
+                        icon={<CookingPot className="w-6 h-6" />} 
+                        meals={mealsBySection.dinner} 
+                        onDeleteMeal={handleDeleteMeal}
+                        onUpdateMeal={handleUpdateMeal}
+                        onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
+                        isEditable={isEditableView}
+                        isOpen={activeMealSection === 'dinner'}
+                        onOpen={() => setActiveMealSection('dinner')}
+                        onClose={() => setActiveMealSection(null)}
+                        recommendedCalories={Math.round(goals.calorieGoal * 0.30)}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                    <MealSectionCard 
+                        title="Mellanmål" 
+                        icon={<Apple className="w-6 h-6" />} 
+                        meals={mealsBySection.snack} 
+                        onDeleteMeal={handleDeleteMeal}
+                        onUpdateMeal={handleUpdateMeal}
+                        onSaveCommon={(meal) => { setMealToSaveAsCommon(meal); pushModalState('saveCommonMeal'); setShowSaveCommonMealModal(true); }}
+                        isEditable={isEditableView}
+                        isOpen={activeMealSection === 'snack'}
+                        onOpen={() => setActiveMealSection('snack')}
+                        onClose={() => setActiveMealSection(null)}
+                        recommendedCalories={Math.round(goals.calorieGoal * 0.10)}
+                        isBootcamp={!!activeBootcamp}
+                    />
+                </div>
+            </div>
+
+            {/* Veckoöversikt */}
+            <WeeklyActivityChart 
+                pastDaysSummary={pastDaysSummary}
+                currentAppDate={new Date()}
+                viewingDate={viewingDate}
+                onDateSelect={onDateSelect}
+                onPrevWeek={handlePrevWeek}
+                onNextWeek={handleNextWeek}
+                onToday={handleJumpToToday}
+                goalType={userProfile.goalType} 
+                currentViewStats={{ 
+                    calories: totalNutrients.calories,
+                    calorieGoal: goals.calorieGoal,
+                    proteinGoalMet: totalNutrients.protein >= goals.proteinGoal,
+                    waterGoalMet: waterLoggedMl >= DEFAULT_WATER_GOAL_ML,
+                    goalMet: currentGoalMet,
+                    fiberGoalMet: totalNutrients.hasFiberData && totalNutrients.fiber >= FIBER_DAILY_TARGET_GRAMS
+                }}
+                isSummarizingYesterday={isSummarizingYesterday}
+                bankedCalories={weeklyBank.bankedCalories}
+                isBootcamp={!!activeBootcamp}
+            />
 
             {/* Backdrop for Speed Dial */}
             {isEditableView && isSpeedDialOpen && (
@@ -1250,56 +1481,77 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="fixed bottom-6 right-6 z-[50] flex flex-col items-end gap-3 pointer-events-none">
                     {isSpeedDialOpen && (
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
-                            <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Chatta med {coachName}</span>
-                                <div className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white overflow-hidden border-2 border-primary">
+                            {/* 1. Chatta med coachen (längst upp) */}
+                            <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Chatta med {coachName}
+                                </span>
+                                <div className="w-12 h-12 rounded-full shadow-md flex items-center justify-center bg-white dark:bg-[#2B2825] text-[#D96E4A] border-2 border-[#D96E4A] overflow-hidden group-hover:bg-[#F6E2D9] transition-colors">
                                     {coachPersona.imageUrl ? (
-                                        <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-full h-full object-cover" />
-                                    ) : (
+                                        <img src={coachPersona.imageUrl} alt={coachName} className="w-full h-full object-cover" />
+                                    ) : coachPersona.emoji ? (
                                         <span className="text-xl">{coachPersona.emoji}</span>
+                                    ) : (
+                                        <SparklesIcon className="w-6 h-6 text-[#D96E4A]" />
                                     )}
                                 </div>
                             </button>
-                            <button onClick={handleTakePhoto} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Fota mat</span>
-                                <div className="w-12 h-12 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:bg-secondary-darker transition-colors"><CameraIcon className="w-6 h-6" /></div>
+
+                            {/* 2. Recept (slår ihop Hitta recept & Mina recept) */}
+                            <button onClick={handleRecipes} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Recept
+                                </span>
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                    <RecipeIcon className="w-6 h-6 text-[#D96E4A]" />
+                                </div>
                             </button>
-                            <button onClick={handleScanBarcode} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Skanna kod</span>
-                                <div className="w-12 h-12 bg-accent text-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent-darker transition-colors"><BarcodeIcon className="w-6 h-6" /></div>
+
+                            {/* 3. Skanna kod */}
+                            <button onClick={handleScanBarcode} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Skanna kod
+                                </span>
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                    <BarcodeIcon className="w-6 h-6 text-[#D96E4A]" />
+                                </div>
                             </button>
-                            <button onClick={handleSearchText} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Sök & logga</span>
-                                <div className="w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-colors"><SearchIcon className="w-5 h-6" /></div>
+
+                            {/* 4. Sök & logga */}
+                            <button onClick={handleSearchText} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Sök & logga
+                                </span>
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                    <SearchIcon className="w-5 h-6 text-[#D96E4A]" />
+                                </div>
                             </button>
-                            <button onClick={handleFindRecipe} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Hitta recept</span>
-                                <div className="w-12 h-12 bg-purple-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-purple-600 transition-colors"><RecipeIcon className="w-6 h-6" /></div>
-                            </button>
-                            <button onClick={handleMyRecipes} className="flex items-center gap-3">
-                                <span className="bg-white text-neutral-dark px-3 py-1.5 rounded-lg shadow-md text-sm font-medium whitespace-nowrap">Mina recept</span>
-                                <div className="w-12 h-12 bg-pink-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-pink-600 transition-colors"><BookmarkIcon className="w-6 h-6" /></div>
+
+                            {/* 5. Fota mat (närmast tummen / längst ner) */}
+                            <button onClick={handleTakePhoto} className="flex items-center gap-3 group">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                    Fota mat
+                                </span>
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                    <CameraIcon className="w-6 h-6 text-[#D96E4A]" />
+                                </div>
                             </button>
                         </div>
                     )}
                     <button 
-                        onClick={() => { playAudio('uiClick'); setIsSpeedDialOpen(!isSpeedDialOpen); }}
-                        className={`pointer-events-auto w-16 h-16 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden border-2 ${isSpeedDialOpen ? 'bg-neutral-dark text-white border-neutral-dark rotate-45' : 'bg-white border-primary'}`}
+                        onClick={() => { setIsSpeedDialOpen(!isSpeedDialOpen); }}
+                        className={`pointer-events-auto w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 overflow-hidden ${isSpeedDialOpen ? 'bg-[#56524D] text-white rotate-45' : 'bg-[#D96E4A] text-white hover:bg-[#C05A38]'}`}
                         aria-label="Lägg till"
                     >
-                        {isSpeedDialOpen ? (
-                            <PlusIcon className="w-8 h-8" />
-                        ) : coachPersona.imageUrl ? (
-                            <img src={coachPersona.imageUrl} alt={coachPersona.label} className="w-full h-full object-cover" />
-                        ) : (
-                            <span className="text-3xl">{coachPersona.emoji}</span>
-                        )}
+                        <PlusIcon className="w-7 h-7" />
                     </button>
                 </div>
             )}
 
             {/* Checklist & Spotlight (Onboarding) */}
-            {checklistState && !checklistState.dismissed && (
+            {/* Kom igång-checklistan göms så fort bootcampen är igång - då gäller
+                grundutbildningen i stället. Aldrig två parallella onboardingspår. */}
+            {checklistState && !checklistState.dismissed && !activeBootcamp && !userProfile?.bootcampAccess && (
                 <div className="mb-4 max-w-lg mx-auto w-full">
                     <OnboardingChecklist 
                         state={checklistState}
@@ -1390,29 +1642,41 @@ const Dashboard: React.FC<DashboardProps> = ({
             {showCameraModal && (
                 <CameraModal 
                     show={showCameraModal} 
-                    onClose={() => setShowCameraModal(false)} 
+                    onClose={() => closeModalState('camera', () => setShowCameraModal(false))} 
                     onImageCapture={async (imgData) => { 
                         setShowCameraModal(false); 
                         if (cameraMode === 'mealAnalysis') {
-                            setAnalyzedImageDataUrl(`data:image/jpeg;base64,${imgData}`); 
-                            setAppStatus('analyzing'); 
-                            try { 
-                                const result = await analyzeFoodImage(imgData); 
-                                setImageAnalysisResult(result); 
-                                setShowImageAnalysisResultModal(true); 
-                            } catch (e: any) { 
-                                alert(e.message); 
-                            } finally { 
-                                setAppStatus('idle'); 
-                            }
+                            const dataUrl = `data:image/jpeg;base64,${imgData}`;
+                            setAnalyzedImageDataUrl(dataUrl); 
+                            setImageAnalysisResult(null);
+                            setIsAnalyzingPhoto(true);
+                            // 1. ÖVERLAPPA VÄNTAN: Öppna bekräftelsevyn OMEDELBART efter att fotot tagits
+                            recordModalRenderStart();
+                            replaceModalState('imageAnalysis');
+                            setShowImageAnalysisResultModal(true); 
+
+                            // 2. Analysen körs i bakgrunden medan användaren väljer måltidstyp och portion
+                            analyzeFoodImage(imgData)
+                                .then((result) => {
+                                    setImageAnalysisResult(result);
+                                })
+                                .catch((e: any) => {
+                                    alert(e.message || 'Kunde inte analysera bilden.');
+                                    closeModalState('imageAnalysis', () => setShowImageAnalysisResultModal(false));
+                                })
+                                .finally(() => {
+                                    setIsAnalyzingPhoto(false);
+                                });
                         } else if (cameraMode === 'ingredientCapture') {
                             setIngredientImages(prev => [...prev, `data:image/jpeg;base64,${imgData}`]);
+                            replaceModalState('ingredientCapture');
                             setShowIngredientCaptureModal(true); 
                         } else if (cameraMode === 'nutritionLabel') {
                             setAppStatus('analyzing');
                             try {
                                 const result = await analyzeNutritionLabelImage(imgData);
                                 setNutritionLabelResult(result);
+                                replaceModalState('nutritionLabel');
                                 setShowNutritionLabelResultModal(true);
                             } catch (e: any) {
                                 alert(e.message);
@@ -1424,50 +1688,153 @@ const Dashboard: React.FC<DashboardProps> = ({
                     onCameraError={(err) => alert(err)} 
                 />
             )}
-            {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => setShowTextEntryModal(false)} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
-            {showRecipeChoiceModal && <RecipeChoiceModal show={showRecipeChoiceModal} onClose={() => setShowRecipeChoiceModal(false)} onChooseSearch={() => { setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} onChooseTakePhoto={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} onChooseUpload={() => { setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} />}
-            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => { setShowRecipeModal(false); setIsRecipeSaved(false); }} onSearch={async (q) => { setAppStatus('searching_recipe'); setIsRecipeSaved(false); try { const res = await getRecipeSuggestion(q); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching_recipe'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} onSaveRecipe={handleSaveRecipe} isSaved={isRecipeSaved} onShareRecipe={onShareRecipe} />}
-            {showMyRecipesModal && <MyRecipesModal show={showMyRecipesModal} onClose={() => setShowMyRecipesModal(false)} onShareRecipe={onShareRecipe} onLogRecipe={handleAddMealToLog} />}
+            {showTextEntryModal && <TextEntryModal show={showTextEntryModal} onClose={() => closeModalState('textEntry', () => setShowTextEntryModal(false))} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            {showRecipeChoiceModal && (
+                <RecipeChoiceModal 
+                    show={showRecipeChoiceModal} 
+                    onClose={() => closeModalState('recipeChoice', () => setShowRecipeChoiceModal(false))} 
+                    onChooseSearch={() => { replaceModalState('recipe'); setShowRecipeChoiceModal(false); setShowRecipeModal(true); }} 
+                    onChooseTakePhoto={() => { replaceModalState('ingredientCapture'); setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} 
+                    onChooseUpload={() => { replaceModalState('ingredientCapture'); setShowRecipeChoiceModal(false); setShowIngredientCaptureModal(true); }} 
+                    onChooseMyRecipes={() => { replaceModalState('myRecipes'); setShowRecipeChoiceModal(false); setShowMyRecipesModal(true); }}
+                />
+            )}
+            {showRecipeModal && <RecipeModal show={showRecipeModal} onClose={() => closeModalState('recipe', () => { setShowRecipeModal(false); setIsRecipeSaved(false); })} onSearch={async (q) => { setAppStatus('searching_recipe'); setIsRecipeSaved(false); try { const res = await getRecipeSuggestion(q, userProfile.dietaryPreference); setSearchedRecipe(res); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onLogRecipe={handleAddMealToLog} recipe={searchedRecipe} isLoading={appStatus === 'searching_recipe'} error={null} recentSearches={getLocalStorageItem(LOCAL_STORAGE_KEYS.RECENT_RECIPE_SEARCHES, [])} setToastNotification={setToastNotification} defaultMealType={defaultMealTypeForModal} onSaveRecipe={handleSaveRecipe} isSaved={isRecipeSaved} onShareRecipe={onShareRecipe} />}
+            {showMyRecipesModal && <MyRecipesModal show={showMyRecipesModal} onClose={() => closeModalState('myRecipes', () => setShowMyRecipesModal(false))} onShareRecipe={onShareRecipe} onLogRecipe={handleAddMealToLog} />}
             {showIngredientCaptureModal && (
                 <IngredientCaptureModal 
                     show={showIngredientCaptureModal} 
-                    onClose={() => setShowIngredientCaptureModal(false)} 
+                    onClose={() => closeModalState('ingredientCapture', () => setShowIngredientCaptureModal(false))} 
                     images={ingredientImages} 
                     onRemoveImage={(i) => setIngredientImages(prev => prev.filter((_, idx) => idx !== i))} 
                     onUploadImages={async (files) => { for(let i=0; i<files.length; i++) { const base64 = await resizeImageForLog(files[i], 800); setIngredientImages(prev => [...prev, base64]); } }} 
                     openCameraModal={() => { 
                         setCameraMode('ingredientCapture'); 
+                        replaceModalState('camera');
                         setShowIngredientCaptureModal(false); 
                         setShowCameraModal(true); 
                     }} 
-                    onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} 
+                    onFindRecipes={async (imgs) => { setShowIngredientCaptureModal(false); setAppStatus('analyzing'); try { const base64s = imgs.map(d => d.split(',')[1]); const res = await getRecipesFromIngredientsImage(base64s, userProfile.dietaryPreference); setIdentifiedIngredients(res.identifiedIngredients); setRecipeSuggestions(res.recipeSuggestions); replaceModalState('ingredientResults'); setShowIngredientRecipeResultsModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} 
                 />
             )}
-            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => setShowIngredientRecipeResultsModal(false)} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} onSaveRecipe={handleSaveRecipe} savedRecipeIds={savedRecipeIds} />}
-            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => setShowBarcodeScannerModal(false)} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setShowBarcodeScannerModal(false); setCameraMode('nutritionLabel'); setShowCameraModal(true); }} />}
-            {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => setShowBarcodeSearchResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
-            {showImageAnalysisResultModal && imageAnalysisResult && analyzedImageDataUrl && <ImageAnalysisResultModal show={showImageAnalysisResultModal} analysisResult={imageAnalysisResult} imageDataUrl={analyzedImageDataUrl} onLog={handleAddMealToLog} onClose={() => setShowImageAnalysisResultModal(false)} defaultMealType={defaultMealTypeForModal} />}
-            {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => setMealToSaveAsCommon(null)} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); setMealToSaveAsCommon(null); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
-            {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => setShowNutritionLabelResultModal(false)} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
+            {showIngredientRecipeResultsModal && <IngredientRecipeResultsModal show={showIngredientRecipeResultsModal} onClose={() => closeModalState('ingredientResults', () => setShowIngredientRecipeResultsModal(false))} identifiedIngredients={identifiedIngredients} recipeSuggestions={recipeSuggestions || []} onLogRecipe={handleAddMealToLog} isLoading={false} error={null} defaultMealType={defaultMealTypeForModal || 'dinner'} onSaveRecipe={handleSaveRecipe} savedRecipeIds={savedRecipeIds} />}
+            {showBarcodeScannerModal && <BarcodeScannerModal show={showBarcodeScannerModal} onClose={() => closeModalState('barcodeScanner', () => setShowBarcodeScannerModal(false))} onBarcodeScanned={async (code) => { setShowBarcodeScannerModal(false); setScannedBarcode(code); setAppStatus('searching'); try { const info = await getFoodInfoFromBarcode(code); setScannedFoodInfo(info); replaceModalState('barcodeResult'); setShowBarcodeSearchResultModal(true); } catch(e:any) { alert(e.message); } finally { setAppStatus('idle'); } }} onCameraError={(e) => alert(e)} onScanFallback={() => { setCameraMode('nutritionLabel'); replaceModalState('camera'); setShowBarcodeScannerModal(false); setShowCameraModal(true); }} />}
+            {showBarcodeSearchResultModal && scannedFoodInfo && <BarcodeSearchResultModal show={showBarcodeSearchResultModal} scanResult={scannedFoodInfo} onLog={handleAddMealToLog} onClose={() => closeModalState('barcodeResult', () => setShowBarcodeSearchResultModal(false))} defaultMealType={defaultMealTypeForModal} />}
+            {showImageAnalysisResultModal && analyzedImageDataUrl && (
+                <ImageAnalysisResultModal 
+                    show={showImageAnalysisResultModal} 
+                    analysisResult={imageAnalysisResult} 
+                    imageDataUrl={analyzedImageDataUrl} 
+                    isLoading={isAnalyzingPhoto}
+                    onLog={(data: any, opts: any) => handleAddMealToLog(data, { ...(opts || {}), loggedWithPhoto: true })} 
+                    onClose={() => {
+                        setIsAnalyzingPhoto(false);
+                        closeModalState('imageAnalysis', () => setShowImageAnalysisResultModal(false));
+                    }} 
+                    defaultMealType={defaultMealTypeForModal} 
+                />
+            )}
+            {showSaveCommonMealModal && mealToSaveAsCommon && <SaveCommonMealModal mealInfo={mealToSaveAsCommon.nutritionalInfo} initialName={mealToSaveAsCommon.nutritionalInfo.foodItem || ''} onClose={() => closeModalState('saveCommonMeal', () => { setMealToSaveAsCommon(null); setShowSaveCommonMealModal(false); })} onSave={async (name) => { try { const timestamp = Date.now(); const newId = await addCommonMeal(currentUser?.uid || '', { name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }); setCommonMeals(prev => [...prev, { id: newId, name, nutritionalInfo: mealToSaveAsCommon.nutritionalInfo, timestamp }]); closeModalState('saveCommonMeal', () => { setMealToSaveAsCommon(null); setShowSaveCommonMealModal(false); }); setToastNotification({message: 'Sparat som vanligt val!', type:'success'}); } catch(e) { alert("Kunde inte spara"); } }} />}
+            {showNutritionLabelResultModal && nutritionLabelResult && <NutritionLabelResultModal show={showNutritionLabelResultModal} onClose={() => closeModalState('nutritionLabel', () => setShowNutritionLabelResultModal(false))} analysisResult={nutritionLabelResult} onLog={handleAddMealToLog} defaultMealType={defaultMealTypeForModal} />}
             {showFoodRatingModal && foodRatingData && userProfile && (
                 <FoodRatingModal 
                     show={showFoodRatingModal} 
-                    onClose={() => setShowFoodRatingModal(false)} 
+                    onClose={() => closeModalState('foodRating', () => setShowFoodRatingModal(false))} 
                     nutritionalInfo={foodRatingData.nutritionalInfo} 
                     mealType={foodRatingData.mealType} 
                     userProfile={userProfile} 
                 />
             )}
             
+            {infoPopover === 'fiber' && (
+                <InfoPopoverModal title="Om fibrer" onClose={() => setInfoPopover(null)}>
+                    <p>
+                        Fibrer mättar, ger jämnare blodsocker och är bra för magen. Riktmärket är
+                        ungefär {FIBER_DAILY_TARGET_GRAMS} g om dagen.
+                    </p>
+                    <p>
+                        Det här är ett samlarmål, inte ett tak. Du kan inte missa det, och coachen
+                        skäller aldrig på ett lågt fiberintag.
+                    </p>
+                    <p className="pt-1 border-t border-neutral-light">
+                        <strong>Står det ett streck i stället för en siffra?</strong> Då saknar dagens
+                        måltider fibervärden. Vanliga val som du sparade innan fibrerna infördes har
+                        inget värde och bidrar med 0 g.
+                    </p>
+                    <p>
+                        Så fyller du i dem: gå till <strong>Mina vanliga val</strong>, öppna valet via
+                        de tre prickarna, välj Redigera och tryck på <strong>Räkna ut fibrer</strong>.
+                        Du kan också skriva in värdet själv.
+                    </p>
+                </InfoPopoverModal>
+            )}
+
+            {infoPopover === 'streak' && (
+                <InfoPopoverModal title="Om din streak" onClose={() => setInfoPopover(null)}>
+                    <p>
+                        Streaken är antalet dagar i rad som du har loggat mat. Den räknar bara att du
+                        loggat något - inte om du träffade ditt kalorimål.
+                    </p>
+                    <p>
+                        Missar du en hel dag börjar den om från noll. Det är därför den är värd något:
+                        den mäter vanan, inte prestationen.
+                    </p>
+                    <p>
+                        Du kan fortfarande logga i efterhand för igår, så en glömd kväll behöver inte
+                        bryta kedjan.
+                    </p>
+
+                    <div className="pt-3 border-t border-neutral-light">
+                        <p className="font-bold text-[#56524D] dark:text-[#FAF6EF] mb-1">Nivåerna</p>
+                        <p className="mb-3">
+                            Varje nivå låses upp av en sammanhängande streak. Du står på{' '}
+                            <strong>{currentLevel.icon} {currentLevel.name}</strong>.
+                        </p>
+
+                        {/* Hela stegen, inte bara nasta niva. Den som ar nyfiken pa
+                            vad som vantar langre fram ska kunna se det. */}
+                        <div className="space-y-0.5">
+                            {LEVEL_DEFINITIONS.map(level => {
+                                const isCurrent = level.id === currentLevel.id;
+                                const isReached = level.requiredStreak <= streakData.currentStreak;
+                                return (
+                                    <div
+                                        key={level.id}
+                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${
+                                            isCurrent
+                                                ? 'bg-[#F6E2D9] font-bold text-[#8E3B1E]'
+                                                : isReached
+                                                    ? 'text-[#7A756E]'
+                                                    : 'text-[#56524D] dark:text-[#C2BCB4]'
+                                        }`}
+                                    >
+                                        <span className="w-6 text-center flex-shrink-0">{level.icon}</span>
+                                        <span className="flex-1 min-w-0">{level.name}</span>
+                                        <span className="text-xs whitespace-nowrap flex-shrink-0 text-[#7A756E]">
+                                            {level.requiredStreak} d
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </InfoPopoverModal>
+            )}
+
             {showProteinInfoModal && (
-                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => setShowProteinInfoModal(false)}>
+                <div className="fixed inset-0 bg-neutral-dark bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in" onClick={() => closeModalState('proteinInfo', () => setShowProteinInfoModal(false))}>
                     <div onClick={e => e.stopPropagation()}>
-                        <ProteinInfoModal onClose={() => setShowProteinInfoModal(false)} />
+                        <ProteinInfoModal onClose={() => closeModalState('proteinInfo', () => setShowProteinInfoModal(false))} />
                     </div>
                 </div>
             )}
 
             {appStatus !== 'idle' && appStatus !== 'searching_recipe' && <LoadingSpinner message={appStatus === 'analyzing' ? 'Analyserar...' : appStatus === 'saving' ? 'Sparar...' : 'Söker...'} />}
+            
+            {/* Den flytande tidsmatningsknappen lag har. Den var i vagen pa
+                startsidan i staging, och exakt samma siffror finns redan under
+                Coach -> Testverktyg -> Fotomatningshistorik. Matningen sjalv
+                kors fortfarande (photoPipelineProfiler). */}
         </div>
     );
 };

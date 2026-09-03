@@ -22,7 +22,8 @@ import {
   UserRole,
   GoalSettings,
   LoggedMeal,
-  PastDaysSummaryCollection
+  PastDaysSummaryCollection,
+  CoachStyle
 } from './types.ts';
 
 import {
@@ -42,6 +43,8 @@ import {
 } from './services/firestoreService.ts';
 
 import { subscribeToUserChats } from './services/chatService.ts';
+import { listenToUserChallenges, syncUserChallengeStatus, getDateUID_SE } from './services/challengeService.ts';
+import { sumMealNutrients } from './utils/nutritionTotals.ts';
 
 // Context
 import { useUserContext } from './context/UserContext';
@@ -73,19 +76,35 @@ import GamificationModal from './components/GamificationModal.tsx';
 import SubscriptionModal from './components/SubscriptionModal.tsx';
 import { TrialRecapModal } from './components/TrialRecapModal.tsx';
 import { BootcampFinaleModal } from './components/BootcampFinaleModal.tsx';
+import { BootcampGraduationModal } from './components/BootcampGraduationModal.tsx';
+import { BootcampDiplomaModal } from './components/BootcampDiplomaModal.tsx';
+import { BOOTCAMP_RANKS, BootcampRankDef } from './utils/bootcampUtils.ts';
 
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
 import { initAudio, playAudio } from './services/audioService.ts';
 import { uploadImageToStorage, uploadBase64ToStorage, base64ToBlob } from './utils/storageUtils';
 import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports, getUnseenBootcampFinale, markBootcampFinaleAsSeen } from './services/bootcampService.ts';
+import { completeBootcampOnboardingTask, grantBootcampAccess, startBootcampCheckout, startSubscriptionCheckout, recordBootcampGraduation } from './services/bootcampAccessService.ts';
+import { isTestingToolAllowed } from './utils/testingToolHostnames.ts';
+import { hasAppAccess, isReadOnlyUser, getBootcampAccessDetails } from './utils/accessControl.ts';
+import AccessGateView from './components/AccessGateView.tsx';
 import {
   InformationCircleIcon, AICoachIcon,
   PencilIcon,
-  BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon, CreditCardIcon
+  BellIcon, InstallIcon, LifebuoyIcon, ArrowRightOnRectangleIcon, SwitchHorizontalIcon, SparklesIcon, TrophyIcon, CreditCardIcon, UserPlusIcon
 } from './components/icons.tsx';
-import { Home, Footprints, Users, GraduationCap, Moon, Sun } from "lucide-react";
+import { shareAppInvite } from './utils/shareUtils';
+import { Home, Footprints, Users, GraduationCap } from "lucide-react";
 import Dashboard from './pages/Dashboard';
+import {
+  initAppHistory,
+  pushViewState,
+  replaceViewState,
+  pushModalState,
+  closeModalState,
+  subscribeToHistory
+} from './utils/navigationHistory';
 
 /* ===========================
    Daily Summary Helpers
@@ -222,7 +241,7 @@ const AIFeedbackModal: React.FC<{
             {showDiscussButton && (
                 <button 
                     onClick={onDiscuss} 
-                    className="flex-1 px-5 py-3 text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 px-5 py-3 text-lg font-medium text-white bg-[#D96E4A] hover:bg-[#C05A38] rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                     <SparklesIcon className="w-5 h-5" /> Diskutera med Coach
                 </button>
@@ -323,26 +342,105 @@ export const App = () => {
   const [currentInterface, setCurrentInterface] = useState<'member' | 'coach'| 'admin'>('member');
   
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-      if (typeof window !== 'undefined') {
-          return localStorage.getItem('theme') === 'dark' || 
-              (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      }
-      return false;
-  });
 
+  // Appen kör alltid ljust läge – säkerställ att klassen dark aldrig sätts och rensa eventuellt tema i localStorage
   useEffect(() => {
-      if (isDarkMode) {
-          document.documentElement.classList.add('dark');
-          localStorage.setItem('theme', 'dark');
+    document.documentElement.classList.remove('dark');
+    try {
+      localStorage.removeItem('theme');
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  // Initial history setup & popstate subscription
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    let initView: ViewMode = 'main';
+    let initJourneyTab: 'calendar' | 'profile' | 'achievements' | undefined;
+    let initCommunityTab: 'flode' | 'hantera' | 'chatt' | undefined;
+    let initCommunitySubTab: 'buddies' | 'search' | 'requests' | undefined;
+
+    if (viewParam === 'community') {
+      initView = 'community';
+      const tabParam = params.get('tab');
+      if (tabParam === 'requests') {
+        initCommunityTab = 'hantera';
+        initCommunitySubTab = 'requests';
       } else {
-          document.documentElement.classList.remove('dark');
-          localStorage.setItem('theme', 'light');
+        initCommunityTab = 'flode';
       }
-  }, [isDarkMode]);
+    } else if (viewParam === 'chat') {
+      initView = 'community';
+      initCommunityTab = 'chatt';
+    } else if (params.get('payment_success') === 'true' || window.location.pathname.endsWith('/success')) {
+      initView = 'coursesView';
+    }
+
+    initAppHistory({
+      view: initView,
+      journeyTab: initJourneyTab,
+      communityTab: initCommunityTab,
+      communitySubTab: initCommunitySubTab
+    });
+
+    const unsubscribe = subscribeToHistory((historyState) => {
+      if (historyState.view) {
+        setViewMode(historyState.view);
+      }
+      if (historyState.journeyTab) {
+        setJourneyInitialTab(historyState.journeyTab);
+      }
+      if (historyState.communityTab) {
+        setCommunityInitialTab(historyState.communityTab);
+      }
+      if (historyState.communitySubTab) {
+        setCommunityInitialSubTab(historyState.communitySubTab);
+      }
+      if (historyState.courseId) {
+        const found = ALL_COURSES.find(c => c.id === historyState.courseId) || null;
+        setActiveCourse(found);
+      } else if (historyState.view !== 'courseOverview' && historyState.view !== 'lessonDetail') {
+        setActiveCourse(null);
+      }
+      if (historyState.lessonId) {
+        setCurrentLessonId(historyState.lessonId);
+      } else if (historyState.view !== 'lessonDetail') {
+        setCurrentLessonId(null);
+      }
+      setPreviewCourseId((historyState.previewCourseId as CourseInfo['id'] | undefined) || null);
+
+      // Sync Modals
+      setShowAICoachModal(historyState.modal === 'aiCoach');
+      setShowUserProfileModal(historyState.modal === 'userProfile');
+      setShowLogWeightModal(historyState.modal === 'logWeight');
+      setShowSubscriptionModal(historyState.modal === 'subscription');
+      setShowGraduationModal(historyState.modal === 'bootcampGraduation');
+      setShowFinaleModal(historyState.modal === 'bootcampFinale');
+      setShowTrialRecapModal(historyState.modal === 'trialRecap');
+      setShowInfoModal(historyState.modal === 'info');
+      setShowGamificationModal(historyState.modal === 'gamification');
+      setShowMentalWellbeingModal(historyState.modal === 'mentalWellbeing');
+      setShowLatestUpdateView(historyState.modal === 'latestUpdate');
+      setShowOnboardingRewardModal(historyState.modal === 'onboardingReward');
+      setShowAIFeedbackModal(historyState.modal === 'aiFeedback');
+
+      if (historyState.modal !== 'levelUp') setShowLevelUpModal(null);
+      if (historyState.modal !== 'goalMet') setShowGoalMetModalData(null);
+      if (historyState.modal !== 'motivation') setShowMotivationModal(null);
+      if (historyState.modal !== 'streakSaver') setDayToPotentiallySave(null);
+      if (historyState.modal !== 'morningReport') setMorningReportData(null);
+      if (historyState.modal !== 'diploma') setPromotionDiplomaModalData(null);
+      if (historyState.modal !== 'newLessonUnlocked') setNewlyUnlockedLesson(null);
+    });
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     const handleOpenLogWeightModal = () => {
+      pushModalState('logWeight');
       setShowLogWeightModal(true);
     };
     window.addEventListener('open-log-weight-modal', handleOpenLogWeightModal);
@@ -354,6 +452,12 @@ export const App = () => {
   const [appStatus, setAppStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [unseenFinale, setUnseenFinale] = useState<any>(null);
   const [showFinaleModal, setShowFinaleModal] = useState(false);
+  const [showGraduationModal, setShowGraduationModal] = useState(false);
+  const [promotionDiplomaModalData, setPromotionDiplomaModalData] = useState<{
+    rankDef: BootcampRankDef;
+    userName: string;
+    streakDays: number;
+  } | null>(null);
   
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState<boolean>(false);
@@ -381,6 +485,10 @@ export const App = () => {
   const pastDaysSummaryRef = useRef(pastDaysSummary);
   const streakDataRef = useRef(streakData);
   const weeklyBankRef = useRef(weeklyBank);
+  // Läses inne i fördröjda anrop efter Stripe-återkomsten, där closuren annars
+  // skulle se en gammal profil.
+  const userProfileRef = useRef(userProfile);
+  useEffect(() => { userProfileRef.current = userProfile; }, [userProfile]);
 
   useEffect(() => { pastDaysSummaryRef.current = pastDaysSummary; }, [pastDaysSummary]);
   useEffect(() => { streakDataRef.current = streakData; }, [streakData]);
@@ -390,10 +498,12 @@ export const App = () => {
   const [toastNotification, setToastNotification] = useState<{message: string, type: 'success' | 'error' | 'info', onClick?: () => void} | null>(null);
   
   const [activeCourse, setActiveCourse] = useState<CourseInfo | null>(null);
+  // Förhandsvisning av en låst kurs: lektion 1 i läsläge, ingenting sparas.
+  const [previewCourseId, setPreviewCourseId] = useState<CourseInfo['id'] | null>(null);
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
   const [newlyUnlockedLesson, setNewlyUnlockedLesson] = useState<CourseLesson | null>(null);
 
-  const [onboardingStep, setOnboardingStep] = useState<'form' | 'feedback'>('form');
+  const [onboardingStep, setOnboardingStep] = useState<'form' | 'feedback' | 'invite'>('form');
   const [showOnboardingCompletion, setShowOnboardingCompletion] = useState<boolean>(false);
   const [showSpotlight, setShowSpotlight] = useState<boolean>(false);
   const [checklistState, setChecklistState] = useState<OnboardingChecklistState | null>(null);
@@ -595,6 +705,70 @@ export const App = () => {
         checkAndUnlockLessons();
     }, [isInitialDataLoaded, currentUser, streakData.currentStreak, userCourseProgress, userRole, userStatus, setUserCourseProgress]);
 
+    // 18:00 Challenge Food Logging Reminder Effect
+    useEffect(() => {
+        if (!currentUser || userProfile?.notificationSettings?.foodReminder === false) return;
+
+        const check1800ChallengeReminder = async () => {
+            const now = new Date();
+            if (now.getHours() < 18) return; // Only trigger at or after 18:00 local time
+
+            const todayStr = getDateUID_SE(now);
+            const storageKey = `challenge_reminder_notified_${currentUser.uid}_${todayStr}`;
+            if (localStorage.getItem(storageKey)) return; // Already notified today
+
+            // Check if user has logged food today
+            const summary = pastDaysSummary[todayStr];
+            const hasLoggedToday = summary && (summary.consumedCalories > 0 || summary.goalMet);
+
+            if (hasLoggedToday) return; // User already logged food today!
+
+            const unsubscribe = listenToUserChallenges(currentUser.uid, (challenges) => {
+                const activeChallenge = challenges.find(c => c.status === 'active' && c.participantUids.includes(currentUser.uid) && !c.participants?.[currentUser.uid]?.leftAt);
+                if (activeChallenge) {
+                    localStorage.setItem(storageKey, 'true');
+                    setToastNotification({
+                        message: 'Glöm inte att logga din mat idag i 7-dagarsutmaningen!',
+                        type: 'info'
+                    });
+
+                    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                        try {
+                            new Notification('Peppkompis Utmaning 🏆', {
+                                body: 'En liten påminnelse: glöm inte att logga maten idag för att hålla sviten i er 7-dagarsutmaning!',
+                                icon: '/favicon.ico'
+                            });
+                        } catch (e) {}
+                    }
+                }
+            });
+
+            return () => unsubscribe();
+        };
+
+        check1800ChallengeReminder();
+        const interval = setInterval(check1800ChallengeReminder, 5 * 60 * 1000); // Check every 5 mins
+        return () => clearInterval(interval);
+    }, [currentUser, userProfile?.notificationSettings?.foodReminder, pastDaysSummary]);
+
+    // Auto-sync challenge status when food is logged
+    useEffect(() => {
+        if (!currentUser) return;
+        const todayStr = getDateUID_SE(new Date());
+        const summary = pastDaysSummary[todayStr];
+        const hasLoggedToday = summary && (summary.consumedCalories > 0 || summary.goalMet);
+
+        if (hasLoggedToday) {
+            const unsubscribe = listenToUserChallenges(currentUser.uid, (challenges) => {
+                const activeChallenges = challenges.filter(c => c.status === 'active' && c.participantUids.includes(currentUser.uid));
+                if (activeChallenges.length > 0) {
+                    syncUserChallengeStatus(currentUser.uid, activeChallenges, [todayStr]);
+                }
+            });
+            return () => unsubscribe();
+        }
+    }, [currentUser, pastDaysSummary]);
+
 
     useEffect(() => {
         setViewingDate(new Date(currentDate));
@@ -668,6 +842,9 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   }, []); 
 
   const handleFirestoreError = (error: any, operation: string) => {
+    // Utan den här raden syns felet ingenstans - användaren fick en röd ruta
+    // och konsolen var tom, vilket gjorde det omöjligt att felsöka.
+    console.error(`Firestore-fel vid "${operation}":`, error?.code, error?.message, error);
     setToastNotification({ message: `Kunde inte ${operation}.`, type: 'error' });
     setTimeout(() => setToastNotification(null), 5000);
   };
@@ -878,6 +1055,77 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
     checkAndLoadTrialRecap();
   }, [isInitialDataLoaded, currentUser, userProfile.subscriptionStatus, userProfile.currentPeriodEnd]);
 
+  // Examensflöde utlösning: När Bootcamp-perioden (accessExpiresDate) nås ska examensflödet visas en gång
+  useEffect(() => {
+    if (!currentUser || !isInitialDataLoaded) return;
+    const access = userProfile.bootcampAccess;
+    if (access && access.accessExpiresDate) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const expiryStr = access.accessExpiresDate.split('T')[0];
+      const isExpired = todayStr > expiryStr;
+      
+      if (isExpired && !access.graduationSeen) {
+        setShowGraduationModal(true);
+      }
+    }
+  }, [currentUser, isInitialDataLoaded, userProfile.bootcampAccess]);
+
+  const isBootcampCompleted = useMemo(() => {
+    return (
+      (userProfile.highestBootcampStreak || 0) >= 80 ||
+      streakData.currentStreak >= 80 ||
+      userProfile.hasCompletedBootcamp === true ||
+      activeBootcamp?.status === 'completed' ||
+      (activeBootcamp?.longestStreak || 0) >= 80
+    );
+  }, [userProfile.highestBootcampStreak, streakData.currentStreak, userProfile.hasCompletedBootcamp, activeBootcamp]);
+
+  const handleAcceptGraduationSubscription = async (chosenCoach: CoachStyle) => {
+    if (!currentUser) return;
+    try {
+      const updatedAccess = await recordBootcampGraduation(currentUser.uid, userProfile.bootcampAccess, 'accepted', chosenCoach);
+      setUserProfile(prev => ({
+        ...prev,
+        bootcampAccess: updatedAccess,
+        coachStyle: chosenCoach
+      }));
+      setShowGraduationModal(false);
+
+      // Starta abonnemangsbetalning via Stripe
+      try {
+        await startSubscriptionCheckout(currentUser.uid, chosenCoach);
+      } catch (err: any) {
+        setToastNotification({
+          message: `Du har valt ${COACH_PERSONAS[chosenCoach]?.label || 'coach'}! Betalningsintegration är inte konfigurerad ännu.`,
+          type: 'success'
+        });
+      }
+    } catch (e: any) {
+      console.error('Kunde inte spara examensval:', e);
+      setToastNotification({ message: 'Ett fel uppstod vid sparande av ditt val.', type: 'error' });
+    }
+  };
+
+  const handleDeclineGraduationSubscription = async (chosenCoach: CoachStyle) => {
+    if (!currentUser) return;
+    try {
+      const updatedAccess = await recordBootcampGraduation(currentUser.uid, userProfile.bootcampAccess, 'declined', chosenCoach);
+      setUserProfile(prev => ({
+        ...prev,
+        bootcampAccess: updatedAccess,
+        coachStyle: chosenCoach
+      }));
+      setShowGraduationModal(false);
+      setToastNotification({
+        message: 'Dina resultat och din historik är sparade för alltid i läsläget.',
+        type: 'success'
+      });
+    } catch (e: any) {
+      console.error('Kunde inte spara examensval:', e);
+      setShowGraduationModal(false);
+    }
+  };
+
   useEffect(() => {
       if (currentUser) {
           const unsubscribe = subscribeToUserActiveBootcamp(currentUser.uid, (bootcamp) => {
@@ -966,7 +1214,7 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
       }
       // Fördröj städningen av URL:en så att en eventuell Service Worker-omladdning inte tappar bort parametern
       setTimeout(() => {
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.replaceState(window.history.state, '', window.location.pathname);
       }, 5000);
     } else if (viewParam === 'chat') {
       setViewMode('community');
@@ -977,11 +1225,14 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
       }
       // Fördröj städningen av URL:en
       setTimeout(() => {
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.replaceState(window.history.state, '', window.location.pathname);
       }, 5000);
     }
     
-    if ((params.get('payment_success') === 'true' || window.location.pathname.endsWith('/success')) && userStatus === 'approved') {
+    // Ingen statusgrind här. Tidigare krävdes userStatus === 'approved', men nya
+    // konton skapas som 'pending' - så den som faktiskt betalat hoppades över
+    // och landade tillbaka på valsidan i stället för inne i appen.
+    if (params.get('payment_success') === 'true' || window.location.pathname.endsWith('/success')) {
         setToastNotification({ message: "Betalning bekräftad! Välkommen in!", type: 'success' });
         
         // --- SKICKA KÖP TILL META PIXEL ---
@@ -1013,24 +1264,49 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         }
         // ----------------------------------
 
-        setOpenBootcampDirectly(true);
-        setViewMode('coursesView');
+        // Landa på rätt ställe. Handlaren var skriven för bootcampköp och
+        // slussade ALLA till kursvyn med bootcampen öppnad - även den som just
+        // tecknat abonnemang, som då möttes av grundutbildningen i stället för
+        // den vanliga starten.
+        if (checkoutType === 'bootcamp') {
+            setOpenBootcampDirectly(true);
+            pushViewState({ view: 'coursesView' });
+            setViewMode('coursesView');
+        } else {
+            setOpenBootcampDirectly(false);
+            pushViewState({ view: 'main' });
+            setViewMode('main');
+        }
+
+        // Webhooken skriver åtkomsten EFTER att Stripe skickat tillbaka
+        // användaren, så profilen i minnet är ett ögonblick för gammal.
+        //
+        // refreshUserData sätter isDataLoading och ger en laddningsskärm. Körs
+        // flera omläsningar parallellt fastnar appen på loggan - därför väntar
+        // vi in varje anrop, och slutar så fort åtkomsten faktiskt finns.
+        (async () => {
+            for (const delay of [2500, 4000, 6000]) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+                if (hasAppAccess(userProfileRef.current)) return;
+                await refreshUserData();
+            }
+        })();
 
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete('payment_success');
         newUrl.searchParams.delete('session_id');
         const newPath = newUrl.pathname.endsWith('/success') ? '/' : newUrl.pathname;
-        window.history.replaceState({}, '', newPath + newUrl.search);
+        window.history.replaceState(window.history.state, '', newPath + newUrl.search);
     }
-  }, [userStatus, setToastNotification, activeBootcamp]);
+  }, [setToastNotification, activeBootcamp, refreshUserData]);
 
   const handleNavigateToCourses = () => {
+    pushViewState({ view: 'coursesView' });
     setViewMode('coursesView');
     setShowLatestUpdateView(false);
   };
 
   const handleLogout = async () => {
-    playAudio('uiClick');
     setShowProfileDropdown(false);
     try {
       await logout();
@@ -1041,7 +1317,6 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
 
   const toggleInterfaceView = () => {
-    playAudio('uiClick');
     setShowProfileDropdown(false);
     setCurrentInterface(prev => prev === 'member' ? 'coach' : 'member');
   };
@@ -1085,6 +1360,21 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         updatedProfile.goalStartWeight = updatedProfile.currentWeightKg;
         updatedProfile.goalStartFatMassKg = updatedProfile.bodyFatMassKg;
         updatedProfile.goalStartMuscleMassKg = updatedProfile.skeletalMuscleMassKg;
+        updatedProfile.plateauAnalysis = {
+            ...(updatedProfile.plateauAnalysis || {}),
+            plateauReductionCount: 0,
+            lastPlateauAnalysisDate: undefined,
+            measuringWeekActive: false,
+            measuringWeekStartDate: undefined,
+        };
+    } else if (isExplicitlyNewGoal || goalChanged) {
+        updatedProfile.plateauAnalysis = {
+            ...(updatedProfile.plateauAnalysis || {}),
+            plateauReductionCount: 0,
+            lastPlateauAnalysisDate: undefined,
+            measuringWeekActive: false,
+            measuringWeekStartDate: undefined,
+        };
     }
 
     // Upload image to Firebase Storage if it's a new base64 image
@@ -1107,7 +1397,19 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
 
     try {
         await saveProfileAndGoals(currentUser.uid, updatedProfile, newGoals);
-        setUserProfile(updatedProfile);
+        // Slå ihop, ersätt inte. Profilmodalen bär inte med sig serverägda fält
+        // som bootcampAccess och subscriptionStatus - ersattes hela profilen med
+        // modalens kopia försvann åtkomsten ur minnet, och användaren kastades
+        // tillbaka till köpsidan direkt efter att ha fyllt i profilen.
+        setUserProfile(prev => ({
+            ...updatedProfile,
+            bootcampAccess: prev.bootcampAccess ?? updatedProfile.bootcampAccess,
+            bootcampOnboarding: prev.bootcampOnboarding ?? updatedProfile.bootcampOnboarding,
+            subscriptionStatus: prev.subscriptionStatus ?? updatedProfile.subscriptionStatus,
+            currentPeriodEnd: prev.currentPeriodEnd ?? updatedProfile.currentPeriodEnd,
+            role: prev.role ?? updatedProfile.role,
+            status: prev.status ?? updatedProfile.status,
+        }));
         setGoals(newGoals);
 
         if (isProfileModalOnboarding) {
@@ -1162,12 +1464,16 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
     setLocalStorageItem(LOCAL_STORAGE_KEYS.ONBOARDING_CHECKLIST_STATE, newState);
 
     try {
+        // role och status skickas INTE med. Säkerhetsreglerna kräver att de är
+        // oförändrade, och userStatus är numera det tolkade värdet ('pending'
+        // läses som godkänt) - så skrivningen sa 'approved' medan dokumentet sa
+        // 'pending' och hela uppdateringen avvisades. Följden blev en röd toast
+        // och att hasCompletedOnboarding aldrig sparades, så onboardingen kom
+        // tillbaka efter betalningen.
         await updateUserDocument(currentUser.uid, { 
           hasCompletedOnboarding: true,
           summaryStartDate: todayUID, // Set start date for report processing to TODAY
           lastDateStreakChecked: todayUID, // Set this to today so morning report for "yesterday" won't trigger immediately
-          role: userRole || 'member', 
-          status: userStatus || 'approved' 
         });
         setSummaryStartDate(todayUID);
         setStreakData(prev => ({ ...prev, lastDateStreakChecked: todayUID }));
@@ -1189,15 +1495,54 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
     });
   }, []);
 
+  const isGrantingOnboardingBonus = useRef(false);
+
+  /**
+   * Sparpott-bonusen ges när sista punkten bockas i, inte när belöningsmodalen
+   * stängs. Navigerade man bort i stället för att trycka på krysset fick man
+   * varken bonusen eller bli av med checklistan.
+   *
+   * Spärren ligger i användardokumentet och inte i localStorage, så bonusen inte
+   * kan hämtas en gång till från en annan enhet.
+   */
+  const grantOnboardingBonus = useCallback(async () => {
+    if (!currentUser) return;
+    if (userProfile.goalType === 'gain_muscle') return;
+    if (userProfile.onboardingBonusGrantedAt) return;
+    if (isGrantingOnboardingBonus.current) return;
+
+    isGrantingOnboardingBonus.current = true;
+    try {
+      const grantedAt = Date.now();
+      const newVal = (weeklyBankRef.current?.bankedCalories || 0) + 100;
+      const weekId = weeklyBankRef.current?.weekId || getWeekInfo(new Date()).weekId;
+      await updateUserDocument(currentUser.uid, {
+        "weeklyBank.bankedCalories": newVal,
+        "weeklyBank.weekId": weekId,
+        onboardingBonusGrantedAt: grantedAt
+      });
+      setWeeklyBank(prev => ({ ...prev, bankedCalories: newVal, weekId: prev.weekId || weekId }));
+      setUserProfile(prev => ({ ...prev, onboardingBonusGrantedAt: grantedAt }));
+      setToastNotification({ message: "100 kcal bonus tillagd i din sparpott!", type: 'success' });
+    } catch (e) {
+      console.error('Kunde inte lägga till onboarding-bonusen', e);
+      isGrantingOnboardingBonus.current = false;
+    }
+  }, [currentUser, userProfile.goalType, userProfile.onboardingBonusGrantedAt, setToastNotification]);
+
   useEffect(() => {
     if (!checklistState || !currentUser || !isInitialDataLoaded) return;
+    // Att bara dölja kortet räckte inte - effekten körde ändå och delade ut
+    // bonusen mitt i en pågående bootcamp. Bootcampen äger onboardingen då.
+    if (activeBootcamp || userProfile.bootcampAccess) return;
     const allComplete = Object.values(checklistState.items).every(Boolean);
     if (allComplete && !checklistState.dismissed) {
         setShowConfetti(true);
         playAudio('levelUp');
         setShowOnboardingRewardModal(true);
+        grantOnboardingBonus();
     }
-  }, [checklistState, currentUser, isInitialDataLoaded]);
+  }, [checklistState, currentUser, isInitialDataLoaded, grantOnboardingBonus, activeBootcamp, userProfile.bootcampAccess]);
 
   useEffect(() => {
     if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding) {
@@ -1215,8 +1560,11 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   const handleOnboardingNavigate = (view: 'journey' | 'community') => {
     if (view === 'community') {
          updateChecklistItem('communityViewed');
+         pushViewState({ view: 'community', communityTab: 'flode' });
+         setCommunityInitialTab('flode');
     } else { 
         updateChecklistItem('journeyViewed');
+        pushViewState({ view: 'journey', journeyTab: 'calendar' });
         setJourneyInitialTab('calendar');
     }
     setViewMode(view);
@@ -1228,17 +1576,20 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
     
   const closeModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
-    playAudio('uiClick');
     modalSetter(false);
   };
 
   const openModal = (modalSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
-    playAudio('uiClick');
     modalSetter(true);
   };
 
   const handleOpenInfoModal = () => {
-    openModal(setShowInfoModal);
+    pushModalState('info');
+    setShowInfoModal(true);
+  };
+
+  const handleCloseInfoModal = () => {
+    closeModalState('info', () => setShowInfoModal(false));
   };
   
   const handleNavigateToCourse = async (courseId: CourseInfo['id']) => {
@@ -1286,25 +1637,49 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         }
     }
 
+    setPreviewCourseId(null);
     setActiveCourse(course);
+    pushViewState({ view: 'courseOverview', courseId: course.id });
     setViewMode('courseOverview');
-    playAudio('uiClick');
+  };
+
+  const handlePreviewLesson = (courseId: CourseInfo['id']) => {
+    const firstLessonId = courseId === 'maxa-klimakteriet' ? 'm-lektion1' : 'lektion1';
+    setPreviewCourseId(courseId);
+    setCurrentLessonId(firstLessonId);
+    pushViewState({ view: 'lessonDetail', courseId: null, previewCourseId: courseId, lessonId: firstLessonId });
+    setViewMode('lessonDetail');
   };
 
   const handleCloseLessonDetail = () => {
-    setViewMode('courseOverview');
+    // Förhandsvisningen tillhör ingen aktiverad kurs - tillbaka till kurslistan.
+    if (previewCourseId) {
+      setPreviewCourseId(null);
+      setCurrentLessonId(null);
+      pushViewState({ view: 'coursesView' });
+      setViewMode('coursesView');
+      return;
+    }
+    if (activeCourse) {
+      pushViewState({ view: 'courseOverview', courseId: activeCourse.id });
+      setViewMode('courseOverview');
+    } else {
+      pushViewState({ view: 'coursesView' });
+      setViewMode('coursesView');
+    }
     setCurrentLessonId(null);
   };
 
   const handleSelectLesson = (lessonId: string) => {
+    setPreviewCourseId(null);
     setCurrentLessonId(lessonId);
+    pushViewState({ view: 'lessonDetail', courseId: activeCourse?.id, lessonId });
     setViewMode('lessonDetail');
   };
 
 
   const handleToggleFocusPoint = async (lessonId: string, focusPointId: string) => {
     if (!currentUser) return;
-    playAudio('uiClick');
 
     const currentProgress = userCourseProgress[lessonId] || {
       completedFocusPoints: [],
@@ -1375,21 +1750,98 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   };
 
   const handleOpenSpeedDial = () => {
+    pushViewState({ view: 'main' });
     setViewMode('main'); 
   };
 
   const handleNavigateToJourney = (tab: 'calendar' | 'profile' | 'achievements') => {
     setJourneyInitialTab(tab);
+    pushViewState({ view: 'journey', journeyTab: tab });
     setViewMode('journey');
   };
 
   const handleOpenLogWeightModal = () => {
-    openModal(setShowLogWeightModal);
+    pushModalState('logWeight');
+    setShowLogWeightModal(true);
+  };
+
+  const handleCloseLogWeightModal = () => {
+    closeModalState('logWeight', () => setShowLogWeightModal(false));
   };
   
   const handleNavigateToMainWithDate = (date: Date) => {
     setViewingDate(date);
+    pushViewState({ view: 'main' });
     setViewMode('main');
+  };
+
+  const handleOpenAICoachModal = (context?: any) => {
+    pushModalState('aiCoach');
+    setCoachInitialContext(context || null);
+    setShowAICoachModal(true);
+  };
+
+  const handleCloseAICoachModal = () => {
+    closeModalState('aiCoach', () => {
+      setShowAICoachModal(false);
+      setCoachInitialContext(null);
+    });
+  };
+
+  const handleOpenUserProfileModal = (isOnboarding = false) => {
+    setIsProfileModalOnboarding(isOnboarding);
+    pushModalState('userProfile');
+    setShowUserProfileModal(true);
+  };
+
+  const handleCloseUserProfileModal = () => {
+    if (isProfileModalOnboarding && onboardingStep === 'invite') {
+      handleFinishOnboarding();
+    } else if (isProfileModalOnboarding && onboardingStep === 'feedback') {
+      setOnboardingStep('invite');
+    } else {
+      closeModalState('userProfile', () => {
+        setShowUserProfileModal(false);
+        setIsProfileModalOnboarding(false);
+        setOnboardingStep('form');
+      });
+    }
+  };
+
+  const handleOpenSubscriptionModal = () => {
+    pushModalState('subscription');
+    setShowSubscriptionModal(true);
+  };
+
+  const handleCloseSubscriptionModal = () => {
+    closeModalState('subscription', () => setShowSubscriptionModal(false));
+  };
+
+  const handleOpenGraduationModal = () => {
+    pushModalState('bootcampGraduation');
+    setShowGraduationModal(true);
+  };
+
+  const handleCloseGraduationModal = () => {
+    closeModalState('bootcampGraduation', () => setShowGraduationModal(false));
+  };
+
+  const handleOpenGamificationModal = () => {
+    pushModalState('gamification');
+    setShowGamificationModal(true);
+  };
+
+  const handleCloseGamificationModal = () => {
+    closeModalState('gamification', () => setShowGamificationModal(false));
+  };
+
+  const handleOpenMentalWellbeingModal = () => {
+    pushModalState('mentalWellbeing');
+    setShowMentalWellbeingModal(true);
+  };
+
+  const handleCloseMentalWellbeingModal = () => {
+    closeModalState('mentalWellbeing', () => setShowMentalWellbeingModal(false));
   };
 
   const handleUseStreakSaver = async () => {
@@ -1496,6 +1948,35 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
              }
         }
 
+        // Grundutbildning inmönstrings-uppgift.
+        // Uppgiften heter "startmätning OCH mål", så när mätningen är sparad
+        // slussas användaren direkt vidare till målen i stället för att lämnas
+        // med halva uppgiften gjord.
+        // Gatet lag tidigare pa bootcampAccess.onboardingCompletedDate, men det
+        // faltet skrivs aldrig langre - grundutbildningens status bor i
+        // bootcampOnboarding. Foljden blev att profilen slog upp efter VARJE
+        // invagning, aven for den som redan gatt klart grundutbildningen.
+        const onboardingDetails = getBootcampAccessDetails(userProfile);
+        const weighInTaskDone = onboardingDetails.onboardingTasksCompleted.includes('weigh_in_and_goal');
+
+        if (currentUser && onboardingDetails.isOnboarding && !weighInTaskDone) {
+            pushModalState('userProfile');
+            setShowUserProfileModal(true);
+            completeBootcampOnboardingTask(currentUser.uid, 'weigh_in_and_goal', userProfile).then(updated => {
+                if (updated) {
+                    setUserProfile(prev => ({
+                            ...prev,
+                            bootcampAccess: updated,
+                            // Spegla listan lokalt också, annars läser nästa uppgift en gammal profil
+                            bootcampOnboarding: {
+                                ...(prev.bootcampOnboarding || { completedAt: null }),
+                                tasksCompleted: updated?.onboardingTasksCompleted || prev.bootcampOnboarding?.tasksCompleted || [],
+                            },
+                        }));
+                }
+            });
+        }
+
     } catch (error) {
         setToastNotification({ message: "Kunde inte spara mätningen.", type: 'error' });
     }
@@ -1504,24 +1985,11 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
   const handleSaveWellbeingAndProceed = async (data: MentalWellbeingData) => {
       if(!currentUser) return;
       try {
-          // You might want to save this to Firestore here as well, 
-          // but based on App.tsx, the saving logic seems to be missing or implied.
-          // Assuming `addMentalWellbeingLog` is available or similar.
-          // For now, just close modal and open weight log as requested.
-          setShowMentalWellbeingModal(false);
-          setShowLogWeightModal(true); // Chain to weight log
+          closeModalState('mentalWellbeing', () => setShowMentalWellbeingModal(false));
+          handleOpenLogWeightModal(); // Chain to weight log
       } catch(e) {
           console.error(e);
       }
-  };
-
-  const handleCloseUserProfileModal = () => {
-    if (isProfileModalOnboarding && onboardingStep === 'feedback') {
-        handleFinishOnboarding();
-    } else {
-        setShowUserProfileModal(false);
-        setOnboardingStep('form');
-    }
   };
 
 const ensureWeeklyBankReset = useCallback(async () => {
@@ -1574,12 +2042,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
         const mealsToProcess = manualLogOverride || yesterdayMeals;
 
-        const totals = mealsToProcess.reduce((acc, meal) => ({
-            calories: acc.calories + meal.nutritionalInfo.calories,
-            protein: acc.protein + meal.nutritionalInfo.protein,
-            carbohydrates: acc.carbohydrates + meal.nutritionalInfo.carbohydrates,
-            fat: acc.fat + meal.nutritionalInfo.fat,
-        }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+        const totals = sumMealNutrients(mealsToProcess);
 
         const minSafe = (goals.calorieGoal || 2000) * MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL;
         
@@ -1911,18 +2374,9 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             setChecklistState(null);
         }
 
-        if (currentUser && userProfile.goalType !== 'gain_muscle') {
-             try {
-                const newVal = (weeklyBankRef.current?.bankedCalories || 0) + 100;
-                await updateUserDocument(currentUser.uid, {
-                    "weeklyBank.bankedCalories": newVal,
-                    "weeklyBank.weekId": weeklyBankRef.current?.weekId || getWeekInfo(new Date()).weekId
-                });
-                setWeeklyBank(prev => ({ ...prev, bankedCalories: newVal, weekId: prev.weekId || getWeekInfo(new Date()).weekId }));
-                setToastNotification({ message: "100 kcal bonus tillagd i din sparpott!", type: 'success' });
-                playAudio('calorieBank');
-             } catch (e) {}
-        }
+        // Bonusen delas ut när sista punkten bockas i (grantOnboardingBonus).
+        // Anropet här är bara ett skyddsnät om utdelningen misslyckades då.
+        await grantOnboardingBonus();
     };
 
     // IMPLEMENTED SAVING LOGIC HERE
@@ -1981,6 +2435,68 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             />;
   }
 
+  // Central åtkomstgrind via hasAppAccess & isReadOnlyUser:
+  // hasAppAccess ger full tillgång till loggning och verktyg.
+  // isReadOnlyUser ger visningsåtkomst till tidigare loggade data och historik utan ny loggning.
+  const effectiveUserProfile = { ...userProfile, role: userRole || userProfile.role };
+  const userHasAccess = hasAppAccess(effectiveUserProfile);
+  const isReadOnly = isReadOnlyUser(effectiveUserProfile);
+
+  // Köpvalet visas först när profilen är ifylld. Annars möttes ett nybakat konto
+  // av en prislista innan appen ens visat vad den räknat fram - och profilmodalen
+  // hann aldrig öppnas, eftersom grinden returnerade tidigt.
+  if (!userHasAccess && !isReadOnly && hasCompletedOnboarding) {
+    return (
+      <>
+        <AccessGateView 
+          planSummary={{
+            calorieGoal: goals.calorieGoal,
+            proteinGoal: goals.proteinGoal,
+            goalType: userProfile.goalType,
+          }}
+          userProfile={userProfile}
+          onStartBootcampCheckout={async () => {
+            if (!currentUser) return;
+            await startBootcampCheckout(currentUser.uid);
+          }}
+          onSimulatedGrant={async () => {
+            if (!currentUser || !isTestingToolAllowed()) return;
+            const newAccess = await grantBootcampAccess(currentUser.uid);
+            setUserProfile(prev => ({ ...prev, bootcampAccess: newAccess, coachStyle: 'hard' }));
+            setToastNotification({ message: 'Simulerad Bootcamp-åtkomst beviljad (Testläge)!', type: 'success' });
+          }}
+          onOpenSubscriptionModal={() => setShowSubscriptionModal(true)}
+          onStartSubscriptionCheckout={async () => {
+            if (!currentUser) return;
+            await startSubscriptionCheckout(currentUser.uid, userProfile.coachStyle);
+          }}
+          onLogout={handleLogout}
+        />
+        {showSubscriptionModal && (
+          <SubscriptionModal 
+            show={showSubscriptionModal} 
+            onClose={() => setShowSubscriptionModal(false)} 
+            status={userProfile.subscriptionStatus || 'inactive'} 
+            currentPeriodEnd={userProfile.currentPeriodEnd}
+            onCancelSuccess={() => {
+              setUserProfile(prev => ({ ...prev, subscriptionStatus: 'canceling' }));
+            }}
+            onUndoCancelSuccess={() => {
+              setUserProfile(prev => ({ ...prev, subscriptionStatus: 'active' }));
+            }}
+          />
+        )}
+        {toastNotification && (
+          <ToastNotification 
+            message={toastNotification.message} 
+            type={toastNotification.type} 
+            onClose={() => setToastNotification(null)} 
+          />
+        )}
+      </>
+    );
+  }
+
   const DropdownMenuItem: React.FC<{
     onClick: () => void;
     icon: JSX.Element;
@@ -2003,14 +2519,16 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
   const mainContentMaxWidth = 'max-w-7xl';
     
   const navItems = [
-    { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { setViewMode('main'); setCurrentLessonId(null); } },
-    { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { setJourneyInitialTab('calendar'); setViewMode('journey'); } },
-    { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { setViewMode('coursesView');} },
-    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { setCommunityInitialTab('flode'); setViewMode('community'); }, notificationCount: pendingRequestsCount + newEventsCount + unreadChatsCount },
+    { key: 'main', label: 'Startsida', Icon: Home, isActive: viewMode === 'main', onClick: () => { pushViewState({ view: 'main' }); setViewMode('main'); setCurrentLessonId(null); } },
+    { key: 'journey', label: 'Min resa', Icon: Footprints, isActive: viewMode === 'journey', onClick: () => { pushViewState({ view: 'journey', journeyTab: 'calendar' }); setJourneyInitialTab('calendar'); setViewMode('journey'); } },
+    { key: 'course', label: 'Kurs', Icon: GraduationCap, isActive: viewMode === 'coursesView' || viewMode === 'courseOverview' || viewMode === 'lessonDetail', onClick: () => { pushViewState({ view: 'coursesView' }); setViewMode('coursesView');} },
+    { key: 'community', label: 'Community', Icon: Users, isActive: viewMode === 'community', onClick: () => { pushViewState({ view: 'community', communityTab: 'flode' }); setCommunityInitialTab('flode'); setViewMode('community'); }, notificationCount: pendingRequestsCount + newEventsCount + unreadChatsCount },
   ];
 
   const lessonsForOverview = activeCourse?.id === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
-  const currentLesson = lessonsForOverview.find(l => l.id === currentLessonId);
+  const previewLessons = previewCourseId === 'maxa-klimakteriet' ? menopauseCourseLessons : courseLessons;
+  const lessonsForCurrentView = previewCourseId ? previewLessons : lessonsForOverview;
+  const currentLesson = lessonsForCurrentView.find(l => l.id === currentLessonId);
 
   const coachName = userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] ? COACH_PERSONAS[userProfile.coachStyle].label : 'Din Coach';
 
@@ -2022,11 +2540,11 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
   return (
     <>
-      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} ${shouldShowGreenBackground ? 'bg-[#D0E5D4] dark:bg-[#1A2B1C]' : 'bg-neutral-light dark:bg-neutral-darker'} bg-dotted-pattern bg-dotted-size bg-fixed flex flex-col items-center pb-0`}>
-       <header className={`w-full ${shouldShowGreenBackground ? 'bg-white dark:bg-[#2A3B2C] border-b-2 border-[#4A5B4C]' : 'bg-white dark:bg-neutral-darker'} text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30`}>
+      <div className={`${viewMode === 'community' ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'} bg-neutral-light dark:bg-neutral-darker bg-fixed flex flex-col items-center pb-0`}>
+       <header className="w-full bg-white dark:bg-neutral-darker text-neutral-dark dark:text-white py-2 px-4 shadow-lg sticky top-0 z-30">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
-                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setViewMode('main')}>
-                    <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => { pushViewState({ view: 'main' }); setViewMode('main'); }}>
+                    <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14 object-contain" />
                 </div>
                 <div className="flex flex-wrap justify-end items-center gap-1">
                     {navItems.map(item => (
@@ -2037,7 +2555,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                             onClick={item.onClick}
                         >
                             <span className="icon-wrap">
-                                <item.Icon color="#3bab5a" size={24} strokeWidth={1.5} />
+                                <item.Icon color={item.isActive ? "#D96E4A" : "#7A756E"} size={24} strokeWidth={item.isActive ? 2 : 1.5} />
                             </span>
                             {item.notificationCount > 0 && (
                                 <span className="absolute top-[-4px] right-[-4px] flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold ring-2 ring-white">
@@ -2068,10 +2586,22 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                                     }}
                                 />
                                 <DropdownMenuItem
+                                    icon={<UserPlusIcon />}
+                                    label="Bjud in kompisar"
+                                    onClick={async () => {
+                                        setShowProfileDropdown(false);
+                                        const res = await shareAppInvite();
+                                        if (res.copied) {
+                                            setToastNotification({ message: 'Inbjudan kopierad till urklipp!', type: 'success' });
+                                        } else if (res.shared) {
+                                            setToastNotification({ message: 'Inbjudan delad!', type: 'success' });
+                                        }
+                                    }}
+                                />
+                                <DropdownMenuItem
                                     icon={<TrophyIcon />}
                                     label="Streak & Rekord"
                                     onClick={() => {
-                                        playAudio('uiClick');
                                         setShowGamificationModal(true);
                                         setShowProfileDropdown(false);
                                     }}
@@ -2093,17 +2623,6 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                                     }}
                                 />
                                 
-                                <div className="my-1 border-t border-neutral-light/70"></div>
-                                
-                                <DropdownMenuItem
-                                    icon={isDarkMode ? <Sun className="w-5 h-5 text-neutral" /> : <Moon className="w-5 h-5 text-neutral" />}
-                                    label={isDarkMode ? "Ljust läge" : "Mörkt läge"}
-                                    onClick={() => {
-                                        setIsDarkMode(!isDarkMode);
-                                        setShowProfileDropdown(false);
-                                    }}
-                                />
-                                
                                 {(userRole === 'coach' || userRole === 'admin') && (
                                     <>
                                         <div className="my-1 border-t border-neutral-light/70"></div>
@@ -2111,7 +2630,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                                             icon={<SwitchHorizontalIcon />}
                                             label="Coach Dashboard"
                                             onClick={toggleInterfaceView}
-                                            className="text-indigo-600 hover:bg-indigo-50 font-medium"
+                                            className="text-[#D96E4A] hover:bg-[#F6E2D9]/50 font-medium"
                                         />
                                     </>
                                 )}
@@ -2147,7 +2666,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 formattedViewingDate={formattedViewingDate}
                 ensureYesterdayProcessed={ensureYesterdayProcessed}
                 setToastNotification={setToastNotification}
-                onOpenAICoach={() => { setShowAICoachModal(true); setCoachInitialContext(null); }}
+                onOpenAICoach={() => handleOpenAICoachModal()}
                 isSummarizingYesterday={isSummarizingYesterday}
                 isAICoachOpen={showAICoachModal}
                 isProfileOpen={showUserProfileModal}
@@ -2156,14 +2675,24 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 hasCompletedTodaysReport={recentBootcampReports.some(report => report.date === dayKeySE(new Date()))}
                 onOpenBootcamp={() => {
                     setOpenBootcampDirectly(true);
+                    pushViewState({ view: 'coursesView' });
                     setViewMode('coursesView');
                 }}
                 onShareRecipe={(recipeText) => {
+                    pushViewState({ view: 'community', communityTab: 'flode' });
                     setCommunityInitialTab('flode');
                     setInitialPostText(recipeText);
                     setViewMode('community');
                 }}
-                onOpenSubscription={() => setShowSubscriptionModal(true)}
+                onOpenSubscription={() => {
+                  if (isReadOnly) {
+                    handleOpenGraduationModal();
+                  } else {
+                    handleOpenSubscriptionModal();
+                  }
+                }}
+                isReadOnly={isReadOnly}
+                onOpenGraduationOffer={() => handleOpenGraduationModal()}
             />
          )}
          {viewMode === 'journey' && (
@@ -2204,6 +2733,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 weightLogs={weightLogs}
                 weeklyBank={weeklyBank}
                 onNavigateToCourse={handleNavigateToCourse}
+                onPreviewLesson={handlePreviewLesson}
                 onSaveProfileAndGoals={handleSaveProfileAndGoals}
                 onSaveWeightLog={handleBootcampInitialWeightLog}
                 onCourseAborted={refreshUserData}
@@ -2211,6 +2741,28 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 activeBootcamp={activeBootcamp}
                 initialOpenBootcamp={openBootcampDirectly}
                 onBootcampStateChange={setIsBootcampViewActive}
+                onNavigateHome={() => { pushViewState({ view: 'main' }); setViewMode('main'); }}
+                bootcampFeedSlot={effectiveActiveBootcamp ? (
+                  <CommunityView
+                    currentUser={currentUser}
+                    userProfile={userProfile}
+                    achievements={ACHIEVEMENT_DEFINITIONS}
+                    setToastNotification={setToastNotification}
+                    pendingRequestsCount={pendingRequestsCount}
+                    unreadChatsCount={unreadChatsCount}
+                    timelineEvents={timelineEvents}
+                    setTimelineEvents={setTimelineEvents}
+                    buddyDetails={buddyDetails}
+                    isLoading={isLoadingCommunityData}
+                    activeBootcamp={effectiveActiveBootcamp}
+                    onDataChanged={loadCommunityData}
+                    lastViewTimestamp={lastCommunityViewTimestamp}
+                    currentStreak={streakData.currentStreak}
+                    userRole={userRole || 'member'}
+                    initialFeedFilter="bootcamp"
+                    embedded
+                  />
+                ) : undefined}
             />
          )}
          {viewMode === 'courseOverview' && activeCourse && (
@@ -2237,6 +2789,15 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 weightLogs={weightLogs}
                 pastDaysSummary={Object.values(pastDaysSummary)}
                 onOpenLogWeightModal={handleOpenLogWeightModal} 
+                isPreview={!!previewCourseId}
+                previewPositionText={previewCourseId ? `Lektion 1 av ${previewLessons.length}` : undefined}
+                previewUnlockText={
+                  previewCourseId === 'praktisk-viktkontroll'
+                    ? 'Resten av kursen låses upp när du har genomfört en Bootcamp. Då sparas dina svar och Flexibot ger dig personlig återkoppling på varje reflektion.'
+                    : previewCourseId
+                      ? 'Starta kursen för att spara dina svar och få personlig återkoppling från Flexibot på varje reflektion.'
+                      : undefined
+                }
             />
          )}
          {viewMode === 'community' && (
@@ -2270,24 +2831,48 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         {showOnboardingRewardModal && <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} goalType={userProfile.goalType} />}
         {dayToPotentiallySave && <UseStreakSaverModal show={!!dayToPotentiallySave} onClose={() => setDayToPotentiallySave(null)} onConfirm={handleUseStreakSaver} daySummary={dayToPotentiallySave} />}
         {showMotivationModal && <MotivationModal show={!!showMotivationModal} onClose={() => setShowMotivationModal(null)} daySummary={showMotivationModal} />}
-        {morningReportData && <MorningReportModal show={!!morningReportData} onClose={() => {
-            setMorningReportData(null);
-            const todayUID = dayKeySE(new Date());
-            localStorage.setItem('lastSeenMorningReport', todayUID);
-        }} summary={morningReportData.summary} currentStreak={morningReportData.currentStreak} userProfile={userProfile} yesterdayMeals={morningReportData.yesterdayMeals} yesterdayBootcampReport={morningReportData.yesterdayBootcampReport} activeBootcamp={effectiveActiveBootcamp} pastDaysSummary={Object.values(pastDaysSummary)} weightLogs={weightLogs} />}
-        {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={() => closeModal(setShowInfoModal)}><InfoModal onClose={() => closeModal(setShowInfoModal)} userName={userProfile.name} /></div>}
-        {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} isBootcampActive={!!effectiveActiveBootcamp} /></div></div>}
+        {morningReportData && (
+          <MorningReportModal 
+            show={!!morningReportData} 
+            onClose={() => {
+              closeModalState('morningReport', () => {
+                setMorningReportData(null);
+                const todayUID = dayKeySE(new Date());
+                localStorage.setItem('lastSeenMorningReport', todayUID);
+              });
+            }} 
+            summary={morningReportData.summary} 
+            currentStreak={morningReportData.currentStreak} 
+            userProfile={userProfile} 
+            goals={goals}
+            onUpdateGoals={handleSaveProfileAndGoals}
+            onUpdateProfile={async (updatedProfile) => { handleSaveProfileAndGoals(updatedProfile, goals); }}
+            onDiscussWithCoach={() => {
+              setMorningReportData(null);
+              setCoachInitialContext({ type: 'from_analysis' });
+              pushModalState('aiCoach');
+              setShowAICoachModal(true);
+            }}
+            yesterdayMeals={morningReportData.yesterdayMeals} 
+            yesterdayBootcampReport={morningReportData.yesterdayBootcampReport} 
+            activeBootcamp={effectiveActiveBootcamp} 
+            pastDaysSummary={Object.values(pastDaysSummary)} 
+            weightLogs={weightLogs} 
+          />
+        )}
+        {showInfoModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseInfoModal}><InfoModal onClose={handleCloseInfoModal} userName={userProfile.name} /></div>}
+        {showUserProfileModal && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseUserProfileModal}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><UserProfileModal initialProfile={userProfile} onSave={handleSaveProfileAndGoals} onClose={handleCloseUserProfileModal} isOnboarding={isProfileModalOnboarding} onboardingStep={onboardingStep} aiFeedbackLoading={aiFeedbackLoading} aiFeedbackMessage={aiFeedbackMessage} aiFeedbackError={aiFeedbackError} onSubscribeToPush={handleSubscribeToPush} isBootcampActive={!!effectiveActiveBootcamp} onFinishOnboarding={handleFinishOnboarding} onGoToInviteStep={() => setOnboardingStep('invite')} /></div></div>}
         {showOnboardingCompletion && <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleFinishOnboarding}><div onClick={e => e.stopPropagation()} className="animate-scale-in"><OnboardingCompletionScreen onFinish={handleFinishOnboarding} coachName={coachName} /></div></div>}
-        {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => setShowLevelUpModal(null)} />}
-        {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => setShowGoalMetModalData(null)} />}
-        {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => setNewlyUnlockedLesson(null)} />}
-        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { setShowAIFeedbackModal(false); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { playAudio('uiClick'); setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); setViewMode('journey'); setShowAICoachModal(true); }} />}
-        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark/40 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={() => closeModal(setShowLogWeightModal)}><LogWeightModal show={showLogWeightModal} onClose={() => closeModal(setShowLogWeightModal)} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} activeBootcamp={effectiveActiveBootcamp} weightLogs={weightLogs} /></div>}
-        {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={() => setShowMentalWellbeingModal(false)} onSave={handleSaveWellbeingAndProceed} />}
+        {showLevelUpModal && <LevelUpModal level={showLevelUpModal} onClose={() => closeModalState('levelUp', () => setShowLevelUpModal(null))} />}
+        {showGoalMetModalData && <GoalMetModal data={showGoalMetModalData} onClose={() => closeModalState('goalMet', () => setShowGoalMetModalData(null))} />}
+        {newlyUnlockedLesson && <NewLessonUnlockedModal lessonTitle={newlyUnlockedLesson.title} onClose={() => closeModalState('newLessonUnlocked', () => setNewlyUnlockedLesson(null))} />}
+        {showAIFeedbackModal && <AIFeedbackModal show={showAIFeedbackModal} onClose={() => { if (isProfileModalOnboarding) { handleFinishOnboarding(); } else { closeModalState('aiFeedback', () => setShowAIFeedbackModal(false)); } }} feedbackMessage={aiFeedbackMessage} isLoading={aiFeedbackLoading} error={aiFeedbackError} modalTitle={aiModalTitle} modalIcon={userProfile.coachStyle && COACH_PERSONAS[userProfile.coachStyle] && COACH_PERSONAS[userProfile.coachStyle].imageUrl ? <img src={COACH_PERSONAS[userProfile.coachStyle].imageUrl} alt={COACH_PERSONAS[userProfile.coachStyle].label} className="w-7 h-7 object-cover rounded-full mr-2.5" /> : aiModalIcon} isOnboardingContext={isProfileModalOnboarding} showDiscussButton={aiModalTitle === "Analys av din mätning"} onDiscuss={() => { setShowAIFeedbackModal(false); setCoachInitialContext({ type: 'from_analysis' }); pushViewState({ view: 'journey' }); pushModalState('aiCoach'); setViewMode('journey'); setShowAICoachModal(true); }} />}
+        {showLogWeightModal && <div className="fixed inset-0 bg-neutral-dark/40 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={handleCloseLogWeightModal}><LogWeightModal show={showLogWeightModal} onClose={handleCloseLogWeightModal} onSave={handleSaveWeightLog} measurementMethod={userProfile.measurementMethod} activeBootcamp={effectiveActiveBootcamp} weightLogs={weightLogs} prefillFromProfile={{ weightKg: userProfile.currentWeightKg, skeletalMuscleMassKg: userProfile.skeletalMuscleMassKg, bodyFatMassKg: userProfile.bodyFatMassKg }} /></div>}
+        {showMentalWellbeingModal && <MentalWellbeingModal show={showMentalWellbeingModal} onClose={handleCloseMentalWellbeingModal} onSave={handleSaveWellbeingAndProceed} />}
         {/* Pass userCourseProgress to AI Coach Modal */}
         <AICoachModal 
             show={showAICoachModal} 
-            onClose={() => { setShowAICoachModal(false); setCoachInitialContext(null); }} 
+            onClose={handleCloseAICoachModal} 
             analysisContext={{ 
                 userProfile, 
                 goals, 
@@ -2305,7 +2890,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         {showGamificationModal && (
             <GamificationModal
                 show={showGamificationModal}
-                onClose={() => closeModal(setShowGamificationModal)}
+                onClose={handleCloseGamificationModal}
                 currentStreak={streakData.currentStreak}
                 highestStreak={highestStreak}
                 highestLevelId={highestLevelId}
@@ -2314,7 +2899,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         {showSubscriptionModal && (
             <SubscriptionModal 
                 show={showSubscriptionModal} 
-                onClose={() => setShowSubscriptionModal(false)} 
+                onClose={handleCloseSubscriptionModal} 
                 status={userProfile.subscriptionStatus || 'active'} 
                 currentPeriodEnd={userProfile.currentPeriodEnd}
                 onCancelSuccess={() => {
@@ -2329,30 +2914,93 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             <TrialRecapModal 
                 show={showTrialRecapModal}
                 onClose={() => {
-                    setShowTrialRecapModal(false);
-                    localStorage.setItem(`hasSeenTrialRecapDialog_${currentUser.uid}`, 'true');
+                    closeModalState('trialRecap', () => {
+                      setShowTrialRecapModal(false);
+                      localStorage.setItem(`hasSeenTrialRecapDialog_${currentUser.uid}`, 'true');
+                    });
                 }}
                 userName={userProfile.name || currentUser.displayName || ''}
                 currentStreak={streakData.currentStreak}
                 totalMealsLogged={totalMealsCount}
                 bankedCalories={weeklyBank?.bankedCalories || 0}
                 coachStyle={userProfile.coachStyle || 'balanced'}
-                onOpenSubscription={() => setShowSubscriptionModal(true)}
+                onOpenSubscription={() => {
+                  setShowTrialRecapModal(false);
+                  handleOpenSubscriptionModal();
+                }}
                 hasLowUsage={Object.keys(pastDaysSummary).length < 3}
             />
         )}
         {showFinaleModal && unseenFinale && currentUser && (
             <BootcampFinaleModal
                 participant={unseenFinale}
+                userName={userProfile.name || currentUser.displayName || ''}
                 onClose={() => {
-                    setShowFinaleModal(false);
-                    markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                    closeModalState('bootcampFinale', () => {
+                      setShowFinaleModal(false);
+                      markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                    });
                 }}
                 onGoToCourse={() => {
-                    setShowFinaleModal(false);
-                    markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
-                    setViewMode('coursesView');
+                    closeModalState('bootcampFinale', () => {
+                      setShowFinaleModal(false);
+                      markBootcampFinaleAsSeen(unseenFinale.cohortId, currentUser.uid);
+                      pushViewState({ view: 'coursesView' });
+                      setViewMode('coursesView');
+                    });
                 }}
+            />
+        )}
+
+        {showGraduationModal && currentUser && (
+            <BootcampGraduationModal
+                show={showGraduationModal}
+                isCompleted={isBootcampCompleted}
+                userProfile={userProfile}
+                pastDaysSummary={pastDaysSummary}
+                weightLogs={weightLogs}
+                totalMealsCount={totalMealsCount}
+                streakDays={Math.max(streakData.currentStreak, userProfile.highestBootcampStreak || 0, activeBootcamp?.longestStreak || 0)}
+                onAcceptSubscription={handleAcceptGraduationSubscription}
+                onDecline={handleDeclineGraduationSubscription}
+                onClose={handleCloseGraduationModal}
+            />
+        )}
+
+        {promotionDiplomaModalData && currentUser && (
+            <BootcampDiplomaModal
+                rankDef={promotionDiplomaModalData.rankDef}
+                userName={promotionDiplomaModalData.userName}
+                streakDays={promotionDiplomaModalData.streakDays}
+                onClose={() => {
+                    closeModalState('diploma', () => {
+                      if (currentUser && promotionDiplomaModalData) {
+                        localStorage.setItem(`seenRankPromo_${promotionDiplomaModalData.rankDef.req}_${currentUser.uid}`, 'true');
+                      }
+                      setPromotionDiplomaModalData(null);
+                    });
+                }}
+                onShareInFeed={async (data) => {
+                    if (currentUser) {
+                      try {
+                        const { addTimelineEvent } = await import('./services/firestoreService');
+                        await addTimelineEvent(currentUser.uid, {
+                          type: 'achievement',
+                          timestamp: Date.now(),
+                          title: `har befordrats till ${data.rankDef.name}! 🎖️`,
+                          description: `Har erhållit befordringsbevis för ${data.streakDays} dagar i följd i Generalens Bootcamp! "${data.rankDef.quote}"`,
+                          icon: '🎖️',
+                          relatedDocId: `diploma_${data.rankDef.name.toLowerCase()}`
+                        });
+                        setToastNotification({ message: 'Diplomet har delats i flödet! 🎉', type: 'success' });
+                        localStorage.setItem(`seenRankPromo_${data.rankDef.req}_${currentUser.uid}`, 'true');
+                      } catch (e) {
+                        console.error('Kunde inte dela i flödet:', e);
+                        setToastNotification({ message: 'Gick inte att dela i flödet just nu.', type: 'error' });
+                      }
+                    }
+                }}
+                isNewPromotion={true}
             />
         )}
 

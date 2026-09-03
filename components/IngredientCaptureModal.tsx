@@ -2,7 +2,6 @@
 
 import React, { useRef } from 'react';
 import { XMarkIcon, CameraIcon, UploadIcon, TrashIcon, SparklesIcon } from './icons';
-import { playAudio } from '../services/audioService';
 
 interface IngredientCaptureModalProps {
   show: boolean;
@@ -35,7 +34,6 @@ const IngredientCaptureModal: React.FC<IngredientCaptureModalProps> = ({
   };
 
   const handleTriggerUpload = () => {
-    playAudio('uiClick');
     fileInputRef.current?.click();
   };
 
@@ -124,7 +122,7 @@ const IngredientCaptureModal: React.FC<IngredientCaptureModalProps> = ({
             <button
               onClick={handleFindRecipesClick}
               disabled={images.length === 0}
-              className="w-full px-5 py-3 text-base font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
+              className="w-full px-5 py-3 text-base font-semibold text-white bg-[#D96E4A] hover:bg-[#C05A38] rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
             >
               Hitta Recept ({images.length} bilder)
             </button>

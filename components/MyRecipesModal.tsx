@@ -4,7 +4,6 @@ import { SavedRecipe, NutritionalInfo, MealType } from '../types';
 import { getSavedRecipes, deleteSavedRecipe } from '../services/firestoreService';
 import { useUserContext } from '../context/UserContext';
 import { XMarkIcon, TrashIcon, ShareIcon } from './icons';
-import { playAudio } from '../services/audioService';
 import RecipeModal from './RecipeModal';
 
 interface MyRecipesModalProps {
@@ -65,7 +64,6 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
 
   const handleShare = async (recipe: SavedRecipe, e: React.MouseEvent) => {
     e.stopPropagation();
-    playAudio('uiClick');
 
     const ingredientsText = recipe.recipe.ingredients.map(ing => `- ${ing.item}`).join('\n');
     const instructionsText = recipe.recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
@@ -148,7 +146,6 @@ const MyRecipesModal: React.FC<MyRecipesModalProps> = ({ show, onClose, onShareR
                   <div 
                     key={savedRecipe.id}
                     onClick={() => {
-                      playAudio('uiClick');
                       setSelectedRecipe(savedRecipe);
                     }}
                     className="bg-white border border-neutral-light rounded-2xl p-4 cursor-pointer hover:shadow-md transition-shadow group relative"

@@ -40,10 +40,10 @@ const OnboardingCompletionScreen: React.FC<OnboardingCompletionScreenProps> = ({
           </div>
         </div>
 
-        <div className="flex items-start space-x-4 p-4 bg-purple-100/50 rounded-lg">
-          <CourseIcon className="w-8 h-8 text-purple-600 mt-1 flex-shrink-0" />
+        <div className="flex items-start space-x-4 p-4 bg-[#F1EAE0]/60 rounded-lg">
+          <CourseIcon className="w-8 h-8 text-[#D96E4A] mt-1 flex-shrink-0" />
           <div>
-            <h3 className="font-semibold text-lg text-purple-800">Ta Nästa Steg med Kursen Praktisk Viktkontroll</h3>
+            <h3 className="font-semibold text-lg text-[#56524D]">Ta Nästa Steg med Kursen Praktisk Viktkontroll</h3>
             <p>
               För en djupare förståelse och ännu bättre resultat, överväg vår kurs "Praktisk Viktkontroll". Nya lektioner låses upp när du bygger din streak. Läs mer om kursen genom att klicka på kurs i huvudmenyn.
             </p>
@@ -51,7 +51,7 @@ const OnboardingCompletionScreen: React.FC<OnboardingCompletionScreenProps> = ({
         </div>
       </div>
 
-      <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center justify-center sm:justify-start">
+      <div className="mt-8 p-4 bg-[#E8EFE9] border border-[#2B3B2C]/20 rounded-xl flex items-center justify-center sm:justify-start">
         <div className="bg-primary text-white p-2 rounded-full mr-4 shadow-sm flex-shrink-0">
             <PlusIcon className="w-6 h-6" />
         </div>

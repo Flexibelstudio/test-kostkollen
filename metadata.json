@@ -1,8 +1,11 @@
 {
-  "name": "Hela community Kostloggen TEST 20 juli",
-  "description": "En app för att logga mat och följa kursen 'Praktisk Viktkontroll' för bättre hälsovanor.",
+  "name": "Remix Kostloggen - 13 augustin 2026",
+  "description": "Kostloggen med General Börjes 12-veckors Bootcamp som huvudprodukt, grundutbildning och flexibel åtkomstmodell.",
   "requestFramePermissions": [
     "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ],
   "prompt": ""
 }

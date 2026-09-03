@@ -1,12 +1,11 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense, lazy } from 'react';
 import { CreatePostWidget } from './CommunityView';
 import { CreateGroupView, ChatWindow } from './ChatRoomsView';
 import { CoachViewMember, UserRole, UserProfileData, Chat } from '../types';
 import type { User } from '@firebase/auth';
 import { UserGroupIcon, ArrowRightOnRectangleIcon, EyeIcon, InformationCircleIcon, XMarkIcon, SwitchHorizontalIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, SearchIcon, CourseIcon, TrophyIcon, XCircleIcon, ProteinIcon, PersonIcon, SparklesIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from './icons';
 import { User as UserIconLucide, PieChart, TrendingDown, Users as UsersIcon, BookOpen as BookOpenIcon } from 'lucide-react';
-import { playAudio } from '../services/audioService';
 import { subscribeToSystemGroups, subscribeToPublicRooms, subscribeToAllChats } from '../services/chatService';
 import { 
     fetchCoachViewMembers, 
@@ -18,17 +17,105 @@ import {
     bulkApproveMembers,
     bulkUpdateUserRole,
     createUserPost,
-    updateUserDocument
+    updateUserDocument,
+    cleanupOrphanedProfiles
 } from '../services/firestoreService';
 import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
 import GrowthEngineView from './GrowthEngineView';
 import CoachStudioView from './CoachStudioView';
+import { EditorialPostsAdminView } from './EditorialPostsAdminView';
 import { BootcampLedningscentral } from './BootcampLedningscentral';
 import { Avatar } from './UserProfileModal';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, FlaskConical } from 'lucide-react';
+// Testverktyget laddas forst nar man klickar pa fliken (bara staging/localhost).
+// Da foljer inte dess ~1900 rader med i huvudbundlen, allra minst i prod.
+const DevelopmentTestingTool = lazy(() => import('./DevelopmentTestingTool'));
+import { isTestingToolAllowed, TESTING_TOOL_ALLOWED_HOSTNAMES } from '../utils/testingToolHostnames';
 
 type SortableKeys = keyof CoachViewMember;
+
+/**
+ * Stadverktyg for raderade konton.
+ * Nar en anvandare raderas i Firebase Auth/Firestore kan deras publicProfile
+ * bli kvar som en "spokprofil" - den dyker upp i kompissok och i flodet.
+ * Knappen nedan kor molnfunktionen cleanupOrphanedProfiles som tar bort
+ * profilerna och anonymiserar deras inlagg och kommentarer.
+ */
+const OrphanCleanupCard: React.FC<{
+    setToastNotification: (t: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
+}> = ({ setToastNotification }) => {
+    const [isBusy, setIsBusy] = useState(false);
+    const [foundCount, setFoundCount] = useState<number | null>(null);
+
+    const handleScan = async () => {
+        setIsBusy(true);
+        try {
+            const res = await cleanupOrphanedProfiles(true);
+            setFoundCount(res.orphanCount);
+            setToastNotification({
+                message: res.orphanCount === 0
+                    ? 'Inga kvarglömda profiler hittades.'
+                    : `Hittade ${res.orphanCount} kvarglömd${res.orphanCount === 1 ? ' profil' : 'a profiler'}.`,
+                type: 'info'
+            });
+        } catch (e: any) {
+            setToastNotification({ message: e?.message || 'Kunde inte söka igenom profilerna.', type: 'error' });
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleClean = async () => {
+        setIsBusy(true);
+        try {
+            const res = await cleanupOrphanedProfiles(false);
+            setFoundCount(0);
+            setToastNotification({
+                message: `Klart: ${res.orphanCount} profil(er) borttagna, ${res.posts ?? 0} inlägg och ${res.comments ?? 0} kommentarer anonymiserade.`,
+                type: 'success'
+            });
+        } catch (e: any) {
+            setToastNotification({ message: e?.message || 'Städningen misslyckades.', type: 'error' });
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    return (
+        <div className="mt-8 bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
+            <h3 className="font-bold text-neutral-dark text-base mb-1">Städa bort raderade konton</h3>
+            <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
+                Tar bort profiler vars konto är raderat, så att de inte längre går att söka upp eller bli kompis med. Deras inlägg och kommentarer görs anonyma. Sök igenom först – då ändras ingenting.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+                <button
+                    type="button"
+                    onClick={handleScan}
+                    disabled={isBusy}
+                    className="px-4 py-2 bg-white border border-neutral-light text-primary font-bold rounded-xl hover:bg-primary-50 transition-colors shadow-sm disabled:opacity-50"
+                >
+                    {isBusy ? 'Arbetar…' : 'Sök igenom'}
+                </button>
+                {foundCount !== null && foundCount > 0 && (
+                    <button
+                        type="button"
+                        onClick={handleClean}
+                        disabled={isBusy}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                    >
+                        Rensa {foundCount} profil{foundCount === 1 ? '' : 'er'}
+                    </button>
+                )}
+                {foundCount !== null && (
+                    <span className="text-sm text-neutral-500">
+                        {foundCount === 0 ? 'Inget att städa.' : `${foundCount} hittade.`}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+};
 
 // --- UI COMPONENTS ---
 
@@ -68,7 +155,7 @@ const StatCard: React.FC<{
       </div>
       <div className="text-left relative">
         <div className="flex items-center gap-1 mb-0.5">
-          <p className="text-[10px] sm:text-xs font-bold text-neutral-500 uppercase tracking-wide">{title}</p>
+          <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide">{title}</p>
           {tooltip && (
             <div 
               className="relative flex items-center"
@@ -81,7 +168,7 @@ const StatCard: React.FC<{
             >
               <InformationCircleIcon className="w-3 h-3 text-neutral-400 cursor-help hover:text-primary transition-colors" />
               {showTooltip && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-neutral-dark text-white text-[10px] sm:text-xs rounded-lg shadow-xl z-50 normal-case tracking-normal font-normal text-center pointer-events-none">
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-neutral-dark text-white text-xs rounded-lg shadow-xl z-50 normal-case tracking-normal font-normal text-center pointer-events-none">
                   {tooltip}
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-dark"></div>
                 </div>
@@ -90,7 +177,7 @@ const StatCard: React.FC<{
           )}
         </div>
         <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-tight">{value}</p>
-        {subtitle && <p className="text-[10px] sm:text-xs text-neutral font-medium mt-1">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-neutral font-medium mt-1">{subtitle}</p>}
       </div>
     </>
   );
@@ -105,7 +192,7 @@ const StatCard: React.FC<{
             </svg>
         </div>
         <div className="absolute bottom-2 right-3">
-            <span className="text-[9px] text-primary/70 font-bold uppercase tracking-wider group-hover:text-primary transition-colors">Klicka för detaljer</span>
+            <span className="text-xs text-primary/70 font-bold uppercase tracking-wider group-hover:text-primary transition-colors">Klicka för detaljer</span>
         </div>
       </button>
     );
@@ -124,20 +211,20 @@ const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling'
     
     switch(status) {
         case 'active':
-            classes = 'bg-green-50 text-green-700 border-green-200';
-            label = '🟢 Aktiv (Betalande)';
+            classes = 'bg-[#E8EFE9] text-[#2B3B2C] border-[#7BA05B]/40';
+            label = 'Aktiv (Betalande)';
             break;
         case 'trialing':
-            classes = 'bg-yellow-50 text-yellow-700 border-yellow-200';
-            label = '🟡 Testperiod';
+            classes = 'bg-[#F6E2D9] text-[#D96E4A] border-[#D96E4A]/30';
+            label = 'Testperiod';
             break;
         case 'canceling':
-            classes = 'bg-orange-50 text-orange-700 border-orange-200';
-            label = '🟡 Sägs upp';
+            classes = 'bg-[#F6E2D9] text-[#D96E4A] border-[#D96E4A]/30';
+            label = 'Sägs upp';
             break;
         case 'canceled':
-            classes = 'bg-neutral-100 text-neutral-600 border-neutral-300';
-            label = '⚫ Avslutad';
+            classes = 'bg-[#F1EAE0] text-[#7A756E] border-[#F1EAE0]';
+            label = 'Avslutad';
             break;
         case 'inactive':
         default:
@@ -268,23 +355,23 @@ const GroupInsights: React.FC<{ membersList: CoachViewMember[]; isExpanded: bool
                 id="group-insights-panel" 
                 className={`grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6 transition-all duration-500 ease-in-out ${isExpanded ? 'opacity-100 max-h-[3000px]' : 'opacity-0 max-h-0 overflow-hidden mt-0'}`}
             >
-                <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-blue-100" textClass="text-blue-600" />
-                <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-emerald-100" textClass="text-emerald-600" />
-                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={allChatsCount.toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika, ${allChatsCount - systemGroupsCount - publicRoomsCount} Privata`} colorClass="bg-pink-100" textClass="text-pink-600" />
-                <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-gray-100" textClass="text-gray-600" />
-                <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-teal-100" textClass="text-teal-600" />
-                <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-red-100" textClass="text-red-600" />
+                <StatCard icon={<UserGroupIcon />} title="Aktiva Medlemmar" value={groupInsights.totalActiveCount.toString()} subtitle={`+${groupInsights.newMembers7d} senaste 7 dagarna`} colorClass="bg-[#F6E2D9]" textClass="text-[#D96E4A]" />
+                <StatCard icon={<SparklesIcon />} title="Inloggade Idag" value={groupInsights.activeTodayCount.toString()} subtitle={`${((groupInsights.activeTodayCount / (groupInsights.totalActiveCount || 1)) * 100).toFixed(0)}% av aktiva`} colorClass="bg-[#E8EFE9]" textClass="text-[#7BA05B]" />
+                <StatCard icon={<UsersIcon />} title="Grupper i systemet" value={allChatsCount.toString()} subtitle={`${systemGroupsCount} Officiella, ${publicRoomsCount} Publika, ${allChatsCount - systemGroupsCount - publicRoomsCount} Privata`} colorClass="bg-[#F6E2D9]" textClass="text-[#D96E4A]" />
+                <StatCard icon={<ArchiveBoxIcon />} title="Arkiverade" value={groupInsights.archivedCount.toString()} colorClass="bg-[#F1EAE0]" textClass="text-[#7A756E]" />
+                <StatCard icon={<PersonIcon />} title="Snittålder" value={groupInsights.averageAge.toFixed(0)} subtitle={`${groupInsights.maleCount} M | ${groupInsights.femaleCount} K`} colorClass="bg-[#F1EAE0]" textClass="text-[#56524D]" />
+                <StatCard icon={<TrendingDown />} title="Mål: Fettminskning" value={groupInsights.loseFatCount.toString()} subtitle={`${groupInsights.gainMuscleCount} Muskel↑, ${groupInsights.maintainCount} Bibehåll`} colorClass="bg-[#F6E2D9]" textClass="text-[#D96E4A]" />
                 <StatCard 
                     icon={<ProteinIcon />} 
                     title="Proteinmål (7d)" 
                     value={`${groupInsights.proteinGoalMetPercentage7d.toFixed(0)}%`} 
                     subtitle={`Baserat på ${groupInsights.loggedFoodCount7d} medlemmar`} 
-                    colorClass="bg-indigo-100" 
-                    textClass="text-indigo-600" 
+                    colorClass="bg-[#F6E2D9]" 
+                    textClass="text-[#D96E4A]" 
                     tooltip="Av de medlemmar som har loggat mat de senaste 7 dagarna, hur stor andel har nått sitt proteinmål i snitt."
                 />
-                <StatCard icon={<TrophyIcon />} title="Streak-engagemang" value={`${groupInsights.percentWithStreak.toFixed(0)}%`} subtitle={`Snitt: ${groupInsights.averageStreak.toFixed(1)} dagar`} colorClass="bg-orange-100" textClass="text-orange-600" />
-                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} colorClass="bg-purple-100" textClass="text-purple-600" />
+                <StatCard icon={<TrophyIcon />} title="Streak-engagemang" value={`${groupInsights.percentWithStreak.toFixed(0)}%`} subtitle={`Snitt: ${groupInsights.averageStreak.toFixed(1)} dagar`} colorClass="bg-[#F6E2D9]" textClass="text-[#D96E4A]" />
+                <StatCard icon={<CourseIcon />} title="Kurs-engagemang" value={`${groupInsights.percentOnCourse.toFixed(0)}%`} colorClass="bg-[#F6E2D9]" textClass="text-[#D96E4A]" />
             </div>
         </section>
     );
@@ -360,7 +447,7 @@ const BulkActionsBar: React.FC<{
             <button onClick={onClearSelection} className="text-sm text-white/80 hover:text-white hover:underline">Avbryt</button>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-center">
-            <BulkActionButton onClick={() => onBulkAction('setRoleCoach')} disabled={isBulkUpdating} className="bg-purple-600 text-white hover:bg-purple-700 border border-purple-500">Till Coach</BulkActionButton>
+            <BulkActionButton onClick={() => onBulkAction('setRoleCoach')} disabled={isBulkUpdating} className="bg-primary text-white hover:bg-primary-darker border border-primary">Till Coach</BulkActionButton>
             <BulkActionButton onClick={() => onBulkAction('setRoleMember')} disabled={isBulkUpdating} className="bg-transparent border border-white/40 text-white hover:bg-white/10">Till Medlem</BulkActionButton>
         </div>
     </div>
@@ -478,7 +565,7 @@ const MemberListTable: React.FC<{
                                             disabled={props.updatingMemberId === member.id}
                                             icon={<ArrowUturnLeftIcon className="w-4 h-4" />}
                                             label="Återaktivera"
-                                            className="bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                            className="bg-neutral-light text-neutral-dark hover:bg-neutral-light/80"
                                         />
                                     ) : (
                                         <ActionButton 
@@ -688,7 +775,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CoachViewMember | null>(null);
   const [isInsightsExpanded, setIsInsightsExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio' | 'bootcamp'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'growth' | 'studio' | 'bootcamp' | 'editorial' | 'tests'>('members');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [myChats, setMyChats] = useState<Chat[]>([]);
   const [publicRooms, setPublicRooms] = useState<Chat[]>([]);
@@ -702,6 +789,8 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   }>({ isLoading: false, data: [] });
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  const isTestingToolEnabled = isTestingToolAllowed();
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -750,7 +839,6 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   const visibleMembers = sortedAndFilteredMembers.slice(0, visibleCount);
   
   const handleSort = (column: SortableKeys) => {
-    playAudio('uiClick', 0.6);
     if (sortBy === column) setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
     else { setSortBy(column); setSortOrder('asc'); }
   };
@@ -874,17 +962,16 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
   };
 
   const handleShowMemberDetails = (member: CoachViewMember) => {
-    playAudio('uiClick');
     setSelectedMember(member);
   };
 
   return (
     <>
-    <div className="min-h-screen bg-neutral-light bg-dotted-pattern bg-dotted-size bg-fixed text-neutral-dark">
+    <div className="min-h-screen bg-neutral-light bg-fixed text-neutral-dark">
       <header className="w-full bg-white text-neutral-dark py-2 px-4 shadow-lg sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('members')}>
-                <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14" />
+                <img src="/favicon.png" alt="Kostloggen.se logo" className="h-14 w-14 object-contain" />
             </div>
             <div className="flex flex-wrap justify-end items-center gap-1">
                 <div className="relative" ref={profileDropdownRef}>
@@ -914,7 +1001,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                 icon={<SwitchHorizontalIcon />}
                                 label="Medlemsvy"
                                 onClick={onToggleInterface}
-                                className="text-indigo-600 hover:bg-indigo-50 font-medium"
+                                className="text-primary hover:bg-primary-light/40 font-medium"
                             />
 
                             <div className="my-1 border-t border-neutral-light/70"></div>
@@ -935,7 +1022,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 <div className="flex w-full border-b border-neutral-light">
                     <button
                         onClick={() => setActiveTab('members')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'members' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'members' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <UsersIcon className="w-5 h-5" />
                         <span className="hidden sm:inline">Medlemsregister</span>
@@ -943,7 +1030,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     </button>
                     <button
                         onClick={() => setActiveTab('growth')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'growth' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'growth' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <TrendingUp className="w-5 h-5" />
                         <span className="hidden sm:inline">Tillväxtmotor</span>
@@ -951,18 +1038,34 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                     </button>
                     <button
                         onClick={() => setActiveTab('studio')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'studio' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'studio' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <SparklesIcon className="w-5 h-5" />
                         <span>Studio</span>
                     </button>
                     <button
                         onClick={() => setActiveTab('bootcamp')}
-                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-[10px] sm:text-base transition-colors ${activeTab === 'bootcamp' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'bootcamp' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
                     >
                         <TrophyIcon className="w-5 h-5" />
                         <span>Bootcamp</span>
                     </button>
+                    <button
+                        onClick={() => setActiveTab('editorial')}
+                        className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'editorial' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                    >
+                        <SparklesIcon className="w-5 h-5" />
+                        <span>Redaktionellt</span>
+                    </button>
+                    {isTestingToolEnabled && (
+                        <button
+                            onClick={() => setActiveTab('tests')}
+                            className={`flex-1 py-2 sm:py-3 px-1 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-1.5 font-bold text-xs sm:text-base transition-colors ${activeTab === 'tests' ? 'border-b-2 border-primary text-primary' : 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-dark'}`}
+                        >
+                            <FlaskConical className="w-5 h-5 text-[#D96E4A]" />
+                            <span>Testverktyg</span>
+                        </button>
+                    )}
                 </div>
             </div>
         )}
@@ -1019,6 +1122,20 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 membersList={membersList}
                 onMemberClick={(member) => setSelectedMember(member)}
             />
+        ) : activeTab === 'editorial' ? (
+            <EditorialPostsAdminView
+                currentUser={currentUser}
+                userRole={userRole}
+                setToastNotification={setToastNotification}
+            />
+        ) : activeTab === 'tests' && isTestingToolEnabled ? (
+            <div className="max-w-4xl mx-auto">
+                <Suspense fallback={<div className="py-12"><LoadingSpinner /></div>}>
+                    <DevelopmentTestingTool 
+                        userProfile={userProfile}
+                    />
+                </Suspense>
+            </div>
         ) : (
             <>
                 <GroupInsights 
@@ -1033,18 +1150,18 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     <button 
                         onClick={() => setShowAllGroupsModal(true)}
-                        className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col items-center justify-center gap-3 hover:border-pink-300 hover:bg-pink-50/30 transition-all group focus:outline-none"
+                        className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col items-center justify-center gap-3 hover:border-[#D96E4A] hover:bg-[#F6E2D9]/30 transition-all group focus:outline-none"
                     >
-                        <div className="bg-pink-100 p-3 sm:p-4 rounded-full text-pink-600 group-hover:scale-110 transition-transform duration-300">
+                        <div className="bg-[#F6E2D9] p-3 sm:p-4 rounded-full text-[#D96E4A] group-hover:scale-110 transition-transform duration-300">
                             <UsersIcon className="w-6 h-6 sm:w-8 sm:h-8" />
                         </div>
                         <span className="font-bold text-neutral-dark text-sm sm:text-base">Hantera Grupper</span>
                     </button>
                     <button 
                         onClick={handleCourseInsightsClick}
-                        className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col items-center justify-center gap-3 hover:border-purple-300 hover:bg-purple-50/30 transition-all group focus:outline-none"
+                        className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft-xl border border-neutral-light flex flex-col items-center justify-center gap-3 hover:border-[#D96E4A] hover:bg-[#F6E2D9]/30 transition-all group focus:outline-none"
                     >
-                        <div className="bg-purple-100 p-3 sm:p-4 rounded-full text-purple-600 group-hover:scale-110 transition-transform duration-300">
+                        <div className="bg-[#F6E2D9] p-3 sm:p-4 rounded-full text-[#D96E4A] group-hover:scale-110 transition-transform duration-300">
                             <CourseIcon className="w-6 h-6 sm:w-8 sm:h-8" />
                         </div>
                         <span className="font-bold text-neutral-dark text-sm sm:text-base">Kursöversikt</span>
@@ -1088,7 +1205,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                             <div className="flex items-center gap-2">
                                                 <h4 className="font-bold text-neutral-dark">{chat.name}</h4>
                                                 {chat.pendingMembers && chat.pendingMembers.length > 0 && (
-                                                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                                                         {chat.pendingMembers.length} förfrågningar
                                                     </span>
                                                 )}
@@ -1189,6 +1306,10 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                         )
                     )}
                 </div>
+
+                {(userRole === 'coach' || userRole === 'admin') && (
+                    <OrphanCleanupCard setToastNotification={setToastNotification} />
+                )}
             </>
         )}
       </main>
@@ -1227,14 +1348,14 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                             </div>
                         </div>
                         <div className="flex gap-3">
-                            <UserGroupIcon className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                            <UserGroupIcon className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                             <div>
                                 <p className="font-bold text-neutral-dark text-sm">Hantera roller</p>
                                 <p className="text-xs">Befordra medlemmar till coacher eller tvärtom direkt i listan.</p>
                             </div>
                         </div>
                         <div className="flex gap-3">
-                            <SparklesIcon className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                            <SparklesIcon className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                             <div>
                                 <p className="font-bold text-neutral-dark text-sm">Insikter</p>
                                 <p className="text-xs">Se hur gruppen presterar med aggregerad data högst upp.</p>
@@ -1255,8 +1376,8 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-scale-in" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                        <div className="bg-pink-100 p-2.5 rounded-full">
-                            <UsersIcon className="w-6 h-6 text-pink-600" />
+                        <div className="bg-[#F6E2D9] p-2.5 rounded-full">
+                            <UsersIcon className="w-6 h-6 text-primary" />
                         </div>
                         <h3 className="text-2xl font-bold text-neutral-dark">Alla Grupper</h3>
                     </div>
@@ -1272,16 +1393,16 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <h4 className="font-bold text-neutral-dark text-lg">{chat.name}</h4>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-blue-100 text-blue-700' : chat.type === 'public_room' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'}`}>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${chat.isSystemGroup ? 'bg-primary-light text-primary-darker' : chat.type === 'public_room' ? 'bg-neutral-light text-neutral-dark' : 'bg-[#F6E2D9] text-[#D96E4A]'}`}>
                                             {chat.isSystemGroup ? 'Officiell' : chat.type === 'public_room' ? 'Publik' : 'Privat'}
                                         </span>
                                         {!chat.isSystemGroup && chat.requiresApproval && (
-                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#F6E2D9] text-[#D96E4A]">
                                                 Kräver godkännande
                                             </span>
                                         )}
                                         {!chat.isSystemGroup && !chat.requiresApproval && chat.type === 'public_room' && (
-                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-neutral-light text-neutral-dark">
                                                 Öppen
                                             </span>
                                         )}
@@ -1317,8 +1438,8 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
             <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-scale-in" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                        <div className="bg-purple-100 p-2.5 rounded-full">
-                            <CourseIcon className="w-6 h-6 text-purple-600" />
+                        <div className="bg-[#F6E2D9] p-2.5 rounded-full">
+                            <CourseIcon className="w-6 h-6 text-primary" />
                         </div>
                         <h3 className="text-2xl font-bold text-neutral-dark">Kurs-engagemang</h3>
                     </div>
@@ -1349,14 +1470,14 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                                             <div>
                                                 <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Slutfört</p>
                                                 <p className="font-semibold text-neutral-dark flex items-center gap-1">
-                                                    <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
+                                                    <CheckCircleIcon className="w-4 h-4 text-[#84A98C]" />
                                                     {course.completions}
                                                 </p>
                                             </div>
                                             <div>
                                                 <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Snitt-progress</p>
                                                 <p className="font-semibold text-neutral-dark flex items-center gap-1">
-                                                    <TrendingUp className="w-4 h-4 text-purple-500" />
+                                                    <TrendingUp className="w-4 h-4 text-primary" />
                                                     {course.averageProgress.toFixed(0)}%
                                                 </p>
                                             </div>

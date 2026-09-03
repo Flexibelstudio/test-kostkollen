@@ -43,16 +43,16 @@ const GamificationModal: React.FC<GamificationModalProps> = ({
       >
         <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
+                <div className="w-10 h-10 rounded-full bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A]">
                     <TrophyIcon className="w-6 h-6" />
                 </div>
-                <h2 id="gamification-modal-title" className="text-2xl font-bold text-neutral-dark dark:text-white">
+                <h2 id="gamification-modal-title" className="text-2xl font-bold text-neutral-dark">
                     Streak & Rekord
                 </h2>
             </div>
             <button
                 onClick={onClose}
-                className="p-2 text-neutral dark:text-neutral-400 hover:text-red-500 dark:hover:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-90 interactive-transition"
+                className="p-2 text-neutral hover:text-red-500 rounded-full hover:bg-red-100 active:scale-90 interactive-transition"
                 aria-label="Stäng"
             >
                 <XMarkIcon className="w-6 h-6" />
@@ -61,34 +61,34 @@ const GamificationModal: React.FC<GamificationModalProps> = ({
 
         <div className="space-y-6">
             {/* Current Streak Hero */}
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 rounded-2xl border border-orange-200 dark:border-orange-500/30 text-center">
+            <div className="bg-gradient-to-br from-[#F6E2D9] to-[#F1EAE0] p-6 rounded-2xl border border-[#D96E4A]/30 text-center">
                 <div className="flex justify-center mb-2">
-                    <FireIcon className="w-12 h-12 text-orange-500 dark:text-orange-400 animate-pulse" />
+                    <FireIcon className="w-12 h-12 text-[#D96E4A] animate-pulse" />
                 </div>
-                <p className="text-sm font-bold text-orange-800 dark:text-orange-300 uppercase tracking-wider mb-1">Nuvarande Streak</p>
-                <p className="text-5xl font-extrabold text-neutral-dark dark:text-white">
+                <p className="text-sm font-bold text-[#56524D] uppercase tracking-wider mb-1">Nuvarande Streak</p>
+                <p className="text-5xl font-extrabold text-neutral-dark">
                     {currentStreak}
                 </p>
-                <p className="text-base text-neutral-dark dark:text-neutral-300 font-medium">{currentStreak === 1 ? 'dag' : 'dagar'} i rad</p>
+                <p className="text-base text-neutral-dark font-medium">{currentStreak === 1 ? 'dag' : 'dagar'} i rad</p>
                 
                 {nextLevel && (
-                    <div className="mt-4 bg-white/60 dark:bg-black/20 p-2 rounded-lg text-sm text-orange-900 dark:text-orange-200">
+                    <div className="mt-4 bg-white/60 p-2 rounded-lg text-sm text-[#56524D]">
                         Bara <strong>{daysToNextLevel}</strong> {daysToNextLevel === 1 ? 'dag' : 'dagar'} kvar till nivå: <span className="font-bold">{nextLevel.name}</span> {nextLevel.icon}
                     </div>
                 )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-neutral-dark border-2 border-neutral-light dark:border-neutral-light/10 rounded-2xl p-4 text-center shadow-sm">
-                    <p className="text-xs font-semibold text-neutral dark:text-neutral-400 uppercase mb-1">Högsta streak</p>
-                    <p className="text-2xl font-extrabold text-neutral-dark dark:text-white">
+                <div className="bg-white border-2 border-neutral-light rounded-2xl p-4 text-center shadow-sm">
+                    <p className="text-xs font-semibold text-neutral uppercase mb-1">Högsta streak</p>
+                    <p className="text-2xl font-extrabold text-neutral-dark">
                         {highestStreak}
                     </p>
-                    <p className="text-xs text-neutral-dark dark:text-neutral-300">{highestStreak === 1 ? 'dag' : 'dagar'}</p>
+                    <p className="text-xs text-neutral-dark">{highestStreak === 1 ? 'dag' : 'dagar'}</p>
                 </div>
-                <div className="bg-white dark:bg-neutral-dark border-2 border-yellow-100 dark:border-yellow-900/30 rounded-2xl p-4 text-center shadow-sm">
-                    <p className="text-xs font-semibold text-neutral dark:text-neutral-400 uppercase mb-1">Högsta nivå</p>
-                    <p className="text-2xl font-extrabold text-accent dark:text-yellow-400 flex items-center justify-center gap-1">
+                <div className="bg-white border-2 border-neutral-light rounded-2xl p-4 text-center shadow-sm">
+                    <p className="text-xs font-semibold text-neutral uppercase mb-1">Högsta nivå</p>
+                    <p className="text-2xl font-extrabold text-[#D96E4A] flex items-center justify-center gap-1">
                         {highestLevelReached ? (
                             <span>{highestLevelReached.icon}</span>
                         ) : '-'}

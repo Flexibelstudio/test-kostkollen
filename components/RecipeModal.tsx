@@ -2,7 +2,6 @@ import React, { useState, useEffect, FC, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
 import { SearchIcon, XMarkIcon, CheckIcon as LogIcon, RecipeIcon as TitleIcon, InformationCircleIcon, ShareIcon, ChevronDownIcon, BookmarkIcon, CheckIcon } from './icons';
-import { playAudio } from '../services/audioService';
 import MealTypeSelector from './MealTypeSelector';
 
 interface RecipeModalProps {
@@ -77,6 +76,9 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [portionsToLog, setPortionsToLog] = useState<string>("1");
+  // Loggpanelen (maltidstyp + portioner) ar ihopfalld tills man trycker
+  // pa "Logga maltid". Nollstalls nar man byter recept.
+  const [showLogPanel, setShowLogPanel] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['recipe-and-instructions']));
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(defaultMealType);
 
@@ -87,6 +89,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   useEffect(() => {
     if (recipe && !recipe.error) {
       setPortionsToLog("1");
+      setShowLogPanel(false);
       setExpandedSections(new Set(['recipe-and-instructions']));
     }
   }, [recipe]);
@@ -99,7 +102,6 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   };
 
   const handleRecentSearchClick = (searchTerm: string) => {
-    playAudio('uiClick');
     setQuery(searchTerm);
     if (onSearch) {
       onSearch(searchTerm);
@@ -156,10 +158,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
       const loggedNutritionalInfo: NutritionalInfo = {
         foodItem: `${title} (${numPortionsToLog.toLocaleString('sv-SE')} port.)`,
-        calories: Math.round(extractNumber(totalNutritionalInfo.calories) * numPortionsToLog),
-        protein: Math.round(extractNumber(totalNutritionalInfo.protein) * numPortionsToLog),
-        carbohydrates: Math.round(extractNumber(totalNutritionalInfo.carbohydrates) * numPortionsToLog),
-        fat: Math.round(extractNumber(totalNutritionalInfo.fat) * numPortionsToLog),
+        calories: extractNumber(totalNutritionalInfo.calories) * numPortionsToLog,
+        protein: extractNumber(totalNutritionalInfo.protein) * numPortionsToLog,
+        carbohydrates: extractNumber(totalNutritionalInfo.carbohydrates) * numPortionsToLog,
+        fat: extractNumber(totalNutritionalInfo.fat) * numPortionsToLog,
       };
       onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealType });
       onClose(); // Close modal immediately after logging
@@ -172,7 +174,6 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       setTimeout(() => setToastNotification(null), 3000);
       return;
     }
-    playAudio('uiClick');
 
     const ingredientsText = recipe.ingredients.map(ing => `- ${ing.item}`).join('\n');
     const instructionsText = recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
@@ -316,15 +317,16 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
           )}
 
           {recipe && recipe.error && (
-             <div className="p-4 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-center">
-                <p className="font-medium">Förtydliga din fråga:</p>
+             <div className="p-4 bg-[#F6E2D9] text-[#56524D] border border-[#D96E4A]/30 rounded-xl text-center">
+                <p className="font-medium text-[#D96E4A]">Förtydliga din fråga:</p>
                 <p>{recipe.error}</p>
             </div>
           )}
           {recipe && !recipe.error && (
             <div className="space-y-1 animate-fade-in">
+                {/* Titeln stod bade har och i modalens header. Kvar ar bara
+                    beskrivningen. */}
                 <div className="text-center mb-4">
-                    <h3 className="text-2xl font-bold text-neutral-darker">{recipe.title}</h3>
                     <p className="text-base text-neutral-dark italic">{recipe.description}</p>
                 </div>
               
@@ -382,43 +384,19 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         </div>
 
         {recipe && !recipe.error && (
-          <div className="mt-6 flex flex-col gap-4 flex-shrink-0 pt-4 border-t border-neutral-light/70">
-            {/* Meal Type Selection */}
-            <div>
-                <label className="block text-sm font-medium text-neutral-dark mb-1">Måltidstyp</label>
-                <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
-                {!selectedMealType && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
-            </div>
-
-            <div className="flex flex-col gap-2">
+          <div className="mt-4 flex flex-col gap-3 flex-shrink-0 pt-3 border-t border-neutral-light/70">
+            {/* Loggpanelen ar ihopfalld tills man trycker pa "Logga maltid".
+                Da far sjalva receptet hela hojden i stallet. */}
+            {showLogPanel && (
+              <div className="flex flex-col gap-3 animate-fade-in">
+                <div>
+                    <label className="block text-sm font-medium text-neutral-dark mb-1">Måltidstyp</label>
+                    <MealTypeSelector selectedType={selectedMealType} onSelect={setSelectedMealType} />
+                    {!selectedMealType && <p className="text-xs text-red-500 mt-1">Välj måltidstyp för att logga.</p>}
+                </div>
                 <div className="flex flex-row gap-2 justify-between items-center">
-                    <div className="flex gap-2">
-                      {/* Share button */}
-                      <button
-                      type="button"
-                      onClick={handleShareRecipe}
-                      disabled={isLoading}
-                      className="h-11 w-11 flex items-center justify-center bg-primary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
-                      title="Dela receptet"
-                      >
-                      <ShareIcon className="w-6 h-6" />
-                      </button>
+                    <span className="text-sm font-medium text-neutral-dark">Antal portioner</span>
 
-                      {/* Save button */}
-                      {onSaveRecipe && (
-                        <button
-                        type="button"
-                        onClick={() => onSaveRecipe(recipe)}
-                        disabled={isLoading || isSaved}
-                        className={`h-11 w-11 flex items-center justify-center rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition ${isSaved ? 'bg-green-500 text-white' : 'bg-primary text-white'}`}
-                        title={isSaved ? "Sparat" : "Spara i din receptbank"}
-                        >
-                          {isSaved ? <CheckIcon className="w-6 h-6" /> : <BookmarkIcon className="w-6 h-6" />}
-                        </button>
-                      )}
-                    </div>
-                    
-                    {/* Stepper and Log button group */}
                     <div className="flex items-center gap-2">
                     <button 
                         type="button" 
@@ -454,20 +432,52 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         +
                     </button>
                 
-                    <button
-                        type="button"
-                        onClick={handleLog}
-                        disabled={isLoggingDisabled || isLoading || !portionsToLog.trim() || parseFloat(portionsToLog.replace(',', '.') || "1") <=0 || !selectedMealType}
-                        className="h-11 w-11 flex items-center justify-center bg-secondary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
-                        title={isLoggingDisabled ? "Loggning är endast tillgänglig för idag" : parseFloat(portionsToLog.replace(',', '.')) <=0 ? "Ange ett giltigt antal portioner" : "Logga specificerat antal portioner"}
-                    >
-                        <LogIcon className="w-6 h-6" />
-                    </button>
                     </div>
                 </div>
-                <div className="flex items-center justify-end mt-1">
-                    <p className="text-[10px] text-neutral-500">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
-                </div>
+                <p className="text-xs text-neutral-500 text-right">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
+
+                <button
+                    type="button"
+                    onClick={handleLog}
+                    disabled={isLoggingDisabled || isLoading || !portionsToLog.trim() || parseFloat(portionsToLog.replace(',', '.') || "1") <=0 || !selectedMealType}
+                    className="h-12 w-full flex items-center justify-center gap-2 bg-secondary text-white text-base font-bold rounded-xl shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
+                    title={isLoggingDisabled ? "Loggning är endast tillgänglig för idag" : parseFloat(portionsToLog.replace(',', '.')) <=0 ? "Ange ett giltigt antal portioner" : "Logga specificerat antal portioner"}
+                >
+                    <LogIcon className="w-5 h-5" /> Logga måltid
+                </button>
+              </div>
+            )}
+
+            {/* Standardrad: dela, spara och den stora loggknappen */}
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={handleShareRecipe}
+                    disabled={isLoading}
+                    className="h-11 w-11 flex-shrink-0 flex items-center justify-center bg-primary text-white rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition"
+                    title="Dela receptet"
+                >
+                    <ShareIcon className="w-6 h-6" />
+                </button>
+                {onSaveRecipe && (
+                    <button
+                        type="button"
+                        onClick={() => onSaveRecipe(recipe)}
+                        disabled={isLoading || isSaved}
+                        className={`h-11 w-11 flex-shrink-0 flex items-center justify-center rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition ${isSaved ? 'bg-[#2B3B2C] text-white' : 'bg-primary text-white'}`}
+                        title={isSaved ? "Sparat" : "Spara i din receptbank"}
+                    >
+                        {isSaved ? <CheckIcon className="w-6 h-6" /> : <BookmarkIcon className="w-6 h-6" />}
+                    </button>
+                )}
+                <button
+                    type="button"
+                    onClick={() => setShowLogPanel(v => !v)}
+                    disabled={isLoading}
+                    className={`h-11 flex-1 min-w-0 flex items-center justify-center gap-2 text-base font-bold rounded-lg shadow-sm active:scale-95 disabled:opacity-50 interactive-transition ${showLogPanel ? 'bg-neutral-light text-neutral-dark' : 'bg-primary text-white'}`}
+                >
+                    {showLogPanel ? 'Avbryt' : <><LogIcon className="w-5 h-5" /> Logga måltid</>}
+                </button>
             </div>
           </div>
         )}

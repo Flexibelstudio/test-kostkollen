@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { RecipeSuggestion, NutritionalInfo, MealType } from '../types';
 import { XMarkIcon, SparklesIcon, FireIcon, ProteinIcon, LeafIcon, CheckIcon as LogIcon, InformationCircleIcon, ShareIcon } from './icons';
-import { playAudio } from '../services/audioService';
 import MealTypeSelector from './MealTypeSelector';
 
 interface IngredientRecipeResultsModalProps {
@@ -44,6 +43,14 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
 }) => {
   const [portionsToLog, setPortionsToLog] = useState<{ [recipeTitle: string]: string }>({});
   const [selectedMealTypes, setSelectedMealTypes] = useState<{ [recipeTitle: string]: MealType | null }>({});
+  // Vilka recept som har loggpanelen utfalld. Ihopfalld som standard sa att
+  // man ser flera recept utan att scrolla forbi maltidstyp och portioner.
+  const [openLogPanels, setOpenLogPanels] = useState<Set<string>>(new Set());
+  const toggleLogPanel = (title: string) => setOpenLogPanels(prev => {
+    const next = new Set(prev);
+    if (next.has(title)) next.delete(title); else next.add(title);
+    return next;
+  });
 
   useEffect(() => {
     // Initialize portion state when new recipes are loaded
@@ -75,7 +82,6 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
 
   const handleLog = (recipe: RecipeSuggestion) => {
     if (!selectedMealTypes[recipe.title]) return; // Should be disabled, safe guard
-    playAudio('uiClick');
     const recipeBaseServings = parseServings(recipe.servings);
     const numPortionsToLog = parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") || 1;
 
@@ -86,18 +92,16 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
     
     const loggedNutritionalInfo: NutritionalInfo = {
       foodItem: `${recipe.title} (${numPortionsToLog.toLocaleString('sv-SE')} port. från skafferi)`,
-      calories: Math.round((recipe.totalNutritionalInfo.calories / recipeBaseServings) * numPortionsToLog),
-      protein: Math.round((recipe.totalNutritionalInfo.protein / recipeBaseServings) * numPortionsToLog),
-      carbohydrates: Math.round((recipe.totalNutritionalInfo.carbohydrates / recipeBaseServings) * numPortionsToLog),
-      fat: Math.round((recipe.totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog),
+      calories: (recipe.totalNutritionalInfo.calories / recipeBaseServings) * numPortionsToLog,
+      protein: (recipe.totalNutritionalInfo.protein / recipeBaseServings) * numPortionsToLog,
+      carbohydrates: (recipe.totalNutritionalInfo.carbohydrates / recipeBaseServings) * numPortionsToLog,
+      fat: (recipe.totalNutritionalInfo.fat / recipeBaseServings) * numPortionsToLog,
     };
     onLogRecipe(loggedNutritionalInfo, { saveAsCommon: false, mealType: selectedMealTypes[recipe.title] as MealType });
     onClose(); // Close modal immediately after logging
   };
 
   const handleShareRecipe = async (recipe: RecipeSuggestion) => {
-    playAudio('uiClick');
-
     const ingredientsText = recipe.ingredients.map(ing => `- ${ing.item}`).join('\n');
     const instructionsText = recipe.instructions.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
     
@@ -226,7 +230,8 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                           </div>
                         )}
                         
-                        <div className="pt-2 space-y-3">
+                        {openLogPanels.has(recipe.title) && (
+                        <div className="pt-2 space-y-3 animate-fade-in">
                             <div>
                                 <label className="block text-sm font-medium text-neutral-dark mb-1">Måltidstyp</label>
                                 <MealTypeSelector 
@@ -247,17 +252,24 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                                     placeholder="1"
                                     disabled={isLoggingDisabled}
                                 />
-                                <p className="text-[10px] text-neutral-500 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
+                                <p className="text-xs text-neutral-500 ml-1">Tips: Du kan skriva t.ex. 0.5 eller 1.5 för att justera portionen.</p>
                             </div>
+                            <button
+                              onClick={() => handleLog(recipe)}
+                              disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0 || !selectedMealTypes[recipe.title]}
+                              className="w-full px-4 py-2.5 text-base font-bold text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
+                            >
+                              <LogIcon className="w-4 h-4 mr-2" /> Logga måltid
+                            </button>
                         </div>
+                        )}
 
                         <div className="flex gap-2 mt-2">
                           <button
-                            onClick={() => handleLog(recipe)}
-                            disabled={isLoggingDisabled || !portionsToLog[recipe.title]?.trim() || parseFloat(portionsToLog[recipe.title].replace(',', '.') || "1") <=0 || !selectedMealTypes[recipe.title]}
-                            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-secondary hover:bg-secondary-darker rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center"
+                            onClick={() => toggleLogPanel(recipe.title)}
+                            className={`flex-1 px-4 py-2 text-sm font-bold rounded-md shadow-sm active:scale-95 interactive-transition flex items-center justify-center ${openLogPanels.has(recipe.title) ? 'bg-neutral-light text-neutral-dark' : 'bg-primary text-white hover:bg-primary-darker'}`}
                           >
-                            <LogIcon className="w-4 h-4 mr-2" /> Logga Recept
+                            {openLogPanels.has(recipe.title) ? 'Avbryt' : <><LogIcon className="w-4 h-4 mr-2" /> Logga måltid</>}
                           </button>
                           <button
                             onClick={() => handleShareRecipe(recipe)}
@@ -270,7 +282,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                             <button
                               onClick={() => onSaveRecipe(recipe)}
                               disabled={savedRecipeIds.has(recipe.title)}
-                              className={`px-4 py-2 text-sm font-medium rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center ${savedRecipeIds.has(recipe.title) ? 'bg-green-500 text-white' : 'bg-primary text-white hover:bg-primary-darker'}`}
+                              className={`px-4 py-2 text-sm font-medium rounded-md shadow-sm active:scale-95 disabled:opacity-50 interactive-transition flex items-center justify-center ${savedRecipeIds.has(recipe.title) ? 'bg-[#2B3B2C] text-white' : 'bg-primary text-white hover:bg-primary-darker'}`}
                               title={savedRecipeIds.has(recipe.title) ? "Receptet är sparat" : "Spara recept"}
                             >
                               {savedRecipeIds.has(recipe.title) ? (
@@ -282,7 +294,7 @@ const IngredientRecipeResultsModal: React.FC<IngredientRecipeResultsModalProps> 
                           )}
                         </div>
                         {isLoggingDisabled && (
-                            <p className="text-xs text-orange-500 text-center mt-1">Loggning är endast tillgänglig för idag.</p>
+                            <p className="text-xs text-[#D96E4A] text-center mt-1">Loggning är endast tillgänglig för idag.</p>
                         )}
                       </div>
                   </div>

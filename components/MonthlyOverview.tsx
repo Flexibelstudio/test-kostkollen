@@ -165,7 +165,7 @@ const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
                             )}
                         </button>
                     </div>
-                    <span className={`text-xs font-bold ${waterGoalWasMet ? 'text-blue-500' : 'text-neutral-400'}`}>
+                    <span className={`text-xs font-bold ${waterGoalWasMet ? 'text-[#D96E4A]' : 'text-neutral-400'}`}>
                       {shortDayNamesSwedish[index]}
                     </span>
                 </div>

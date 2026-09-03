@@ -105,11 +105,23 @@ export const deleteCohort = async (cohortId: string): Promise<void> => {
   await deleteDoc(cohortRef);
 };
 
+/**
+ * Enda giltiga id:t för solotruppen. Tidigare skrev köpflödet 'solo_group'
+ * medan tjänstelagret och innehållsbiblioteket använde 'solo' - deltagare
+ * hamnade i en trupp vars innehåll aldrig lästes. Nya deltagare skrivs alltid
+ * till SOLO_COHORT_ID; 'solo_group' accepteras enbart som gammalt alias.
+ */
+export const SOLO_COHORT_ID = 'solo';
+export const LEGACY_SOLO_COHORT_IDS = ['solo_group'];
+
+export const isSoloCohort = (cohortId?: string | null): boolean =>
+  !!cohortId && (cohortId === SOLO_COHORT_ID || LEGACY_SOLO_COHORT_IDS.includes(cohortId));
+
 export const joinSoloBootcamp = async (userId: string): Promise<{ success: boolean; message: string }> => {
   if (!db) throw new Error("Firestore not initialized");
 
   // Check if already joined any bootcamp
-  const participantRef = doc(db, 'bootcampCohorts', 'solo', 'participants', userId);
+  const participantRef = doc(db, 'bootcampCohorts', SOLO_COHORT_ID, 'participants', userId);
   const participantSnap = await getDoc(participantRef);
 
   if (participantSnap.exists()) {
@@ -124,7 +136,7 @@ export const joinSoloBootcamp = async (userId: string): Promise<{ success: boole
   const startDateStr = new Date().toISOString().split('T')[0];
   const participantData: Partial<BootcampParticipant> = {
     userId,
-    cohortId: 'solo', // Special ID for solo participants
+    cohortId: SOLO_COHORT_ID,
     status: 'fas1',
     currentStreak: 0,
     longestStreak: 0,
@@ -162,7 +174,11 @@ export const completeBootcampOnboarding = async (userId: string, cohortId: strin
   const participantRef = doc(db, 'bootcampCohorts', cohortId, 'participants', userId);
   
   const participantSnap = await getDoc(participantRef);
-  if (!participantSnap.exists()) return;
+  // Tyst return här gav ett falskt "Du är nu redo för Bootcamp!" när sökvägen pekade
+  // fel: inget skrevs, men användaren fick grönt ljus och hamnade i Väntrummet igen.
+  if (!participantSnap.exists()) {
+    throw new Error(`Hittade inget deltagardokument på bootcampCohorts/${cohortId}/participants/${userId}`);
+  }
 
   const data = participantSnap.data() as BootcampParticipant;
   
@@ -171,7 +187,7 @@ export const completeBootcampOnboarding = async (userId: string, cohortId: strin
   };
 
   // If solo, start the 12 weeks from today
-  if (cohortId === 'solo' || cohortId === 'solo_group') {
+  if (isSoloCohort(cohortId)) {
     const startDateStr = new Date().toISOString().split('T')[0];
     updates.fas1StartDate = startDateStr;
     updates.originalStartDate = startDateStr;
@@ -383,6 +399,42 @@ export const cleanupExpiredBootcampGroups = async (userId: string): Promise<void
   }
 };
 
+/**
+ * Plockar ut den aktiva deltagaren ur ett collectionGroup-resultat.
+ *
+ * Två saker är medvetna här:
+ * 1. cohortId tas ALLTID från dokumentets faktiska sökväg, aldrig från fältet i
+ *    dokumentet. Om fältet har drivit isär från sökvägen skriver t.ex.
+ *    completeBootcampOnboarding till fel dokument, och användaren hamnar i
+ *    Väntrummet igen trots att hon fyllt i allt.
+ * 2. Om flera aktiva deltagardokument finns (gamla testtrupper) väljs det som
+ *    startade senast, i stället för det som råkar komma först i resultatet.
+ */
+const pickActiveParticipant = (
+  docs: Array<{ data: () => any; ref: any }>
+): BootcampParticipant | undefined => {
+  const active = docs
+    .map(d => {
+      const data = d.data() as BootcampParticipant;
+      const pathCohortId = d.ref.parent.parent ? d.ref.parent.parent.id : data.cohortId;
+      if (pathCohortId && data.cohortId !== pathCohortId) {
+        console.warn(
+          `Bootcamp: cohortId i dokumentet ("${data.cohortId}") matchar inte sökvägen ("${pathCohortId}"). Använder sökvägen.`
+        );
+      }
+      return { ...data, cohortId: pathCohortId };
+    })
+    .filter(p => p.status === 'fas1' || p.status === 'fas2');
+
+  if (active.length > 1) {
+    console.warn(
+      `Bootcamp: hittade ${active.length} aktiva deltagardokument för samma användare (${active.map(p => p.cohortId).join(', ')}). Väljer det senast startade.`
+    );
+  }
+
+  return active.sort((a, b) => (b.joinedAt || 0) - (a.joinedAt || 0))[0];
+};
+
 export const getUserActiveBootcamp = async (userId: string): Promise<BootcampParticipant | null> => {
   if (!db) return null;
 
@@ -392,14 +444,7 @@ export const getUserActiveBootcamp = async (userId: string): Promise<BootcampPar
     
     if (snapshot.empty) return null;
     
-    // Return the first active one (assuming user can only be in one at a time)
-    const activeParticipant = snapshot.docs.map(doc => {
-        const data = doc.data() as BootcampParticipant;
-        if (!data.cohortId && doc.ref.parent.parent) {
-            data.cohortId = doc.ref.parent.parent.id;
-        }
-        return data;
-    }).find(p => p.status === 'fas1' || p.status === 'fas2');
+    const activeParticipant = pickActiveParticipant(snapshot.docs);
     
     if (activeParticipant) {
       const checkedParticipant = await checkBootcampExpiration(activeParticipant);
@@ -426,13 +471,7 @@ export const subscribeToUserActiveBootcamp = (userId: string, callback: (partici
     if (snapshot.empty) {
       callback(null);
     } else {
-      const activeParticipant = snapshot.docs.map(doc => {
-          const data = doc.data() as BootcampParticipant;
-          if (!data.cohortId && doc.ref.parent.parent) {
-              data.cohortId = doc.ref.parent.parent.id;
-          }
-          return data;
-      }).find(p => p.status === 'fas1' || p.status === 'fas2');
+      const activeParticipant = pickActiveParticipant(snapshot.docs);
       if (activeParticipant) {
         const checkedParticipant = await checkBootcampExpiration(activeParticipant);
         if (checkedParticipant.status === 'fas1' || checkedParticipant.status === 'fas2') {
@@ -636,7 +675,7 @@ export const recalculateStreak = async (cohortId: string, userId: string, provid
           type: 'achievement',
           timestamp: Date.now(),
           title: 'har nått Fas 2 i Generalens Bootcamp!',
-          description: 'Överlevde grundträningen och är nu redo för Elit-fasen.',
+          description: 'Klarade de första 14 dagarnas disciplin och är nu redo för Elit-fasen.',
           icon: '🔥',
           relatedDocId: `bootcamp_${cohortId}_fas2`
         });

@@ -1,7 +1,16 @@
 
-import { GoalSettings, NutritionalInfo, UserProfileData, Level, Achievement } from './types.ts';
+import { GoalSettings, NutritionalInfo, UserProfileData, Level, Achievement, CommunitySharingSettings } from './types.ts';
 
 export const GEMINI_MODEL_NAME_TEXT = 'gemini-3-flash-preview';
+
+export const DEFAULT_COMMUNITY_SHARING_SETTINGS: CommunitySharingSettings = {
+  weight: false,      // vikt (default OFF)
+  achievement: true, // bragder
+  streak: true,      // streak
+  course: true,      // kurs
+  level: true,       // nivå
+  goal: true,        // mål
+};
 
 // VAPID public key for web push notifications.
 // IMPORTANT: Replace this with your own generated key pair for production.
@@ -56,6 +65,7 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
   goalCompletionDate: undefined,
   goalStartWeight: undefined,
   isSearchable: true,
+  communitySharingSettings: DEFAULT_COMMUNITY_SHARING_SETTINGS,
   notificationSettings: {
     friendRequests: true,
     newEvents: true,
@@ -69,37 +79,45 @@ export const DEFAULT_USER_PROFILE: UserProfileData = {
     milestoneNudge: true,
   },
   preferredWeighInDay: 'måndag',
+  dietaryPreference: 'omnivore',
   coachStyle: 'balanced', // Default coach style
   highestBootcampStreak: 0,
 };
+
+/**
+ * Dagligt fibermal i gram. Nordiska rekommendationerna ligger pa 25-35 g for
+ * vuxna kvinnor; vi lagger malet i underkant sa att det ar nabart och far
+ * fungera som ett samlarmal, aldrig som ett tak man kan missa.
+ */
+export const FIBER_DAILY_TARGET_GRAMS = 25;
 
 export const COACH_PERSONAS = {
   soft: {
     label: 'Maja',
     roleTitle: 'din kompis',
     description: 'För dig som vill ha stöd och värme.',
-    emoji: '🌸',
-    imageUrl: '/coach-maja.png',
+    emoji: '',
+    imageUrl: '/coach-maja.jpg',
     voice: 'Kore',
-    promptTone: 'Du heter "Maja". Du är en empatisk, varm och peppande kompis. Du fokuserar på välmående och att "lyssna på kroppen". Använd emojis som 💚, 🌿, 🤗. Var snäll och uppmuntrande. VIKTIGT OM MAT: Du får aldrig försköna dåliga matval. Om användaren äter skräpmat (t.ex. pizza, godis), kalla det INTE för balanserat eller bra. Var istället snäll men ärlig: "Gott med pizza! Men kom ihåg att det kanske inte ger dig den bästa energin, försök få in lite mer protein sen!".'
+    promptTone: 'Du heter "Maja". Du är en empatisk, varm och peppande kompis. Du fokuserar på välmående och att lyssna på kroppen. Skriv HELT UTAN emojis. Var snäll, saklig och uppmuntrande. Undvik alla skuldbeläggande formuleringar om bruten streak – formulera det uppmuntrande i stället (t.ex. "I dag börjar vi om"). VIKTIGT OM MAT: Du får aldrig försköna dåliga matval. Om användaren äter skräpmat (t.ex. pizza, godis), kalla det INTE för balanserat eller bra. Var istället snäll men ärlig: "Gott med pizza! Men kom ihåg att det kanske inte ger dig den bästa energin, försök få in lite mer protein sen!".'
   },
   balanced: {
     label: 'Erik',
     roleTitle: 'din PT',
     description: 'För dig som vill ha fakta och struktur.',
-    emoji: '⏱️',
-    imageUrl: '/coach-erik.png',
+    emoji: '',
+    imageUrl: '/coach-erik.jpg',
     voice: 'Puck',
-    promptTone: 'Du heter "Erik". Du är professionell, faktabaserad och lösningsorienterad. Du analyserar data och ger konkreta strategier. Tonen är uppmuntrande men objektiv. Använd emojis som 👊, 📊, ✅. VIKTIGT OM MAT: Bedöm maten objektivt. Bra råvaror (protein, grönsaker, bra fetter) är "optimalt bränsle". Skräpmat är "mindre optimalt för dina mål" men du dömer inte, utan ger tips på hur man balanserar upp det.'
+    promptTone: 'Du heter "Erik". Du är professionell, faktabaserad, varm och lösningsorienterad. Du analyserar data och ger konkreta strategier. Tonen är uppmuntrande och saklig. Skriv HELT UTAN emojis. Undvik alla skuldbeläggande formuleringar om bruten streak – formulera det uppmuntrande i stället (t.ex. "I dag börjar vi om"). VIKTIGT OM MAT: Bedöm maten objektivt. Bra råvaror (protein, grönsaker, bra fetter) är optimalt bränsle. Skräpmat är mindre optimalt för dina mål, men du dömer inte utan ger tips på hur man balanserar upp det.'
   },
   hard: {
     label: 'Börje',
     roleTitle: 'generalen',
     description: 'För dig som behöver en spark i baken.',
-    emoji: '🪖',
-    imageUrl: '/coach-borje.png',
+    emoji: '',
+    imageUrl: '/coach-borje.jpg',
     voice: 'Charon',
-    promptTone: 'Du heter "Börje". Du är auktoritär, rakt på sak och kör med "tough love". Inga ursäkter accepteras. Korta meningar. VERSALER ibland för betoning. Använd emojis som 💥, 🛑, 🫡. VIKTIGT OM MAT: Du måste respektera bra mat. Om rekryten äter bra råvaror (avokado, ägg, grönsaker, rent kött), MÅSTE du ge beröm ("förstklassigt bränsle", "bra ammunition"). Kalla ALDRIG näringsrik mat för "skit" eller "bukfylla". Spara dina hårda ord och "bukfylla"-kommentarer till när rekryten faktiskt äter socker, skräpmat eller slarvar.'
+    promptTone: 'Du heter "Börje". Du är rak, bestämd och rakt på sak i en varm och konstruktiv ton. Inga ursäkter, men alltid uppmuntrande. Skriv HELT UTAN emojis. Undvik alla skuldbeläggande formuleringar om bruten streak – formulera det uppmuntrande i stället (t.ex. "I dag börjar vi om"). VIKTIGT OM MAT: Du måste respektera bra mat. Om användaren äter bra råvaror (avokado, ägg, grönsaker, rent kött), ge beröm. Kalla ALDRIG näringsrik mat för "skit" eller "bukfylla". Spara dina skarpare kommentarer till när användaren faktiskt äter socker eller skräpmat.'
   }
 };
 
@@ -128,6 +146,13 @@ export const CALORIE_ADJUSTMENT = {
 };
 
 // Gamification Level Definitions
+/**
+ * Namnet ett raderat konto far i floden och kommentarer. Maste vara EXAKT
+ * samma strang som DELETED_USER_NAME i functions/index.js - klienten kanner
+ * igen raderade konton pa den har texten och doljer da vanknappen.
+ */
+export const DELETED_USER_NAME = 'Borttagen användare';
+
 export const LEVEL_DEFINITIONS: Level[] = [
   { id: 'level0', name: 'Nystartad', requiredStreak: 0, icon: '🌱', description: 'Du har precis börjat din resa!' },
   { id: 'level1', name: 'Veckoutmanare', requiredStreak: 7, icon: '🥉', description: 'En hel vecka, starkt jobbat!' },

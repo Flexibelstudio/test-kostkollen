@@ -151,10 +151,10 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'fakta': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'cta': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'pepp': return 'bg-pink-100 text-pink-800 border-pink-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'fakta': return 'bg-[#F6E2D9] text-primary border-primary/20';
+      case 'cta': return 'bg-neutral-light text-neutral-dark border-neutral-200';
+      case 'pepp': return 'bg-[#F6E2D9] text-primary border-primary/20';
+      default: return 'bg-neutral-100 text-neutral-800 border-neutral-200';
     }
   };
 
@@ -321,7 +321,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                             return (
                               <div 
                                 key={post.id} 
-                                className={`text-[10px] p-1.5 rounded border ${getCategoryColor(post.category)} relative group/post shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors`}
+                                className={`text-xs p-1.5 rounded border ${getCategoryColor(post.category)} relative group/post shadow-sm cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors`}
                                 draggable
                                 onDragStart={(e) => {
                                   setDraggedScheduledPost(post);
@@ -335,12 +335,12 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                                 <div className="font-bold line-clamp-1 mb-0.5">{title}</div>
                                 <div className="line-clamp-2 opacity-80 leading-tight">{post.content}</div>
                                 {post.publishOnWeekday && (
-                                  <div className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1 rounded mt-1 w-max flex items-center gap-0.5">
+                                  <div className="text-xs font-bold text-[#84A98C] bg-[#84A98C]/10 border border-[#84A98C]/20 px-1 rounded mt-1 w-max flex items-center gap-0.5">
                                     🗓️ {['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'][post.publishOnWeekday - 1]}
                                   </div>
                                 )}
                                 {post.groupId === 'all' && post.excludedGroups && post.excludedGroups.length > 0 && (
-                                  <div className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1 rounded mt-1 w-max">
+                                  <div className="text-xs font-bold text-primary bg-[#F6E2D9] px-1 rounded mt-1 w-max">
                                     Avvikelser ({post.excludedGroups.length})
                                   </div>
                                 )}
@@ -396,7 +396,7 @@ const BootcampContentLibrary: React.FC<BootcampContentLibraryProps> = ({ setToas
                 onDragEnd={() => setDraggedTemplate(null)}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-semibold border ${getCategoryColor(template.category)} uppercase tracking-wider`}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${getCategoryColor(template.category)} uppercase tracking-wider`}>
                     {template.category}
                   </span>
                   <div className="flex gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 bg-white/90 rounded-md shadow-sm p-0.5">

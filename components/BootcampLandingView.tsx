@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, ShieldCheckIcon, UsersIcon, UserIcon, KeyIcon, CheckCircleIcon } from './icons';
 import { Loader2 } from 'lucide-react';
 import { BootcampCohort, UserProfileData, GoalSettings } from '../types';
-import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort, getBootcampStepGoal } from '../services/bootcampService';
+import { subscribeToPublicCohorts, joinSoloBootcamp, joinCohort, getBootcampStepGoal, SOLO_COHORT_ID, isSoloCohort } from '../services/bootcampService';
 import { saveWeightLog } from '../services/firestoreService';
 import { auth, db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -14,6 +14,7 @@ import { WeightLogEntry } from '../types';
 import ProteinInfoModal from './ProteinInfoModal';
 import { InformationCircleIcon } from './icons';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { BOOTCAMP_PRICE_LABEL } from '../constants/pricing';
 
 interface BootcampLandingViewProps {
   onBack: () => void;
@@ -51,7 +52,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         const result = await createSession({ 
             returnUrl: window.location.origin,
             mode: 'payment',
-            cohortId: isSolo ? 'solo_group' : cohortIdOrCode
+            cohortId: isSolo ? SOLO_COHORT_ID : cohortIdOrCode
         });
         
         const url = (result.data as any).url;
@@ -71,7 +72,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
   };
 
   const handleJoinSolo = async () => {
-    await handlePaymentAndJoin('solo_group', true);
+    await handlePaymentAndJoin(SOLO_COHORT_ID, true);
   };
 
   const handleJoinWithCode = async (e: React.FormEvent) => {
@@ -97,7 +98,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         fiveDaysAgo.setDate(today.getDate() - 5);
         const fiveDaysAgoStr = `${fiveDaysAgo.getFullYear()}-${String(fiveDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(fiveDaysAgo.getDate()).padStart(2, '0')}`;
 
-        if (cohortData.startDate < fiveDaysAgoStr && cohortDoc.id !== 'solo' && cohortDoc.id !== 'solo_group') {
+        if (cohortData.startDate < fiveDaysAgoStr && !isSoloCohort(cohortDoc.id)) {
             setToast({ message: 'Denna trupp har stängt för sena anmälningar.', type: 'error' });
             setIsJoining(false);
             return;
@@ -156,7 +157,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
           <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-2xl inline-block">
              <p className="text-sm text-primary-light font-bold uppercase tracking-wider mb-1">Introduktionspris (Beta)</p>
              <div className="flex items-baseline gap-2">
-                 <span className="text-4xl font-extrabold text-white">395 kr</span>
+                 <span className="text-4xl font-extrabold text-white">{BOOTCAMP_PRICE_LABEL}</span>
                  <span className="text-sm text-neutral-400 font-medium">engångsbetalning</span>
              </div>
           </div>
@@ -217,7 +218,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         {/* Private Invite Code */}
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light md:col-span-2">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
+            <div className="w-10 h-10 bg-[#F1EAE0] rounded-xl flex items-center justify-center text-[#56524D]">
               <KeyIcon className="w-5 h-5" />
             </div>
             <h2 className="text-lg font-bold text-neutral-dark">Har du en inbjudningskod?</h2>
@@ -248,7 +249,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         {/* Public Cohorts */}
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+            <div className="w-12 h-12 bg-[#F1EAE0] rounded-xl flex items-center justify-center text-[#56524D]">
               <UsersIcon className="w-6 h-6" />
             </div>
             <div>
@@ -273,7 +274,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
                   <div>
                     <h3 className="font-bold text-neutral-dark">{cohort.name}</h3>
                     {hasStarted ? (
-                        <p className="text-sm font-medium text-orange-600">Startade {cohort.startDate} – Sista chansen!</p>
+                        <p className="text-sm font-medium text-[#D96E4A]">Startade {cohort.startDate} – Sista chansen!</p>
                     ) : (
                         <p className="text-sm text-neutral-500">Startar: {cohort.startDate}</p>
                     )}
@@ -295,7 +296,7 @@ const BootcampLandingView: React.FC<BootcampLandingViewProps> = ({ onBack, userP
         {/* Solo Start */}
         <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+            <div className="w-12 h-12 bg-[#E8EFE9] rounded-xl flex items-center justify-center text-[#2B3B2C]">
               <UserIcon className="w-6 h-6" />
             </div>
             <div>

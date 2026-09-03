@@ -1,9 +1,13 @@
 // services/geminiService.ts
 import { GoogleGenAI, GenerateContentResponse, Content, Modality } from "@google/genai";
-import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle } from '../types.ts';
+import { NutritionalInfo, SearchedFoodInfo, GoalSettings, UserProfileData, RecipeSuggestion, AIDataForFeedback, IngredientRecipeResponse, AIDataForJourneyAnalysis, WeightLogEntry, PastDaySummary, TimelineMilestone, AIDataForLessonIntro, AIDataForCoachSummary, AIStructuredFeedbackResponse, Level, MentalWellbeingLog, GoalType, ActivityLevel, CoachStyle, DietaryPreference } from '../types.ts';
 import { GEMINI_MODEL_NAME_TEXT, LEVEL_DEFINITIONS, COACH_PERSONAS } from '../constants.ts';
 import { auth, firebaseConfig, appCheck } from '../firebase.ts'; // Lagt till appCheck i importen
 import { getToken } from "firebase/app-check"; // Importera getToken för App Check
+import { runPlateauAnalysis } from '../utils/plateauAnalysis';
+import { calculateWeeklyTotals } from '../utils/nutritionTotals';
+import { dietaryPromptBlock, dietaryRecipeBlock } from '../utils/dietaryPreference';
+import { recordUploadStart, recordUploadEnd, recordGeminiCallTiming, recordConnectionPrewarm } from '../utils/photoPipelineProfiler.ts';
 
 // -- SECURE PROXY SETUP --
 // We route all Gemini API calls through our Firebase Cloud Function Proxy.
@@ -74,8 +78,51 @@ export const ai = new GoogleGenAI({
   } as any
 });
 
+/**
+ * Värm upp uppkopplingen mot Gemini-proxy och Firestore när kameran öppnas.
+ * Görs så billigt som möjligt (0 tokens, 0 AI-kvot, 0 Firestore-dokumentkostnad)
+ * genom ett enkelt HTTP OPTIONS/HEAD preflight-anrop samt ett token/ping-anrop.
+ */
+let lastPrewarmTimestamp = 0;
+export const prewarmConnections = async (): Promise<number> => {
+  const now = performance.now();
+  // Throttle inom 15 sekunder så vi inte gör onödiga dubbla anrop
+  if (Date.now() - lastPrewarmTimestamp < 15000) {
+    return 0;
+  }
+  lastPrewarmTimestamp = Date.now();
+
+  const tStart = performance.now();
+  try {
+    const user = auth.currentUser;
+    const tasks: Promise<any>[] = [
+      // 1. Värm upp TLS/TCP-kopplingen mot Cloud Function proxyn utan att anropa LLM (OPTIONS / HEAD)
+      fetch(baseUrl, { method: 'OPTIONS', mode: 'no-cors' }).catch(() => null),
+    ];
+
+    if (user) {
+      // 2. Förbered Auth Id-token & App Check i bakgrunden så de ligger i minnet/cachen
+      tasks.push(user.getIdToken().catch(() => null));
+      if (appCheck) {
+        tasks.push(getToken(appCheck).catch(() => null));
+      }
+    }
+
+    await Promise.all(tasks);
+    const duration = Math.max(0, performance.now() - tStart);
+    recordConnectionPrewarm(duration);
+    console.log(`⚡ [Pre-warm] Anslutningar förvärmda på ${duration.toFixed(1)} ms`);
+    return duration;
+  } catch (err) {
+    const duration = Math.max(0, performance.now() - tStart);
+    console.warn('Pre-warm error (non-fatal):', err);
+    return duration;
+  }
+};
+
 export interface AIDataForMorningBriefing {
   userProfile: UserProfileData;
+  goals?: GoalSettings;
   summary: PastDaySummary;
   currentStreak: number;
   yesterdayMeals?: any[];
@@ -190,11 +237,57 @@ Svara ENDAST med själva inläggstexten, inga kommentarer eller extra text. Bör
   }
 };
 
+const FIXED_PLATEAU_REFERRAL: Record<CoachStyle, string> = {
+  soft: 'Jag har en viktig analys till dig i dag. Läs den i kortet nedan, den är värd din tid.',
+  balanced: 'Jag har gjort en analys av din utveckling som du bör läsa. Den finns i kortet nedan.',
+  hard: 'Jag har en analys till dig. Läs kortet nedan innan du gör något annat.',
+};
+
 export const getMorningBriefingText = async (data: AIDataForMorningBriefing): Promise<string> => {
-  const { userProfile, summary, currentStreak, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs } = data;
+  const { userProfile, goals, summary, currentStreak, yesterdayBootcampReport, activeBootcamp, pastDaysSummary, weightLogs } = data;
   const style = userProfile.coachStyle || 'balanced';
   const persona = COACH_PERSONAS[style] || COACH_PERSONAS['balanced'];
   const name = userProfile.name || 'du';
+
+  // Run Plateau Analysis if data is available
+  let plateauContext = '';
+  let isSafetyPlateauStatus = false;
+  if (pastDaysSummary && weightLogs && goals) {
+    try {
+      const plateauAnalysisResult = runPlateauAnalysis({
+        userProfile,
+        goals,
+        pastDaysSummary,
+        weightLogs,
+        recentMealLogs: data.yesterdayMeals || []
+      });
+
+      if (plateauAnalysisResult) {
+        if (plateauAnalysisResult.status === 'human_handover' || plateauAnalysisResult.status === 'intake_too_low') {
+          isSafetyPlateauStatus = true;
+          // coachBriefingText skickas INTE till Gemini alls för dessa säkerhetskänsliga statusar
+          plateauContext = '';
+        } else {
+          plateauContext = `
+PLATÅ-ANALYS OCH STATUS (VIKTIGT):
+- Status: ${plateauAnalysisResult.status}
+- Mätmetod: ${plateauAnalysisResult.measurementMethod}
+- Är platå: ${plateauAnalysisResult.isPlateau ? 'JA' : 'NEJ'}
+- Loggningsgrad under 21 dagar: ${plateauAnalysisResult.loggingPercentage}%
+- Tränar/Coachens slutsats och analys:
+"${plateauAnalysisResult.coachBriefingText}"
+
+VIKTIGA REGLER FÖR PLATÅ-COACHING:
+- Inga emojis.
+- Ingen skuldbeläggning. Skriv ALDRIG att användaren "gör fel", "fuskar" eller borde skämmas. Formulera allt som gemensam felsökning och fakta.
+- Väv in denna platå-analys naturligt i din morgonbriefing till användaren enligt din persona (${persona.label}).
+- Föreslå ALDRIG att sänka kalorier under användarens BMR.`;
+        }
+      }
+    } catch (e) {
+      console.warn("Kunde inte köra platåanalys:", e);
+    }
+  }
 
   let bootcampContext = '';
   let missingReportInstruction = '';
@@ -245,10 +338,8 @@ PÅGÅENDE BOOTCAMP (FAS 2):
   let recentContext = '';
   if (pastDaysSummary && pastDaysSummary.length > 0) {
     const last7Days = pastDaysSummary.slice(-7);
-    const totalConsumed = last7Days.reduce((sum, day) => sum + day.consumedCalories, 0);
-    const totalGoal = last7Days.reduce((sum, day) => sum + day.calorieGoal, 0);
-    const avgConsumed = totalConsumed / last7Days.length;
-    const avgGoal = totalGoal / last7Days.length;
+    const weeklyTotals = calculateWeeklyTotals(last7Days);
+    const { totalConsumed, totalGoal, averageDailyConsumed: avgConsumed, averageDailyGoal: avgGoal } = weeklyTotals;
     
     // Check if user has been good (consumed <= goal + small buffer)
     const hasBeenGood = avgConsumed <= avgGoal + 50;
@@ -330,8 +421,12 @@ Tonläge och instruktioner: ${persona.promptTone}
 Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
 - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
 - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
+- Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Fibrer: riktmärket är ca 25 g om dagen. Fibrer är ett SAMLARMÅL, aldrig ett mål man missar - skäll aldrig på lågt fiberintag och räkna det aldrig som ett misslyckande. Ligger fibrerna lågt flera dagar i rad får du föreslå ett konkret byte (fullkorn i stället för vitt, baljväxter i grytan, frukt eller grönt till mellanmålet). Saknas fibervärde i datan: nämn inte fibrer alls.
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+${dietaryPromptBlock(userProfile.dietaryPreference)}
 
 DEFINITIONER:
 - Streak: Att logga mat. Hålls levande oavsett kalorimängd. Det är beviset på vanan att vara konsekvent.
@@ -343,6 +438,7 @@ Användaren heter ${name}.
 SITUATION IGÅR:
 - Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
 - Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
+${typeof summary.consumedFiber === 'number' ? `- Fibrer igår: ${summary.consumedFiber.toFixed(0)} g (riktmärke 25 g)` : '- Fibrer igår: okänt (nämn inte fibrer)'}
 - Streak-status: ${currentStreak > 0 ? `AKTIV (${currentStreak} dagar i rad). Användaren loggade igår!` : 'BRUTEN (0 dagar). Användaren loggade inte igår.'}
 ${yesterdayBootcampReport ? `
 BOOTCAMP-RAPPORT IGÅR:
@@ -355,6 +451,7 @@ BOOTCAMP-RAPPORT IGÅR:
 ` : ''}
 ${bootcampContext}
 ${recentContext}
+${plateauContext}
 
 INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
@@ -379,10 +476,20 @@ INSTRUKTIONER:
     if (!text || text.trim().length === 0) {
         throw new Error("Empty response from AI");
     }
-    return text.trim();
+    const trimmed = text.trim();
+    if (isSafetyPlateauStatus) {
+      const fixedSentence = FIXED_PLATEAU_REFERRAL[style] || FIXED_PLATEAU_REFERRAL.balanced;
+      return `${trimmed} ${fixedSentence}`;
+    }
+    return trimmed;
   } catch (error) {
     console.error("Error generating morning briefing text:", error);
-    return `God morgon ${name}! Hoppas du får en bra dag. Vi kör på!`;
+    const fallback = `God morgon ${name}! Hoppas du får en bra dag. Vi kör på!`;
+    if (isSafetyPlateauStatus) {
+      const fixedSentence = FIXED_PLATEAU_REFERRAL[style] || FIXED_PLATEAU_REFERRAL.balanced;
+      return `${fallback} ${fixedSentence}`;
+    }
+    return fallback;
   }
 };
 
@@ -414,6 +521,8 @@ export const getMorningBriefingAudio = async (text: string, style: CoachStyle): 
 };
 
 export const analyzeFoodImage = async (base64ImageData: string): Promise<NutritionalInfo> => {
+  // Steg 3: Mät förberedelse och paketering av bilduppladdning / payload
+  recordUploadStart();
   const imagePart = {
     inlineData: {
       mimeType: 'image/jpeg', 
@@ -422,23 +531,16 @@ export const analyzeFoodImage = async (base64ImageData: string): Promise<Nutriti
   };
 
   const textPart = {
-    text: `Analysera maten på denna bild. Ditt mål är att ge en RIMLIG och TYPISK uppskattning av dess näringsinnehåll.
-Identifiera den primära maträtten/livsmedlet.
-Uppskatta det totala antalet kalorier.
-Uppskatta makronutrientfördelningen i gram för protein, kolhydrater och fett.
-Se till att alla makronutrienter (protein, kolhydrater, fett) beaktas. Om en makronutrient typiskt finns i den identifierade maten (t.ex. kolhydrater i bröd, fett i ost), bör den ha och värde som inte är noll. Undvik att mata ut noll för en makronutrient om den tydligt finns.
-
-Svara ENDAST med ett enda JSON-objekt med följande nycklar:
-"foodItem" (string, på SVENSKA, t.ex., "Pepperonipizzabit", "Kycklingsallad"),
-"calories" (number),
-"protein" (number),
-"carbohydrates" (number),
-"fat" (number).
-
-Se till att alla näringsvärden är numeriska och representerar en rimlig näringsprofil för den synliga maten.
-Till exempel, för en ostpizzabit: {"foodItem": "Ostpizzabit", "calories": 280, "protein": 12, "carbohydrates": 35, "fat": 10}
-För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein": 30, "carbohydrates": 10, "fat": 20}`
+    text: `Identifiera måltiden/livsmedlet på bilden och uppskatta näringsvärden.
+Ingen introduktion, ingen förklaring, inga ingredienslistor.
+Svara ENDAST med ett JSON-objekt:
+{"foodItem":"Maträtt på svenska","calories":0,"protein":0,"carbohydrates":0,"fat":0,"fiber":0}
+"fiber" = kostfiber i gram (ingår i kolhydraterna, dra inte av dem). Uppskatta alltid, även grovt.`
   };
+  recordUploadEnd();
+
+  // Steg 4: Anropet till Gemini för bildanalys, från skickat till mottaget svar
+  const tGeminiStart = performance.now();
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
@@ -446,9 +548,13 @@ För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein
       contents: { parts: [imagePart, textPart] },
       config: {
         responseMimeType: "application/json",
-        temperature: 0.2, 
+        temperature: 0.1, 
       },
     });
+    const tGeminiEnd = performance.now();
+
+    // Steg 5: Tolkning av svaret till näringsvärden
+    const tParseStart = performance.now();
 
     let jsonStr = response.text?.trim();
     if (!jsonStr) throw new Error("No text response");
@@ -473,6 +579,18 @@ För en kycklingsallad: {"foodItem": "Kycklingsallad", "calories": 350, "protein
     parsedData.carbohydrates = Math.max(0, parsedData.carbohydrates);
     parsedData.fat = Math.max(0, parsedData.fat);
 
+    const tParseEnd = performance.now();
+
+    // Registrera mätvärden för Steg 4 och Steg 5
+    recordGeminiCallTiming({
+      tGeminiStart,
+      tGeminiEnd,
+      tParseStart,
+      tParseEnd,
+      foodItem: parsedData.foodItem,
+      calories: parsedData.calories,
+    });
+
     return parsedData;
 
   } catch (error) {
@@ -495,12 +613,13 @@ Svara ENDAST med ett enda JSON-objekt med följande nycklar:
 "calories" (number, för den beskrivna portionen),
 "protein" (number, i gram, för den beskrivna portionen),
 "carbohydrates" (number, i gram, för den beskrivna portionen),
-"fat" (number, i gram, för den beskrivna portionen).
+"fat" (number, i gram, för den beskrivna portionen),
+"fiber" (number, kostfiber i gram för den beskrivna portionen; ingår i kolhydraterna och ska INTE dras av från dem. Uppskatta alltid, sätt 0 bara för livsmedel som verkligen saknar fiber, t.ex. kött, fisk, ägg, mejeri och olja).
 
 Se till att alla näringsvärden är numeriska och representerar en rimlig näringsprofil för standardportionen av livsmedlet. Om sökfrågan är tvetydig (t.ex. "läsk"), försök att välja ett vanligt exempel (t.ex. "Coladryck") eller ange antagandet i foodItem.
-Exempel för "ett ägg": {"foodItem": "Stort ägg, kokat", "servingDescription": "1 stort (ca 50g)", "calories": 78, "protein": 6, "carbohydrates": 0.6, "fat": 5}
-Exempel för "ett glas mjölk": {"foodItem": "Mjölk, 2% fett", "servingDescription": "1 glas (ca 240ml)", "calories": 122, "protein": 8, "carbohydrates": 12, "fat": 5}
-Exempel för "öl": {"foodItem": "Öl, vanlig", "servingDescription": "1 burk (355ml)", "calories": 153, "protein": 1.6, "carbohydrates": 13, "fat": 0}`;
+Exempel för "ett ägg": {"foodItem": "Stort ägg, kokat", "servingDescription": "1 stort (ca 50g)", "calories": 78, "protein": 6, "carbohydrates": 0.6, "fat": 5, "fiber": 0}
+Exempel för "ett glas mjölk": {"foodItem": "Mjölk, 2% fett", "servingDescription": "1 glas (ca 240ml)", "calories": 122, "protein": 8, "carbohydrates": 12, "fat": 5, "fiber": 0}
+Exempel för "en portion linsgryta": {"foodItem": "Linsgryta", "servingDescription": "1 portion (ca 350g)", "calories": 320, "protein": 17, "carbohydrates": 42, "fat": 8, "fiber": 12}`;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
@@ -587,8 +706,12 @@ Ge feedback på SVENSKA.
 Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
 - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
 - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
+- Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Fibrer: riktmärket är ca 25 g om dagen. Fibrer är ett SAMLARMÅL, aldrig ett mål man missar - skäll aldrig på lågt fiberintag och räkna det aldrig som ett misslyckande. Ligger fibrerna lågt flera dagar i rad får du föreslå ett konkret byte (fullkorn i stället för vitt, baljväxter i grytan, frukt eller grönt till mellanmålet). Saknas fibervärde i datan: nämn inte fibrer alls.
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+${dietaryPromptBlock(userProfile.dietaryPreference)}
 
 **Användarens Status:**
 - Namn: ${userName || 'Användare'}
@@ -642,9 +765,61 @@ ${contextPrompt}
 };
 
 
-export const getRecipeSuggestion = async (recipeQuery: string): Promise<RecipeSuggestion> => {
+/**
+ * Uppskattar fibermängden för en måltid som saknar värde.
+ *
+ * Används för vanliga val som sparades innan fibrerna infördes. Vi frågar
+ * ENBART efter fibern och skickar med de värden vi redan har, så att svaret
+ * blir konsekvent med måltidens övriga näringsvärden i stället för en ny och
+ * avvikande uppskattning av hela måltiden.
+ */
+export const estimateFiberForFood = async (
+  foodName: string,
+  calories: number,
+  carbohydrates: number
+): Promise<number> => {
+  const prompt = `Uppskatta mängden kostfiber i gram för den här måltiden.
+
+Måltid: "${foodName}"
+Kalorier: ${Math.round(calories)} kcal
+Kolhydrater: ${Math.round(carbohydrates)} g
+
+Kostfiber ingår i kolhydraterna och kan därför aldrig vara mer än kolhydratmängden.
+Kött, fisk, ägg, mejeriprodukter och rena fetter innehåller 0 g fiber.
+Baljväxter, fullkorn, grönsaker, frukt, nötter och frön innehåller mest.
+
+Svara ENDAST med ett JSON-objekt: {"fiber": number}`;
+
+  const response: GenerateContentResponse = await ai.models.generateContent({
+    model: GEMINI_MODEL_NAME_TEXT,
+    contents: prompt,
+    config: { responseMimeType: "application/json", temperature: 0.1 },
+  });
+
+  let jsonStr = response.text?.trim();
+  if (!jsonStr) throw new Error("Inget svar från AI:n.");
+
+  const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
+  const match = jsonStr.match(fenceRegex);
+  if (match && match[2]) jsonStr = match[2].trim();
+
+  const parsed = JSON.parse(jsonStr) as { fiber?: number };
+  if (typeof parsed.fiber !== 'number' || isNaN(parsed.fiber)) {
+    throw new Error("Kunde inte tolka fibervärdet.");
+  }
+
+  // Fibern ligger i kolhydraterna - ett högre värde än så är alltid fel.
+  const capped = Math.min(Math.max(0, parsed.fiber), Math.max(0, carbohydrates));
+  return Math.round(capped * 10) / 10;
+};
+
+export const getRecipeSuggestion = async (
+  recipeQuery: string,
+  dietaryPreference?: DietaryPreference
+): Promise<RecipeSuggestion> => {
   const prompt = `Du är en expert receptassistent. Användaren kommer att be om ett recept.
 Ge ett recept baserat på deras fråga.
+${dietaryRecipeBlock(dietaryPreference)}
 Ditt svar MÅSTE vara ett enda JSON-objekt med följande struktur:
 {
   "title": "Recepttitel (sträng, SVENSKA)",
@@ -664,6 +839,7 @@ Ditt svar MÅSTE vara ett enda JSON-objekt med följande struktur:
     "protein": number,
     "carbohydrates": number,
     "fat": number,
+    "fiber": number,
     "foodItem": "Samma som title (sträng)"
   },
   "chefTip": "Valfritt: Ett hjälpsamt tips eller variation (sträng, SVENSKA)"
@@ -734,7 +910,10 @@ Användarens fråga: "${recipeQuery}"`;
 };
 
 
-export const getRecipesFromIngredientsImage = async (base64ImageDatas: string[]): Promise<IngredientRecipeResponse> => {
+export const getRecipesFromIngredientsImage = async (
+  base64ImageDatas: string[],
+  dietaryPreference?: DietaryPreference
+): Promise<IngredientRecipeResponse> => {
   if (base64ImageDatas.length === 0) {
     return { identifiedIngredients: [], recipeSuggestions: [] };
   }
@@ -753,6 +932,7 @@ export const getRecipesFromIngredientsImage = async (base64ImageDatas: string[])
 6.  Svara i JSON-format. JSON-objektet på toppnivå ska ha två nycklar: 'identifiedIngredients' (en array av strängar) och 'recipeSuggestions' (en array av receptobjekt, var och en som matchar RecipeSuggestion-strukturen).
 7.  För receptingredienser, lista endast varor som antingen är direkt identifierade eller mycket vanliga skafferivaror om det är absolut nödvändigt för receptet.
 8.  Se till att 'foodItem' i totalNutritionalInfo for varje recept alltid är receptets titel. Näringsinformationen ska vara en UPPSKATTNING per PORTION.
+${dietaryRecipeBlock(dietaryPreference)}
 
 JSON-struktur för varje recept i 'recipeSuggestions':
 {
@@ -763,7 +943,7 @@ JSON-struktur för varje recept i 'recipeSuggestions':
   "servings": "Uppskattat antal portioner (sträng, t.ex. '4 portioner', SVENSKA)",
   "ingredients": [ { "item": "Fullständig ingredienssträng..." } ],
   "instructions": [ "Instruktion 1...", "Instruktion 2..." ],
-  "totalNutritionalInfo": { "calories": number, "protein": number, "carbohydrates": number, "fat": number, "foodItem": "Samma som title (sträng)" },
+  "totalNutritionalInfo": { "calories": number, "protein": number, "carbohydrates": number, "fat": number, "fiber": number, "foodItem": "Samma som title (sträng)" },
   "chefTip": "Valfritt: Ett hjälpsamt tips eller variation (sträng, SVENSKA)"
 }
 `
@@ -841,6 +1021,7 @@ export const getAICoachResponseStream = async (
     date: s.date,
     consumedCalories: s.consumedCalories,
     consumedProtein: s.consumedProtein,
+    consumedFiber: typeof s.consumedFiber === 'number' ? s.consumedFiber : null,
     consumedCarbohydrates: s.consumedCarbohydrates,
     consumedFat: s.consumedFat,
     proteinGoalMet: s.proteinGoalMet,
@@ -858,12 +1039,18 @@ Användarens namn är ${userProfile.name || 'användaren'}. Din uppgift är att 
 1.  **Svara naturligt och konverserande:** Läs användarens meddelande och svara på det. Om användaren bara säger "hej" eller frågar något allmänt, svara vänligt i din persona utan att tvinga fram en hel data-analys.
 2.  **Kortfattad analys vid behov:** Om användaren frågar om sin utveckling, varför vikten står still, eller ber om råd: Ge en snabb analys, en slutsats och ett konkret råd. Undvik långa utläggningar.
 3.  Anpassa din ton efter din persona (${persona.label}). Använd Markdown för att formatera dina svar med fetstil (**text**) och punktlistor (* punkt).
-4.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
-5.  **NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):** Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
+4.  **INGA EMOJIS:** Du MÅSTE skriva helt utan emojis. Tonen ska vara lugn, varm, saklig och uppmuntrande.
+5.  **UPPMUNTRANDE FORMULERINGAR:** Skuldbelägg aldrig användaren om en streak är bruten – formulera det uppmuntrande i stället (t.ex. "I dag börjar vi om").
+6.  **VIKTIGT OM KALORIER:** Standardformler för kaloribehov kan överskatta behovet kraftigt för personer med högt BMI/fetma. Om användaren har högt BMI, var ödmjuk inför att de beräknade målen kan vara för höga. Föreslå att de känner efter mättnad och justerar målen manuellt i profilen om vikten står stilla. Kroppen är alltid facit, formeln är bara en gissning.
+7.  **NÄRINGS-LAGBOKEN (GÄLLER ALLA COACHER):** Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
     - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
     - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+    - Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
+    - Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
     - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+    - Fibrer: riktmärket är ca 25 g om dagen. Fibrer är ett SAMLARMÅL, aldrig ett mål man missar - skäll aldrig på lågt fiberintag och räkna det aldrig som ett misslyckande. Ligger fibrerna lågt flera dagar i rad får du föreslå ett konkret byte (fullkorn i stället för vitt, baljväxter i grytan, frukt eller grönt till mellanmålet). Saknas fibervärde i datan: nämn inte fibrer alls.
     - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+${dietaryPromptBlock(userProfile.dietaryPreference)}
 
 **ANVÄNDARENS AKTUELLA KONTEXT:**
 ${context.activeBootcamp ? `- Användaren deltar just nu i General Börjes Bootcamp (Fas: ${context.activeBootcamp.status}, Streak: ${context.activeBootcamp.currentStreak} dagar). VIKTIGT: Bootcampen har INGA lektioner. Prata aldrig om lektioner i samband med bootcampen.` : ''}
@@ -1153,6 +1340,14 @@ I sektionen "Rekommendationer framåt", inkludera en empatisk och proaktiv coach
     const totalaDagar = last30DaysSummaries.length;
     const waterGoalMetCount = last30DaysSummaries.filter(s => s.waterGoalMet).length;
     const vattenuppfyllnadProcent = totalaDagar > 0 ? ((waterGoalMetCount / totalaDagar) * 100).toFixed(0) : '0';
+
+    // Fibersnitt raknas BARA pa dagar som faktiskt har ett fibervarde. Skulle
+    // dagar fran tiden fore fibrerna raknas som noll drogs snittet ner i veckor
+    // och coachen hade kommenterat en nedgang som aldrig hant.
+    const dagarMedFiber = last30DaysSummaries.filter(s => typeof s.consumedFiber === 'number');
+    const fiberSnitt = dagarMedFiber.length > 0
+        ? (dagarMedFiber.reduce((sum, s) => sum + (s.consumedFiber || 0), 0) / dagarMedFiber.length).toFixed(0)
+        : null;
     
     const { currentLevel } = getUserLevelInfo(currentStreak);
     const nivå = currentLevel.name;
@@ -1216,8 +1411,12 @@ Du är en INTE en extern coach, du ÄR ${persona.label}. Skriv återkopplingen s
 Oavsett din persona, måste du ALLTID bedöma maten utifrån objektiv näringslära:
 - Avokado, nötter, olivolja = Mycket bra (hälsosamma fetter).
 - Ägg, kyckling, fisk, kvarg = Mycket bra (protein för mättnad och muskler).
+- Baljväxter (bönor, linser, kikärter), tofu, tempeh, sojafärs, quorn, nötter och frön = Mycket bra växtbaserat protein, likvärdigt med animaliskt.
+- Utgå ALDRIG från att användaren äter kött eller fisk. Om deras loggar visar att de undviker animaliskt protein ska dina proteinförslag vara växtbaserade. Variera förslagen mellan animaliskt och växtbaserat när du inte vet.
 - Grönsaker/Frukt = Mycket bra (vitaminer och fibrer).
+- Fibrer: riktmärket är ca 25 g om dagen. Fibrer är ett SAMLARMÅL, aldrig ett mål man missar - skäll aldrig på lågt fiberintag och räkna det aldrig som ett misslyckande. Ligger fibrerna lågt flera dagar i rad får du föreslå ett konkret byte (fullkorn i stället för vitt, baljväxter i grytan, frukt eller grönt till mellanmålet). Saknas fibervärde i datan: nämn inte fibrer alls.
 - Pizza, godis, bakverk, snabbmat = Näringsfattigt/kaloririkt (okej ibland, men kalla det aldrig 'balanserat', 'optimalt' eller 'bra bränsle').
+${dietaryPromptBlock(userProfile.dietaryPreference)}
 
 ${plateauPromptPart}
 Analysera användarens data nedan och svara ENDAST med ett enda JSON-objekt med följande exakta struktur:
@@ -1279,6 +1478,7 @@ ${bodyCompositionDataPrompt}
 - Summering av näring i analysperioden: ${nutritionalSummaryForPrompt}
 - Måltidslinje & Milstolpar: ${JSON.stringify(goalTimeline)}
 - Vattenmål uppnått: ${vattenuppfyllnadProcent}% av dagarna (senaste 30d)
+- Fibrer: ${fiberSnitt ? `${fiberSnitt} g i snitt per dag (${dagarMedFiber.length} dagar med data, riktmärke 25 g)` : 'ingen fiberdata ännu - nämn inte fibrer'}
 - Streak: ${currentStreak} dagar
 - Nivå: ${nivå}
 - Aktivitetsnivå: ${aktivitetsnivå}
@@ -1399,10 +1599,11 @@ Svara ENDAST med ett enda JSON-objekt med följande exakta nycklar:
 "calories" (number, i kcal, per 100g/ml),
 "protein" (number, i gram, per 100g/ml),
 "carbohydrates" (number, i gram, per 100g/ml),
-"fat" (number, i gram, per 100g/ml).
+"fat" (number, i gram, per 100g/ml),
+"fiber" (number, kostfiber i gram per 100g/ml. Star det "varav fiber", "fiber" eller "kostfiber" pa etiketten: ta det vardet. Saknas raden helt, uppskatta utifran produkttypen).
 
 Se till att alla näringsvärden är numeriska och representerar värdena per 100g eller 100ml. Om ett värde inte kan hittas, returnera 0 för det fältet. Om du hittar "kJ" för energi, omvandla det till kcal (dividera med 4.184). Extrahera endast siffror.
-Exempel: {"foodItem": "Ekologisk Mellanmjölk", "calories": 45, "protein": 3.5, "carbohydrates": 4.9, "fat": 1.5}`
+Exempel: {"foodItem": "Ekologisk Mellanmjölk", "calories": 45, "protein": 3.5, "carbohydrates": 4.9, "fat": 1.5, "fiber": 0}`
   };
 
   try {

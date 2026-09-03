@@ -19,48 +19,64 @@ const { Readable } = require("stream");
 // Denna funktion förhindrar krascher om en miljövariabel saknas i molnet
 function getSafeConfig(domain, key) {
   try {
-    return functions.config()[domain][key];
+    if (typeof functions.config === "function") {
+      const cfg = functions.config();
+      if (cfg && cfg[domain] && cfg[domain][key]) {
+        return cfg[domain][key];
+      }
+    }
+    return null;
   } catch (e) {
     return null;
   }
 }
 
-// Initiera Stripe med den hemliga nyckeln (från .env ELLER molnet)
-const stripeSecret =
-  process.env.STRIPE_SECRET_KEY || getSafeConfig("stripe", "secret");
-const stripe = require("stripe")(stripeSecret);
+// Lazy Stripe initializer
+let stripeInstance = null;
+function getStripe() {
+  if (!stripeInstance) {
+    const stripeSecret =
+      process.env.STRIPE_SECRET_KEY || getSafeConfig("stripe", "secret");
+    if (!stripeSecret) {
+      logger.warn("STRIPE_SECRET_KEY missing in environment.");
+    }
+    stripeInstance = require("stripe")(stripeSecret || "dummy_key");
+  }
+  return stripeInstance;
+}
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// ---- VAPID-nycklar ----
-// Robust loading check: first check system environment variables/secrets, then fallback to traditional functions.config()
-const vapidPublicKey =
-  process.env.VAPID_PUBLIC_KEY ||
-  process.env.WEBPUSH_PUBLIC_KEY ||
-  (functions.config().webpush ? functions.config().webpush.public_key : null);
-const vapidPrivateKey =
-  process.env.VAPID_PRIVATE_KEY ||
-  process.env.WEBPUSH_PRIVATE_KEY ||
-  (functions.config().webpush ? functions.config().webpush.private_key : null);
+// ---- VAPID-nycklar (Lazy) ----
+function getVapidKeys() {
+  const vapidPublicKey =
+    process.env.VAPID_PUBLIC_KEY ||
+    process.env.WEBPUSH_PUBLIC_KEY ||
+    getSafeConfig("webpush", "public_key");
+  const vapidPrivateKey =
+    process.env.VAPID_PRIVATE_KEY ||
+    process.env.WEBPUSH_PRIVATE_KEY ||
+    getSafeConfig("webpush", "private_key");
+  return { vapidPublicKey, vapidPrivateKey };
+}
 
-if (vapidPublicKey && vapidPrivateKey) {
-  logger.log("Webpush VAPID keys loaded", {
-    publicKeyLength: vapidPublicKey.length,
-    privateKeyLength: vapidPrivateKey.length,
-  });
-
-  try {
-    webpush.setVapidDetails(
-      "mailto:support@kostloggen.se",
-      vapidPublicKey,
-      vapidPrivateKey,
-    );
-  } catch (error) {
-    logger.error("VAPID details configuration failed at startup:", error);
+let isVapidConfigured = false;
+function initVapidDetails() {
+  if (isVapidConfigured) return;
+  const { vapidPublicKey, vapidPrivateKey } = getVapidKeys();
+  if (vapidPublicKey && vapidPrivateKey) {
+    try {
+      webpush.setVapidDetails(
+        "mailto:support@kostloggen.se",
+        vapidPublicKey,
+        vapidPrivateKey,
+      );
+      isVapidConfigured = true;
+    } catch (error) {
+      logger.error("VAPID details configuration failed at startup:", error);
+    }
   }
-} else {
-  logger.warn("WEBPUSH keys are not set. Push notifications will be disabled.");
 }
 
 // ---- Hjälpfunktioner för pushnotiser ----
@@ -83,6 +99,8 @@ async function getCoachAndAdminIds() {
 }
 
 async function sendNotificationToUser(userId, payload, notificationType) {
+  initVapidDetails();
+  const { vapidPublicKey, vapidPrivateKey } = getVapidKeys();
   if (!vapidPrivateKey || !vapidPublicKey) {
     logger.warn(
       `Skipping notification for ${userId} because WEBPUSH keys are not configured.`,
@@ -592,6 +610,90 @@ exports.addMutualFriends = functions.firestore
     }
   });
 
+/**
+ * Städar upp efter en raderad användare.
+ *
+ * Bara att ta bort users/{uid} räcker inte: sökningen läser spegelkollektionen
+ * publicProfiles, så personen gick fortfarande att hitta som vän. Och namnen i
+ * inlägg och kommentarer är denormaliserade - de ligger sparade i varje dokument
+ * och försvinner inte av sig själva.
+ *
+ * Därför: ta bort spegeln, och anonymisera personens spår till "Borttagen
+ * användare" i stället för att radera innehållet. Andras konversationer ska
+ * fortsätta gå att läsa.
+ */
+const DELETED_USER_NAME = "Borttagen användare";
+
+exports.onUserDeleted = functions.firestore
+  .document("users/{userId}")
+  .onDelete(async (snapshot, context) => {
+    const { userId } = context.params;
+
+    // 1. Spegeln i publicProfiles - annars ligger personen kvar i vänsökningen.
+    try {
+      await db.collection("publicProfiles").doc(userId).delete();
+    } catch (error) {
+      console.error(`Kunde inte ta bort publicProfiles/${userId}`, error);
+    }
+
+    // 2. Personens egna inlägg i communityTimeline.
+    try {
+      const postsSnap = await db
+        .collection("communityTimeline")
+        .where("userId", "==", userId)
+        .get();
+
+      let batch = db.batch();
+      let opsInBatch = 0;
+      for (const doc of postsSnap.docs) {
+        batch.update(doc.ref, {
+          userName: DELETED_USER_NAME,
+          userPhotoURL: null,
+        });
+        opsInBatch += 1;
+        if (opsInBatch >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          opsInBatch = 0;
+        }
+      }
+      if (opsInBatch > 0) await batch.commit();
+      console.log(`Anonymiserade ${postsSnap.size} inlägg for ${userId}`);
+    } catch (error) {
+      console.error(`Kunde inte anonymisera inlägg for ${userId}`, error);
+    }
+
+    // 3. Personens kommentarer. De ligger som subkollektion under varje inlägg,
+    //    så vi får gå via en collectionGroup-fråga.
+    try {
+      const commentsSnap = await db
+        .collectionGroup("comments")
+        .where("authorUid", "==", userId)
+        .get();
+
+      let batch = db.batch();
+      let opsInBatch = 0;
+      for (const doc of commentsSnap.docs) {
+        batch.update(doc.ref, {
+          authorName: DELETED_USER_NAME,
+          authorPhotoURL: null,
+        });
+        opsInBatch += 1;
+        if (opsInBatch >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          opsInBatch = 0;
+        }
+      }
+      if (opsInBatch > 0) await batch.commit();
+      console.log(`Anonymiserade ${commentsSnap.size} kommentarer for ${userId}`);
+    } catch (error) {
+      console.error(`Kunde inte anonymisera kommentarer for ${userId}`, error);
+    }
+
+    return null;
+  });
+
 exports.onBuddyRemoved = functions.firestore
   .document("users/{userId}/buddies/{buddyId}")
   .onDelete(async (snapshot, context) => {
@@ -1090,7 +1192,15 @@ exports.manualSummarizeYesterday = functions
 // ==========================================
 
 exports.createCheckoutSession = functions
-  .runWith({ secrets: ["STRIPE_BOOTCAMP_PRICE"] })
+  // STRIPE_PRICE_ID måste deklareras här, annars är den odefinierad i
+  // prenumerationsgrenen och köpet faller på "Kunde inte hitta ett pris".
+  .runWith({
+    secrets: [
+      "STRIPE_BOOTCAMP_PRICE",
+      "STRIPE_BOOTCAMP_INTRO_PRICE",
+      "STRIPE_PRICE_ID",
+    ],
+  })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -1102,18 +1212,34 @@ exports.createCheckoutSession = functions
     const mode = data.mode || "subscription";
     const origin = data.returnUrl || "https://app.kostloggen.se";
 
-    // Hämta rätt priceId beroende på om det är prenumeration eller engångsbetalning (Bootcamp)
-    let priceId = data.priceId;
-    if (!priceId) {
-      if (mode === "payment") {
-        priceId =
-          process.env.STRIPE_BOOTCAMP_PRICE ||
-          process.env.STRIPE_BOOTCAMP_PRICE_ID ||
-          getSafeConfig("stripe", "bootcamp_price");
-      } else {
-        priceId =
-          process.env.STRIPE_PRICE_ID || getSafeConfig("stripe", "price");
-      }
+    // Hämta rätt priceId beroende på om det är prenumeration eller
+    // engångsbetalning (Bootcamp).
+    //
+    // VIKTIGT: för engångsbetalning ignoreras ett priceId som skickas in från
+    // klienten. Priset är betalningskritiskt och ska bestämmas här på servern,
+    // aldrig i webbläsaren.
+    let priceId;
+    if (mode === "payment") {
+      // Introduktionspris till och med 30 september 2026 (svensk tid).
+      // Efter det faller det automatiskt tillbaka på ordinarie pris –
+      // ingen deploy behövs.
+      const introEndsAt = Date.parse("2026-09-30T23:59:59+02:00");
+      const introActive = Date.now() <= introEndsAt;
+      const introPrice = process.env.STRIPE_BOOTCAMP_INTRO_PRICE;
+      const ordinaryPrice =
+        process.env.STRIPE_BOOTCAMP_PRICE ||
+        process.env.STRIPE_BOOTCAMP_PRICE_ID ||
+        getSafeConfig("stripe", "bootcamp_price");
+
+      priceId = introActive && introPrice ? introPrice : ordinaryPrice;
+      logger.log(
+        `Bootcamp-pris valt: ${introActive && introPrice ? "introduktionspris" : "ordinarie"}`,
+      );
+    } else {
+      priceId =
+        data.priceId ||
+        process.env.STRIPE_PRICE_ID ||
+        getSafeConfig("stripe", "price");
     }
 
     if (!priceId) {
@@ -1125,6 +1251,7 @@ exports.createCheckoutSession = functions
     }
 
     try {
+      const stripe = getStripe();
       const userEmail = context.auth.token.email;
       const userId = context.auth.uid;
 
@@ -1178,7 +1305,23 @@ exports.createCheckoutSession = functions
 
       return { sessionId: session.id, url: session.url };
     } catch (error) {
-      console.error("Stripe fel:", error);
+      console.error("Stripe fel:", error, `(priceId: ${priceId}, mode: ${mode})`);
+
+      // Ett arkiverat/inaktivt pris i Stripe är ett konfigurationsfel hos oss,
+      // inte något kunden kan göra något åt. Visa ett begripligt
+      // meddelande istället för Stripes råa felmeddelande.
+      const isInactivePrice =
+        error.code === "resource_missing" ||
+        /price .*(inactive|not found)/i.test(error.message || "") ||
+        /only accepts active prices/i.test(error.message || "");
+
+      if (isInactivePrice) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Betalningen kunde inte startas just nu. Vi är informerade – försök igen om en stund.",
+        );
+      }
+
       throw new functions.https.HttpsError("internal", error.message);
     }
   });
@@ -1424,7 +1567,154 @@ exports.onChatMessageUpdated = functions.firestore
     }
   });
 
+/**
+ * Simulerat Bootcamp-köp för test i staging.
+ * bootcampAccess är betalningskritiskt och skrivs annars bara av Stripe-webhooken.
+ * Den här funktionen finns för att testverktyget ska kunna köra hela flödet utan
+ * betalning – och vägrar därför köra i produktionsprojektet.
+ */
+/**
+ * Städar upp efter konton som raderades innan onUserDeleted fanns på plats.
+ *
+ * Går igenom publicProfiles och letar efter speglingar vars användardokument
+ * inte längre finns. De tas bort - det är de som gör att raderade personer
+ * fortfarande dyker upp i vänsökningen - och deras inlägg och kommentarer
+ * anonymiseras på samma sätt som den vanliga raderingen gör.
+ *
+ * Bara coacher och administratörer får köra den, och den är avsedd att köras
+ * en gång. Den är idempotent, så det gör ingen skada att köra den igen.
+ */
+exports.cleanupOrphanedProfiles = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Inloggning krävs.");
+  }
+
+  const callerDoc = await db.collection("users").doc(context.auth.uid).get();
+  const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+  if (callerRole !== "coach" && callerRole !== "admin") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Bara coacher och administratörer får köra städningen.",
+    );
+  }
+
+  const dryRun = data && data.dryRun === true;
+  const profilesSnap = await db.collection("publicProfiles").get();
+
+  const orphanIds = [];
+  for (const profile of profilesSnap.docs) {
+    const userSnap = await db.collection("users").doc(profile.id).get();
+    if (!userSnap.exists) orphanIds.push(profile.id);
+  }
+
+  if (dryRun) {
+    return { dryRun: true, orphanCount: orphanIds.length, orphanIds };
+  }
+
+  let posts = 0;
+  let comments = 0;
+
+  for (const userId of orphanIds) {
+    try {
+      await db.collection("publicProfiles").doc(userId).delete();
+    } catch (error) {
+      logger.error(`Kunde inte ta bort publicProfiles/${userId}`, error);
+    }
+
+    try {
+      const postsSnap = await db
+        .collection("communityTimeline")
+        .where("userId", "==", userId)
+        .get();
+      let batch = db.batch();
+      let ops = 0;
+      for (const doc of postsSnap.docs) {
+        batch.update(doc.ref, { userName: DELETED_USER_NAME, userPhotoURL: null });
+        ops += 1;
+        posts += 1;
+        if (ops >= 400) { await batch.commit(); batch = db.batch(); ops = 0; }
+      }
+      if (ops > 0) await batch.commit();
+    } catch (error) {
+      logger.error(`Kunde inte anonymisera inlägg för ${userId}`, error);
+    }
+
+    try {
+      const commentsSnap = await db
+        .collectionGroup("comments")
+        .where("authorUid", "==", userId)
+        .get();
+      let batch = db.batch();
+      let ops = 0;
+      for (const doc of commentsSnap.docs) {
+        batch.update(doc.ref, { authorName: DELETED_USER_NAME, authorPhotoURL: null });
+        ops += 1;
+        comments += 1;
+        if (ops >= 400) { await batch.commit(); batch = db.batch(); ops = 0; }
+      }
+      if (ops > 0) await batch.commit();
+    } catch (error) {
+      logger.error(`Kunde inte anonymisera kommentarer för ${userId}`, error);
+    }
+  }
+
+  logger.log(`Städning klar: ${orphanIds.length} profiler, ${posts} inlägg, ${comments} kommentarer.`);
+  return { orphanCount: orphanIds.length, posts, comments, orphanIds };
+});
+
+exports.devGrantBootcampAccess = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Inloggning krävs.");
+  }
+
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "";
+  if (projectId === "flexibel-kostkollen") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Simulerat köp är avstängt i produktion.",
+    );
+  }
+
+  const uid = context.auth.uid;
+
+  // Testverktyget kan sätta ett godtyckligt tillstånd (eller null för nollställning).
+  if (data && Object.prototype.hasOwnProperty.call(data, "bootcampAccess")) {
+    const payload = Object.assign(
+      {bootcampAccess: data.bootcampAccess},
+      data.userFields || {},
+    );
+    await db.collection("users").doc(uid).set(payload, {merge: true});
+    return {bootcampAccess: data.bootcampAccess};
+  }
+
+  const purchaseDate = data && data.purchaseDate ?
+    new Date(data.purchaseDate) :
+    new Date();
+
+  const bootcampAccess = {
+    purchaseDate: purchaseDate.toISOString(),
+    accessExpiresDate: new Date(
+      purchaseDate.getTime() + (3 + 84) * 24 * 60 * 60 * 1000,
+    ).toISOString().split("T")[0],
+    onboardingCompletedDate: null,
+    bootcampStartDate: null,
+    onboardingTasksCompleted: [],
+  };
+
+  await db.collection("users").doc(uid).set(
+    {
+      bootcampAccess: bootcampAccess,
+      coachStyle: "hard",
+      bootcampOnboarding: {tasksCompleted: [], completedAt: null},
+    },
+    {merge: true},
+  );
+
+  return {bootcampAccess: bootcampAccess};
+});
+
 exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
+  const stripe = getStripe();
   const signature = req.headers["stripe-signature"];
   // Hämta webhook secret från .env ELLER molnet
   const endpointSecret =
@@ -1456,23 +1746,21 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
         if (cohortId) {
           // It's a bootcamp payment
           let originalStartDate = null;
-          const cohortDoc = await db
-            .collection("bootcampCohorts")
-            .doc(cohortId)
-            .get();
-          if (cohortDoc.exists && cohortDoc.data().startDate) {
-            originalStartDate = cohortDoc.data().startDate;
-          } else if (cohortId === "solo_group") {
-            // Fallback to 'solo' if 'solo_group' doesn't have a startDate yet
-            const soloDoc = await db
+          const today = new Date();
+          const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+          if (cohortId === "solo_group" || cohortId === "solo") {
+            // Solo participants always start today (individually)
+            originalStartDate = todayStr;
+          } else {
+            const cohortDoc = await db
               .collection("bootcampCohorts")
-              .doc("solo")
+              .doc(cohortId)
               .get();
-            if (soloDoc.exists && soloDoc.data().startDate) {
-              originalStartDate = soloDoc.data().startDate;
+            if (cohortDoc.exists && cohortDoc.data().startDate) {
+              originalStartDate = cohortDoc.data().startDate;
             } else {
-              const today = new Date();
-              originalStartDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+              originalStartDate = todayStr;
             }
           }
 
@@ -1492,12 +1780,32 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
               currentStreak: 0,
               longestStreak: 0,
               needsCoachAttention: false,
+              finaleSeen: false,
             });
 
-          // Update user profile to indicate they are in a course
+          // Update user profile to indicate they are in an active course and reset completed status
           await db.collection("users").doc(firebaseUid).set(
             {
               isCourseActive: true,
+              hasCompletedBootcamp: false,
+              // Betalning = godkänt konto. Den gamla modellen med
+              // coachgodkännande är borttagen.
+              status: "approved",
+              // Åtkomstmodellen: bootcampAccess är betalningskritiskt och skrivs
+              // ENBART här, via Admin SDK, så att Firestore-reglerna kan neka
+              // klienten att sätta det själv. Utgångsdatumet räknas som
+              // köpdatum + grundutbildning (3 dygn) + programmet (84 dagar), så
+              // att ingen kan få kortare tid än de tolv veckor som utlovats.
+              bootcampAccess: {
+                purchaseDate: new Date().toISOString(),
+                accessExpiresDate: new Date(
+                  Date.now() + (3 + 84) * 24 * 60 * 60 * 1000,
+                ).toISOString().split("T")[0],
+                onboardingCompletedDate: null,
+                bootcampStartDate: null,
+                onboardingTasksCompleted: [],
+              },
+              coachStyle: "hard",
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
             { merge: true },

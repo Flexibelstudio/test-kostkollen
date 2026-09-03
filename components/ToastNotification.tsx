@@ -30,7 +30,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({ message, type, on
     ? "bg-primary border-primary-darker" 
     : type === 'error'
     ? "bg-red-500 border-red-700"
-    : "bg-blue-500 border-blue-700";
+    : "bg-[#D96E4A] border-[#C05A38]";
   
   const animationClass = isVisible ? 'animate-slide-up-fade-in' : 'animate-fade-out';
 

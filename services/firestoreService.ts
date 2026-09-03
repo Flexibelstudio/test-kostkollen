@@ -57,7 +57,9 @@ import type {
     Reactions,
     PostCategory,
     Achievement,
-    SavedRecipe
+    SavedRecipe,
+    PublicProfile,
+    ChatMemberUser
 } from '../types';
 import { DEFAULT_GOALS, DEFAULT_USER_PROFILE } from '../constants';
 import { courseLessons, menopauseCourseLessons } from '../courseData.ts';
@@ -222,6 +224,7 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       coachStyle: DEFAULT_USER_PROFILE.coachStyle || 'balanced',
     };
     await setDoc(userDocRef, newUserDoc);
+    await syncPublicProfile(fbUser.uid, fbUser.displayName || "Ny användare", fbUser.photoURL, true, newUserDoc.role === 'coach');
   } else {
     const existingData = userDoc.data();
     const updateData: any = { lastLoginAt: serverTimestamp() };
@@ -229,6 +232,37 @@ export async function ensureUserProfileInFirestore(fbUser: User) {
       updateData.displayName = fbUser.displayName;
     }
     await updateDoc(userDocRef, updateData);
+    if (existingData.isSearchable !== false) {
+      await syncPublicProfile(fbUser.uid, fbUser.displayName || existingData.displayName || "Ny användare", fbUser.photoURL || existingData.photoURL, true, existingData.role === 'coach');
+    }
+  }
+}
+
+export async function syncPublicProfile(
+  userId: string, 
+  displayName: string, 
+  photoURL?: string | null, 
+  isSearchable: boolean = true,
+  isCoach: boolean = false
+): Promise<void> {
+  if (!db) return;
+  const publicProfileRef = doc(db, 'publicProfiles', userId);
+  
+  if (isSearchable && displayName) {
+    const publicProfileData: PublicProfile = {
+      uid: userId,
+      displayName: displayName,
+      photoURL: photoURL || undefined,
+      displayNameLower: displayName.toLowerCase().trim(),
+      isCoach: isCoach === true,
+    };
+    await setDoc(publicProfileRef, cleanFirestoreData(publicProfileData));
+  } else {
+    try {
+      await deleteDoc(publicProfileRef);
+    } catch (e) {
+      console.warn("Could not delete publicProfile document", e);
+    }
   }
 }
 
@@ -354,10 +388,18 @@ export async function fetchInitialAppData(userId: string) {
       completedGoals: userDocData.completedGoals ?? [],
       notificationSettings: userDocData.notificationSettings,
       preferredWeighInDay: userDocData.preferredWeighInDay,
+      dietaryPreference: userDocData.dietaryPreference ?? 'omnivore',
       coachStyle: ((userDocData.coachStyle as string) === 'tough' ? 'hard' : userDocData.coachStyle) || DEFAULT_USER_PROFILE.coachStyle,
       subscriptionStatus: userDocData.subscriptionStatus,
       currentPeriodEnd: userDocData.currentPeriodEnd,
+      bootcampAccess: userDocData.bootcampAccess ?? undefined,
+      // Grundutbildningens avbockade uppgifter lastes aldrig tillbaka har, sa vid
+      // varje appstart foll kortet tillbaka pa den gamla listan i bootcampAccess
+      // och visade allt som obockat - tills anvandaren bockade av nagot nytt och
+      // listan speglades i minnet igen.
+      bootcampOnboarding: userDocData.bootcampOnboarding ?? undefined,
       highestBootcampStreak: highestBootcampStreak,
+      plateauAnalysis: userDocData.plateauAnalysis ?? undefined,
       role: userDocData.role,
       createdAt: userDocData.createdAt,
     };
@@ -437,6 +479,19 @@ export async function fetchMealLogsForDate(userId: string, dateUID: string): Pro
   if (!db) return [];
   const mealLogsRef = collection(db, 'users', userId, 'mealLogs');
   const q = query(mealLogsRef, where("dateString", "==", dateUID), orderBy("timestamp", "desc"));
+  const querySnapshot = await getDocsSafe(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoggedMeal[];
+}
+
+export async function fetchMealLogsForDateRange(userId: string, startDateUID: string, endDateUID: string): Promise<LoggedMeal[]> {
+  if (!db) return [];
+  const mealLogsRef = collection(db, 'users', userId, 'mealLogs');
+  const q = query(
+    mealLogsRef,
+    where("dateString", ">=", startDateUID),
+    where("dateString", "<=", endDateUID),
+    orderBy("dateString", "desc")
+  );
   const querySnapshot = await getDocsSafe(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoggedMeal[];
 }
@@ -781,6 +836,28 @@ export async function addTimelineEvent(
   }
   const userData = userDocSnap.data() as FirestoreUserDocument;
 
+  const sharingSettings = userData.communitySharingSettings || {
+    weight: false,
+    achievement: true,
+    streak: true,
+    course: true,
+    level: true,
+    goal: true,
+  };
+
+  let isAllowed = true;
+  if (eventData.type === 'weight' && !sharingSettings.weight) isAllowed = false;
+  else if (eventData.type === 'achievement' && !sharingSettings.achievement) isAllowed = false;
+  else if (eventData.type === 'streak' && !sharingSettings.streak) isAllowed = false;
+  else if (eventData.type === 'course' && !sharingSettings.course) isAllowed = false;
+  else if (eventData.type === 'level' && !sharingSettings.level) isAllowed = false;
+  else if ((eventData.type === 'goal' || eventData.type === 'goal_achieved' || eventData.type === 'goal_set') && !sharingSettings.goal) isAllowed = false;
+
+  if (!isAllowed) {
+    console.log(`Timeline event of type "${eventData.type}" suppressed due to community sharing settings.`);
+    return;
+  }
+
   const buddies = await fetchBuddies(userId);
   const buddyUids = buddies.map(b => b.uid);
   const visibleTo = [userId, ...buddyUids];
@@ -936,7 +1013,18 @@ export async function deleteCommonMeal(userId: string, commonMealId: string) {
   await deleteDoc(commonMealRef);
 }
 
-export async function updateCommonMeal(userId: string, commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo }) {
+/**
+ * Räknar upp användningen av ett vanligt val. Används för att sortera de mest
+ * använda valen först. increment() är atomiskt, så parallella loggningar
+ * från flera enheter inte skriver över varandra.
+ */
+export async function incrementCommonMealUsage(userId: string, commonMealId: string) {
+  if (!db) return;
+  const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);
+  await updateDoc(commonMealRef, { useCount: increment(1), lastUsedAt: Date.now() });
+}
+
+export async function updateCommonMeal(userId: string, commonMealId: string, updatedData: { name: string; nutritionalInfo: NutritionalInfo; imageUrl?: string | null }) {
   if (!db) return;
   const commonMealRef = doc(db, 'users', userId, 'commonMeals', commonMealId);
   await updateDoc(commonMealRef, cleanFirestoreData(updatedData));
@@ -985,8 +1073,30 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
     console.warn("Could not read userDoc before updating profile/goals.", e);
   }
 
+  // Serverägda fält får ALDRIG skickas med. Klienten håller en lokal kopia av
+  // bootcampAccess som ändras när grundutbildningens uppgifter bockas av, och
+  // säkerhetsreglerna kräver att fältet är identiskt med det som redan ligger i
+  // dokumentet. Skickades det med avvisades hela profilsparningen med
+  // "Missing or insufficient permissions" - felet användaren såg som
+  // "Kunde inte spara profil".
+  //
+  // bootcampOnboarding.tasksCompleted skrivs BARA av addBootcampOnboardingTask,
+  // som slar ihop listan i en transaktion mot databasen. Profilmodalen bar med
+  // sig en kopia av listan fran den stund den oppnades, sa skrevs den med hit
+  // nollstalldes uppgifter som redan var avbockade - anvandaren kom tillbaka in
+  // i appen och fann grundutbildningen ur-bockad.
+  const {
+    bootcampAccess: _bootcampAccess,
+    bootcampOnboarding: _bootcampOnboarding,
+    role: _role,
+    status: _status,
+    subscriptionStatus: _subscriptionStatus,
+    currentPeriodEnd: _currentPeriodEnd,
+    ...profileWithoutServerOwnedFields
+  } = profile as any;
+
   const dataToUpdate: any = {
-    ...profile,
+    ...profileWithoutServerOwnedFields,
     goals: goals,
     displayName: profile.name,
     ...(maybeSummaryStart ? { summaryStartDate: maybeSummaryStart } : {}),
@@ -1010,24 +1120,72 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
     // Reset goal completion status
     dataToUpdate.mainGoalCompleted = false;
 
-    // Fetch the latest weight log to set as the new start value
+    // Reset plateau analysis state for the new goal
+    dataToUpdate.plateauAnalysis = {
+      ...(profile.plateauAnalysis || {}),
+      plateauReductionCount: 0,
+      lastPlateauAnalysisDate: null,
+      measuringWeekActive: false,
+      measuringWeekStartDate: null,
+    };
+
+    // Nollpunkt för det nya målet.
+    //
+    // Byter man mätmetod i efterhand saknas ofta en nollpunkt för den nya
+    // enheten. Vi letar då upp den TIDIGASTE mätningen som faktiskt innehåller
+    // värdet, så att historiken bevaras - i stället för att låtsas att resan
+    // började idag. Finns inget sådant värde sätts ingen nollpunkt alls, och
+    // gränssnittet får säga att målet startar idag. Appen ska aldrig tyst
+    // backdatera framsteg den inte har underlag för.
     try {
       const weightLogsRef = collection(db, 'users', userId, 'weightLogs');
-      const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
-      const latestLogSnap = await getDocsSafe(latestLogQuery);
-      
+
+      const latestLogSnap = await getDocsSafe(
+        query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1))
+      );
       if (!latestLogSnap.empty) {
         const latestLog = latestLogSnap.docs[0].data() as WeightLogEntry;
         if (latestLog.weightKg != null) dataToUpdate.goalStartWeight = latestLog.weightKg;
-        if (latestLog.bodyFatMassKg != null) dataToUpdate.goalStartFatMassKg = latestLog.bodyFatMassKg;
-        if (latestLog.skeletalMuscleMassKg != null) dataToUpdate.goalStartMuscleMassKg = latestLog.skeletalMuscleMassKg;
+      }
+
+      const methodChanged = currentDocData && currentDocData.measurementMethod !== profile.measurementMethod;
+
+      if (profile.measurementMethod === 'inbody') {
+        // Äldsta mätning som har kroppssammansättning - den blir nollpunkten.
+        const allLogsSnap = await getDocsSafe(
+          query(weightLogsRef, orderBy('loggedAt', 'asc'))
+        );
+        const firstWithComposition = allLogsSnap.docs
+          .map(d => d.data() as WeightLogEntry)
+          .find(l => l.bodyFatMassKg != null || l.skeletalMuscleMassKg != null);
+
+        if (firstWithComposition) {
+          if (firstWithComposition.bodyFatMassKg != null) {
+            dataToUpdate.goalStartFatMassKg = firstWithComposition.bodyFatMassKg;
+          }
+          if (firstWithComposition.skeletalMuscleMassKg != null) {
+            dataToUpdate.goalStartMuscleMassKg = firstWithComposition.skeletalMuscleMassKg;
+          }
+        } else if (methodChanged) {
+          // Ingen historik att luta sig mot - hellre ingen nollpunkt än en påhittad.
+          dataToUpdate.goalStartFatMassKg = null;
+          dataToUpdate.goalStartMuscleMassKg = null;
+        }
       }
     } catch (e) {
-      console.warn("Could not fetch latest weight log to set goal start values.", e);
+      console.warn("Could not fetch weight logs to set goal start values.", e);
     }
   }
 
   await updateDoc(userDocRef, cleanFirestoreData(dataToUpdate));
+
+  // isCoach MÅSTE spegla rollen som ligger i databasen. Säkerhetsregeln för
+  // publicProfiles jämför fältet mot users/{uid}.role, så skickas klientens
+  // egen (ibland tomma) role-kopia nekas skrivningen med permission-denied -
+  // efter att användardokumentet redan sparats. Användaren fick då
+  // "Kunde inte spara profil" trots att profilen faktiskt var sparad.
+  const roleInDatabase = currentDocData?.role ?? profile.role;
+  await syncPublicProfile(userId, profile.name, profile.photoURL, profile.isSearchable !== false, roleInDatabase === 'coach');
 }
 
 /* ===== Gamification: Achievements ===== */
@@ -1216,16 +1374,56 @@ export async function updateUserDocument(userId: string, data: { [key: string]: 
   await updateDoc(userDocRef, cleanFirestoreData(data));
 }
 
+/**
+ * Bockar av en uppgift i Grundutbildningen atomiskt.
+ *
+ * Tidigare lästes listan ur klientens userProfile och skrevs tillbaka som ett
+ * helt objekt. Var profilen i minnet efter kunde en skrivning radera uppgifter
+ * som redan var avklarade - därav att hela grundutbildningen kunde nollställas.
+ * Transaktionen läser alltid databasens aktuella lista.
+ */
+export async function addBootcampOnboardingTask(
+  userId: string,
+  taskId: string,
+  allTaskIds: string[]
+): Promise<{ tasksCompleted: string[]; completedAt: string | null } | null> {
+  if (!db) return null;
+  const userDocRef = doc(db, 'users', userId);
+
+  return runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(userDocRef);
+    if (!snap.exists()) return null;
+
+    const data = snap.data() as any;
+    const existing: string[] = data?.bootcampOnboarding?.tasksCompleted
+      || data?.bootcampAccess?.onboardingTasksCompleted
+      || [];
+
+    const tasksCompleted = existing.includes(taskId) ? existing : [...existing, taskId];
+    const alreadyDone = data?.bootcampOnboarding?.completedAt || null;
+    const isAllCompleted = allTaskIds.every(t => tasksCompleted.includes(t));
+    const completedAt = alreadyDone || (isAllCompleted ? new Date().toISOString() : null);
+
+    transaction.update(userDocRef, {
+      'bootcampOnboarding.tasksCompleted': tasksCompleted,
+      'bootcampOnboarding.completedAt': completedAt,
+    });
+
+    return { tasksCompleted, completedAt };
+  });
+}
+
 export async function savePushSubscription(userId: string, subscription: object) {
   if (!db) return;
   const userDocRef = doc(db, 'users', userId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
-    const { role, status } = userDoc.data();
+    // role och status ekades tidigare tillbaka i skrivningen. De ar serverägda
+    // och sakerhetsreglerna kraver att de ar ofrandrade - skickas de med alls
+    // rakar en enda avvikelse fran databasen fälla hela skrivningen, och da
+    // sparas aldrig push-prenumerationen. Skriv bara det som faktiskt andras.
     await updateDoc(userDocRef, {
       pushSubscriptions: arrayUnion(subscription),
-      role: role,
-      status: status,
     });
   }
 }
@@ -1511,8 +1709,11 @@ export async function updateUserRole(memberId: string, newRole: UserRole) {
   const userDocRef = doc(db, 'users', memberId);
   const userDoc = await getDoc(userDocRef);
   if (userDoc.exists()) {
-    const { status } = userDoc.data();
-    await updateDoc(userDocRef, { role: newRole, status });
+    const data = userDoc.data();
+    await updateDoc(userDocRef, { role: newRole, status: data.status });
+    if (data.isSearchable !== false) {
+      await syncPublicProfile(memberId, data.displayName || 'Användare', data.photoURL, true, newRole === 'coach');
+    }
   }
 }
 export async function bulkApproveMembers(memberIds: string[]) {
@@ -1535,8 +1736,11 @@ export async function bulkUpdateUserRole(memberIds: string[], role: UserRole) {
     const userDocRef = doc(db, 'users', id);
     const userDoc = await getDoc(userDocRef);
     if (userDoc.exists()) {
-      const { status } = userDoc.data();
-      batch.update(userDocRef, { role, status });
+      const data = userDoc.data();
+      batch.update(userDocRef, { role, status: data.status });
+      if (data.isSearchable !== false) {
+        await syncPublicProfile(id, data.displayName || 'Användare', data.photoURL, true, role === 'coach');
+      }
     }
   }
   await batch.commit();
@@ -1567,30 +1771,35 @@ export async function fetchBuddies(userId: string): Promise<Peppkompis[]> {
   if (!db) return [];
   const buddiesRef = collection(db, 'users', userId, 'buddies');
   const snapshot = await getDocsSafe(buddiesRef);
-  return snapshot.docs.map(doc => doc.data() as Peppkompis);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      uid: data.uid,
+      name: data.name || data.displayName || '',
+      photoURL: data.photoURL,
+      gender: data.gender,
+    } as Peppkompis;
+  });
 }
 
-export async function fetchUsersByUids(uids: string[]): Promise<BuddyDetails[]> {
+export async function fetchUsersByUids(uids: string[]): Promise<ChatMemberUser[]> {
   if (!db || uids.length === 0) return [];
   
-  const results: BuddyDetails[] = [];
+  const results: ChatMemberUser[] = [];
   // Firestore 'in' queries support max 10 items
   for (let i = 0; i < uids.length; i += 10) {
     const chunk = uids.slice(i, i + 10);
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('uid', 'in', chunk));
+    const publicProfilesRef = collection(db, 'publicProfiles');
+    const q = query(publicProfilesRef, where('uid', 'in', chunk));
     const snapshot = await getDocsSafe(q);
     
     snapshot.forEach(doc => {
-      const data = doc.data() as FirestoreUserDocument;
+      const data = doc.data() as PublicProfile;
       results.push({
         uid: data.uid,
-        name: data.displayName,
-        email: data.email || '',
-        photoURL: data.photoURL,
-        role: data.role,
-        goalType: data.goalType || 'maintain',
-        unlockedAchievements: {}
+        name: data.displayName || 'Användare',
+        photoURL: data.photoURL || undefined,
+        isCoach: data.isCoach === true,
       });
     });
   }
@@ -1603,17 +1812,42 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
   const buddies = await fetchBuddies(userId);
   if (buddies.length === 0) return [];
 
-  const buddyDetailsPromises = buddies.map(async (buddy) => {
+  const buddyDetailsPromises = buddies.map((buddy) => loadOneBuddyDetails(userId, buddy).catch(e => {
+    console.warn('Kunde inte hämta detaljer för kompis', buddy.uid, e);
+    return null;
+  }));
+
+  const results = await Promise.all(buddyDetailsPromises);
+  return results.filter((d): d is BuddyDetails => d !== null);
+}
+
+/**
+ * Hämtar detaljer för EN kompis. Bryts ut så att ett fel på en kompis kan fångas
+ * utan att hela kompislistan - och därmed flödet - fallerar.
+ */
+async function loadOneBuddyDetails(userId: string, buddy: Peppkompis): Promise<BuddyDetails | null> {
+    if (!db) return null;
     const userDocRef = doc(db, 'users', buddy.uid);
     const userDocSnap = await getDocSafe(userDocRef);
     if (!userDocSnap.exists()) return null;
     
     const userData = userDocSnap.data() as FirestoreUserDocument;
 
-    const weightLogsRef = collection(db, 'users', buddy.uid, 'weightLogs');
-    const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
-    const latestLogSnap = await getDocsSafe(latestLogQuery);
-    const latestLog = latestLogSnap.empty ? null : latestLogSnap.docs[0].data() as WeightLogEntry;
+    // Viktloggarna delas bara om kompisen slagit på delning av vikt. Gör hon inte
+    // det nekar säkerhetsreglerna läsningen - och tidigare fick det HELA
+    // kompislistan att fallera med "Missing or insufficient permissions", vilket
+    // användaren såg som "Kunde inte ladda flödet". En kompis privata inställning
+    // får aldrig släcka någon annans flöde.
+    let latestLog: WeightLogEntry | null = null;
+    try {
+      const weightLogsRef = collection(db, 'users', buddy.uid, 'weightLogs');
+      const latestLogQuery = query(weightLogsRef, orderBy('loggedAt', 'desc'), limit(1));
+      const latestLogSnap = await getDocsSafe(latestLogQuery);
+      latestLog = latestLogSnap.empty ? null : latestLogSnap.docs[0].data() as WeightLogEntry;
+    } catch (e) {
+      // Delning avstängd eller regel som nekar - falla tillbaka på användardokumentet.
+      latestLog = null;
+    }
 
     const currentWeight = latestLog?.weightKg ?? userData.currentWeightKg;
     const currentMuscleMass = latestLog?.skeletalMuscleMassKg ?? userData.skeletalMuscleMassKg;
@@ -1686,35 +1920,56 @@ export async function fetchBuddyDetailsList(userId: string): Promise<BuddyDetail
       bootcampStatus,
       highestBootcampStreak: highestBootcampStreak,
     } as BuddyDetails;
-  });
-
-  const results = await Promise.all(buddyDetailsPromises);
-  return results.filter((b): b is BuddyDetails => b !== null);
 }
 
-export async function searchForBuddies(currentUserId: string): Promise<Peppkompis[]> {
+export async function searchForBuddies(currentUserId: string, searchQuery: string = ''): Promise<Peppkompis[]> {
   if (!db) return [];
-  const usersRef = collection(db, "users");
-  const q = query(usersRef, where("isSearchable", "==", true));
-  const snapshot = await getDocsSafe(q);
+  const queryText = searchQuery.trim().toLowerCase();
+  if (!queryText) return [];
 
-  const users: Peppkompis[] = [];
+  // Firestore kan bara gora prefixsokning, och da bara mot HELA namnet. Sokte
+  // man pa "andersson" fick man inga traffar pa "Anna Andersson" - man var
+  // tvungen att veta exakt hur namnet borjade. Vi hamtar darfor en avgransad
+  // mangd profiler och filtrerar i klienten, sa att traffen kan sitta var som
+  // helst i namnet och pa vilket ord som helst.
+  //
+  // Det haller sa lange anvandarantalet ar litet. Nar det vaxer bor det bytas
+  // mot sokord i dokumentet (array-contains) eller en riktig sokindex-tjanst.
+  const publicProfilesRef = collection(db, "publicProfiles");
+  const snapshot = await getDocsSafe(query(publicProfilesRef, limit(500)));
+
+  const scored: Array<{ user: Peppkompis; score: number }> = [];
+
   snapshot.forEach(doc => {
-    const data = doc.data() as FirestoreUserDocument;
-    if (data.uid !== currentUserId) {
-      users.push({
+    const data = doc.data();
+    if (!data || data.uid === currentUserId) return;
+
+    const name: string = data.displayName || '';
+    const haystack = (data.displayNameLower || name.toLowerCase()).trim();
+    if (!haystack) return;
+
+    const position = haystack.indexOf(queryText);
+    if (position === -1) return;
+
+    // Traffar i borjan av namnet, och i borjan av ett ord, hamnar hogst upp.
+    const startsWord = position === 0 || haystack[position - 1] === ' ' || haystack[position - 1] === '-';
+    const score = position === 0 ? 0 : startsWord ? 1 : 2;
+
+    scored.push({
+      user: {
         uid: data.uid,
-        name: data.displayName,
-        email: data.email || '',
+        name: name || 'Användare',
         photoURL: data.photoURL || undefined,
-        gender: data.gender,
-      });
-    }
+      },
+      score,
+    });
   });
-  return users;
+
+  scored.sort((a, b) => a.score - b.score || a.user.name.localeCompare(b.user.name, 'sv'));
+  return scored.slice(0, 20).map(s => s.user);
 }
 
-export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string): Promise<void> {
+export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string, toName?: string): Promise<void> {
   if (!db) return;
   const requestsRef = collection(db, 'peppkompisRequests');
   
@@ -1733,8 +1988,8 @@ export async function sendFriendRequest(fromUser: Peppkompis, toUserUid: string)
   const newRequest: Omit<PeppkompisRequest, 'id'> = {
     fromUid: fromUser.uid,
     fromName: fromUser.name,
-    fromEmail: fromUser.email,
     toUid: toUserUid,
+    toName: toName || '',
     status: 'pending',
     createdAt: Date.now(),
   };
@@ -1883,6 +2138,26 @@ export async function createStripePortalSession(): Promise<string> {
     const createPortalSession = httpsCallable(functions, 'createPortalSession');
     const result = await createPortalSession({ returnUrl: window.location.origin });
     return (result.data as any).url;
+}
+
+export interface OrphanCleanupResult {
+    dryRun?: boolean;
+    orphanCount: number;
+    orphanIds: string[];
+    posts?: number;
+    comments?: number;
+}
+
+/**
+ * Kor serverstadningen som tar bort publicProfiles vars users/{uid} ar borta
+ * (raderade konton) och anonymiserar deras inlagg och kommentarer.
+ * dryRun = true raknar bara, andrar ingenting.
+ */
+export async function cleanupOrphanedProfiles(dryRun: boolean): Promise<OrphanCleanupResult> {
+    if (!functions) throw new Error("Functions not initialized");
+    const cleanup = httpsCallable(functions, 'cleanupOrphanedProfiles');
+    const result = await cleanup({ dryRun });
+    return result.data as OrphanCleanupResult;
 }
 
 export async function fetchTotalMealsCount(userId: string): Promise<number> {
