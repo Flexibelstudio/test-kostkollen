@@ -1662,6 +1662,83 @@ exports.cleanupOrphanedProfiles = functions.https.onCall(async (data, context) =
   return { orphanCount: orphanIds.length, posts, comments, orphanIds };
 });
 
+/**
+ * Ger befintliga medlemmar fortsatt atkomst efter overgangen till betalmodell.
+ *
+ * Bakgrund: prod korde tidigare en gratisversion utan subscriptionStatus och
+ * utan bootcampAccess. Nar betalvaggen slogs pa hamnade alla gamla anvandare
+ * direkt pa kopsidan, eftersom hasAppAccess kraver ett av de faltet.
+ *
+ * Funktionen letar upp medlemmar som saknar BADA faltet och satter en
+ * atkomststatus pa dem. Coacher och administratorer roras inte - de har
+ * redan atkomst via sin roll.
+ *
+ * data.dryRun   true = rakna bara, andra ingenting (kor alltid denna forst)
+ * data.statusValue  "active" (gratis tills vidare) eller "trialing"
+ * data.periodEndIso valfritt ISO-datum, skrivs till currentPeriodEnd
+ */
+exports.grandfatherExistingMembers = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Inloggning kravs.");
+  }
+
+  const callerDoc = await db.collection("users").doc(context.auth.uid).get();
+  const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+  if (callerRole !== "coach" && callerRole !== "admin") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Bara coacher och administratorer far kora den har atgarden.",
+    );
+  }
+
+  const dryRun = data && data.dryRun === true;
+  const statusValue = (data && data.statusValue) || "active";
+  if (statusValue !== "active" && statusValue !== "trialing") {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "statusValue maste vara 'active' eller 'trialing'.",
+    );
+  }
+  const periodEndIso = (data && data.periodEndIso) || null;
+
+  const snap = await db.collection("users").get();
+
+  const affected = [];
+  for (const doc of snap.docs) {
+    const u = doc.data() || {};
+    if (u.role === "coach" || u.role === "admin") continue;
+    if (u.status === "archived") continue;
+    // Redan nagon form av atkomst? Ror inte.
+    if (u.subscriptionStatus) continue;
+    if (u.bootcampAccess) continue;
+    affected.push({ uid: doc.id, name: u.displayName || u.name || null });
+  }
+
+  if (dryRun) {
+    return { dryRun: true, count: affected.length, uids: affected.map((a) => a.uid) };
+  }
+
+  let updated = 0;
+  let batch = db.batch();
+  let ops = 0;
+  for (const a of affected) {
+    const payload = { subscriptionStatus: statusValue };
+    if (periodEndIso) payload.currentPeriodEnd = periodEndIso;
+    batch.update(db.collection("users").doc(a.uid), payload);
+    ops += 1;
+    updated += 1;
+    if (ops >= 400) {
+      await batch.commit();
+      batch = db.batch();
+      ops = 0;
+    }
+  }
+  if (ops > 0) await batch.commit();
+
+  logger.log(`Gav ${updated} befintliga medlemmar subscriptionStatus=${statusValue}.`);
+  return { count: affected.length, updated, statusValue };
+});
+
 exports.devGrantBootcampAccess = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Inloggning krävs.");
