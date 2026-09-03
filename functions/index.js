@@ -1194,7 +1194,13 @@ exports.manualSummarizeYesterday = functions
 exports.createCheckoutSession = functions
   // STRIPE_PRICE_ID måste deklareras här, annars är den odefinierad i
   // prenumerationsgrenen och köpet faller på "Kunde inte hitta ett pris".
-  .runWith({ secrets: ["STRIPE_BOOTCAMP_PRICE", "STRIPE_PRICE_ID"] })
+  .runWith({
+    secrets: [
+      "STRIPE_BOOTCAMP_PRICE",
+      "STRIPE_BOOTCAMP_INTRO_PRICE",
+      "STRIPE_PRICE_ID",
+    ],
+  })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -1206,18 +1212,34 @@ exports.createCheckoutSession = functions
     const mode = data.mode || "subscription";
     const origin = data.returnUrl || "https://app.kostloggen.se";
 
-    // Hämta rätt priceId beroende på om det är prenumeration eller engångsbetalning (Bootcamp)
-    let priceId = data.priceId;
-    if (!priceId) {
-      if (mode === "payment") {
-        priceId =
-          process.env.STRIPE_BOOTCAMP_PRICE ||
-          process.env.STRIPE_BOOTCAMP_PRICE_ID ||
-          getSafeConfig("stripe", "bootcamp_price");
-      } else {
-        priceId =
-          process.env.STRIPE_PRICE_ID || getSafeConfig("stripe", "price");
-      }
+    // Hämta rätt priceId beroende på om det är prenumeration eller
+    // engångsbetalning (Bootcamp).
+    //
+    // VIKTIGT: för engångsbetalning ignoreras ett priceId som skickas in från
+    // klienten. Priset är betalningskritiskt och ska bestämmas här på servern,
+    // aldrig i webbläsaren.
+    let priceId;
+    if (mode === "payment") {
+      // Introduktionspris till och med 30 september 2026 (svensk tid).
+      // Efter det faller det automatiskt tillbaka på ordinarie pris –
+      // ingen deploy behövs.
+      const introEndsAt = Date.parse("2026-09-30T23:59:59+02:00");
+      const introActive = Date.now() <= introEndsAt;
+      const introPrice = process.env.STRIPE_BOOTCAMP_INTRO_PRICE;
+      const ordinaryPrice =
+        process.env.STRIPE_BOOTCAMP_PRICE ||
+        process.env.STRIPE_BOOTCAMP_PRICE_ID ||
+        getSafeConfig("stripe", "bootcamp_price");
+
+      priceId = introActive && introPrice ? introPrice : ordinaryPrice;
+      logger.log(
+        `Bootcamp-pris valt: ${introActive && introPrice ? "introduktionspris" : "ordinarie"}`,
+      );
+    } else {
+      priceId =
+        data.priceId ||
+        process.env.STRIPE_PRICE_ID ||
+        getSafeConfig("stripe", "price");
     }
 
     if (!priceId) {

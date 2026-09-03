@@ -41,6 +41,24 @@ if ((import.meta as any).env.PROD && 'serviceWorker' in navigator) {
             }
           });
         });
+        // Webblasaren letar efter en ny sw.js bara nar sidan laddas. Den som
+        // har appen installerad och bara vaxlar in och ut ur den kan darfor
+        // ligga kvar pa en gammal version i dagar. Vi ber darfor aktivt om en
+        // koll varje gang appen kommer i forgrunden - det ar ocksa det
+        // sakraste tillfallet att ladda om, eftersom anvandaren just kommit
+        // tillbaka och inte star mitt i ett formular.
+        let lastUpdateCheck = Date.now();
+        const MIN_MS_BETWEEN_CHECKS = 15 * 60 * 1000;
+
+        const checkForUpdate = () => {
+          if (document.visibilityState !== 'visible') return;
+          if (Date.now() - lastUpdateCheck < MIN_MS_BETWEEN_CHECKS) return;
+          lastUpdateCheck = Date.now();
+          reg.update().catch(() => { /* offline - forsok igen nasta gang */ });
+        };
+
+        document.addEventListener('visibilitychange', checkForUpdate);
+        window.addEventListener('focus', checkForUpdate);
       })
       .catch((err) => console.error('Service Worker registration failed:', err));
   });
