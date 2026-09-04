@@ -1961,9 +1961,14 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
       if (!usersSnapshot.empty) {
         const batch = db.batch();
         usersSnapshot.forEach((doc) => {
+          // Satt INTE status: "archived" har. Det faltet ar coachens
+          // administrativa flagga ("medlemmen ar inte med oss langre") och
+          // slar av hela kontot med texten "Ditt konto ar pausat".
+          // Att sluta betala ar nagot annat: subscriptionStatus "canceled"
+          // racker, hasAppAccess returnerar redan false pa den och
+          // lasläget/betalvaggen tar vid som det ar tankt.
           batch.update(doc.ref, {
             subscriptionStatus: "canceled",
-            status: "archived",
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
         });

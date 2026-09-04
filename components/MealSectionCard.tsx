@@ -62,7 +62,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
             onClick={(e) => e.stopPropagation()}
         >
             {/* Modal Header */}
-            <div className="p-5 border-b border-[#F1EAE0] dark:border-[#484440] flex justify-between items-center bg-white dark:bg-[#2B2825] sticky top-0 z-10">
+            <div className="p-5 border-b border-neutral-light dark:border-[#484440] flex justify-between items-center bg-white dark:bg-[#2B2825] sticky top-0 z-10">
                 <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[#F6E2D9] text-[#D96E4A]">
                         {icon}
@@ -88,21 +88,21 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
                 
                 {/* Macro Summary Row */}
                 <div className="grid grid-cols-3 gap-3 p-4">
-                    <div className="bg-white dark:bg-[#2B2825] p-3 rounded-2xl border border-[#F1EAE0] dark:border-[#484440] shadow-sm flex flex-col items-center justify-center text-center">
+                    <div className="bg-white dark:bg-[#2B2825] p-3 rounded-2xl border border-neutral-light dark:border-[#484440] shadow-sm flex flex-col items-center justify-center text-center">
                         <span className="text-xs font-semibold text-[#D96E4A] uppercase mb-1">Protein</span>
                         <div className="flex items-center gap-1 text-[#56524D] dark:text-[#FAF6EF]">
                             <span className="text-lg font-bold">{Math.round(totals.protein)}</span>
                             <span className="text-xs font-medium">g</span>
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-[#2B2825] p-3 rounded-2xl border border-[#F1EAE0] dark:border-[#484440] shadow-sm flex flex-col items-center justify-center text-center">
+                    <div className="bg-white dark:bg-[#2B2825] p-3 rounded-2xl border border-neutral-light dark:border-[#484440] shadow-sm flex flex-col items-center justify-center text-center">
                         <span className="text-xs font-semibold text-[#D96E4A] uppercase mb-1">Kolhydrater</span>
                         <div className="flex items-center gap-1 text-[#56524D] dark:text-[#FAF6EF]">
                             <span className="text-lg font-bold">{Math.round(totals.carbohydrates)}</span>
                             <span className="text-xs font-medium">g</span>
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-[#2B2825] p-3 rounded-2xl border border-[#F1EAE0] dark:border-[#484440] shadow-sm flex flex-col items-center justify-center text-center">
+                    <div className="bg-white dark:bg-[#2B2825] p-3 rounded-2xl border border-neutral-light dark:border-[#484440] shadow-sm flex flex-col items-center justify-center text-center">
                         <span className="text-xs font-semibold text-[#D96E4A] uppercase mb-1">Fett</span>
                         <div className="flex items-center gap-1 text-[#56524D] dark:text-[#FAF6EF]">
                             <span className="text-lg font-bold">{Math.round(totals.fat)}</span>
@@ -141,7 +141,7 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
       <div 
         onClick={handleCardClick}
         className={`
-            ${'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} rounded-[22px] p-4 border shadow-soft-xl 
+            ${'bg-white dark:bg-[#2B2825] border-neutral-light dark:border-[#484440]'} rounded-[22px] p-4 border shadow-soft-xl 
             transition-all duration-300 ease-out flex flex-col justify-between h-36 min-h-[44px]
             ${isEmpty 
                 ? 'hover:border-[#D96E4A]/40 cursor-pointer group' 

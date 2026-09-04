@@ -31,7 +31,7 @@ export const MacroCard: React.FC<MacroCardProps> = ({
       // Samma innerkortsspråk som statistikkorten i matloggen och korten i
       // "Mina vanliga val": vit botten, tunn ram och en lätt skugga. Korten
       // ligger inuti ett kort som redan har djup, så skuggan ska vara diskret.
-      className={`flex flex-col justify-between bg-white dark:bg-[#2B2825] border border-[#F1EAE0] dark:border-[#484440] rounded-2xl p-3 sm:p-4 shadow-soft-sm text-center h-full`}
+      className={`flex flex-col justify-between bg-white dark:bg-[#2B2825] border border-neutral-light dark:border-[#484440] rounded-2xl p-3 sm:p-4 shadow-soft-sm text-center h-full`}
     >
       <div>
         <div className="h-4 sm:h-5 flex items-center justify-center mb-1">

@@ -101,7 +101,7 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
   return (
     <div className="min-h-[100dvh] bg-[#FAF6EF] text-[#56524D] flex flex-col justify-between">
       {/* Toppmeny med logo och utloggning */}
-      <header className="w-full bg-white border-b border-[#F1EAE0] px-4 py-3 sticky top-0 z-30 shadow-xs">
+      <header className="w-full bg-white border-b border-neutral-light px-4 py-3 sticky top-0 z-30 shadow-xs">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img src="/favicon.png" alt="Kostloggen.se" className="h-10 w-10 object-contain" />
@@ -113,7 +113,7 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
           
           <button
             onClick={onLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#7A756E] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-[#F1EAE0] hover:border-red-200"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#7A756E] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-neutral-light hover:border-red-200"
           >
             <ArrowRightOnRectangleIcon className="w-4 h-4" />
             <span>Logga ut</span>
@@ -127,7 +127,7 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
 
           {/* Den framräknade planen. Personen ska se vad hon får innan hon betalar. */}
           {planSummary?.calorieGoal ? (
-            <div className="bg-white rounded-2xl border border-[#F1EAE0] shadow-soft-lg p-5 text-center">
+            <div className="bg-white rounded-2xl border border-neutral-light shadow-soft-lg p-5 text-center">
               <p className="text-xs font-bold uppercase tracking-wider text-[#7A756E] mb-2">Din plan är klar</p>
               <p className="text-4xl font-serif font-medium text-[#56524D] leading-none">
                 {Math.round(planSummary.calorieGoal)}
@@ -174,7 +174,7 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
             </div>
 
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 border-b border-[#F1EAE0] pb-3 pr-24 sm:pr-0">
+              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 border-b border-neutral-light pb-3 pr-24 sm:pr-0">
                 <div>
                   <h2 className="text-xl font-black text-[#56524D] tracking-tight flex items-center gap-2">
                     <span>General Börjes Bootcamp</span>
@@ -249,7 +249,7 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
 
           {/* ABONNEMANG - jämbördigt alternativ, inte en fotnot. Gratisveckan är
               det starkaste argumentet och ska synas, inte gömmas i småtext. */}
-          <div className="bg-white rounded-2xl border-2 border-[#F1EAE0] shadow-soft-lg p-5 sm:p-6">
+          <div className="bg-white rounded-2xl border-2 border-neutral-light shadow-soft-lg p-5 sm:p-6">
             <div className="flex items-center gap-2 mb-1">
               <CreditCardIcon className="w-5 h-5 text-[#D96E4A]" />
               <h2 className="font-bold text-lg text-[#56524D]">Bara logga i appen</h2>
@@ -310,7 +310,7 @@ export const AccessGateView: React.FC<AccessGateViewProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="w-full py-4 text-center text-xs text-[#7A756E] border-t border-[#F1EAE0] bg-white/50">
+      <footer className="w-full py-4 text-center text-xs text-[#7A756E] border-t border-neutral-light bg-white/50">
         Kostloggen © {new Date().getFullYear()} · Generalens Bootcamp
       </footer>
     </div>

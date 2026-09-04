@@ -402,7 +402,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
               vi visar bara läget här så att inga två listor kan hamna i otakt.
               Saknas grundutbildningen visas i stället det gamla väntrummet. */}
           {onboardingDetails.hasBootcamp ? (
-            <div className="text-left bg-[#FAF6EF] border border-[#F1EAE0] rounded-2xl p-5">
+            <div className="text-left bg-[#FAF6EF] border border-neutral-light rounded-2xl p-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-[#56524D]">Grundutbildningen</span>
                 <span className="text-sm font-bold text-[#D96E4A]">
@@ -433,7 +433,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                Då är det gamla väntrummet enda vägen vidare - annars står användaren
                kvar och pekas mot ett kort som aldrig visas. */
             <div className="space-y-4">
-              <div className={`p-4 rounded-xl border ${hasCompletedWeight ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
+              <div className={`p-4 rounded-xl border ${hasCompletedWeight ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-neutral-light'} flex items-center justify-between`}>
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasCompletedWeight ? 'bg-[#7BA05B] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>1</div>
                   <span className={`font-bold ${hasCompletedWeight ? 'text-[#2B3B2C]' : 'text-[#56524D]'}`}>Startmätning</span>
@@ -444,7 +444,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                   <button onClick={() => setShowWeightModal(true)} className="px-4 py-2 bg-[#D96E4A] text-white font-bold rounded-lg hover:bg-[#C05A38] transition-colors">Gör nu</button>
                 )}
               </div>
-              <div className={`p-4 rounded-xl border ${participant.bootcampOnboardingCompleted ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-[#F1EAE0]'} flex items-center justify-between`}>
+              <div className={`p-4 rounded-xl border ${participant.bootcampOnboardingCompleted ? 'bg-[#E8EFE9] border-[#7BA05B]/40' : 'bg-[#F1EAE0]/50 border-neutral-light'} flex items-center justify-between`}>
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${participant.bootcampOnboardingCompleted ? 'bg-[#7BA05B] text-white' : 'bg-[#F1EAE0] text-[#7A756E]'}`}>2</div>
                   <span className={`font-bold ${participant.bootcampOnboardingCompleted ? 'text-[#2B3B2C]' : 'text-[#56524D]'}`}>Sätt dina mål</span>

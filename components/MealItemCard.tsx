@@ -63,7 +63,7 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
     };
   };
 
-  const inputClass = `mt-1 block w-full px-3 py-2 bg-white dark:bg-[#34302C] border border-[#F1EAE0] dark:border-[#484440] rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D96E4A] text-base ${isReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`;
+  const inputClass = `mt-1 block w-full px-3 py-2 bg-white dark:bg-[#34302C] border border-neutral-light dark:border-[#484440] rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D96E4A] text-base ${isReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`;
 
   const confirmDelete = () => {
     if (isReadOnly) return;
@@ -77,7 +77,7 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
 
   if (isEditing && !isReadOnly) {
     return (
-      <div className="bg-white dark:bg-[#2B2825] shadow-soft-xl rounded-2xl p-5 border border-[#F1EAE0] dark:border-[#484440] relative space-y-4 animate-fade-in">
+      <div className="bg-white dark:bg-[#2B2825] shadow-soft-xl rounded-2xl p-5 border border-neutral-light dark:border-[#484440] relative space-y-4 animate-fade-in">
         <div>
           <label htmlFor={`foodItem-${meal.id}`} className="block text-sm font-medium text-[#56524D] dark:text-[#FAF6EF]">Måltid</label>
            <div className="relative">
@@ -147,7 +147,7 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
 
   return (
     <>
-      <div className={`bg-white dark:bg-[#2B2825] shadow-soft-xl rounded-2xl p-4 border border-[#F1EAE0] dark:border-[#484440] relative group hover:shadow-md ${!isReadOnly ? 'hover:scale-[1.01]' : ''} ${isReadOnly ? 'opacity-70' : ''} ${isNewlyAdded ? 'animate-meal-drop-bounce' : 'animate-fade-slide-in'}`}>
+      <div className={`bg-white dark:bg-[#2B2825] shadow-soft-xl rounded-2xl p-4 border border-neutral-light dark:border-[#484440] relative group hover:shadow-md ${!isReadOnly ? 'hover:scale-[1.01]' : ''} ${isReadOnly ? 'opacity-70' : ''} ${isNewlyAdded ? 'animate-meal-drop-bounce' : 'animate-fade-slide-in'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3 flex-grow min-w-0">
             {meal.imageUrl && (
@@ -207,7 +207,7 @@ const MealItemCard: React.FC<MealItemCardProps> = ({ meal, onDelete, onUpdate, o
         </div>
 
         {isExpanded && (
-          <div id={`meal-details-${meal.id}`} className="mt-3 pt-3 border-t border-[#F1EAE0] dark:border-[#484440] animate-fade-in">
+          <div id={`meal-details-${meal.id}`} className="mt-3 pt-3 border-t border-neutral-light dark:border-[#484440] animate-fade-in">
             {showActualImage && meal.imageUrl && (
               <img
                   src={meal.imageUrl}

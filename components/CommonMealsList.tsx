@@ -495,7 +495,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
     <>
       <div className={embedded
         ? 'w-full'
-        : `${'bg-white dark:bg-[#2B2825] border-[#F1EAE0] dark:border-[#484440]'} p-6 rounded-[22px] shadow-soft-xl border`}>
+        : `${'bg-white dark:bg-[#2B2825] border-neutral-light dark:border-[#484440]'} p-6 rounded-[22px] shadow-soft-xl border`}>
         <div className={`flex items-center justify-between ${embedded ? 'mb-2.5' : 'mb-4'}`}>
           <div className="flex items-center gap-2.5">
             <BookmarkIcon className={`${embedded ? 'w-4 h-4' : 'w-5 h-5'} text-[#D96E4A]`} />
@@ -523,7 +523,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
         )}
         
         {commonMeals.length === 0 ? (
-           <div className={`text-center bg-[#FAF6EF] dark:bg-[#34302C] rounded-[22px] border border-[#F1EAE0] dark:border-[#484440] ${embedded ? 'py-3 px-3' : 'py-8 px-4'}`}>
+           <div className={`text-center bg-[#FAF6EF] dark:bg-[#34302C] rounded-[22px] border border-neutral-light dark:border-[#484440] ${embedded ? 'py-3 px-3' : 'py-8 px-4'}`}>
              <Utensils className={`text-[#D96E4A]/60 mx-auto ${embedded ? 'w-5 h-5 mb-1' : 'w-8 h-8 mb-2'}`} />
              <p className={`text-[#56524D] dark:text-[#FAF6EF] font-medium ${embedded ? 'text-xs' : 'text-base'}`}>Inga sparade val än.</p>
              {!embedded && (
@@ -574,7 +574,7 @@ export const CommonMealsList: React.FC<CommonMealsListProps> = ({ commonMeals, o
             onClick={(e) => e.stopPropagation()}
             className="bg-white dark:bg-[#2B2825] w-full sm:max-w-2xl rounded-[22px] shadow-soft-xl max-h-[85vh] flex flex-col animate-scale-in"
           >
-            <div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-b border-[#F1EAE0] dark:border-[#484440]">
+            <div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-b border-neutral-light dark:border-[#484440]">
               <h3 className="text-lg font-serif font-medium text-[#56524D] dark:text-[#FAF6EF]">
                 Mina vanliga val
                 <span className="ml-2 text-sm font-sans text-[#7A756E]">{sortedMeals.length} st</span>

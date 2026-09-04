@@ -307,7 +307,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({
         </section>
         
         {isPreview ? (
-          <div className="mt-10 p-6 rounded-2xl border text-center bg-[#FAF6EF] dark:bg-[#34302C] border-[#F1EAE0] dark:border-[#484440]">
+          <div className="mt-10 p-6 rounded-2xl border text-center bg-[#FAF6EF] dark:bg-[#34302C] border-neutral-light dark:border-[#484440]">
             <p className="text-xl font-bold text-[#56524D] dark:text-[#FAF6EF] mb-2">Det här var lektion 1.</p>
             {previewUnlockText && (
               <p className="text-base text-[#7A756E] dark:text-[#C2BCB4] max-w-md mx-auto leading-relaxed mb-5">

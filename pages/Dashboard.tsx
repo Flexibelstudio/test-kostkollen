@@ -1483,7 +1483,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                             {/* 1. Chatta med coachen (längst upp) */}
                             <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Chatta med {coachName}
                                 </span>
                                 <div className="w-12 h-12 rounded-full shadow-md flex items-center justify-center bg-white dark:bg-[#2B2825] text-[#D96E4A] border-2 border-[#D96E4A] overflow-hidden group-hover:bg-[#F6E2D9] transition-colors">
@@ -1499,40 +1499,40 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                             {/* 2. Recept (slår ihop Hitta recept & Mina recept) */}
                             <button onClick={handleRecipes} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Recept
                                 </span>
-                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-neutral-light flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
                                     <RecipeIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
 
                             {/* 3. Skanna kod */}
                             <button onClick={handleScanBarcode} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Skanna kod
                                 </span>
-                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-neutral-light flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
                                     <BarcodeIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
 
                             {/* 4. Sök & logga */}
                             <button onClick={handleSearchText} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Sök & logga
                                 </span>
-                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-neutral-light flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
                                     <SearchIcon className="w-5 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
 
                             {/* 5. Fota mat (närmast tummen / längst ner) */}
                             <button onClick={handleTakePhoto} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Fota mat
                                 </span>
-                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-neutral-light flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
                                     <CameraIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
