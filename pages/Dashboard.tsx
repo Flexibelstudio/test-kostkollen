@@ -1183,7 +1183,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {/* Left: Ätit */}
                         <div className="text-center flex-1">
                             <p className="text-sm font-medium text-neutral-dark mb-1">Ätit</p>
-                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(totalNutrients.calories)}</p>
+                            <p className="font-serif text-2xl font-extrabold text-neutral-dark leading-none">{Math.round(totalNutrients.calories)}</p>
                         </div>
 
                         {/* Center: Circular Progress */}
@@ -1206,7 +1206,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         <span className="text-sm font-medium text-neutral-dark mb-1 block">
                                             {isNetOverBudget ? 'Överskridit' : 'Återstående'}
                                         </span>
-                                        <span className="text-4xl font-bold block text-neutral-dark leading-none tracking-tight">
+                                        <span className="font-serif text-4xl font-extrabold block text-neutral-dark leading-none">
                                             {isNetOverBudget
                                                 ? netCaloriesOver.toFixed(0)
                                                 : (isFullyCoveredByBank ? '0' : caloriesRemaining.toFixed(0))
@@ -1223,7 +1223,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {/* Right: Sparpott */}
                         <div className="text-center flex-1">
                             <p className="text-sm font-medium text-neutral-dark mb-1">Sparpott</p>
-                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(remainingBankDisplay)}</p>
+                            <p className="font-serif text-2xl font-extrabold text-neutral-dark leading-none">{Math.round(remainingBankDisplay)}</p>
                         </div>
                     </div>
                 </div>
