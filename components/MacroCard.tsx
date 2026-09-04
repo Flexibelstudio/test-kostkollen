@@ -28,17 +28,17 @@ export const MacroCard: React.FC<MacroCardProps> = ({
 
   return (
     <div
-      // Samma innerkortsspråk som statistikkorten i matloggen och korten i
-      // "Mina vanliga val": vit botten, tunn ram och en lätt skugga. Korten
-      // ligger inuti ett kort som redan har djup, så skuggan ska vara diskret.
-      className={`flex flex-col justify-between bg-white dark:bg-[#2B2825] border border-[#F1EAE0] dark:border-[#484440] rounded-2xl p-3 sm:p-4 shadow-soft-sm text-center h-full`}
+      // Korten ligger numera direkt pa sidans bakgrund, inte inuti ringkortet.
+      // Darfor full skugga och vansterstalld text - siffran ska vara det man
+      // ser forst, malet star mindre bredvid.
+      className={`flex flex-col justify-between bg-white dark:bg-[#2B2825] border border-neutral-light dark:border-[#484440] rounded-2xl p-3.5 sm:p-4 shadow-soft-lg text-left h-full`}
     >
       <div>
-        <div className="h-4 sm:h-5 flex items-center justify-center mb-1">
+        <div className="h-4 sm:h-5 flex items-center mb-1">
           {/* Info-ikonen ska sitta tatt intill ordet, som en forlangning av det,
               och ordet plus ikon ska centreras som EN enhet i kortet. Darfor
               inline-flex med minimal marginal - inte en egen kolumn med luft. */}
-          <p className="text-xs font-bold text-neutral-dark uppercase tracking-wider leading-none inline-flex items-center justify-center whitespace-nowrap">
+          <p className="text-xs font-bold text-neutral-dark uppercase tracking-wider leading-none inline-flex items-center whitespace-nowrap">
             <span>{label}</span>
             {onInfoClick && (
               <button
@@ -63,12 +63,24 @@ export const MacroCard: React.FC<MacroCardProps> = ({
             )}
           </p>
         </div>
-        <p className="text-xs sm:text-sm text-neutral-500 mb-2 leading-tight">
-          {displayValue ?? `${Math.round(current)}/${goal}g`}
-        </p>
+        {displayValue ? (
+          <p className="text-xs sm:text-sm text-neutral-500 mb-2 leading-tight">{displayValue}</p>
+        ) : (
+          <p className="flex items-baseline gap-1.5 mb-2 leading-none">
+            <span
+              className="font-serif text-2xl sm:text-3xl font-extrabold leading-none"
+              style={{ color: barColor }}
+            >
+              {Math.round(current)}
+            </span>
+            <span className="text-xs sm:text-sm text-neutral-500 font-medium">
+              / {goal} g
+            </span>
+          </p>
+        )}
       </div>
       <div
-        className="w-full rounded-full h-1.5 overflow-hidden mt-auto"
+        className="w-full rounded-full h-1.5 sm:h-2 overflow-hidden mt-auto"
         style={{ backgroundColor: trackColor }}
       >
         <div

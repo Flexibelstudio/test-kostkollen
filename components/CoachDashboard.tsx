@@ -223,7 +223,7 @@ const SubscriptionBadge: React.FC<{ status?: 'active' | 'trialing' | 'canceling'
             label = 'Sägs upp';
             break;
         case 'canceled':
-            classes = 'bg-[#F1EAE0] text-[#7A756E] border-[#F1EAE0]';
+            classes = 'bg-[#F1EAE0] text-[#7A756E] border-neutral-light';
             label = 'Avslutad';
             break;
         case 'inactive':

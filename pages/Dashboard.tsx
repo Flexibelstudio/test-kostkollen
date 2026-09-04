@@ -1183,7 +1183,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {/* Left: Ätit */}
                         <div className="text-center flex-1">
                             <p className="text-sm font-medium text-neutral-dark mb-1">Ätit</p>
-                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(totalNutrients.calories)}</p>
+                            <p className="font-serif text-2xl font-extrabold text-neutral-dark leading-none">{Math.round(totalNutrients.calories)}</p>
                         </div>
 
                         {/* Center: Circular Progress */}
@@ -1195,12 +1195,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 strokeWidth={14}
                                 color={progressColor}
                                 trackColor="#F1EAE0"
+                                // Ringen slar om till gront vid minsta trygga
+                                // intag (80 % av malet) och ar gron upp till
+                                // malet. Zonen ritas ut sa att man ser var
+                                // gransen gar innan man kommit dit.
+                                zoneStart={goals.calorieGoal > 0 ? minSafeCalories / goals.calorieGoal : undefined}
+                                zoneEnd={1}
                                 centerContent={
                                     <div className="text-center">
                                         <span className="text-sm font-medium text-neutral-dark mb-1 block">
                                             {isNetOverBudget ? 'Överskridit' : 'Återstående'}
                                         </span>
-                                        <span className="text-4xl font-bold block text-neutral-dark leading-none tracking-tight">
+                                        <span className="font-serif text-4xl font-extrabold block text-neutral-dark leading-none">
                                             {isNetOverBudget
                                                 ? netCaloriesOver.toFixed(0)
                                                 : (isFullyCoveredByBank ? '0' : caloriesRemaining.toFixed(0))
@@ -1217,12 +1223,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {/* Right: Sparpott */}
                         <div className="text-center flex-1">
                             <p className="text-sm font-medium text-neutral-dark mb-1">Sparpott</p>
-                            <p className="text-2xl font-bold text-neutral-dark">{Math.round(remainingBankDisplay)}</p>
+                            <p className="font-serif text-2xl font-extrabold text-neutral-dark leading-none">{Math.round(remainingBankDisplay)}</p>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    {/* Macros Integrated */}
-                    <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full px-4 sm:px-6 items-stretch">
+            {/* Makrokorten ligger nu direkt pa bakgrunden i stallet for inuti
+                ringkortet. Da far de bara full skugga och lasas som egna kort. */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full items-stretch">
                         <MacroCard 
                             label="Kolhydrater"
                             current={totalNutrients.carbohydrates}
@@ -1264,11 +1273,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                             onInfoClick={() => setInfoPopover('fiber')}
                             infoAriaLabel="Information om fibrer"
                         />
-                    </div>
+            </div>
 
-                    {/* Mina vanliga val – kort, två i bredd, scrollas i sidled */}
-                    {commonMeals && commonMeals.length > 0 && (
-                        <div className="w-full px-4 sm:px-6 mt-3 pt-3 border-t border-neutral-light/70 dark:border-[#484440]/60">
+            {/* Mina vanliga val – eget kort, tva i bredd, scrollas i sidled */}
+            {commonMeals && commonMeals.length > 0 && (
+                <div className="w-full bg-white border border-neutral-light rounded-3xl shadow-soft-xl p-4 sm:p-5">
                             <CommonMealsList
                                 commonMeals={commonMeals}
                                 onLogCommonMeal={handleCommonMealLog}
@@ -1283,11 +1292,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isBootcamp={!!activeBootcamp}
                                 embedded
                             />
-                        </div>
-                    )}
-
                 </div>
-            </div>
+            )}
 
             {/* Vatten, Streak & Ditt Mål (Snabbåtkomst ovanför matloggen) */}
             <div className="grid grid-cols-2 gap-3 items-stretch">
@@ -1303,8 +1309,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
                 <div className="flex flex-col h-full gap-3">
                     {/* Streak Card */}
-                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
+                    {/* Streaken ar appens starkaste motivationsmekanik och far
+                        darfor egen fargyta i stallet for att vara ett vitt kort
+                        bland andra. Samma flamikon som forut, men fylld ruta. */}
+                    <div className={`bg-[#F9E9E1] border-[#D96E4A]/30 p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#D96E4A] flex items-center justify-center text-white shadow-sm relative z-10 shrink-0">
                             <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
                         <div className="relative z-10 flex-1 min-w-0">
@@ -1321,9 +1330,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     </svg>
                                 </button>
                             </p>
-                            <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-none truncate mt-1">
+                            <p className="font-serif text-2xl sm:text-3xl font-extrabold text-[#C05A38] leading-none truncate mt-1">
                                 {streakData.currentStreak} 
-                                <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
+                                <span className="font-sans text-xs sm:text-sm font-medium text-[#8A7F76] ml-1">dagar</span>
                             </p>
                             {/* Kortet ar lika hogt som vattenkortet bredvid och
                                 hade gott om oanvand luft, sa nasta niva far en
@@ -1388,6 +1397,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                     <MealSectionCard 
                         title="Frukost" 
+                        accentColor="#A6826B"
+                        accentSoftColor="#EAE0D8"
                         icon={<Coffee className="w-6 h-6" />} 
                         meals={mealsBySection.breakfast} 
                         onDeleteMeal={handleDeleteMeal}
@@ -1402,6 +1413,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                     <MealSectionCard 
                         title="Lunch" 
+                        accentColor="#D96E4A"
+                        accentSoftColor="#F6E2D9"
                         icon={<Sandwich className="w-6 h-6" />} 
                         meals={mealsBySection.lunch} 
                         onDeleteMeal={handleDeleteMeal}
@@ -1416,6 +1429,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                     <MealSectionCard 
                         title="Middag" 
+                        accentColor="#7BA05B"
+                        accentSoftColor="#E8EFE9"
                         icon={<CookingPot className="w-6 h-6" />} 
                         meals={mealsBySection.dinner} 
                         onDeleteMeal={handleDeleteMeal}
@@ -1430,6 +1445,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                     <MealSectionCard 
                         title="Mellanmål" 
+                        accentColor="#C99B4A"
+                        accentSoftColor="#F4E9D7"
                         icon={<Apple className="w-6 h-6" />} 
                         meals={mealsBySection.snack} 
                         onDeleteMeal={handleDeleteMeal}
@@ -1483,7 +1500,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="flex flex-col items-end gap-3 animate-slide-up-fade-in pointer-events-auto">
                             {/* 1. Chatta med coachen (längst upp) */}
                             <button onClick={() => { onOpenAICoach(); setIsSpeedDialOpen(false); }} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Chatta med {coachName}
                                 </span>
                                 <div className="w-12 h-12 rounded-full shadow-md flex items-center justify-center bg-white dark:bg-[#2B2825] text-[#D96E4A] border-2 border-[#D96E4A] overflow-hidden group-hover:bg-[#F6E2D9] transition-colors">
@@ -1499,40 +1516,40 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                             {/* 2. Recept (slår ihop Hitta recept & Mina recept) */}
                             <button onClick={handleRecipes} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Recept
                                 </span>
-                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-neutral-light flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
                                     <RecipeIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
 
                             {/* 3. Skanna kod */}
                             <button onClick={handleScanBarcode} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Skanna kod
                                 </span>
-                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-neutral-light flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
                                     <BarcodeIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
 
                             {/* 4. Sök & logga */}
                             <button onClick={handleSearchText} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Sök & logga
                                 </span>
-                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-neutral-light flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
                                     <SearchIcon className="w-5 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>
 
                             {/* 5. Fota mat (närmast tummen / längst ner) */}
                             <button onClick={handleTakePhoto} className="flex items-center gap-3 group">
-                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-[#F1EAE0]">
+                                <span className="bg-white dark:bg-[#2B2825] text-[#56524D] dark:text-[#FAF6EF] px-3.5 py-1.5 rounded-full shadow-md text-sm font-medium whitespace-nowrap border border-neutral-light">
                                     Fota mat
                                 </span>
-                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-[#F1EAE0] flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
+                                <div className="w-12 h-12 bg-white dark:bg-[#2B2825] text-[#D96E4A] rounded-full shadow-md border border-neutral-light flex items-center justify-center group-hover:bg-[#F6E2D9] transition-colors">
                                     <CameraIcon className="w-6 h-6 text-[#D96E4A]" />
                                 </div>
                             </button>

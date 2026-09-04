@@ -283,7 +283,7 @@ const LogWeightModal: React.FC<LogWeightModalProps> = ({ show, onClose, onSave, 
       <form onSubmit={handleSave} className="space-y-4">
         <fieldset disabled={isSaving} className="space-y-4 group">
             {isPrefilled && (
-              <div className="bg-[#F1EAE0]/70 border border-[#F1EAE0] rounded-xl p-3.5 text-sm text-[#56524D] leading-relaxed">
+              <div className="bg-[#F1EAE0]/70 border border-neutral-light rounded-xl p-3.5 text-sm text-[#56524D] leading-relaxed">
                 Vi har fyllt i värdena från din profil. <strong>Stämmer de fortfarande?</strong> Har du mätt nyss – på våg eller InBody – skriv in de nya siffrorna i stället. Det här blir din nollpunkt.
               </div>
             )}

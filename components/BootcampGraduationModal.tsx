@@ -240,7 +240,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
               </div>
 
               {/* Slutord och navigering till erbjudande */}
-              <div className="bg-[#FAF6EF] p-5 sm:p-6 rounded-2xl border border-[#F1EAE0] flex flex-col gap-4 shadow-xl">
+              <div className="bg-[#FAF6EF] p-5 sm:p-6 rounded-2xl border border-neutral-light flex flex-col gap-4 shadow-xl">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-[#D96E4A] bg-[#F1EAE0]">
                     {COACH_PERSONAS.hard.imageUrl ? (
@@ -257,7 +257,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-[#F1EAE0]">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-neutral-light">
                   <button
                     type="button"
                     onClick={handleDownloadDiploma}
@@ -281,7 +281,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
             </div>
           ) : (
             /* STEG 2: ERBJUDANDET (Talar med användarens faktiska data) */
-            <div className="bg-[#FAF6EF] rounded-3xl border border-[#F1EAE0] p-6 sm:p-8 shadow-2xl flex flex-col gap-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="bg-[#FAF6EF] rounded-3xl border border-neutral-light p-6 sm:p-8 shadow-2xl flex flex-col gap-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
               {/* Header */}
               <div className="text-center">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F6E2D9] text-[#D96E4A] text-xs font-bold uppercase tracking-wider mb-2">
@@ -301,7 +301,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
               </div>
 
               {/* DATA-PANEL: Faktiska siffror från användarens historik */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-[#F1EAE0] shadow-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-neutral-light shadow-sm">
                 <div className="flex flex-col items-center text-center p-2 rounded-xl bg-[#FAF6EF]/60">
                   <Calendar className="w-5 h-5 text-[#D96E4A] mb-1" />
                   <span className="text-2xl font-black text-[#2B2825]">{stats.loggedDaysCount}</span>
@@ -361,7 +361,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3.5 bg-white rounded-2xl border border-[#F1EAE0] flex flex-col gap-1.5 shadow-sm">
+                  <div className="p-3.5 bg-white rounded-2xl border border-neutral-light flex flex-col gap-1.5 shadow-sm">
                     <div className="w-8 h-8 rounded-lg bg-[#F6E2D9] text-[#D96E4A] flex items-center justify-center">
                       <Utensils className="w-4 h-4" />
                     </div>
@@ -371,7 +371,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
                     </span>
                   </div>
 
-                  <div className="p-3.5 bg-white rounded-2xl border border-[#F1EAE0] flex flex-col gap-1.5 shadow-sm">
+                  <div className="p-3.5 bg-white rounded-2xl border border-neutral-light flex flex-col gap-1.5 shadow-sm">
                     <div className="w-8 h-8 rounded-lg bg-[#E8EFE9] text-[#2B3B2C] flex items-center justify-center">
                       <Shield className="w-4 h-4" />
                     </div>
@@ -381,7 +381,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
                     </span>
                   </div>
 
-                  <div className="p-3.5 bg-white rounded-2xl border border-[#F1EAE0] flex flex-col gap-1.5 shadow-sm">
+                  <div className="p-3.5 bg-white rounded-2xl border border-neutral-light flex flex-col gap-1.5 shadow-sm">
                     <div className="w-8 h-8 rounded-lg bg-[#FAF0E6] text-[#A66038] flex items-center justify-center">
                       <BookOpen className="w-4 h-4" />
                     </div>
@@ -394,7 +394,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
               </div>
 
               {/* COACH-VALET SOM EN DEL AV ERBJUDANDET */}
-              <div className="flex flex-col gap-3 pt-2 border-t border-[#F1EAE0]">
+              <div className="flex flex-col gap-3 pt-2 border-t border-neutral-light">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold uppercase tracking-wider text-[#7A756E]">
                     Vem vill du ha vid din sida framåt?
@@ -415,7 +415,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
                         className={`text-left p-3.5 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center cursor-pointer ${
                           isSelected
                             ? 'bg-[#F6E2D9] text-[#56524D] border-[#D96E4A] shadow-md scale-[1.02]'
-                            : 'bg-white border-[#F1EAE0] hover:border-[#D96E4A]/50 text-[#56524D]'
+                            : 'bg-white border-neutral-light hover:border-[#D96E4A]/50 text-[#56524D]'
                         }`}
                       >
                         <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl mb-2 shadow-sm transition-transform bg-[#F1EAE0] border border-[#FAF6EF] overflow-hidden ${isSelected ? 'ring-2 ring-[#D96E4A]' : ''}`}>
@@ -431,7 +431,7 @@ export const BootcampGraduationModal: React.FC<BootcampGraduationModalProps> = (
               </div>
 
               {/* PRIS OCH AKTIONER */}
-              <div className="flex flex-col gap-3 pt-4 border-t border-[#F1EAE0]">
+              <div className="flex flex-col gap-3 pt-4 border-t border-neutral-light">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div>
                     <div className="flex items-baseline gap-1.5">

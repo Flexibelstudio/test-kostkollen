@@ -129,7 +129,7 @@ const CourseCard: React.FC<{
   onPreview?: () => void;
 }> = ({ course, onActivate, onShowInfo, onAbort, hasStarted, isLocked, lockedReason, lockedLabel, isBootcamp, lessonTitles, onPreview }) => {
 
-  const baseClasses = `bg-white dark:bg-[#2B2825] p-6 rounded-[22px] shadow-soft-xl border border-[#F1EAE0] dark:border-[#484440] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75' : 'hover:scale-[1.01]'}`;
+  const baseClasses = `bg-white dark:bg-[#2B2825] p-6 rounded-[22px] shadow-soft-xl border border-neutral-light dark:border-[#484440] flex flex-col h-full relative overflow-hidden group transition-all duration-300 ${isLocked ? 'opacity-75' : 'hover:scale-[1.01]'}`;
 
   const titleClasses = "text-2xl font-serif font-medium text-[#56524D] dark:text-[#FAF6EF] mb-2";
   const descClasses = "text-[#7A756E] dark:text-[#C2BCB4] text-base leading-relaxed mb-4";
@@ -179,7 +179,7 @@ const CourseCard: React.FC<{
             </button>
         </div>
 
-        <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${'border-[#F1EAE0] dark:border-[#484440]'}`}>
+        <div className={`mt-auto pt-4 border-t flex flex-col gap-2 ${'border-neutral-light dark:border-[#484440]'}`}>
             {isLocked ? (
                 <div className="w-full flex flex-col gap-3">
                     {lessonTitles && lessonTitles.length > 0 && (
@@ -200,7 +200,7 @@ const CourseCard: React.FC<{
                             )}
                         </div>
                     )}
-                    <div className={`w-full py-2.5 px-4 flex flex-col items-center justify-center text-center rounded-2xl border ${'bg-[#F1EAE0] border-[#F1EAE0] text-[#7A756E]'}`}>
+                    <div className={`w-full py-2.5 px-4 flex flex-col items-center justify-center text-center rounded-2xl border ${'bg-[#F1EAE0] border-neutral-light text-[#7A756E]'}`}>
                         <span className="text-sm font-bold mb-0.5">{lockedLabel || 'Låst'}</span>
                         <span className="text-xs">{lockedReason}</span>
                     </div>

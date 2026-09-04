@@ -848,7 +848,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 </span>
                             </div>
 
-                            <div className="p-4 bg-[#FAF6EF] border border-[#F1EAE0] rounded-2xl flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                            <div className="p-4 bg-[#FAF6EF] border border-neutral-light rounded-2xl flex flex-col sm:flex-row items-center sm:items-start gap-4">
                                 <div className="w-16 h-16 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[#F1EAE0] border-2 border-[#D96E4A] shadow-sm">
                                     {COACH_PERSONAS.hard.imageUrl ? (
                                         <img src={COACH_PERSONAS.hard.imageUrl} alt={COACH_PERSONAS.hard.label} className="w-full h-full object-cover" />
@@ -886,7 +886,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                             className={`text-left p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center text-center cursor-pointer ${
                                                 isSelected
                                                     ? 'bg-[#F6E2D9] text-[#56524D] border-[#D96E4A] shadow-md'
-                                                    : 'bg-[#FAF6EF] border-[#F1EAE0] hover:border-[#D96E4A]/50 text-[#56524D]'
+                                                    : 'bg-[#FAF6EF] border-neutral-light hover:border-[#D96E4A]/50 text-[#56524D]'
                                             }`}
                                         >
                                             <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl mb-3 shadow-sm transition-transform bg-[#F1EAE0] border border-[#FAF6EF] overflow-hidden ${isSelected ? 'ring-2 ring-[#D96E4A]' : ''}`}>
@@ -1189,12 +1189,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                                 </p>
                                             )}
                                             {w.proteinIsHigh && !w.exceedsCalorieGoal && (
-                                                <p className="text-xs text-[#56524D] bg-[#F1EAE0]/70 border border-[#F1EAE0] rounded-lg px-3 py-2">
+                                                <p className="text-xs text-[#56524D] bg-[#F1EAE0]/70 border border-neutral-light rounded-lg px-3 py-2">
                                                     Proteinet står för {Math.round(w.proteinShare * 100)} % av energin. Det är högt – det lämnar lite plats åt kolhydrater och fett.
                                                 </p>
                                             )}
                                             {w.fatAtFloor && !w.exceedsCalorieGoal && (
-                                                <p className="text-xs text-[#56524D] bg-[#F1EAE0]/70 border border-[#F1EAE0] rounded-lg px-3 py-2">
+                                                <p className="text-xs text-[#56524D] bg-[#F1EAE0]/70 border border-neutral-light rounded-lg px-3 py-2">
                                                     Fettet ligger på sin nedre gräns ({minimumFatGrams(manualGoals.calorieGoal)} g) och sänks inte mer.
                                                 </p>
                                             )}

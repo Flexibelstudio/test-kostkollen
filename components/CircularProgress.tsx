@@ -12,6 +12,12 @@ interface CircularProgressProps {
   subLabel?: string;
   icon?: React.ReactNode;
   centerContent?: React.ReactNode;
+  /** Malzonens start som andel 0-1. Ritas som ett blekt falt pa banan. */
+  zoneStart?: number;
+  /** Malzonens slut som andel 0-1. Default 1. */
+  zoneEnd?: number;
+  /** Farg pa malzonsfaltet. */
+  zoneColor?: string;
 }
 
 const CircularProgress: React.FC<CircularProgressProps> = ({
@@ -24,13 +30,25 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
   label,
   subLabel,
   icon,
-  centerContent
+  centerContent,
+  zoneStart,
+  zoneEnd = 1,
+  zoneColor = '#DCE8D6'
 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const safeMax = Math.max(max, 1);
   const percentage = Math.min(Math.max(value / safeMax, 0), 1); // Clamp between 0 and 1 for the bar visual
   const dashOffset = circumference - percentage * circumference;
+
+  // Malzonen ritas som ett segment pa banan med hjalp av strokeDasharray.
+  // Negativ dashoffset flyttar segmentets start runt cirkeln.
+  const hasZone =
+    typeof zoneStart === 'number' && zoneStart > 0 && zoneStart < 1 && zoneEnd > zoneStart;
+  const zoneFrom = hasZone ? Math.min(Math.max(zoneStart as number, 0), 1) : 0;
+  const zoneTo = hasZone ? Math.min(Math.max(zoneEnd, 0), 1) : 0;
+  const zoneLength = (zoneTo - zoneFrom) * circumference;
+  const zoneOffset = -zoneFrom * circumference;
 
   // If color/trackColor is a hex code, apply via stroke attribute directly
   const isHexColor = color.startsWith('#');
@@ -54,6 +72,20 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
           className={!isHexTrack ? trackColor : ''}
           strokeWidth={strokeWidth}
         />
+        {/* Malzon - banan byter till en svagare gron dar ringen blir gron.
+            Ingen markering, bara fargbytet. */}
+        {hasZone && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={zoneColor}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${zoneLength} ${circumference - zoneLength}`}
+            strokeDashoffset={zoneOffset}
+          />
+        )}
         {/* Progress - Colored ring filling up */}
         <circle
           cx={size / 2}
