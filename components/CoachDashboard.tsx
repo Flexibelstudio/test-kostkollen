@@ -18,8 +18,7 @@ import {
     bulkUpdateUserRole,
     createUserPost,
     updateUserDocument,
-    cleanupOrphanedProfiles,
-    grandfatherExistingMembers
+    cleanupOrphanedProfiles
 } from '../services/firestoreService';
 import LoadingSpinner from './LoadingSpinner';
 import MemberDetailModal from './MemberDetailModal';
@@ -43,86 +42,6 @@ type SortableKeys = keyof CoachViewMember;
  * Knappen nedan kor molnfunktionen cleanupOrphanedProfiles som tar bort
  * profilerna och anonymiserar deras inlagg och kommentarer.
  */
-/**
- * Ger gamla gratisanvandare fortsatt atkomst.
- * Prod korde tidigare utan betalvagg, sa befintliga medlemmar saknar
- * subscriptionStatus och hamnar direkt pa kopsidan.
- */
-const GrandfatherCard: React.FC<{
-    setToastNotification: (t: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
-}> = ({ setToastNotification }) => {
-    const [isBusy, setIsBusy] = useState(false);
-    const [foundCount, setFoundCount] = useState<number | null>(null);
-
-    const handleScan = async () => {
-        setIsBusy(true);
-        try {
-            const res = await grandfatherExistingMembers(true);
-            setFoundCount(res.count);
-            setToastNotification({
-                message: res.count === 0
-                    ? 'Alla medlemmar har redan åtkomst.'
-                    : `${res.count} medlem${res.count === 1 ? '' : 'mar'} saknar åtkomst.`,
-                type: 'info'
-            });
-        } catch (e: any) {
-            setToastNotification({ message: e?.message || 'Kunde inte söka igenom medlemmarna.', type: 'error' });
-        } finally {
-            setIsBusy(false);
-        }
-    };
-
-    const handleGrant = async () => {
-        setIsBusy(true);
-        try {
-            const res = await grandfatherExistingMembers(false, 'active');
-            setFoundCount(0);
-            setToastNotification({
-                message: `Klart: ${res.updated ?? 0} medlemmar har nu fortsatt åtkomst.`,
-                type: 'success'
-            });
-        } catch (e: any) {
-            setToastNotification({ message: e?.message || 'Åtgärden misslyckades.', type: 'error' });
-        } finally {
-            setIsBusy(false);
-        }
-    };
-
-    return (
-        <div className="mt-8 bg-white p-5 rounded-3xl shadow-soft-xl border border-neutral-light">
-            <h3 className="font-bold text-neutral-dark text-base mb-1">Ge befintliga medlemmar fortsatt åtkomst</h3>
-            <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
-                Medlemmar som använde appen innan betalmodellen infördes saknar prenumerationsstatus och möter köpsidan. Den här åtgärden ger dem fortsatt åtkomst utan kostnad. Coacher, administratörer, arkiverade och alla som redan har åtkomst rörs inte. Sök igenom först – då ändras ingenting.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-                <button
-                    type="button"
-                    onClick={handleScan}
-                    disabled={isBusy}
-                    className="px-4 py-2 bg-white border border-neutral-light text-primary font-bold rounded-xl hover:bg-primary-50 transition-colors shadow-sm disabled:opacity-50"
-                >
-                    {isBusy ? 'Arbetar…' : 'Sök igenom'}
-                </button>
-                {foundCount !== null && foundCount > 0 && (
-                    <button
-                        type="button"
-                        onClick={handleGrant}
-                        disabled={isBusy}
-                        className="px-4 py-2 bg-primary hover:bg-primary-darker text-white font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50"
-                    >
-                        Ge {foundCount} medlem{foundCount === 1 ? '' : 'mar'} åtkomst
-                    </button>
-                )}
-                {foundCount !== null && (
-                    <span className="text-sm text-neutral-500">
-                        {foundCount === 0 ? 'Inget att göra.' : `${foundCount} hittade.`}
-                    </span>
-                )}
-            </div>
-        </div>
-    );
-};
-
 const OrphanCleanupCard: React.FC<{
     setToastNotification: (t: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
 }> = ({ setToastNotification }) => {
@@ -1389,10 +1308,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout, currentUserEm
                 </div>
 
                 {(userRole === 'coach' || userRole === 'admin') && (
-                    <>
-                        <GrandfatherCard setToastNotification={setToastNotification} />
-                        <OrphanCleanupCard setToastNotification={setToastNotification} />
-                    </>
+                    <OrphanCleanupCard setToastNotification={setToastNotification} />
                 )}
             </>
         )}

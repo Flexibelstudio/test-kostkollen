@@ -2160,29 +2160,6 @@ export async function cleanupOrphanedProfiles(dryRun: boolean): Promise<OrphanCl
     return result.data as OrphanCleanupResult;
 }
 
-export interface GrandfatherResult {
-    dryRun?: boolean;
-    count: number;
-    updated?: number;
-    statusValue?: string;
-    uids?: string[];
-}
-
-/**
- * Ger befintliga medlemmar som saknar bade subscriptionStatus och
- * bootcampAccess fortsatt atkomst. dryRun raknar bara.
- */
-export async function grandfatherExistingMembers(
-    dryRun: boolean,
-    statusValue: 'active' | 'trialing' = 'active',
-    periodEndIso?: string,
-): Promise<GrandfatherResult> {
-    if (!functions) throw new Error("Functions not initialized");
-    const fn = httpsCallable(functions, 'grandfatherExistingMembers');
-    const result = await fn({ dryRun, statusValue, periodEndIso: periodEndIso || null });
-    return result.data as GrandfatherResult;
-}
-
 export async function fetchTotalMealsCount(userId: string): Promise<number> {
     if (!db) return 0;
     try {
