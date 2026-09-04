@@ -18,6 +18,10 @@ interface MealSectionCardProps {
   onClose: () => void;   // Controlled from parent
   recommendedCalories?: number;
   isBootcamp?: boolean;
+  /** Mork accentfarg - samma som motsvarande makrokort. */
+  accentColor?: string;
+  /** Ljus ton av accentfargen, anvands som botten i ikonrutan. */
+  accentSoftColor?: string;
 }
 
 const MealSectionCard: React.FC<MealSectionCardProps> = ({
@@ -32,7 +36,9 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
   onOpen,
   onClose,
   recommendedCalories,
-  isBootcamp = false
+  isBootcamp = false,
+  accentColor = '#D96E4A',
+  accentSoftColor = '#F6E2D9'
 }) => {
   // Calculate totals for this specific meal section
   const totals = useMemo(() => sumMealNutrients(meals), [meals]);
@@ -150,15 +156,22 @@ const MealSectionCard: React.FC<MealSectionCardProps> = ({
         `}
       >
         <div className="flex justify-between items-start">
-            <div className={`
-                w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm transition-colors duration-300
-                ${'bg-[#F6E2D9] text-[#D96E4A]'}
-            `}>
+            {/* Ikonrutan och kalorisiffran anvander samma fargpar som
+                motsvarande makrokort, i samma ordning som makrorutnatet.
+                Rutan behaller sin farg aven nar inget ar loggat, sa att
+                korten gar att kanna igen ocksa pa en tom dag. */}
+            <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm transition-colors duration-300"
+                style={{ backgroundColor: accentSoftColor, color: accentColor }}
+            >
                 {icon}
             </div>
             
             <div className="text-right">
-                 <span className={`block text-2xl font-serif font-medium leading-none transition-colors ${totals.calories > 0 ? ('text-[#56524D] dark:text-[#FAF6EF]') : ('text-[#7A756E] dark:text-[#C2BCB4]')}`}>
+                 <span
+                    className="block text-2xl font-serif font-bold leading-none transition-colors"
+                    style={{ color: totals.calories > 0 ? accentColor : '#B0A99F' }}
+                 >
                     {Math.round(totals.calories)}
                  </span>
                  <span className={`text-xs font-sans tracking-wide transition-colors ${totals.calories > 0 ? ('text-[#7A756E] dark:text-[#C2BCB4]') : ('text-[#7A756E]')}`}>

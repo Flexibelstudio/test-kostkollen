@@ -1195,6 +1195,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 strokeWidth={14}
                                 color={progressColor}
                                 trackColor="#F1EAE0"
+                                // Ringen slar om till gront vid minsta trygga
+                                // intag (80 % av malet) och ar gron upp till
+                                // malet. Zonen ritas ut sa att man ser var
+                                // gransen gar innan man kommit dit.
+                                zoneStart={goals.calorieGoal > 0 ? minSafeCalories / goals.calorieGoal : undefined}
+                                zoneEnd={1}
                                 centerContent={
                                     <div className="text-center">
                                         <span className="text-sm font-medium text-neutral-dark mb-1 block">
@@ -1391,6 +1397,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                     <MealSectionCard 
                         title="Frukost" 
+                        accentColor="#A6826B"
+                        accentSoftColor="#EAE0D8"
                         icon={<Coffee className="w-6 h-6" />} 
                         meals={mealsBySection.breakfast} 
                         onDeleteMeal={handleDeleteMeal}
@@ -1405,6 +1413,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                     <MealSectionCard 
                         title="Lunch" 
+                        accentColor="#D96E4A"
+                        accentSoftColor="#F6E2D9"
                         icon={<Sandwich className="w-6 h-6" />} 
                         meals={mealsBySection.lunch} 
                         onDeleteMeal={handleDeleteMeal}
@@ -1419,6 +1429,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                     <MealSectionCard 
                         title="Middag" 
+                        accentColor="#7BA05B"
+                        accentSoftColor="#E8EFE9"
                         icon={<CookingPot className="w-6 h-6" />} 
                         meals={mealsBySection.dinner} 
                         onDeleteMeal={handleDeleteMeal}
@@ -1433,6 +1445,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     />
                     <MealSectionCard 
                         title="Mellanmål" 
+                        accentColor="#C99B4A"
+                        accentSoftColor="#F4E9D7"
                         icon={<Apple className="w-6 h-6" />} 
                         meals={mealsBySection.snack} 
                         onDeleteMeal={handleDeleteMeal}
