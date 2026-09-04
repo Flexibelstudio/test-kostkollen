@@ -1220,9 +1220,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <p className="text-2xl font-bold text-neutral-dark">{Math.round(remainingBankDisplay)}</p>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    {/* Macros Integrated */}
-                    <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full px-4 sm:px-6 items-stretch">
+            {/* Makrokorten ligger nu direkt pa bakgrunden i stallet for inuti
+                ringkortet. Da far de bara full skugga och lasas som egna kort. */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full items-stretch">
                         <MacroCard 
                             label="Kolhydrater"
                             current={totalNutrients.carbohydrates}
@@ -1264,11 +1267,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                             onInfoClick={() => setInfoPopover('fiber')}
                             infoAriaLabel="Information om fibrer"
                         />
-                    </div>
+            </div>
 
-                    {/* Mina vanliga val – kort, två i bredd, scrollas i sidled */}
-                    {commonMeals && commonMeals.length > 0 && (
-                        <div className="w-full px-4 sm:px-6 mt-3 pt-3 border-t border-neutral-light/70 dark:border-[#484440]/60">
+            {/* Mina vanliga val – eget kort, tva i bredd, scrollas i sidled */}
+            {commonMeals && commonMeals.length > 0 && (
+                <div className="w-full bg-white border border-neutral-light rounded-3xl shadow-soft-xl p-4 sm:p-5">
                             <CommonMealsList
                                 commonMeals={commonMeals}
                                 onLogCommonMeal={handleCommonMealLog}
@@ -1283,11 +1286,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 isBootcamp={!!activeBootcamp}
                                 embedded
                             />
-                        </div>
-                    )}
-
                 </div>
-            </div>
+            )}
 
             {/* Vatten, Streak & Ditt Mål (Snabbåtkomst ovanför matloggen) */}
             <div className="grid grid-cols-2 gap-3 items-stretch">
@@ -1303,8 +1303,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
                 <div className="flex flex-col h-full gap-3">
                     {/* Streak Card */}
-                    <div className={`${'bg-white border-neutral-light'} p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm relative z-10 shrink-0">
+                    {/* Streaken ar appens starkaste motivationsmekanik och far
+                        darfor egen fargyta i stallet for att vara ett vitt kort
+                        bland andra. Samma flamikon som forut, men fylld ruta. */}
+                    <div className={`bg-[#F9E9E1] border-[#D96E4A]/30 p-3.5 sm:p-4 rounded-2xl shadow-soft-lg border flex items-center gap-3 sm:gap-4 relative overflow-hidden group hover:shadow-soft-xl transition-all duration-300 flex-1`}>
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#D96E4A] flex items-center justify-center text-white shadow-sm relative z-10 shrink-0">
                             <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
                         <div className="relative z-10 flex-1 min-w-0">
@@ -1321,9 +1324,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     </svg>
                                 </button>
                             </p>
-                            <p className="text-xl sm:text-2xl font-extrabold text-neutral-dark leading-none truncate mt-1">
+                            <p className="font-serif text-2xl sm:text-3xl font-extrabold text-[#C05A38] leading-none truncate mt-1">
                                 {streakData.currentStreak} 
-                                <span className="text-xs sm:text-sm font-medium text-neutral ml-1">dagar</span>
+                                <span className="font-sans text-xs sm:text-sm font-medium text-[#8A7F76] ml-1">dagar</span>
                             </p>
                             {/* Kortet ar lika hogt som vattenkortet bredvid och
                                 hade gott om oanvand luft, sa nasta niva far en
