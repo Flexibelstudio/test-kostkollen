@@ -113,6 +113,8 @@ interface CoursesViewProps {
   bootcampFeedSlot?: React.ReactNode;
   /** Tar användaren till startsidan där Grundutbildningen ligger. */
   onNavigateHome?: () => void;
+  /** Skickas vidare till bootcampen så att "Rädda gårdagen" kan byta datum åt användaren. */
+  onNavigateToMainWithDate?: (date: Date) => void;
 }
 
 const CourseCard: React.FC<{
@@ -239,7 +241,7 @@ const CourseCard: React.FC<{
 };
 
 
-export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onPreviewLesson, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp, initialOpenBootcamp, onBootcampStateChange, bootcampFeedSlot, onNavigateHome }) => {
+export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, userProgress, weightLogs, weeklyBank, onNavigateToCourse, onPreviewLesson, onSaveProfileAndGoals, onSaveWeightLog, onCourseAborted, ensureYesterdayProcessed, activeBootcamp, initialOpenBootcamp, onBootcampStateChange, bootcampFeedSlot, onNavigateHome, onNavigateToMainWithDate }) => {
   const [selectedCourseForInfo, setSelectedCourseForInfo] = useState<CourseInfo | null>(null);
   const [showBootcampLanding, setShowBootcampLanding] = useState(initialOpenBootcamp || false);
   const [courseToAbort, setCourseToAbort] = useState<CourseInfo | null>(null);
@@ -289,7 +291,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ userProfile, goals, us
 
   if (showBootcampLanding) {
     if (activeBootcamp) {
-      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} weeklyBank={weeklyBank} onBack={() => setShowBootcampLanding(false)} ensureYesterdayProcessed={ensureYesterdayProcessed} onSaveProfileAndGoals={onSaveProfileAndGoals} onSaveWeightLog={onSaveWeightLog} bootcampFeedSlot={bootcampFeedSlot} onNavigateHome={onNavigateHome} />;
+      return <BootcampDashboard participant={activeBootcamp} userProfile={userProfile} goals={goals} weightLogs={weightLogs} weeklyBank={weeklyBank} onBack={() => setShowBootcampLanding(false)} ensureYesterdayProcessed={ensureYesterdayProcessed} onSaveProfileAndGoals={onSaveProfileAndGoals} onSaveWeightLog={onSaveWeightLog} bootcampFeedSlot={bootcampFeedSlot} onNavigateHome={onNavigateHome} onNavigateToMainWithDate={onNavigateToMainWithDate} />;
     }
     return <BootcampLandingView onBack={() => setShowBootcampLanding(false)} userProfile={userProfile} goals={goals} onJoinSuccess={handleJoinSuccess} onSaveWeightLog={onSaveWeightLog} />;
   }

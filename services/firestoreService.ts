@@ -1,4 +1,3 @@
-
 import { db, functions } from "../firebase";
 import type { User } from '@firebase/auth';
 import { 

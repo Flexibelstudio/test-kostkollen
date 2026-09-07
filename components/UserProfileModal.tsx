@@ -5,7 +5,7 @@ import { DEFAULT_USER_PROFILE, DEFAULT_GOALS, CALORIES_PER_GRAM, COACH_PERSONAS,
 import { calculateRecommendations, deriveEffectiveGoalType } from '../utils/nutritionalCalculations.ts';
 import { getBootcampAccessDetails } from '../utils/accessControl.ts';
 import { DIETARY_PREFERENCE_OPTIONS } from '../utils/dietaryPreference';
-import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon, UserPlusIcon } from './icons.tsx';
+import { UserCircleIcon, XMarkIcon, CheckIcon, FireIcon, ProteinIcon, LeafIcon, CheckCircleIcon, InformationCircleIcon, AICoachIcon, BellIcon, UserGroupIcon, PencilIcon, UserPlusIcon, ChevronDownIcon } from './icons.tsx';
 import { UserRound, UserRoundCog, User as UserIconLucide, Volume2, Smartphone } from 'lucide-react';
 import ToastNotification from './ToastNotification';
 import ProteinInfoModal from './ProteinInfoModal';
@@ -111,6 +111,63 @@ const resizeImage = (file: File, maxSize: number): Promise<string> => {
     });
 };
 
+
+/**
+ * Notisgrupper. Grupperna ar enbart en vy over de befintliga platta
+ * nycklarna i NotificationSettings - inget i datamodellen andras, och
+ * servern laser samma falt som forut.
+ */
+const NOTIFICATION_GROUPS: {
+  id: string;
+  label: string;
+  description: string;
+  items: { key: keyof NotificationSettings; label: string; description?: string }[];
+}[] = [
+  {
+    id: 'social',
+    label: 'Från andra',
+    description: 'Kommentarer, gillningar, kompisar och flödet',
+    items: [
+      { key: 'friendRequests', label: 'Peppkompis-förfrågningar' },
+      { key: 'newEvents', label: 'Händelser i flödet', description: 'Från dina kompisar' },
+      { key: 'comments', label: 'Kommentarer', description: 'På dina inlägg' },
+      { key: 'likes', label: 'Gilla-markeringar', description: 'På dina inlägg och kommentarer' },
+      { key: 'messages', label: 'Chattmeddelanden', description: 'Nya meddelanden i dina chattar' },
+    ],
+  },
+  {
+    id: 'reminders',
+    label: 'Påminnelser',
+    description: 'Mat, vatten, vägning och inaktivitet',
+    items: [
+      { key: 'foodReminder', label: 'Matloggning', description: 'Kl 18 om ingen mat loggats' },
+      { key: 'waterReminder', label: 'Vatten', description: 'Vid lunch om inget vatten loggats' },
+      { key: 'weighInReminder', label: 'Vägning', description: 'På din valda vägdag' },
+      { key: 'inactivityReminder', label: 'Inaktivitet', description: 'Om du inte loggat på tre dagar' },
+    ],
+  },
+  {
+    id: 'bootcamp',
+    label: 'Bootcamp',
+    description: 'Kvällsrapport, Börjes meddelanden och befordran',
+    items: [
+      { key: 'bootcamp', label: 'Bootcamp-notiser', description: 'Påminnelse om kvällsrapport, nya faser och befordran' },
+    ],
+  },
+  {
+    id: 'progress',
+    label: 'Dina framsteg',
+    description: 'Streak, nivåer, veckosammanfattning och platåer',
+    items: [
+      { key: 'streakRisk', label: 'Streak i fara', description: 'När du missat en dag och fortfarande kan rädda den' },
+      { key: 'milestoneNudge', label: 'Nära en milstolpe', description: 'När du närmar dig en ny nivå' },
+      { key: 'progress', label: 'Ny nivå och nya bragder' },
+      { key: 'weeklySummary', label: 'Veckosammanfattning', description: 'Söndag kväll' },
+      { key: 'plateauAlert', label: 'Platåanalys', description: 'När vikten stått still en tid' },
+    ],
+  },
+];
+
 const ToggleSwitch: React.FC<{
   id: string;
   label: string;
@@ -187,6 +244,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 }) => {
 
     const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
+    const [openNotificationGroup, setOpenNotificationGroup] = useState<string | null>(null);
     const [isSubscribing, setIsSubscribing] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
@@ -448,6 +506,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       // så att summan håller. Ändrar man kolhydraterna ger fettet vika, ner till
       // sitt golv. Se utils/goalBalancing.ts.
       setManualGoals(prev => rebalanceManualGoals(prev, name as ManualGoalField, numValue));
+  };
+
+  // Huvudknappen for en grupp skriver alla sina barn pa en gang. Datamodellen
+  // ar oforandrad - servern laser fortfarande exakt samma platta nycklar.
+  const handleNotificationGroupChange = (keys: (keyof NotificationSettings)[], value: boolean) => {
+    setProfile(prev => {
+        const current = { ...(prev.notificationSettings || DEFAULT_USER_PROFILE.notificationSettings) };
+        keys.forEach(k => { (current as any)[k] = value; });
+        return { ...prev, notificationSettings: current };
+    });
   };
 
   const handleNotificationSettingChange = (setting: keyof NotificationSettings) => {
@@ -1312,7 +1380,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                          />
                     </div>
                     
-                    {/* Notifications Card */}
+                    {/* Notifications Card
+                        Tretton notistyper ryms inte som en platt lista. De ar
+                        grupperade i fyra block med en huvudknapp var; den som
+                        vill finjustera fäller ut gruppen. Datamodellen ar
+                        oforandrad - huvudknappen skriver bara alla sina barn. */}
                     <div className="bg-white p-5 rounded-2xl shadow-soft-lg border border-neutral-light">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-12 h-12 rounded-xl bg-[#F6E2D9] flex items-center justify-center text-[#D96E4A] shadow-sm">
@@ -1320,97 +1392,77 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             </div>
                             <h4 className="text-lg font-bold text-neutral-dark">Notiser</h4>
                         </div>
-                        
-                         <div className="space-y-4">
-                            <div>
-                                <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-2 px-1 border-t border-neutral-light/50 pt-4">Påminnelser</h5>
-                                <div className="space-y-3">
-                                    <ToggleSwitch 
-                                        id="waterReminder"
-                                        label="Vattenpåminnelse"
-                                        description="Vid lunch om inget vatten loggats"
-                                        checked={profile.notificationSettings?.waterReminder ?? true}
-                                        onChange={() => handleNotificationSettingChange('waterReminder')}
-                                    />
-                                    <ToggleSwitch 
-                                        id="foodReminder"
-                                        label="Matloggningspåminnelse"
-                                        description="Kl 18:00 om ingen mat loggats"
-                                        checked={profile.notificationSettings?.foodReminder ?? true}
-                                        onChange={() => handleNotificationSettingChange('foodReminder')}
-                                    />
-                                    <ToggleSwitch 
-                                        id="weighInReminder"
-                                        label="Vägningspåminnelse"
-                                        checked={profile.notificationSettings?.weighInReminder ?? true}
-                                        onChange={() => handleNotificationSettingChange('weighInReminder')}
-                                    />
-                                    {!isBootcampOnboarding && !isBootcampActive && (
-                                        <div className="pl-4 pr-1 py-2">
-                                            <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark mb-1">Föredragen dag för vägning</label>
-                                            <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
-                                                {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
-                                                    <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
-                                    <ToggleSwitch 
-                                        id="inactivityReminder"
-                                        label="Inaktivitetspåminnelse"
-                                        description="Om du inte loggat på 3 dagar"
-                                        checked={profile.notificationSettings?.inactivityReminder ?? true}
-                                        onChange={() => handleNotificationSettingChange('inactivityReminder')}
-                                    />
-                                    <ToggleSwitch 
-                                        id="milestoneNudge"
-                                        label="Milstolpe-pepp"
-                                        description="När du närmar dig en ny nivå/streak"
-                                        checked={profile.notificationSettings?.milestoneNudge ?? true}
-                                        onChange={() => handleNotificationSettingChange('milestoneNudge')}
-                                    />
-                                </div>
-                            </div>
 
-                            <div>
-                                <h5 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-2 px-1 border-t border-neutral-light/50 pt-4">Socialt</h5>
-                                <div className="space-y-3">
-                                    <ToggleSwitch 
-                                        id="friendRequests"
-                                        label="Peppkompis-förfrågningar"
-                                        checked={profile.notificationSettings?.friendRequests ?? true}
-                                        onChange={() => handleNotificationSettingChange('friendRequests')}
-                                    />
-                                    <ToggleSwitch 
-                                        id="newEvents"
-                                        label="Händelser i flödet"
-                                        description="Från dina kompisar"
-                                        checked={profile.notificationSettings?.newEvents ?? true}
-                                        onChange={() => handleNotificationSettingChange('newEvents')}
-                                    />
-                                    <ToggleSwitch 
-                                        id="comments"
-                                        label="Kommentarer"
-                                        description="På dina inlägg"
-                                        checked={profile.notificationSettings?.comments ?? true}
-                                        onChange={() => handleNotificationSettingChange('comments')}
-                                    />
-                                    <ToggleSwitch 
-                                        id="likes"
-                                        label="Gilla-markeringar"
-                                        description="När någon gillar dina inlägg/kommentarer"
-                                        checked={profile.notificationSettings?.likes ?? true}
-                                        onChange={() => handleNotificationSettingChange('likes')}
-                                    />
-                                    <ToggleSwitch 
-                                        id="messages"
-                                        label="Chattmeddelanden"
-                                        description="Nya meddelanden i dina chattar"
-                                        checked={profile.notificationSettings?.messages ?? true}
-                                        onChange={() => handleNotificationSettingChange('messages')}
-                                    />
-                                </div>
-                            </div>
+                        <div className="space-y-3">
+                            {NOTIFICATION_GROUPS.map(group => {
+                                const isOpen = openNotificationGroup === group.id;
+                                const anyOn = group.items.some(
+                                    it => profile.notificationSettings?.[it.key] ?? true
+                                );
+                                const allOn = group.items.every(
+                                    it => profile.notificationSettings?.[it.key] ?? true
+                                );
+                                return (
+                                    <div key={group.id} className="border border-neutral-light rounded-xl overflow-hidden">
+                                        <div className="flex items-center gap-3 p-3.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setOpenNotificationGroup(isOpen ? null : group.id)}
+                                                className="flex-1 min-w-0 text-left"
+                                                aria-expanded={isOpen}
+                                            >
+                                                <p className="font-bold text-neutral-dark text-base leading-tight">{group.label}</p>
+                                                <p className="text-xs text-neutral-500 mt-0.5 leading-snug">
+                                                    {anyOn && !allOn ? 'Vissa är avstängda' : group.description}
+                                                </p>
+                                            </button>
+                                            <ToggleSwitch
+                                                id={`group-${group.id}`}
+                                                label=""
+                                                checked={anyOn}
+                                                onChange={() => handleNotificationGroupChange(group.items.map(i => i.key), !anyOn)}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setOpenNotificationGroup(isOpen ? null : group.id)}
+                                                className="text-neutral-400 shrink-0"
+                                                aria-label={isOpen ? 'Dölj detaljer' : 'Visa detaljer'}
+                                            >
+                                                <ChevronDownIcon className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                            </button>
+                                        </div>
+
+                                        <div className={isOpen ? 'block' : 'hidden'}>
+                                            <div className="px-3.5 pb-3.5 pt-1 space-y-3 border-t border-neutral-light bg-[#FAF6EF]/60">
+                                                {group.items.map(item => (
+                                                    <ToggleSwitch
+                                                        key={item.key}
+                                                        id={item.key}
+                                                        label={item.label}
+                                                        description={item.description}
+                                                        checked={profile.notificationSettings?.[item.key] ?? true}
+                                                        onChange={() => handleNotificationSettingChange(item.key)}
+                                                    />
+                                                ))}
+                                                {group.id === 'reminders' && !isBootcampOnboarding && !isBootcampActive && (
+                                                    <div className="pt-1">
+                                                        <label htmlFor="preferredWeighInDay" className="block text-sm font-medium text-neutral-dark mb-1">Föredragen dag för vägning</label>
+                                                        <select name="preferredWeighInDay" id="preferredWeighInDay" value={profile.preferredWeighInDay || 'måndag'} onChange={handleProfileChange} className={selectClass + ' text-sm py-2'}>
+                                                            {(['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'] as DayOfWeek[]).map(day => (
+                                                                <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            <p className="text-xs text-neutral-500 leading-snug px-1 pt-1">
+                                Notiser om ditt konto — när provperioden tar slut eller en betalning misslyckas — skickas alltid.
+                            </p>
                         </div>
                     </div>
                     

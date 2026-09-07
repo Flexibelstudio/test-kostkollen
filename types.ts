@@ -212,6 +212,13 @@ export interface NotificationSettings {
   weighInReminder: boolean;
   inactivityReminder: boolean;
   milestoneNudge: boolean;
+  // Bootcamp: kvallsrapport, Borjes meddelanden, befordran och fasbyten.
+  bootcamp: boolean;
+  // Dina framsteg
+  streakRisk: boolean;
+  progress: boolean;      // ny niva och ny bragd
+  weeklySummary: boolean;
+  plateauAlert: boolean;
 }
 
 export interface CommunitySharingSettings {

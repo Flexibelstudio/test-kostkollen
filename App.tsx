@@ -1216,6 +1216,16 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
       setTimeout(() => {
         window.history.replaceState(window.history.state, '', window.location.pathname);
       }, 5000);
+    } else if (viewParam === 'main' && params.get('date') === 'yesterday') {
+      // Notisen "din streak är i fara" pekar hit. Utan den har raden nedan
+      // landade man pa dagens datum och maste bladdra tillbaka sjalv.
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      setViewingDate(yesterday);
+      setViewMode('main');
+      setTimeout(() => {
+        window.history.replaceState(window.history.state, '', window.location.pathname);
+      }, 5000);
     } else if (viewParam === 'chat') {
       setViewMode('community');
       setCommunityInitialTab('chatt');
@@ -2742,6 +2752,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 initialOpenBootcamp={openBootcampDirectly}
                 onBootcampStateChange={setIsBootcampViewActive}
                 onNavigateHome={() => { pushViewState({ view: 'main' }); setViewMode('main'); }}
+                onNavigateToMainWithDate={handleNavigateToMainWithDate}
                 bootcampFeedSlot={effectiveActiveBootcamp ? (
                   <CommunityView
                     currentUser={currentUser}

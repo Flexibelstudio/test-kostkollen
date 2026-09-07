@@ -414,6 +414,18 @@ const Dashboard: React.FC<DashboardProps> = ({
         return unsubscribe;
     }, []);
 
+    // Pagaende raddning av gardagen. BootcampDashboard satter flaggan nar man
+    // klickar "Radda gardagen" och skickar hit med gardagens datum - da behover
+    // man en tydlig vag TILLBAKA till kvallsrapporten nar maten ar loggad.
+    const [rescueYesterdayActive, setRescueYesterdayActive] = useState(false);
+    useEffect(() => {
+        try {
+            setRescueYesterdayActive(sessionStorage.getItem('bootcamp-rescue-yesterday') === '1');
+        } catch {
+            setRescueYesterdayActive(false);
+        }
+    }, [viewingDate, dailyLog]);
+
     // Derived values
     const isViewingToday = useMemo(() => {
         return getDateUID(viewingDate) === getDateUID(new Date());
@@ -1098,6 +1110,29 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <span>{ctaText}</span>
                     <ArrowRightIcon className="w-5 h-5" />
                 </button>
+            )}
+
+            {/* Pagaende raddning av gardagen */}
+            {activeBootcamp && rescueYesterdayActive && !isViewingToday && onOpenBootcamp && (
+                <div className="bg-[#F6E2D9] border border-[#D96E4A]/30 rounded-3xl shadow-soft-lg p-5">
+                    <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#D96E4A] text-white flex items-center justify-center text-xl shrink-0">⏳</div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-bold text-[#56524D]">Du räddar gårdagen</h3>
+                            <p className="text-sm text-[#7A756E] mt-0.5">
+                                Loggboken visar gårdagens datum. Logga det som saknas och gå sedan tillbaka till Kvällsrapporten.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => { onDateSelect(new Date()); onOpenBootcamp(); }}
+                        className="mt-4 w-full py-3 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl shadow-soft-md transition-colors active:scale-[0.99] flex items-center justify-center gap-2"
+                    >
+                        Tillbaka till Kvällsrapporten
+                        <ArrowRightIcon className="w-4 h-4" />
+                    </button>
+                </div>
             )}
 
             {/* Bootcamp Progress Report */}
