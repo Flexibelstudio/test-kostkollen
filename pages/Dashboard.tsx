@@ -17,7 +17,8 @@ import {
     LEVEL_DEFINITIONS,
     MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL,
     LOCAL_STORAGE_KEYS,
-    COACH_PERSONAS
+    COACH_PERSONAS,
+    STREAK_SAVER_MAX_BANKED
 } from '../constants';
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
@@ -28,6 +29,7 @@ import { PiggyBank, Coffee, Sandwich, CookingPot, Apple, Flame } from 'lucide-re
 import { useUserContext } from '../context/UserContext';
 import { playAudio } from '../services/audioService';
 import { getDateUID, getSuggestedMealType } from '../utils/dateUtils';
+import { isRescuedDay, stepStreak, canRescueDay, normalizeStreakSaver } from '../utils/streakSaver';
 import { 
     sumMealNutrients, 
     calculateRemainingCalories, 
@@ -275,7 +277,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         weeklyBank,
         currentDate,
         isInitialDataLoaded,
-        isDataLoading // Hämta denna för att veta om vi laddar data
+        isDataLoading, // Hämta denna för att veta om vi laddar data
+        dailyLogDateUID,
+        streakSaver,
+        setStreakSaver,
+        summaryStartDate
     } = useUserContext();
 
     const [isSaving, setIsSaving] = useState(false);
@@ -445,6 +451,37 @@ const Dashboard: React.FC<DashboardProps> = ({
         return viewingUID === yesterdayUID;
     }, [viewingDate]);
 
+    /**
+     * Livbojslaget for dagen man tittar pa. "offer" bara nar loggen bevisligen ar
+     * hamtad for just det datumet och ar tom - annars riskerar vi att erbjuda en
+     * raddning av en dag som bara inte hunnit laddas.
+     */
+    const viewedDayRescue = useMemo(() => {
+        const uid = getDateUID(viewingDate);
+        const summary = pastDaysSummary[uid];
+        if (isRescuedDay(summary)) return { state: 'rescued' as const, uid, available: 0 };
+        if (dailyLogDateUID !== uid || dailyLog.length > 0) return { state: 'none' as const, uid, available: 0 };
+        const saver = normalizeStreakSaver(streakSaver, uid.slice(0, 7));
+        const check = canRescueDay(uid, summary, saver, new Date(), summaryStartDate);
+        if (!check.eligible) return { state: 'none' as const, uid, available: saver.available };
+
+        // Det finns ingen poäng med att bränna en livboj på en dag som inte har
+        // någon streak bakom sig - då räddar den ingenting. Missade man flera
+        // dagar i rad måste man därför börja med den äldsta.
+        const dayBefore = new Date(viewingDate);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        if ((pastDaysSummary[getDateUID(dayBefore)]?.streakForThisDay || 0) <= 0) {
+            return { state: 'none' as const, uid, available: saver.available };
+        }
+        return { state: 'offer' as const, uid, available: saver.available };
+    }, [viewingDate, pastDaysSummary, dailyLog, dailyLogDateUID, streakSaver, summaryStartDate]);
+
+    /** Antal livbojar kvar, for saldot pa streakkortet. */
+    const availableLifebuoys = useMemo(
+        () => normalizeStreakSaver(streakSaver, getDateUID(new Date()).slice(0, 7)).available,
+        [streakSaver]
+    );
+
     // Check if viewing date is a Monday (0=Sun, 1=Mon)
     const isViewingMonday = useMemo(() => {
         return viewingDate.getDay() === 1;
@@ -548,15 +585,24 @@ const Dashboard: React.FC<DashboardProps> = ({
         const prevDaySummary = pastDaysSummary[dayBeforeUID];
         const prevStreak = prevDaySummary?.streakForThisDay || 0;
 
-        // FIXED LOGIC: Strict check for activity. Any calories > 0 means the day is active.
+        const existingSummary = pastDaysSummary[viewingUID];
+
+        // En räddad dag (livboj) som fortfarande är tom behåller sin status: den
+        // bryter inte kedjan men räknar inte upp den. Loggar man däremot mat på en
+        // räddad dag är den en riktig dag igen - då släpper vi räddningen och
+        // användaren får tillbaka sin livboj längre ner.
+        const wasRescued = isRescuedDay(existingSummary);
+        const keepRescue = wasRescued && !(totals.calories > 0);
+        const refundRescue = wasRescued && totals.calories > 0;
+
         let newStreak = 0;
-        if (totals.calories > 0) {
+        if (keepRescue) {
+            newStreak = prevStreak;
+        } else if (totals.calories > 0) {
             newStreak = prevStreak + 1;
         } else {
             newStreak = 0;
         }
-
-        const existingSummary = pastDaysSummary[viewingUID];
 
         const newSummary: PastDaySummary = {
             date: viewingUID,
@@ -576,7 +622,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             goalType: userProfile.goalType,
             waterGoalMet: currentWater >= DEFAULT_WATER_GOAL_ML,
             streakForThisDay: newStreak, 
-            savedBy: existingSummary?.savedBy,
+            savedBy: keepRescue ? 'streakSaver' : (refundRescue ? undefined : existingSummary?.savedBy),
             bankedAmount: existingSummary?.bankedAmount,
         };
 
@@ -588,6 +634,23 @@ const Dashboard: React.FC<DashboardProps> = ({
                 await setPastDaySummaryFirestore(currentUser.uid, viewingUID, newSummary);
             } catch(e) {
                 console.error("Failed to update past day summary", e);
+            }
+
+            // Loggar man mat på en dag man tidigare räddat är dagen en riktig dag
+            // igen - då ska livbojen tillbaka i påsen.
+            if (refundRescue) {
+                const saver = normalizeStreakSaver(streakSaver, viewingUID.slice(0, 7));
+                const restored = {
+                    ...saver,
+                    available: Math.min(STREAK_SAVER_MAX_BANKED, saver.available + 1),
+                    usedDates: saver.usedDates.filter(d => d !== viewingUID),
+                };
+                setStreakSaver(restored);
+                try {
+                    await updateUserDocument(currentUser.uid, { streakSaver: restored });
+                } catch (e) {
+                    console.error('Kunde inte återställa livbojen', e);
+                }
             }
 
             // --- RIPPLE EFFECT: Recalculate streaks for all subsequent days up to yesterday ---
@@ -606,11 +669,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             while (currentRippleUID <= yesterdayUID) {
                 const summaryToUpdate = pastDaysSummary[currentRippleUID];
                 if (summaryToUpdate) {
-                    if (summaryToUpdate.consumedCalories > 0) {
-                        runningStreak += 1;
-                    } else {
-                        runningStreak = 0;
-                    }
+                    runningStreak = stepStreak(runningStreak, summaryToUpdate);
                     
                     if (summaryToUpdate.streakForThisDay !== runningStreak) {
                         const updatedSummary = { ...summaryToUpdate, streakForThisDay: runningStreak };
@@ -664,12 +723,18 @@ const Dashboard: React.FC<DashboardProps> = ({
         const viewingUID = getDateUID(viewingDate);
         
         // 2. ID-KONTROLL: Är maten i loggen verkligen för den här dagen?
-        // Om vi precis bytt datum men dailyLog inte uppdaterats än -> AVBRYT.
-        if (dailyLog.length > 0) {
-            const logDate = dailyLog[0].dateString;
-            if (logDate !== viewingUID) {
-                return; // Matloggen matchar inte visningsdatumet. Rör ingenting.
-            }
+        //
+        // Tidigare kollades bara dailyLog[0].dateString, vilket bara fungerar när
+        // loggen HAR innehåll. En tom logg släpptes rakt igenom - och en tom logg
+        // betyder oftast "hämtningen är inte klar än", inte "dagen är tom". Öppnade
+        // man en historisk dag innan hämtningen hunnit klart skrev städpatrullen
+        // ner den dagen till 0 kcal och nollställde streaken. Nu krävs en stämpel
+        // på VILKET datum loggen faktiskt hämtades för.
+        if (dailyLogDateUID !== viewingUID) {
+            return; // Loggen hör inte till visningsdatumet (eller är inte hämtad än).
+        }
+        if (dailyLog.length > 0 && dailyLog[0].dateString !== viewingUID) {
+            return; // Extra bälte: innehållet självt måste också stämma.
         }
 
         // 3. Räkna ut "Sanningen" från loggen
@@ -686,7 +751,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             console.log(`Self-healing triggered for ${viewingUID}. Log: ${actualCalories}, Summary: ${summaryCalories}`);
             recalculateAndSaveSummary(dailyLog, waterLoggedMl);
         }
-    }, [dailyLog, viewingDate, isInitialDataLoaded, currentUser, pastDaysSummary, waterLoggedMl, isDataLoading]);
+    }, [dailyLog, dailyLogDateUID, viewingDate, isInitialDataLoaded, currentUser, pastDaysSummary, waterLoggedMl, isDataLoading]);
 
 
     // Handlers
@@ -1190,6 +1255,41 @@ const Dashboard: React.FC<DashboardProps> = ({
                 );
             })()}
 
+            {/* Livboj för den dag man tittar på */}
+            {viewedDayRescue.state === 'offer' && (
+                <div className="bg-white border border-[#D96E4A]/25 rounded-3xl shadow-soft-lg p-5">
+                    <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#F6E2D9] text-[#D96E4A] flex items-center justify-center shrink-0">
+                            <ShieldCheckIcon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-bold text-neutral-dark">Den här dagen är tom</h3>
+                            <p className="text-sm text-neutral-500 mt-0.5">
+                                En livboj gör dagen neutral så att streaken inte bryts. Den räknar inte upp streaken.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => window.dispatchEvent(new CustomEvent('offer-streak-saver', { detail: { dateUID: viewedDayRescue.uid } }))}
+                        className="mt-4 w-full py-3 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl shadow-soft-md transition-colors active:scale-[0.99]"
+                    >
+                        Använd livboj ({viewedDayRescue.available} kvar)
+                    </button>
+                </div>
+            )}
+
+            {viewedDayRescue.state === 'rescued' && (
+                <div className="bg-[#E8EFE9] border border-[#7BA05B]/40 rounded-3xl shadow-soft-md p-4 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#7BA05B] text-white flex items-center justify-center shrink-0">
+                        <ShieldCheckIcon className="w-5 h-5" />
+                    </div>
+                    <p className="text-sm text-[#2B3B2C]">
+                        <strong>Räddad dag.</strong> Den bröt inte din streak. Loggar du mat här blir den en vanlig dag igen och du får tillbaka livbojen.
+                    </p>
+                </div>
+            )}
+
             {/* Top Date & Progress Card */}
             <div className={`rounded-3xl shadow-soft-xl py-6 border relative overflow-hidden ${'bg-white border-neutral-light'}`}>
                 {activeBootcamp && (
@@ -1375,6 +1475,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                             {nextLevel && (
                                 <p className="text-[11px] text-neutral-500 leading-tight mt-1">
                                     {nextLevel.requiredStreak - streakData.currentStreak} dagar till {nextLevel.name}
+                                </p>
+                            )}
+                            {/* Saldot behover synas nagonstans, annars vet ingen att
+                                de har en livboj forran de redan missat en dag. */}
+                            {availableLifebuoys > 0 && (
+                                <p className="text-[11px] text-[#8A7F76] leading-tight mt-1 flex items-center gap-1">
+                                    <ShieldCheckIcon className="w-3 h-3 text-[#7BA05B]" />
+                                    {availableLifebuoys} {availableLifebuoys === 1 ? 'livboj' : 'livbojar'}
                                 </p>
                             )}
                         </div>

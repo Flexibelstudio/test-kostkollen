@@ -122,10 +122,18 @@ export interface WeeklyCalorieBank {
   endDate: string; // YYYY-MM-DD
 }
 
-// FIX: Define StreakSaver interface
+/**
+ * Livbojar - anvandarens mojlighet att radda en helt missad dag sa att streaken
+ * inte bryts. En livboj loggar INGEN mat i efterhand; den gor bara dagen neutral.
+ * En raddad dag bryter darfor inte streaken, men raknar inte heller upp den.
+ */
 export interface StreakSaver {
-  weekId: string;
-  available: boolean;
+  /** Antal livbojar kvar att anvanda. */
+  available: number;
+  /** Manaden (YYYY-MM) som senast gav pafyllning, sa vi bara fyller pa en gang. */
+  lastGrantedMonth: string;
+  /** Datum (YYYY-MM-DD) som raddats, nyast sist. */
+  usedDates: string[];
 }
 
 export interface PastDaySummary {

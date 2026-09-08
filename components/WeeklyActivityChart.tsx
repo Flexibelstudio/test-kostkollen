@@ -1,7 +1,8 @@
 
 import React, { useMemo } from 'react';
 import { PastDaysSummaryCollection } from '../types';
-import { Dumbbell, Leaf } from 'lucide-react';
+import { Dumbbell, Leaf, LifeBuoy } from 'lucide-react';
+import { isRescuedDay } from '../utils/streakSaver';
 import { ArrowLeftIcon, ArrowRightIcon } from './icons';
 import { getISOWeekNumber } from '../utils/dateUtils';
 import { MIN_SAFE_CALORIE_PERCENTAGE_OF_GOAL, FIBER_DAILY_TARGET_GRAMS } from '../constants';
@@ -164,6 +165,9 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             
             const dayLabel = day.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', '').charAt(0).toUpperCase();
             const hasLog = calories > 0;
+            // En raddad dag (livboj) ar tom men bruten streak - den ska inte se ut
+            // som ett misslyckande, och inte heller som en gron dag.
+            const isRescued = isRescuedDay(summary);
             
             // Stapeln ska visa samma sak som dagens ring pa startsidan:
             // under minimigransen = orange, over budget = morkt orange, mal natt = gront.
@@ -204,7 +208,12 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                             </span>
                         )}
 
-                        <div className={`w-full max-w-[24px] sm:max-w-[32px] h-full bg-[#F1EAE0] dark:bg-[#34302C] border border-[#E2D8CC] dark:border-[#484440] rounded-full relative overflow-hidden flex flex-col-reverse justify-start ${isViewing ? 'ring-2 ring-offset-2 ring-[#D96E4A]' : ''}`}>
+                        <div className={`w-full max-w-[24px] sm:max-w-[32px] h-full bg-[#F1EAE0] dark:bg-[#34302C] border rounded-full relative overflow-hidden flex flex-col-reverse justify-start ${isRescued ? 'border-[#7BA05B]/60 border-dashed' : 'border-[#E2D8CC] dark:border-[#484440]'} ${isViewing ? 'ring-2 ring-offset-2 ring-[#D96E4A]' : ''}`}>
+                            {isRescued && !showSpinner && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <LifeBuoy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#7BA05B]" />
+                                </div>
+                            )}
                             {showSpinner ? (
                                 <div className="w-full h-full flex items-end justify-center pb-2 animate-fade-in">
                                      <div className="w-5 h-5 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>

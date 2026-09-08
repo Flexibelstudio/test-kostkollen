@@ -97,6 +97,11 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
     setEditingYesterday(false);
   };
 
+  // Dagens rapport gick tidigare inte att andra sa fort den skickats in. Men
+  // dagen ar ju inte slut - man hinner dricka vattnet och ga de sista stegen
+  // efterat, och da ska rapporten kunna rattas.
+  const [editingToday, setEditingToday] = useState(false);
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -126,7 +131,8 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const yesterdayStr = getDateUID(yesterday);
   
   const targetDateStr = editingYesterday ? yesterdayStr : todayStr;
-  const hasReportedToday = reports.some(r => r.date === todayStr);
+  const todayReport = reports.find(r => r.date === todayStr);
+  const hasReportedToday = !!todayReport;
   const yesterdayReport = reports.find(r => r.date === yesterdayStr);
   
   let joinedToday = false;
@@ -202,6 +208,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           setStrengthTrained(yesterdayReport.strengthTrained);
           setSleep(yesterdayReport.sleep ? yesterdayReport.sleep.toString() : '');
           setComment(yesterdayReport.comment || '');
+        } else if (editingToday && todayReport) {
+          setSteps(todayReport.steps.toString());
+          setMood(todayReport.mood);
+          setStrengthTrained(todayReport.strengthTrained);
+          setSleep(todayReport.sleep ? todayReport.sleep.toString() : '');
+          setComment(todayReport.comment || '');
         } else if (!editingYesterday) {
           setSteps('');
           setMood(5);
@@ -214,7 +226,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       }
     };
     fetchProgress();
-  }, [targetDateStr, goals.calorieGoal, goals.proteinGoal, editingYesterday, yesterdayReport, weeklyBank, userProfile.goalType]);
+  }, [targetDateStr, goals.calorieGoal, goals.proteinGoal, editingYesterday, yesterdayReport, editingToday, todayReport, weeklyBank, userProfile.goalType]);
 
   /**
    * Vad som saknas for en gron dag. Anvands bade for att avgora om vi ska
@@ -298,9 +310,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         }
       } else {
         setToast({ 
-          message: isGreenDay ? 'Grön dag registrerad! Bra jobbat, rekryt!' : 'Röd dag registrerad. Streaken är bruten. Nya tag imorgon!', 
+          message: editingToday
+            ? (isGreenDay ? 'Rapporten uppdaterad – dagen är grön!' : 'Rapporten uppdaterad.')
+            : (isGreenDay ? 'Grön dag registrerad! Bra jobbat, rekryt!' : 'Röd dag registrerad. Streaken är bruten. Nya tag imorgon!'), 
           type: isGreenDay ? 'success' : 'error' 
         });
+        setEditingToday(false);
       }
       
       // Reset form
@@ -822,28 +837,42 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
                 <CheckCircleIcon className="w-6 h-6 text-[#D96E4A]" />
-                {editingYesterday ? 'Gårdagens Kvällsrapport' : 'Dagens Kvällsrapport'}
+                {editingYesterday ? 'Gårdagens Kvällsrapport' : (editingToday ? 'Rätta dagens rapport' : 'Dagens Kvällsrapport')}
               </h2>
             </div>
 
-            {(!editingYesterday && hasReportedToday) ? (
+            {(!editingYesterday && !editingToday && hasReportedToday) ? (
               <div className="p-6 bg-[#E8EFE9] dark:bg-[#34302C] rounded-2xl border border-[#7BA05B]/40 text-center">
                 <CheckCircleIcon className="w-12 h-12 text-[#7BA05B] mx-auto mb-3" />
                 <h3 className="text-lg font-bold text-[#2B3B2C] dark:text-[#FAF6EF] mb-2">Rapport inlämnad!</h3>
                 <p className="text-[#3E523F] dark:text-[#C2BCB4]">
                   Du har lämnat din rapport för idag. Generalen har mottagit den. Vila upp dig inför morgondagen.
                 </p>
-                {canEditYesterday && (
+                <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
                   <button 
-                    onClick={startRescue}
-                    className="mt-4 px-4 py-2 bg-[#F6E2D9] text-[#D96E4A] rounded-full font-bold text-sm hover:bg-[#F1EAE0] transition-colors"
+                    onClick={() => setEditingToday(true)}
+                    className="px-4 py-2 bg-white border border-[#7BA05B]/40 text-[#3E523F] rounded-full font-bold text-sm hover:bg-[#F1EAE0] transition-colors"
                   >
-                    Rädda gårdagen
+                    Rätta dagens rapport
                   </button>
-                )}
+                  {canEditYesterday && (
+                    <button 
+                      onClick={startRescue}
+                      className="px-4 py-2 bg-[#F6E2D9] text-[#D96E4A] rounded-full font-bold text-sm hover:bg-[#F1EAE0] transition-colors"
+                    >
+                      Rädda gårdagen
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmitReport} className="space-y-6">
+                {editingToday && (
+                  <div className="p-4 bg-[#E8EFE9] text-[#3E523F] rounded-2xl mb-4 flex justify-between items-start gap-3">
+                    <span className="font-bold">Du rättar dagens rapport.</span>
+                    <button type="button" onClick={() => setEditingToday(false)} className="text-sm font-bold underline shrink-0">Avbryt</button>
+                  </div>
+                )}
                 {editingYesterday && (
                   <div className="p-4 bg-[#F6E2D9] text-[#D96E4A] rounded-2xl mb-4">
                     <div className="flex justify-between items-start gap-3">
@@ -1001,7 +1030,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                   disabled={isSubmitting}
                   className="w-full py-4 bg-neutral-darker text-white font-bold rounded-xl hover:bg-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {editingYesterday ? 'Uppdatera Gårdagens Rapport' : 'Skicka Kvällsrapport'}
+                  {editingYesterday ? 'Uppdatera Gårdagens Rapport' : (editingToday ? 'Uppdatera dagens rapport' : 'Skicka Kvällsrapport')}
                 </button>
               </form>
             )}
