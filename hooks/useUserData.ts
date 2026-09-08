@@ -86,6 +86,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
     const [userProfile, setUserProfile] = useState<UserProfileData>(DEFAULT_USER_PROFILE);
     const [dailyLog, setDailyLog] = useState<LoggedMeal[]>([]);
     const [waterLoggedMl, setWaterLoggedMl] = useState<number>(0);
+    const [dailyLogDateUID, setDailyLogDateUID] = useState<string | null>(null);
     const [commonMeals, setCommonMeals] = useState<CommonMeal[]>([]);
     const [weightLogs, setWeightLogs] = useState<WeightLogEntry[]>([]);
     const [pastDaysSummary, setPastDaysSummary] = useState<PastDaysSummaryCollection>({});
