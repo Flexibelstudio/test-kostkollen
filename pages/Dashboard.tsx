@@ -380,7 +380,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [showBonusCoin, setShowBonusCoin] = useState(false);
     const [activeMealSection, setActiveMealSection] = useState<MealType | null>(null); // Lifted state for open section
     const [showProteinInfoModal, setShowProteinInfoModal] = useState(false);
-    const [infoPopover, setInfoPopover] = useState<'fiber' | 'streak' | null>(null);
+    const [infoPopover, setInfoPopover] = useState<'fiber' | 'streak' | 'lifebuoy' | null>(null);
 
     // Nasta niva i streaken. Finns ingen kvar ar man pa den hogsta.
     const nextLevel = useMemo(
@@ -483,7 +483,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     const lifebuoyPanel = useMemo(() => {
         const todayUID = getDateUID(new Date());
         const saver = normalizeStreakSaver(streakSaver, todayUID.slice(0, 7));
-        const days: { uid: string; label: string; rescued: boolean; hasStreakBehind: boolean }[] = [];
+        // rescuable = gar att radda nu. blocked = tom dag, men utan streak bakom sig,
+        // sa en livboj skulle inte radda nagot forran en tidigare dag ar raddad.
+        const rescuable: string[] = [];
+        const blocked: string[] = [];
 
         for (let back = STREAK_SAVER_MAX_DAYS_BACK; back >= 1; back--) {
             const d = new Date();
@@ -492,31 +495,18 @@ const Dashboard: React.FC<DashboardProps> = ({
             if (summaryStartDate && uid < summaryStartDate) continue;
 
             const summary = pastDaysSummary[uid];
-            const label = d.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'short' });
-
-            if (isRescuedDay(summary)) {
-                days.push({ uid, label, rescued: true, hasStreakBehind: true });
-                continue;
-            }
-            if (!isEmptyDay(summary)) continue;
+            if (isRescuedDay(summary) || !isEmptyDay(summary)) continue;
 
             const before = new Date(d);
             before.setDate(before.getDate() - 1);
-            days.push({
-                uid,
-                label,
-                rescued: false,
-                hasStreakBehind: (pastDaysSummary[getDateUID(before)]?.streakForThisDay || 0) > 0,
-            });
+            const hasStreakBehind = (pastDaysSummary[getDateUID(before)]?.streakForThisDay || 0) > 0;
+            (hasStreakBehind && saver.available > 0 ? rescuable : blocked).push(uid);
         }
-        return { available: saver.available, days };
+        return { available: saver.available, rescuable, blocked };
     }, [pastDaysSummary, streakSaver, summaryStartDate]);
 
-    /** Antal livbojar kvar, for saldot pa streakkortet. */
-    const availableLifebuoys = useMemo(
-        () => normalizeStreakSaver(streakSaver, getDateUID(new Date()).slice(0, 7)).available,
-        [streakSaver]
-    );
+    /** Antal livbojar kvar. */
+    const availableLifebuoys = lifebuoyPanel.available;
 
     // Check if viewing date is a Monday (0=Sun, 1=Mon)
     const isViewingMonday = useMemo(() => {
@@ -1291,37 +1281,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 );
             })()}
 
-            {/* Livboj för den dag man tittar på */}
-            {viewedDayRescue.state === 'offer' && (
-                <div className="bg-white border border-[#D96E4A]/25 rounded-3xl shadow-soft-lg p-5">
-                    <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#F6E2D9] text-[#D96E4A] flex items-center justify-center shrink-0">
-                            <ShieldCheckIcon className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-bold text-neutral-dark">Den här dagen är tom</h3>
-                            <p className="text-sm text-neutral-500 mt-0.5">
-                                En livboj gör dagen neutral så att streaken inte bryts. Den räknar inte upp streaken.
-                            </p>
-                        </div>
-                    </div>
-                    {viewedDayRescue.hasStreakBehind ? (
-                        <button
-                            type="button"
-                            onClick={() => window.dispatchEvent(new CustomEvent('offer-streak-saver', { detail: { dateUID: viewedDayRescue.uid } }))}
-                            className="mt-4 w-full py-3 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl shadow-soft-md transition-colors active:scale-[0.99]"
-                        >
-                            Använd livboj ({viewedDayRescue.available} kvar)
-                        </button>
-                    ) : (
-                        <p className="mt-4 text-sm text-neutral-500 bg-[#F1EAE0] rounded-xl p-3">
-                            Det fanns ingen streak igång före den här dagen, så en livboj skulle inte
-                            rädda något. Räddar du en tidigare dag först kan den här bli aktuell.
-                        </p>
-                    )}
-                </div>
-            )}
-
             {viewedDayRescue.state === 'rescued' && (
                 <div className="bg-[#E8EFE9] border border-[#7BA05B]/40 rounded-3xl shadow-soft-md p-4 flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-[#7BA05B] text-white flex items-center justify-center shrink-0">
@@ -1520,12 +1479,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     {nextLevel.requiredStreak - streakData.currentStreak} dagar till {nextLevel.name}
                                 </p>
                             )}
-                            {/* Saldot behover synas nagonstans, annars vet ingen att
-                                de har en livboj forran de redan missat en dag. */}
-                            <p className="text-[11px] text-[#8A7F76] leading-tight mt-1 flex items-center gap-1">
-                                <ShieldCheckIcon className="w-3 h-3 text-[#7BA05B]" />
-                                {availableLifebuoys} {availableLifebuoys === 1 ? 'livboj' : 'livbojar'}
-                            </p>
                         </div>
                     </div>
                     {/* Goal Progress Card */}
@@ -1646,58 +1599,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
 
-            {/* Livbojar - alltid synliga, oavsett vilken dag man tittar på */}
-            <div className="bg-white border border-neutral-light rounded-3xl shadow-soft-xl p-4 sm:p-5">
-                <div className="flex items-center justify-between gap-3 mb-1">
-                    <h3 className="font-bold text-neutral-dark flex items-center gap-2">
-                        <ShieldCheckIcon className="w-5 h-5 text-[#7BA05B]" />
-                        Livbojar
-                    </h3>
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#E8EFE9] text-[#2B3B2C] whitespace-nowrap">
-                        {lifebuoyPanel.available} av {STREAK_SAVER_MAX_BANKED}
-                    </span>
-                </div>
-                <p className="text-sm text-neutral-500">
-                    En livboj gör en helt missad dag neutral så att streaken inte bryts. Den räknar
-                    inte upp streaken. Du får 2 nya den 1:a varje månad.
-                </p>
-
-                {lifebuoyPanel.days.length === 0 ? (
-                    <p className="mt-3 text-sm text-[#3E523F] bg-[#E8EFE9] rounded-xl p-3">
-                        Inga tomma dagar de senaste {STREAK_SAVER_MAX_DAYS_BACK} dagarna. Fint jobbat.
-                    </p>
-                ) : (
-                    <div className="mt-3 space-y-2">
-                        {lifebuoyPanel.days.map(day => (
-                            <div key={day.uid} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-neutral-light bg-[#FAF6EF]">
-                                <div className="min-w-0">
-                                    <p className="text-sm font-bold text-neutral-dark truncate">{day.label}</p>
-                                    <p className="text-xs text-neutral-500">
-                                        {day.rescued
-                                            ? 'Räddad med livboj'
-                                            : (day.hasStreakBehind ? 'Inget loggat' : 'Inget loggat – ingen streak bakom')}
-                                    </p>
-                                </div>
-                                {day.rescued ? (
-                                    <span className="shrink-0 text-xs font-bold px-2.5 py-1.5 rounded-full bg-[#E8EFE9] text-[#2B3B2C] inline-flex items-center gap-1">
-                                        <ShieldCheckIcon className="w-3.5 h-3.5" /> Räddad
-                                    </span>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        disabled={!day.hasStreakBehind || lifebuoyPanel.available <= 0}
-                                        onClick={() => window.dispatchEvent(new CustomEvent('offer-streak-saver', { detail: { dateUID: day.uid } }))}
-                                        className="shrink-0 px-3 py-2 rounded-xl text-sm font-bold bg-[#D96E4A] text-white hover:bg-[#C05A38] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                    >
-                                        Rädda
-                                    </button>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
             {/* Veckoöversikt */}
             <WeeklyActivityChart 
                 pastDaysSummary={pastDaysSummary}
@@ -1717,6 +1618,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                     fiberGoalMet: totalNutrients.hasFiberData && totalNutrients.fiber >= FIBER_DAILY_TARGET_GRAMS
                 }}
                 isSummarizingYesterday={isSummarizingYesterday}
+                lifebuoysAvailable={lifebuoyPanel.available}
+                rescuableDates={lifebuoyPanel.rescuable}
+                blockedRescueDates={lifebuoyPanel.blocked}
+                onLifebuoyInfo={() => setInfoPopover('lifebuoy')}
+                onRescueDay={(uid) => window.dispatchEvent(new CustomEvent('offer-streak-saver', { detail: { dateUID: uid } }))}
                 bankedCalories={weeklyBank.bankedCalories}
                 isBootcamp={!!activeBootcamp}
             />
@@ -2022,6 +1928,37 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </InfoPopoverModal>
             )}
 
+            {infoPopover === 'lifebuoy' && (
+                <InfoPopoverModal title="Om livbojar" onClose={() => setInfoPopover(null)}>
+                    <p>
+                        Blev en dag helt omöjlig kan du lägga en livboj på den. Dagen blir neutral:
+                        den <strong>bryter inte</strong> streaken, men den <strong>räknar inte upp</strong> den heller.
+                        Antalet lågor är alltid antalet dagar du faktiskt loggat.
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>Du får <strong>2 nya den 1:a varje månad</strong> och kan spara ihop max {STREAK_SAVER_MAX_BANKED}.</li>
+                        <li>Dagar upp till <strong>{STREAK_SAVER_MAX_DAYS_BACK} dagar tillbaka</strong> går att rädda.</li>
+                        <li>Bara dagar där du inte loggat <em>någonting</em> kan räddas.</li>
+                        <li>Missar du flera dagar i rad kostar det en livboj per dag.</li>
+                        <li>Loggar du mat på en räddad dag blir den en vanlig dag igen – och du får tillbaka livbojen.</li>
+                    </ul>
+                    <p>
+                        <strong>Så gör du:</strong> en tom dag i veckoöversikten får en livbojsikon.
+                        Är den <span className="font-bold text-[#D96E4A]">fylld</span> kan du trycka på
+                        den för att rädda dagen direkt. Dagen efter en missad dag frågar appen dig också själv.
+                    </p>
+                    <p>
+                        Är ikonen <strong>streckad</strong> fanns det ingen streak igång före den dagen,
+                        så en livboj skulle inte rädda något. Missade du flera dagar i rad räddar du den
+                        äldsta först – då blir nästa dag möjlig.
+                    </p>
+                    <p className="text-[#7A756E]">
+                        Du har just nu <strong className="text-[#56524D] dark:text-[#FAF6EF]">{availableLifebuoys}</strong>{' '}
+                        {availableLifebuoys === 1 ? 'livboj' : 'livbojar'} kvar.
+                    </p>
+                </InfoPopoverModal>
+            )}
+
             {infoPopover === 'streak' && (
                 <InfoPopoverModal title="Om din streak" onClose={() => setInfoPopover(null)}>
                     <p>
@@ -2037,31 +1974,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                         bryta kedjan.
                     </p>
 
-                    <div className="pt-3 border-t border-neutral-light">
-                        <p className="font-bold text-[#56524D] dark:text-[#FAF6EF] mb-1 flex items-center gap-1.5">
-                            <ShieldCheckIcon className="w-4 h-4 text-[#7BA05B]" />
-                            Livbojar
-                        </p>
-                        <p className="mb-2">
-                            Blev en dag helt omöjlig kan du lägga en livboj på den. Dagen blir neutral:
-                            den <strong>bryter inte</strong> streaken, men den <strong>räknar inte upp</strong> den heller.
-                        </p>
-                        <ul className="list-disc pl-5 space-y-1 mb-2">
-                            <li>Du får <strong>2 nya den 1:a varje månad</strong>, och kan spara ihop max 4.</li>
-                            <li>Du kan rädda dagar upp till <strong>7 dagar tillbaka</strong>.</li>
-                            <li>Bara dagar där du inte loggat <em>någonting</em> kan räddas.</li>
-                            <li>Missar du flera dagar i rad kostar det en livboj per dag.</li>
-                        </ul>
-                        <p className="mb-2">
-                            Så gör du: bläddra till den tomma dagen med pilarna ovanför kaloriringen.
-                            Är dagen möjlig att rädda dyker knappen <strong>Använd livboj</strong> upp.
-                            Dagen efter en missad dag frågar appen dig också själv.
-                        </p>
-                        <p className="text-[#7A756E]">
-                            Du har just nu <strong className="text-[#56524D] dark:text-[#FAF6EF]">{availableLifebuoys}</strong>{' '}
-                            {availableLifebuoys === 1 ? 'livboj' : 'livbojar'} kvar.
-                        </p>
-                    </div>
+                    <p>
+                        Har du <strong>livbojar</strong> kvar kan en helt missad dag räddas i efterhand.
+                        Livbojarna hittar du under veckoöversikten.
+                    </p>
 
                     <div className="pt-3 border-t border-neutral-light">
                         <p className="font-bold text-[#56524D] dark:text-[#FAF6EF] mb-1">Nivåerna</p>

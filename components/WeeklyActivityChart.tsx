@@ -29,6 +29,20 @@ interface WeeklyActivityChartProps {
   isSummarizingYesterday?: boolean;
   bankedCalories?: number; // Tillagt för att kunna räkna ut färg live
   isBootcamp?: boolean;
+  /** Antal livbojar användaren har kvar. Visas som en rad under staplarna. */
+  lifebuoysAvailable?: number;
+  /** Datum (YYYY-MM-DD) som går att rädda just nu - får en livbojsknapp i stapeln. */
+  rescuableDates?: string[];
+  /**
+   * Tomma dagar som INTE går att rädda än, för att en tidigare dag måste räddas
+   * först. De får en blek livboj i stället för ingenting alls - annars ser
+   * funktionen bara ut att saknas.
+   */
+  blockedRescueDates?: string[];
+  /** Öppnar informationsrutan om livbojar. */
+  onLifebuoyInfo?: () => void;
+  /** Startar räddningen av ett visst datum. */
+  onRescueDay?: (dateUID: string) => void;
 }
 
 const getLocalISODateString = (date: Date): string => {
@@ -49,8 +63,15 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   onToday,
   isSummarizingYesterday = false,
   bankedCalories = 0,
-  isBootcamp = false
+  isBootcamp = false,
+  lifebuoysAvailable,
+  rescuableDates,
+  blockedRescueDates,
+  onLifebuoyInfo,
+  onRescueDay
 }) => {
+  const rescuableSet = useMemo(() => new Set(rescuableDates || []), [rescuableDates]);
+  const blockedSet = useMemo(() => new Set(blockedRescueDates || []), [blockedRescueDates]);
   const referenceDate = new Date(viewingDate);
   referenceDate.setHours(0, 0, 0, 0);
 
@@ -168,6 +189,8 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             // En raddad dag (livboj) ar tom men bruten streak - den ska inte se ut
             // som ett misslyckande, och inte heller som en gron dag.
             const isRescued = isRescuedDay(summary);
+            const canRescue = !isRescued && rescuableSet.has(dayISO);
+            const rescueBlocked = !isRescued && !canRescue && blockedSet.has(dayISO);
             
             // Stapeln ska visa samma sak som dagens ring pa startsidan:
             // under minimigransen = orange, over budget = morkt orange, mal natt = gront.
@@ -214,6 +237,26 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                                     <LifeBuoy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#7BA05B]" />
                                 </div>
                             )}
+                            {/* Tom dag som gar att radda. Egen traffyta sa att man
+                                slipper forst valja dagen och sedan leta knapp. */}
+                            {(canRescue || rescueBlocked) && !showSpinner && (
+                                <span
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={canRescue ? `Rädda ${dayISO} med en livboj` : 'Så fungerar livbojar'}
+                                    onClick={(e) => { e.stopPropagation(); canRescue ? onRescueDay?.(dayISO) : onLifebuoyInfo?.(); }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); canRescue ? onRescueDay?.(dayISO) : onLifebuoyInfo?.(); } }}
+                                    className="absolute inset-0 flex items-center justify-center cursor-pointer group/rescue"
+                                >
+                                    <span className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center transition-transform group-hover/rescue:scale-110 active:scale-95 ${
+                                        canRescue
+                                            ? 'bg-[#D96E4A] text-white shadow-sm'
+                                            : 'bg-white border border-dashed border-[#D96E4A]/50 text-[#D96E4A]/50'
+                                    }`}>
+                                        <LifeBuoy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    </span>
+                                </span>
+                            )}
                             {showSpinner ? (
                                 <div className="w-full h-full flex items-end justify-center pb-2 animate-fade-in">
                                      <div className="w-5 h-5 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
@@ -248,6 +291,33 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             );
           })}
       </div>
+
+      {typeof lifebuoysAvailable === 'number' && (
+        <div className="mt-4 pt-3 border-t border-neutral-light flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-[#7A756E] flex items-center gap-1.5">
+                <LifeBuoy className="w-4 h-4 text-[#D96E4A]" />
+                {lifebuoysAvailable} {lifebuoysAvailable === 1 ? 'livboj' : 'livbojar'}
+                {rescuableSet.size > 0 && (
+                    <span className="text-[#D96E4A]">· {rescuableSet.size} dag{rescuableSet.size === 1 ? '' : 'ar'} kan räddas</span>
+                )}
+                {rescuableSet.size === 0 && blockedSet.size > 0 && (
+                    <span className="text-[#7A756E]">· {blockedSet.size} tom{blockedSet.size === 1 ? ' dag' : 'ma dagar'}</span>
+                )}
+            </span>
+            {onLifebuoyInfo && (
+                <button
+                    type="button"
+                    onClick={onLifebuoyInfo}
+                    className="text-neutral-400 hover:text-primary transition-colors p-1 -m-1"
+                    aria-label="Så fungerar livbojar"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 block">
+                        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
+                    </svg>
+                </button>
+            )}
+        </div>
+      )}
     </div>
   );
 };
