@@ -1945,6 +1945,32 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </p>
 
                     <div className="pt-3 border-t border-neutral-light">
+                        <p className="font-bold text-[#56524D] dark:text-[#FAF6EF] mb-1 flex items-center gap-1.5">
+                            <ShieldCheckIcon className="w-4 h-4 text-[#7BA05B]" />
+                            Livbojar
+                        </p>
+                        <p className="mb-2">
+                            Blev en dag helt omöjlig kan du lägga en livboj på den. Dagen blir neutral:
+                            den <strong>bryter inte</strong> streaken, men den <strong>räknar inte upp</strong> den heller.
+                        </p>
+                        <ul className="list-disc pl-5 space-y-1 mb-2">
+                            <li>Du får <strong>2 nya den 1:a varje månad</strong>, och kan spara ihop max 4.</li>
+                            <li>Du kan rädda dagar upp till <strong>7 dagar tillbaka</strong>.</li>
+                            <li>Bara dagar där du inte loggat <em>någonting</em> kan räddas.</li>
+                            <li>Missar du flera dagar i rad kostar det en livboj per dag.</li>
+                        </ul>
+                        <p className="mb-2">
+                            Så gör du: bläddra till den tomma dagen med pilarna ovanför kaloriringen.
+                            Är dagen möjlig att rädda dyker knappen <strong>Använd livboj</strong> upp.
+                            Dagen efter en missad dag frågar appen dig också själv.
+                        </p>
+                        <p className="text-[#7A756E]">
+                            Du har just nu <strong className="text-[#56524D] dark:text-[#FAF6EF]">{availableLifebuoys}</strong>{' '}
+                            {availableLifebuoys === 1 ? 'livboj' : 'livbojar'} kvar.
+                        </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-neutral-light">
                         <p className="font-bold text-[#56524D] dark:text-[#FAF6EF] mb-1">Nivåerna</p>
                         <p className="mb-3">
                             Varje nivå låses upp av en sammanhängande streak. Du står på{' '}
