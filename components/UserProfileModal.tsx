@@ -1302,9 +1302,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             <div className="space-y-3">
                                 <ToggleSwitch
                                     id="share_weight"
-                                    label="Vägningsloggar (Vikt)"
-                                    description="Dela automatiskt när du loggar en ny vikt."
-                                    checked={profile.communitySharingSettings?.weight ?? false}
+                                    label="Framsteg mot målet"
+                                    description="Dela när en mätning tar dig närmare målet än du varit förut. Ingen vikt skrivs ut, bara hur långt du kommit."
+                                    checked={profile.communitySharingSettings?.weight ?? true}
                                     onChange={() => handleCommunitySharingChange('weight')}
                                 />
                                 <ToggleSwitch

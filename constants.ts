@@ -4,7 +4,7 @@ import { GoalSettings, NutritionalInfo, UserProfileData, Level, Achievement, Com
 export const GEMINI_MODEL_NAME_TEXT = 'gemini-3-flash-preview';
 
 export const DEFAULT_COMMUNITY_SHARING_SETTINGS: CommunitySharingSettings = {
-  weight: false,      // vikt (default OFF)
+  weight: true,       // matningar som slar rekord mot malet (default PA)
   achievement: true, // bragder
   streak: true,      // streak
   course: true,      // kurs

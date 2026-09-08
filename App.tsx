@@ -1565,6 +1565,41 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         }));
         setGoals(newGoals);
 
+        // Nytt mal i floded. Bara nar SJALVA malet andras - kalorier, makron och
+        // platajusteringar sparas via samma funktion och ska inte posta nagot.
+        // Siffran som visas ar forandringen (-5 kg), aldrig malvikten, sa ingen
+        // rakar skylta med vad de vager eller vill vaga.
+        if (goalChanged && !isProfileModalOnboarding) {
+            try {
+                const { addTimelineEvent } = await import('./services/firestoreService');
+                const parts: string[] = [];
+                const fmt = (v: number) => `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(1).replace('.', ',')} kg`;
+                if (updatedProfile.desiredWeightChangeKg) parts.push(`${fmt(updatedProfile.desiredWeightChangeKg)} i vikt`);
+                if (updatedProfile.desiredFatMassChangeKg) parts.push(`${fmt(updatedProfile.desiredFatMassChangeKg)} fettmassa`);
+                if (updatedProfile.desiredMuscleMassChangeKg) parts.push(`${fmt(updatedProfile.desiredMuscleMassChangeKg)} muskelmassa`);
+
+                let when = '';
+                if (updatedProfile.goalCompletionDate) {
+                    try {
+                        when = ` till ${new Date(`${updatedProfile.goalCompletionDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}`;
+                    } catch { when = ''; }
+                }
+
+                await addTimelineEvent(currentUser.uid, {
+                    type: 'goal_set',
+                    timestamp: Date.now(),
+                    title: 'har satt ett nytt mål!',
+                    description: parts.length > 0
+                        ? `Målet: ${parts.join(', ')}${when}. Nu kör vi.`
+                        : `Ett nytt mål är satt${when}. Nu kör vi.`,
+                    icon: '🎯',
+                    relatedDocId: `goal_set_${updatedProfile.goalStartDate || new Date().toISOString().split('T')[0]}`,
+                });
+            } catch (e) {
+                console.error('Kunde inte skapa inlagg om nytt mal', e);
+            }
+        }
+
         if (isProfileModalOnboarding) {
             setOnboardingStep('feedback');
             setAppStatus(AppStatus.ANALYZING_FEEDBACK);
@@ -2166,6 +2201,29 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
              }
 
              if (goalMet) {
+                // Appens storsta ogonblick ska inte se ut som vilken bragd som
+                // helst i floded, sa det far ett eget inlagg med vad malet var
+                // och hur lang tid det tog.
+                try {
+                    const { addTimelineEvent } = await import('./services/firestoreService');
+                    let duration = '';
+                    if (userProfile.goalStartDate) {
+                        const days = Math.round((Date.now() - new Date(`${userProfile.goalStartDate}T12:00:00`).getTime()) / 86400000);
+                        if (days >= 14) duration = ` Det tog ${Math.round(days / 7)} veckor.`;
+                        else if (days > 0) duration = ` Det tog ${days} dagar.`;
+                    }
+                    await addTimelineEvent(currentUser.uid, {
+                        type: 'goal_achieved',
+                        timestamp: Date.now(),
+                        title: 'har nått sitt mål!',
+                        description: `${metGoalDescription} är i hamn.${duration}`,
+                        icon: '🏆',
+                        relatedDocId: `goal_achieved_${userProfile.goalStartDate || Date.now()}`,
+                    });
+                } catch (e) {
+                    console.error('Kunde inte skapa inlagg om uppnatt mal', e);
+                }
+
                 const ach = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'main_goal_reached');
                 if (ach) {
                     const unlocked = await unlockAchievement(currentUser.uid, ach.id, ach.name, ach.icon, ach.description);
