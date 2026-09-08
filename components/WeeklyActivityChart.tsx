@@ -33,12 +33,6 @@ interface WeeklyActivityChartProps {
   lifebuoysAvailable?: number;
   /** Datum (YYYY-MM-DD) som går att rädda just nu - får en livbojsknapp i stapeln. */
   rescuableDates?: string[];
-  /**
-   * Tomma dagar som INTE går att rädda än, för att en tidigare dag måste räddas
-   * först. De får en blek livboj i stället för ingenting alls - annars ser
-   * funktionen bara ut att saknas.
-   */
-  blockedRescueDates?: string[];
   /** Öppnar informationsrutan om livbojar. */
   onLifebuoyInfo?: () => void;
   /** Startar räddningen av ett visst datum. */
@@ -66,12 +60,10 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
   isBootcamp = false,
   lifebuoysAvailable,
   rescuableDates,
-  blockedRescueDates,
   onLifebuoyInfo,
   onRescueDay
 }) => {
   const rescuableSet = useMemo(() => new Set(rescuableDates || []), [rescuableDates]);
-  const blockedSet = useMemo(() => new Set(blockedRescueDates || []), [blockedRescueDates]);
   const referenceDate = new Date(viewingDate);
   referenceDate.setHours(0, 0, 0, 0);
 
@@ -190,7 +182,6 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
             // som ett misslyckande, och inte heller som en gron dag.
             const isRescued = isRescuedDay(summary);
             const canRescue = !isRescued && rescuableSet.has(dayISO);
-            const rescueBlocked = !isRescued && !canRescue && blockedSet.has(dayISO);
             
             // Stapeln ska visa samma sak som dagens ring pa startsidan:
             // under minimigransen = orange, over budget = morkt orange, mal natt = gront.
@@ -239,20 +230,16 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                             )}
                             {/* Tom dag som gar att radda. Egen traffyta sa att man
                                 slipper forst valja dagen och sedan leta knapp. */}
-                            {(canRescue || rescueBlocked) && !showSpinner && (
+                            {canRescue && !showSpinner && (
                                 <span
                                     role="button"
                                     tabIndex={0}
-                                    aria-label={canRescue ? `Rädda ${dayISO} med en livboj` : 'Så fungerar livbojar'}
-                                    onClick={(e) => { e.stopPropagation(); canRescue ? onRescueDay?.(dayISO) : onLifebuoyInfo?.(); }}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); canRescue ? onRescueDay?.(dayISO) : onLifebuoyInfo?.(); } }}
+                                    aria-label={`Rädda ${dayISO} med en livboj`}
+                                    onClick={(e) => { e.stopPropagation(); onRescueDay?.(dayISO); }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onRescueDay?.(dayISO); } }}
                                     className="absolute inset-0 flex items-center justify-center cursor-pointer group/rescue"
                                 >
-                                    <span className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center transition-transform group-hover/rescue:scale-110 active:scale-95 ${
-                                        canRescue
-                                            ? 'bg-[#D96E4A] text-white shadow-sm'
-                                            : 'bg-white border border-dashed border-[#D96E4A]/50 text-[#D96E4A]/50'
-                                    }`}>
+                                    <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center bg-[#D96E4A] text-white shadow-sm transition-transform group-hover/rescue:scale-110 active:scale-95">
                                         <LifeBuoy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                     </span>
                                 </span>
@@ -299,9 +286,6 @@ const WeeklyActivityChart: React.FC<WeeklyActivityChartProps> = ({
                 {lifebuoysAvailable} {lifebuoysAvailable === 1 ? 'livboj' : 'livbojar'}
                 {rescuableSet.size > 0 && (
                     <span className="text-[#D96E4A]">· {rescuableSet.size} dag{rescuableSet.size === 1 ? '' : 'ar'} kan räddas</span>
-                )}
-                {rescuableSet.size === 0 && blockedSet.size > 0 && (
-                    <span className="text-[#7A756E]">· {blockedSet.size} tom{blockedSet.size === 1 ? ' dag' : 'ma dagar'}</span>
                 )}
             </span>
             {onLifebuoyInfo && (

@@ -3,6 +3,7 @@ import {
   STREAK_SAVER_MONTHLY_GRANT,
   STREAK_SAVER_MAX_BANKED,
   STREAK_SAVER_MAX_DAYS_BACK,
+  STREAK_SAVER_MIN_DAYS_BACK,
 } from '../constants';
 
 /**
@@ -97,6 +98,9 @@ export const canRescueDay = (
 ): RescueEligibility => {
   const back = daysBack(dateUID, today);
   if (back <= 0) return { eligible: false, reason: 'Dagen är inte slut än.' };
+  if (back < STREAK_SAVER_MIN_DAYS_BACK) {
+    return { eligible: false, reason: 'Gårdagen kan du fortfarande logga i efterhand – spara livbojen.' };
+  }
   if (back > STREAK_SAVER_MAX_DAYS_BACK) {
     return { eligible: false, reason: `Det går bara att rädda dagar upp till ${STREAK_SAVER_MAX_DAYS_BACK} dagar tillbaka.` };
   }

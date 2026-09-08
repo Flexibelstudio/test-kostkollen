@@ -19,7 +19,8 @@ import {
     LOCAL_STORAGE_KEYS,
     COACH_PERSONAS,
     STREAK_SAVER_MAX_BANKED,
-    STREAK_SAVER_MAX_DAYS_BACK
+    STREAK_SAVER_MAX_DAYS_BACK,
+    STREAK_SAVER_MIN_DAYS_BACK
 } from '../constants';
 import WeeklyActivityChart from '../components/WeeklyActivityChart';
 import CircularProgress from '../components/CircularProgress';
@@ -483,12 +484,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     const lifebuoyPanel = useMemo(() => {
         const todayUID = getDateUID(new Date());
         const saver = normalizeStreakSaver(streakSaver, todayUID.slice(0, 7));
-        // rescuable = gar att radda nu. blocked = tom dag, men utan streak bakom sig,
-        // sa en livboj skulle inte radda nagot forran en tidigare dag ar raddad.
+        // Alla tomma dagar i fonstret gar att radda. Ingen ytterligare spärr:
+        // en regel som tyst slacker knappen gor bara att funktionen ser trasig ut.
         const rescuable: string[] = [];
-        const blocked: string[] = [];
 
-        for (let back = STREAK_SAVER_MAX_DAYS_BACK; back >= 1; back--) {
+        for (let back = STREAK_SAVER_MAX_DAYS_BACK; back >= STREAK_SAVER_MIN_DAYS_BACK; back--) {
             const d = new Date();
             d.setDate(d.getDate() - back);
             const uid = getDateUID(d);
@@ -496,13 +496,9 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             const summary = pastDaysSummary[uid];
             if (isRescuedDay(summary) || !isEmptyDay(summary)) continue;
-
-            const before = new Date(d);
-            before.setDate(before.getDate() - 1);
-            const hasStreakBehind = (pastDaysSummary[getDateUID(before)]?.streakForThisDay || 0) > 0;
-            (hasStreakBehind && saver.available > 0 ? rescuable : blocked).push(uid);
+            if (saver.available > 0) rescuable.push(uid);
         }
-        return { available: saver.available, rescuable, blocked };
+        return { available: saver.available, rescuable };
     }, [pastDaysSummary, streakSaver, summaryStartDate]);
 
     /** Antal livbojar kvar. */
@@ -1620,7 +1616,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 isSummarizingYesterday={isSummarizingYesterday}
                 lifebuoysAvailable={lifebuoyPanel.available}
                 rescuableDates={lifebuoyPanel.rescuable}
-                blockedRescueDates={lifebuoyPanel.blocked}
                 onLifebuoyInfo={() => setInfoPopover('lifebuoy')}
                 onRescueDay={(uid) => window.dispatchEvent(new CustomEvent('offer-streak-saver', { detail: { dateUID: uid } }))}
                 bankedCalories={weeklyBank.bankedCalories}
@@ -1931,27 +1926,26 @@ const Dashboard: React.FC<DashboardProps> = ({
             {infoPopover === 'lifebuoy' && (
                 <InfoPopoverModal title="Om livbojar" onClose={() => setInfoPopover(null)}>
                     <p>
-                        Blev en dag helt omöjlig kan du lägga en livboj på den. Dagen blir neutral:
-                        den <strong>bryter inte</strong> streaken, men den <strong>räknar inte upp</strong> den heller.
-                        Antalet lågor är alltid antalet dagar du faktiskt loggat.
+                        Missade du helt att logga en dag kan du lägga en livboj på den i efterhand.
+                        Dagen blir neutral: den <strong>bryter inte</strong> streaken, men den{' '}
+                        <strong>räknar inte upp</strong> den heller. Antalet dagar i streaken är alltid
+                        antalet dagar du faktiskt loggat.
+                    </p>
+                    <p>
+                        <strong>Så gör du:</strong> en tom dag i veckoöversikten får en livbojsikon.
+                        Tryck på den, bekräfta, klart.
                     </p>
                     <ul className="list-disc pl-5 space-y-1">
                         <li>Du får <strong>2 nya den 1:a varje månad</strong> och kan spara ihop max {STREAK_SAVER_MAX_BANKED}.</li>
-                        <li>Dagar upp till <strong>{STREAK_SAVER_MAX_DAYS_BACK} dagar tillbaka</strong> går att rädda.</li>
+                        <li>Dagar mellan <strong>{STREAK_SAVER_MIN_DAYS_BACK} och {STREAK_SAVER_MAX_DAYS_BACK} dagar tillbaka</strong> går att rädda.</li>
+                        <li>
+                            <strong>Gårdagen får ingen livboj</strong> – den kan du fortfarande logga
+                            i efterhand på vanligt sätt, och det är alltid bättre.
+                        </li>
                         <li>Bara dagar där du inte loggat <em>någonting</em> kan räddas.</li>
                         <li>Missar du flera dagar i rad kostar det en livboj per dag.</li>
                         <li>Loggar du mat på en räddad dag blir den en vanlig dag igen – och du får tillbaka livbojen.</li>
                     </ul>
-                    <p>
-                        <strong>Så gör du:</strong> en tom dag i veckoöversikten får en livbojsikon.
-                        Är den <span className="font-bold text-[#D96E4A]">fylld</span> kan du trycka på
-                        den för att rädda dagen direkt. Dagen efter en missad dag frågar appen dig också själv.
-                    </p>
-                    <p>
-                        Är ikonen <strong>streckad</strong> fanns det ingen streak igång före den dagen,
-                        så en livboj skulle inte rädda något. Missade du flera dagar i rad räddar du den
-                        äldsta först – då blir nästa dag möjlig.
-                    </p>
                     <p className="text-[#7A756E]">
                         Du har just nu <strong className="text-[#56524D] dark:text-[#FAF6EF]">{availableLifebuoys}</strong>{' '}
                         {availableLifebuoys === 1 ? 'livboj' : 'livbojar'} kvar.

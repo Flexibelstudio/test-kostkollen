@@ -304,7 +304,7 @@ const UseStreakSaverModal: React.FC<{
                 <LifebuoyIcon className="w-16 h-16 text-[#D96E4A] mx-auto mb-4" />
                 <h2 className="text-2xl font-bold text-neutral-dark mb-2">Använda en livboj?</h2>
                 <p className="text-neutral-500 mb-1">
-                    Du loggade ingenting <strong className="text-neutral-dark">{prettyDate}</strong>.
+                    Du missade att logga <strong className="text-neutral-dark">{prettyDate}</strong>.
                 </p>
                 {streakAtRisk > 0 && (
                     <p className="text-neutral-500 mb-4">
@@ -1257,20 +1257,23 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
           if (localStorage.getItem('lastSeenMorningReport') !== todayUID) return;
       } catch { /* utan localStorage visar vi anda */ }
 
-      const yesterdayUID = dayKeySE(new Date(Date.now() - 86400000));
+      // Gardagen gar fortfarande att logga i efterhand, sa livbojen blir aktuell
+      // forst dagen darpa. Vi fragar alltsa om dagen som ligger tva dygn bak.
+      const targetUID = dayKeySE(new Date(Date.now() - 2 * 86400000));
       try {
-          if (localStorage.getItem('streakSaverPromptDismissed') === yesterdayUID) return;
+          if (localStorage.getItem('streakSaverPromptDismissed') === targetUID) return;
       } catch { /* ignorera */ }
 
       const saver = normalizeStreakSaver(streakSaver, monthKeyOf(todayUID));
-      const summary = pastDaysSummary[yesterdayUID];
-      if (!canRescueDay(yesterdayUID, summary, saver, new Date(), summaryStartDate).eligible) return;
+      const summary = pastDaysSummary[targetUID];
+      if (!canRescueDay(targetUID, summary, saver, new Date(), summaryStartDate).eligible) return;
 
-      // Ingen poang att fraga om det inte fanns nagon streak att radda.
-      const dayBefore = new Date(Date.now() - 2 * 86400000);
+      // Ingen poang att fraga om det inte fanns nagon streak att radda. Ikonen i
+      // veckooversikten finns kvar oavsett - det har galler bara sjalva fragan.
+      const dayBefore = new Date(Date.now() - 3 * 86400000);
       if ((pastDaysSummary[dayKeySE(dayBefore)]?.streakForThisDay || 0) <= 0) return;
 
-      setDayToPotentiallySave(summary || { date: yesterdayUID, consumedCalories: 0 } as PastDaySummary);
+      setDayToPotentiallySave(summary || { date: targetUID, consumedCalories: 0 } as PastDaySummary);
   }, [currentUser, hasRunCatchUp, isInitialDataLoaded, hasCompletedOnboarding, dayToPotentiallySave, morningReportData, isSummarizingYesterday, isUsingStreakSaver, streakSaver, pastDaysSummary, summaryStartDate]);
 
   // --- NEW EFFECT: Ensure Morning Report is shown if not seen today ---
