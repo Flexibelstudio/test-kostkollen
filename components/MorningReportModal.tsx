@@ -378,14 +378,13 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({
                     {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-2xl" /> : <span className="text-2xl">{CoachEmoji}</span>}
                 </div>
                 <div className="bg-neutral-light/40 p-4 rounded-2xl rounded-tl-none relative flex-1">
+                    {/* Under vantan: "Borje skriver" med studsande punkter under,
+                        precis som nar nagon skriver i en chatt. */}
                     {isLoadingBriefing ? (
-                        <div className="py-1 animate-fade-in">
+                        <div className="py-1 animate-fade-in" role="status">
                             <span className="text-neutral-500 text-sm font-medium block mb-2">
-                                {persona.label} skriver…
+                                {persona.label} skriver
                             </span>
-                            {/* Samma studsande punkter som nar nagon skriver i en
-                                chatt. Bubblan ar redan formad som ett meddelande,
-                                sa det behovs ingen forklarande text. */}
                             <div className="flex items-center gap-1.5" aria-hidden="true">
                                 <span className="w-2 h-2 rounded-full bg-neutral-400/70 animate-typing-dot" />
                                 <span className="w-2 h-2 rounded-full bg-neutral-400/70 animate-typing-dot" style={{ animationDelay: '0.2s' }} />
