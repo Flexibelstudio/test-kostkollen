@@ -22,6 +22,12 @@ interface MorningReportModalProps {
   activeBootcamp?: any;
   pastDaysSummary?: PastDaySummary[];
   weightLogs?: WeightLogEntry[];
+  /**
+   * Fardig halsning fran App. Ar den satt visas den direkt - rutan behover da
+   * varken vanta eller generera nagot sjalv. Ar den null gor rutan anropet som
+   * forr, som reserv.
+   */
+  preloadedBriefing?: string | null;
 }
 
 // Helper to decode raw PCM data from Gemini (16-bit, 24kHz, Mono)
@@ -65,10 +71,11 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({
   yesterdayBootcampReport, 
   activeBootcamp, 
   pastDaysSummary, 
-  weightLogs 
+  weightLogs,
+  preloadedBriefing
 }) => {
-  const [briefingText, setBriefingText] = useState<string | null>(null);
-  const [isLoadingBriefing, setIsLoadingBriefing] = useState(true);
+  const [briefingText, setBriefingText] = useState<string | null>(preloadedBriefing ?? null);
+  const [isLoadingBriefing, setIsLoadingBriefing] = useState(!preloadedBriefing);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -142,31 +149,53 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({
     await onUpdateGoals(updatedProfile, updatedGoals);
   };
 
+  // App skickar in halsningen, antingen direkt (sparad sedan tidigare i dag)
+  // eller nar den precis blivit klar. Kommer den senare byter vi fran
+  // skrivbubblan till texten utan att gora ett eget anrop.
+  useEffect(() => {
+    if (!show) return;
+    if (preloadedBriefing) {
+      setBriefingText(preloadedBriefing);
+      setIsLoadingBriefing(false);
+    }
+  }, [show, preloadedBriefing]);
+
   useEffect(() => {
     if (show) {
+      // Reserv: har App av nagon anledning inte lyckats hamta texten gor rutan
+      // anropet sjalv, precis som forr.
+      if (preloadedBriefing) return;
+
+      let cancelled = false;
       const fetchBriefing = async () => {
         setIsLoadingBriefing(true);
-        const text = await getMorningBriefingText({ 
-          userProfile, 
-          goals,
-          summary, 
-          currentStreak, 
-          yesterdayMeals, 
-          yesterdayBootcampReport, 
-          activeBootcamp, 
-          pastDaysSummary, 
-          weightLogs 
-        });
-        setBriefingText(text);
-        setIsLoadingBriefing(false);
+        try {
+          const text = await getMorningBriefingText({ 
+            userProfile, 
+            goals,
+            summary, 
+            currentStreak, 
+            yesterdayMeals, 
+            yesterdayBootcampReport, 
+            activeBootcamp, 
+            pastDaysSummary, 
+            weightLogs 
+          });
+          if (!cancelled) setBriefingText(text);
+        } finally {
+          if (!cancelled) setIsLoadingBriefing(false);
+        }
       };
-      fetchBriefing();
+      // Ge App ett litet forsprang. Hinner texten fram forst avbryts det har.
+      const timer = setTimeout(fetchBriefing, 4000);
+      return () => { cancelled = true; clearTimeout(timer); };
     } else {
         setBriefingText(null);
+        setIsLoadingBriefing(true);
         stopAudio();
         cachedAudioBufferRef.current = null;
     }
-  }, [show, summary, currentStreak, userProfile, goals, yesterdayMeals, yesterdayBootcampReport, activeBootcamp]);
+  }, [show, preloadedBriefing, summary, currentStreak, userProfile, goals, yesterdayMeals, yesterdayBootcampReport, activeBootcamp]);
 
   const stopAudio = () => {
       if (audioSourceRef.current) {
@@ -350,13 +379,18 @@ const MorningReportModal: React.FC<MorningReportModalProps> = ({
                 </div>
                 <div className="bg-neutral-light/40 p-4 rounded-2xl rounded-tl-none relative flex-1">
                     {isLoadingBriefing ? (
-                        <div className="flex items-center gap-3 py-2 animate-fade-in">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${avatarColorClass} bg-opacity-20 animate-pulse`}>
-                                {persona.imageUrl ? <img src={persona.imageUrl} alt={persona.label} className="w-full h-full object-cover rounded-full" /> : <span className="text-lg">{CoachEmoji}</span>}
-                            </div>
-                            <span className="text-neutral-500 text-sm font-medium italic animate-pulse">
-                                {persona.label} analyserar din gårdag...
+                        <div className="py-1 animate-fade-in">
+                            <span className="text-neutral-500 text-sm font-medium block mb-2">
+                                {persona.label} skriver…
                             </span>
+                            {/* Samma studsande punkter som nar nagon skriver i en
+                                chatt. Bubblan ar redan formad som ett meddelande,
+                                sa det behovs ingen forklarande text. */}
+                            <div className="flex items-center gap-1.5" aria-hidden="true">
+                                <span className="w-2 h-2 rounded-full bg-neutral-400/70 animate-typing-dot" />
+                                <span className="w-2 h-2 rounded-full bg-neutral-400/70 animate-typing-dot" style={{ animationDelay: '0.2s' }} />
+                                <span className="w-2 h-2 rounded-full bg-neutral-400/70 animate-typing-dot" style={{ animationDelay: '0.4s' }} />
+                            </div>
                         </div>
                     ) : (
                         <p className="text-neutral-dark text-base leading-relaxed animate-fade-in">

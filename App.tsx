@@ -32,7 +32,7 @@ import {
   ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS, VAPID_PUBLIC_KEY
 } from './constants.ts';
 
-import { getAIFeedback as getAIFeedbackService } from './services/geminiService.ts';
+import { getAIFeedback as getAIFeedbackService, getMorningBriefingText } from './services/geminiService.ts';
 
 import {
   fetchWaterLog,
@@ -505,7 +505,7 @@ export const App = () => {
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
   const [isUsingStreakSaver, setIsUsingStreakSaver] = useState(false);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
-  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[], yesterdayBootcampReport?: any } | null>(null);
+  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[], yesterdayBootcampReport?: any, briefingText?: string | null } | null>(null);
   const [activeBootcamp, setActiveBootcamp] = useState<any | null>(null);
   const [isBootcampLoading, setIsBootcampLoading] = useState(true);
   const [recentBootcampReports, setRecentBootcampReports] = useState<any[]>([]);
@@ -1300,7 +1300,42 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
              fetchMealLogsForDate(currentUser.uid, yesterdayUID),
              activeBootcamp ? getEveningReportForDate(activeBootcamp.cohortId, currentUser.uid, yesterdayUID) : Promise.resolve(null)
            ]).then(([meals, bootcampReport]) => {
-               setMorningReportData({ summary, currentStreak: displayStreak, yesterdayMeals: meals, yesterdayBootcampReport: bootcampReport });
+               // Halsningen sparas per dygn. Finns den redan visas rapporten
+               // fardig direkt - ingen vantan alls. Saknas den oppnar vi rutan
+               // anda och fyller pa texten nar den kommer, sa att siffrorna inte
+               // halls gisslan av ett AI-anrop.
+               const cached = userProfileRef.current?.morningBriefing;
+               const cachedText = cached?.date === yesterdayUID ? cached.text : null;
+
+               setMorningReportData({
+                   summary,
+                   currentStreak: displayStreak,
+                   yesterdayMeals: meals,
+                   yesterdayBootcampReport: bootcampReport,
+                   briefingText: cachedText,
+               });
+
+               if (cachedText) return;
+
+               getMorningBriefingText({
+                   userProfile: userProfileRef.current,
+                   goals,
+                   summary,
+                   currentStreak: displayStreak,
+                   yesterdayMeals: meals,
+                   yesterdayBootcampReport: bootcampReport,
+                   activeBootcamp,
+                   pastDaysSummary: Object.values(pastDaysSummaryRef.current),
+                   weightLogs,
+               } as any).then(text => {
+                   if (!text) return;
+                   const stored = { date: yesterdayUID, text };
+                   setUserProfile(prev => ({ ...prev, morningBriefing: stored }));
+                   updateUserDocument(currentUser.uid, { morningBriefing: stored }).catch(console.error);
+                   setMorningReportData(prev => (prev && prev.summary.date === summary.date) ? { ...prev, briefingText: text } : prev);
+               }).catch(e => {
+                   console.error('Kunde inte hamta morgonhalsningen:', e);
+               });
            });
       }
   }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, hasRunCatchUp, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday, activeBootcamp]);
@@ -3068,6 +3103,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             }}
             yesterdayMeals={morningReportData.yesterdayMeals} 
             yesterdayBootcampReport={morningReportData.yesterdayBootcampReport} 
+            preloadedBriefing={morningReportData.briefingText}
             activeBootcamp={effectiveActiveBootcamp} 
             pastDaysSummary={Object.values(pastDaysSummary)} 
             weightLogs={weightLogs} 

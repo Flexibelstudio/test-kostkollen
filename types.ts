@@ -328,6 +328,13 @@ export interface UserProfileData {
   currentPeriodEnd?: string; // ISO date string
   stripeCustomerId?: string | null;
 
+  /**
+   * Fardigskriven morgonhalsning for en viss dag. Sparas sa att texten bara
+   * behover genereras en gang per dygn - oppnar man appen igen, pa en annan
+   * enhet eller senare pa dagen, ligger den redan dar.
+   */
+  morningBriefing?: { date: string; text: string };
+
   // Fields for filters/security constraints
   role?: UserRole;
   createdAt?: any;

@@ -399,6 +399,7 @@ export async function fetchInitialAppData(userId: string) {
       bootcampOnboarding: userDocData.bootcampOnboarding ?? undefined,
       highestBootcampStreak: highestBootcampStreak,
       plateauAnalysis: userDocData.plateauAnalysis ?? undefined,
+      morningBriefing: userDocData.morningBriefing ?? undefined,
       role: userDocData.role,
       createdAt: userDocData.createdAt,
     };
