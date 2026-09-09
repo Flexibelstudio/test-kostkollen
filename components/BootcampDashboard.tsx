@@ -40,9 +40,17 @@ interface BootcampDashboardProps {
   bootcampFeedSlot?: React.ReactNode;
   /** Tar användaren till startsidan där Grundutbildningen ligger. */
   onNavigateHome?: () => void;
+  /**
+   * Tar användaren till Hem-fliken med ett VALT datum. Används av
+   * "Rätta gårdagen": i stället för att be folk själva bläddra tillbaka
+   * ett dygn i loggboken, byter knappen datum åt dem.
+   */
+  onNavigateToMainWithDate?: (date: Date) => void;
 }
 
-const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog, bootcampFeedSlot, onNavigateHome }) => {
+const RESCUE_FLAG = 'bootcamp-rescue-yesterday';
+
+const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, userProfile, goals, weightLogs, weeklyBank, onBack, ensureYesterdayProcessed, buddyDetails = [], onAddFriend, onSaveProfileAndGoals, onSaveWeightLog, bootcampFeedSlot, onNavigateHome, onNavigateToMainWithDate }) => {
   const [reports, setReports] = useState<EveningReport[]>([]);
   const [redDayConfirm, setRedDayConfirm] = useState<{ stepsNum: number; reasons: string[] } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -72,7 +80,27 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const [strengthTrained, setStrengthTrained] = useState(false);
   const [mood, setMood] = useState(5);
   const [sleep, setSleep] = useState('');
-  const [editingYesterday, setEditingYesterday] = useState(false);
+  // Räddningsläget måste överleva en tur till Hem-fliken. Loggar man
+  // gårdagens mat mitt i rättningen monteras den här vyn om, och utan en
+  // flagga landade man tillbaka i DAGENS rapport och fick börja om.
+  const [editingYesterday, setEditingYesterday] = useState<boolean>(() => {
+    try { return sessionStorage.getItem(RESCUE_FLAG) === '1'; } catch { return false; }
+  });
+
+  const startRescue = () => {
+    try { sessionStorage.setItem(RESCUE_FLAG, '1'); } catch {}
+    setEditingYesterday(true);
+  };
+
+  const stopRescue = () => {
+    try { sessionStorage.removeItem(RESCUE_FLAG); } catch {}
+    setEditingYesterday(false);
+  };
+
+  // Dagens rapport gick tidigare inte att andra sa fort den skickats in. Men
+  // dagen ar ju inte slut - man hinner dricka vattnet och ga de sista stegen
+  // efterat, och da ska rapporten kunna rattas.
+  const [editingToday, setEditingToday] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -103,7 +131,8 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
   const yesterdayStr = getDateUID(yesterday);
   
   const targetDateStr = editingYesterday ? yesterdayStr : todayStr;
-  const hasReportedToday = reports.some(r => r.date === todayStr);
+  const todayReport = reports.find(r => r.date === todayStr);
+  const hasReportedToday = !!todayReport;
   const yesterdayReport = reports.find(r => r.date === yesterdayStr);
   
   let joinedToday = false;
@@ -128,6 +157,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
 
   const justStartedToday = participant.fas1StartDate === todayStr || joinedToday;
   const canEditYesterday = !justStartedToday && (!yesterdayReport || !yesterdayReport.isGreenDay);
+
+  // Flaggan kan ligga kvar från igår (eller från en dag som sedan blev grön).
+  // Städa bort den i stället för att öppna ett läge som inte är tillåtet.
+  useEffect(() => {
+    if (editingYesterday && !canEditYesterday) stopRescue();
+  }, [editingYesterday, canEditYesterday]);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -173,6 +208,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
           setStrengthTrained(yesterdayReport.strengthTrained);
           setSleep(yesterdayReport.sleep ? yesterdayReport.sleep.toString() : '');
           setComment(yesterdayReport.comment || '');
+        } else if (editingToday && todayReport) {
+          setSteps(todayReport.steps.toString());
+          setMood(todayReport.mood);
+          setStrengthTrained(todayReport.strengthTrained);
+          setSleep(todayReport.sleep ? todayReport.sleep.toString() : '');
+          setComment(todayReport.comment || '');
         } else if (!editingYesterday) {
           setSteps('');
           setMood(5);
@@ -185,7 +226,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       }
     };
     fetchProgress();
-  }, [targetDateStr, goals.calorieGoal, goals.proteinGoal, editingYesterday, yesterdayReport, weeklyBank, userProfile.goalType]);
+  }, [targetDateStr, goals.calorieGoal, goals.proteinGoal, editingYesterday, yesterdayReport, editingToday, todayReport, weeklyBank, userProfile.goalType]);
 
   /**
    * Vad som saknas for en gron dag. Anvands bade for att avgora om vi ska
@@ -261,7 +302,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
             type: 'info' 
           });
         }
-        setEditingYesterday(false);
+        stopRescue();
         
         // Trigger morning report update
         if (ensureYesterdayProcessed) {
@@ -269,9 +310,12 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
         }
       } else {
         setToast({ 
-          message: isGreenDay ? 'Grön dag registrerad! Bra jobbat, rekryt!' : 'Röd dag registrerad. Streaken är bruten. Nya tag imorgon!', 
+          message: editingToday
+            ? (isGreenDay ? 'Rapporten uppdaterad – dagen är grön!' : 'Rapporten uppdaterad.')
+            : (isGreenDay ? 'Grön dag registrerad! Bra jobbat, rekryt!' : 'Röd dag registrerad. Streaken är bruten. Nya tag imorgon!'), 
           type: isGreenDay ? 'success' : 'error' 
         });
+        setEditingToday(false);
       }
       
       // Reset form
@@ -767,52 +811,99 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Today's Report */}
           <div className="lg:col-span-2 space-y-6">
+          {!editingYesterday && canEditYesterday && (
+            <div className="bg-[#F6E2D9] border border-[#D96E4A]/30 rounded-3xl shadow-soft-lg p-5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#D96E4A] text-white flex items-center justify-center text-xl shrink-0">⏳</div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-bold text-[#56524D]">
+                    {yesterdayReport ? 'Gårdagen blev en röd dag' : 'Gårdagens rapport saknas'}
+                  </h3>
+                  <p className="text-sm text-[#7A756E] mt-0.5">
+                    Du kan fortfarande rädda den. Vi tar dig till rätt datum automatiskt.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={startRescue}
+                className="mt-4 w-full py-3 bg-[#D96E4A] hover:bg-[#C05A38] text-white font-bold rounded-xl shadow-soft-md transition-colors active:scale-[0.99]"
+              >
+                Rädda gårdagen
+              </button>
+            </div>
+          )}
+
           <div className="bg-white p-6 rounded-3xl shadow-soft-xl border border-neutral-light">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-neutral-dark flex items-center gap-2">
                 <CheckCircleIcon className="w-6 h-6 text-[#D96E4A]" />
-                {editingYesterday ? 'Gårdagens Kvällsrapport' : 'Dagens Kvällsrapport'}
+                {editingYesterday ? 'Gårdagens Kvällsrapport' : (editingToday ? 'Rätta dagens rapport' : 'Dagens Kvällsrapport')}
               </h2>
-              {!editingYesterday && canEditYesterday && (
-                <button 
-                  onClick={() => setEditingYesterday(true)}
-                  className="text-sm font-bold text-[#D96E4A] hover:text-[#C05A38] underline"
-                >
-                  Rätta gårdagen
-                </button>
-              )}
             </div>
 
-            {(!editingYesterday && hasReportedToday) ? (
+            {(!editingYesterday && !editingToday && hasReportedToday) ? (
               <div className="p-6 bg-[#E8EFE9] dark:bg-[#34302C] rounded-2xl border border-[#7BA05B]/40 text-center">
                 <CheckCircleIcon className="w-12 h-12 text-[#7BA05B] mx-auto mb-3" />
                 <h3 className="text-lg font-bold text-[#2B3B2C] dark:text-[#FAF6EF] mb-2">Rapport inlämnad!</h3>
                 <p className="text-[#3E523F] dark:text-[#C2BCB4]">
                   Du har lämnat din rapport för idag. Generalen har mottagit den. Vila upp dig inför morgondagen.
                 </p>
-                {canEditYesterday && (
+                <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
                   <button 
-                    onClick={() => setEditingYesterday(true)}
-                    className="mt-4 px-4 py-2 bg-[#F6E2D9] text-[#D96E4A] rounded-full font-bold text-sm hover:bg-[#F1EAE0] transition-colors"
+                    onClick={() => setEditingToday(true)}
+                    className="px-4 py-2 bg-white border border-[#7BA05B]/40 text-[#3E523F] rounded-full font-bold text-sm hover:bg-[#F1EAE0] transition-colors"
                   >
-                    Rätta gårdagens rapport
+                    Rätta dagens rapport
                   </button>
-                )}
+                  {canEditYesterday && (
+                    <button 
+                      onClick={startRescue}
+                      className="px-4 py-2 bg-[#F6E2D9] text-[#D96E4A] rounded-full font-bold text-sm hover:bg-[#F1EAE0] transition-colors"
+                    >
+                      Rädda gårdagen
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmitReport} className="space-y-6">
+                {editingToday && (
+                  <div className="p-4 bg-[#E8EFE9] text-[#3E523F] rounded-2xl mb-4 flex justify-between items-start gap-3">
+                    <span className="font-bold">Du rättar dagens rapport.</span>
+                    <button type="button" onClick={() => setEditingToday(false)} className="text-sm font-bold underline shrink-0">Avbryt</button>
+                  </div>
+                )}
                 {editingYesterday && (
-                  <div className="p-4 bg-[#F6E2D9] text-[#D96E4A] rounded-2xl mb-4 flex justify-between items-center">
-                    <span>Du redigerar gårdagens rapport ({yesterdayStr}).</span>
-                    <button type="button" onClick={() => setEditingYesterday(false)} className="text-sm font-bold underline">Avbryt</button>
+                  <div className="p-4 bg-[#F6E2D9] text-[#D96E4A] rounded-2xl mb-4">
+                    <div className="flex justify-between items-start gap-3">
+                      <span className="font-bold">Du räddar gårdagen ({yesterdayStr}).</span>
+                      <button type="button" onClick={stopRescue} className="text-sm font-bold underline shrink-0">Avbryt</button>
+                    </div>
                   </div>
                 )}
                 <div className="space-y-4">
                   <div className="p-4 bg-[#F1EAE0] text-[#56524D] rounded-2xl text-sm mb-4">
                     <p>
-                      <strong>OBS:</strong> Mat, protein och vatten hämtas automatiskt från din loggbok. 
-                      Om du saknar något, gå tillbaka till Hem-fliken och logga det innan du skickar in rapporten.
+                      <strong>OBS:</strong> Mat, protein och vatten hämtas automatiskt från din loggbok
+                      {editingYesterday ? ' för gårdagen' : ''}.
+                      {editingYesterday
+                        ? ' Saknas något? Knappen nedan tar dig till loggboken med gårdagens datum redan valt.'
+                        : ' Om du saknar något, gå tillbaka till Hem-fliken och logga det innan du skickar in rapporten.'}
                     </p>
+                    {editingYesterday && onNavigateToMainWithDate && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          startRescue();
+                          const target = new Date();
+                          target.setDate(target.getDate() - 1);
+                          onNavigateToMainWithDate(target);
+                        }}
+                        className="mt-3 w-full py-3 bg-white border border-[#D96E4A]/40 text-[#D96E4A] font-bold rounded-xl hover:bg-[#F6E2D9] transition-colors active:scale-[0.99]"
+                      >
+                        Logga gårdagens mat ({yesterdayStr})
+                      </button>
+                    )}
                   </div>
 
                   <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${loggedAllMeals ? 'bg-[#84A98C]/10 border-[#84A98C]/30' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700'}`}>
@@ -939,7 +1030,7 @@ const BootcampDashboard: React.FC<BootcampDashboardProps> = ({ participant, user
                   disabled={isSubmitting}
                   className="w-full py-4 bg-neutral-darker text-white font-bold rounded-xl hover:bg-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {editingYesterday ? 'Uppdatera Gårdagens Rapport' : 'Skicka Kvällsrapport'}
+                  {editingYesterday ? 'Uppdatera Gårdagens Rapport' : (editingToday ? 'Uppdatera dagens rapport' : 'Skicka Kvällsrapport')}
                 </button>
               </form>
             )}

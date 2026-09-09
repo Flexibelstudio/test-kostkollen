@@ -32,7 +32,7 @@ import {
   ACHIEVEMENT_DEFINITIONS, COACH_PERSONAS, VAPID_PUBLIC_KEY
 } from './constants.ts';
 
-import { getAIFeedback as getAIFeedbackService } from './services/geminiService.ts';
+import { getAIFeedback as getAIFeedbackService, getMorningBriefingText } from './services/geminiService.ts';
 
 import {
   fetchWaterLog,
@@ -82,6 +82,10 @@ import { BOOTCAMP_RANKS, BootcampRankDef } from './utils/bootcampUtils.ts';
 
 import { calculateGoalTimeline } from './utils/timelineUtils.ts';
 import { getWeekInfo, getDateUID } from './utils/dateUtils.ts';
+import {
+  stepStreak, isRescuedDay, canRescueDay, normalizeStreakSaver,
+  grantMonthlyIfDue, buildRescuedSummary, monthKeyOf,
+} from './utils/streakSaver';
 import { initAudio, playAudio } from './services/audioService.ts';
 import { uploadImageToStorage, uploadBase64ToStorage, base64ToBlob } from './utils/storageUtils';
 import { getUserActiveBootcamp, subscribeToUserActiveBootcamp, getEveningReportForDate, subscribeToUserEveningReports, getUnseenBootcampFinale, markBootcampFinaleAsSeen } from './services/bootcampService.ts';
@@ -282,16 +286,40 @@ const UseStreakSaverModal: React.FC<{
     onClose: () => void;
     onConfirm: () => void;
     daySummary: PastDaySummary;
-}> = ({ show, onClose, onConfirm, daySummary }) => {
+    /** Antal livbojar användaren har kvar INNAN den här används. */
+    available: number;
+    /** Streaken som står på spel. */
+    streakAtRisk: number;
+    isSaving?: boolean;
+}> = ({ show, onClose, onConfirm, daySummary, available, streakAtRisk, isSaving }) => {
     if (!show) return null;
+    const prettyDate = (() => {
+        try {
+            return new Date(`${daySummary.date}T12:00:00`).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' });
+        } catch { return daySummary.date; }
+    })();
     return (
         <div className="fixed inset-0 bg-neutral-dark bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fade-in" onClick={onClose}>
-             <div className="bg-white p-6 rounded-xl shadow-soft-xl w-full max-w-md animate-scale-in text-center" onClick={(e) => e.stopPropagation()}>
-                <LifebuoyIcon className="w-16 h-16 text-secondary mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-neutral-dark mb-3">Rädda streak?</h2>
-                <div className="flex gap-3 mt-4">
-                    <button onClick={onClose} className="flex-1 px-4 py-2 bg-neutral-light rounded-md">Nej</button>
-                    <button onClick={onConfirm} className="flex-1 px-4 py-2 bg-primary text-white rounded-md">Ja</button>
+             <div className="bg-white p-6 rounded-3xl shadow-soft-xl w-full max-w-md animate-scale-in text-center" onClick={(e) => e.stopPropagation()}>
+                <LifebuoyIcon className="w-16 h-16 text-[#D96E4A] mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-neutral-dark mb-2">Använda en livboj?</h2>
+                <p className="text-neutral-500 mb-1">
+                    Du missade att logga <strong className="text-neutral-dark">{prettyDate}</strong>.
+                </p>
+                {streakAtRisk > 0 && (
+                    <p className="text-neutral-500 mb-4">
+                        En livboj gör dagen neutral så att din streak på <strong className="text-neutral-dark">{streakAtRisk} dagar</strong> inte bryts.
+                    </p>
+                )}
+                <div className="bg-[#F1EAE0] rounded-2xl p-4 text-sm text-[#56524D] text-left mb-5">
+                    <p className="mb-1">Dagen räknas <strong>inte upp</strong> streaken – den bryter den bara inte.</p>
+                    <p>Du har <strong>{available}</strong> {available === 1 ? 'livboj' : 'livbojar'} kvar. Du får 2 nya den 1:a varje månad.</p>
+                </div>
+                <div className="flex gap-3">
+                    <button onClick={onClose} disabled={isSaving} className="flex-1 px-4 py-3 bg-neutral-light rounded-xl font-bold text-neutral-dark disabled:opacity-50">Nej tack</button>
+                    <button onClick={onConfirm} disabled={isSaving} className="flex-1 px-4 py-3 bg-[#D96E4A] hover:bg-[#C05A38] text-white rounded-xl font-bold disabled:opacity-50">
+                        {isSaving ? 'Sparar…' : 'Använd livboj'}
+                    </button>
                 </div>
             </div>
         </div>
@@ -305,6 +333,7 @@ export const App = () => {
     goals, setGoals,
     userProfile, setUserProfile,
     setDailyLog,
+    setDailyLogDateUID,
     setWaterLoggedMl,
     weightLogs, setWeightLogs,
     pastDaysSummary, setPastDaysSummary,
@@ -312,6 +341,7 @@ export const App = () => {
     summaryStartDate, setSummaryStartDate,
     weeklyBank, setWeeklyBank,
     streakSaver,
+    setStreakSaver,
     highestStreak,
     setHighestStreak,
     highestLevelId,
@@ -473,8 +503,9 @@ export const App = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showGoalMetModalData, setShowGoalMetModalData] = useState<{date: string; description: string} | null>(null);
   const [dayToPotentiallySave, setDayToPotentiallySave] = useState<PastDaySummary | null>(null);
+  const [isUsingStreakSaver, setIsUsingStreakSaver] = useState(false);
   const [showMotivationModal, setShowMotivationModal] = useState<PastDaySummary | null>(null);
-  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[], yesterdayBootcampReport?: any } | null>(null);
+  const [morningReportData, setMorningReportData] = useState<{ summary: PastDaySummary, currentStreak: number, yesterdayMeals?: LoggedMeal[], yesterdayBootcampReport?: any, briefingText?: string | null } | null>(null);
   const [activeBootcamp, setActiveBootcamp] = useState<any | null>(null);
   const [isBootcampLoading, setIsBootcampLoading] = useState(true);
   const [recentBootcampReports, setRecentBootcampReports] = useState<any[]>([]);
@@ -576,19 +607,24 @@ export const App = () => {
                 fetchWaterLog(userId, dateUID)
             ]);
             setDailyLog(loadedLog);
+            setDailyLogDateUID(dateUID);
             setWaterLoggedMl(loadedWater);
         } catch (error: any) {
             setToastNotification({ message: 'Kunde inte ladda dagens data.', type: 'error' });
         } finally {
             setAppStatus(AppStatus.IDLE);
         }
-    }, [setDailyLog, setWaterLoggedMl, setToastNotification]);
+    }, [setDailyLog, setDailyLogDateUID, setWaterLoggedMl, setToastNotification]);
 
     useEffect(() => {
         if (currentUser && isInitialDataLoaded && userStatus === 'approved') {
+            // Markera loggen som "inte laddad for det har datumet an" direkt vid
+            // datumbytet. Annars hinner sjalvlakningen se en tom logg tillsammans
+            // med ett nytt datum och tro att dagen ar tom.
+            setDailyLogDateUID(null);
             loadDataForDate(currentUser.uid, viewingDate);
         }
-    }, [currentUser, viewingDate, isInitialDataLoaded, loadDataForDate, userStatus]);
+    }, [currentUser, viewingDate, isInitialDataLoaded, loadDataForDate, userStatus, setDailyLogDateUID]);
 
      useEffect(() => {
         if (isInitialDataLoaded && currentUser && userRole === 'member' && !hasCompletedOnboarding && userStatus === 'approved') {
@@ -1168,6 +1204,78 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
       }
   }, [currentUser, activeBootcamp]);
 
+  /** Streaken som star pa spel om den missade dagen inte raddas. */
+  const highestStreakBeforeGap = useMemo(() => {
+      if (!dayToPotentiallySave) return 0;
+      const d = new Date(`${dayToPotentiallySave.date}T12:00:00`);
+      d.setDate(d.getDate() - 1);
+      return pastDaysSummary[dayKeySE(d)]?.streakForThisDay || 0;
+  }, [dayToPotentiallySave, pastDaysSummary]);
+
+  // --- LIVBOJAR: manadens pafyllning ---
+  // Delas ut en gang per kalendermanad och kapas mot taket. Skrivs bara nar
+  // nagot faktiskt andras, annars far vi en oandlig skrivloop.
+  useEffect(() => {
+      if (!currentUser || !isInitialDataLoaded || userStatus !== 'approved' || !hasCompletedOnboarding) return;
+      const todayUID = dayKeySE(new Date());
+      const normalized = normalizeStreakSaver(streakSaver, monthKeyOf(todayUID));
+      const next = grantMonthlyIfDue(normalized, todayUID) || normalized;
+
+      const current: any = streakSaver;
+      const unchanged = current
+          && current.available === next.available
+          && current.lastGrantedMonth === next.lastGrantedMonth
+          && Array.isArray(current.usedDates)
+          && current.usedDates.length === next.usedDates.length;
+      if (unchanged) return;
+
+      setStreakSaver(next);
+      updateUserDocument(currentUser.uid, { streakSaver: next }).catch(console.error);
+  }, [currentUser, isInitialDataLoaded, userStatus, hasCompletedOnboarding, streakSaver, setStreakSaver]);
+
+  // Dashboard ber om raddningsrutan via ett fonsterevent, sa att kortet dar inte
+  // behover kanna till modalen eller dess tillstand.
+  useEffect(() => {
+      const handler = (e: Event) => {
+          const uid = (e as CustomEvent)?.detail?.dateUID;
+          if (!uid) return;
+          setDayToPotentiallySave(pastDaysSummaryRef.current[uid] || ({ date: uid, consumedCalories: 0 } as PastDaySummary));
+      };
+      window.addEventListener('offer-streak-saver', handler);
+      return () => window.removeEventListener('offer-streak-saver', handler);
+  }, []);
+
+  // --- LIVBOJAR: fraga om gardagen ---
+  // Bara for gardagen, och bara efter att morgonrapporten ar avklarad sa att de
+  // inte slass om skarmen. Sager man nej stannar svaret kvar for den dagen.
+  useEffect(() => {
+      if (!currentUser || !hasRunCatchUp || !isInitialDataLoaded || !hasCompletedOnboarding) return;
+      if (dayToPotentiallySave || morningReportData || isSummarizingYesterday || isUsingStreakSaver) return;
+
+      const todayUID = dayKeySE(new Date());
+      try {
+          if (localStorage.getItem('lastSeenMorningReport') !== todayUID) return;
+      } catch { /* utan localStorage visar vi anda */ }
+
+      // Gardagen gar fortfarande att logga i efterhand, sa livbojen blir aktuell
+      // forst dagen darpa. Vi fragar alltsa om dagen som ligger tva dygn bak.
+      const targetUID = dayKeySE(new Date(Date.now() - 2 * 86400000));
+      try {
+          if (localStorage.getItem('streakSaverPromptDismissed') === targetUID) return;
+      } catch { /* ignorera */ }
+
+      const saver = normalizeStreakSaver(streakSaver, monthKeyOf(todayUID));
+      const summary = pastDaysSummary[targetUID];
+      if (!canRescueDay(targetUID, summary, saver, new Date(), summaryStartDate).eligible) return;
+
+      // Ingen poang att fraga om det inte fanns nagon streak att radda. Ikonen i
+      // veckooversikten finns kvar oavsett - det har galler bara sjalva fragan.
+      const dayBefore = new Date(Date.now() - 3 * 86400000);
+      if ((pastDaysSummary[dayKeySE(dayBefore)]?.streakForThisDay || 0) <= 0) return;
+
+      setDayToPotentiallySave(summary || { date: targetUID, consumedCalories: 0 } as PastDaySummary);
+  }, [currentUser, hasRunCatchUp, isInitialDataLoaded, hasCompletedOnboarding, dayToPotentiallySave, morningReportData, isSummarizingYesterday, isUsingStreakSaver, streakSaver, pastDaysSummary, summaryStartDate]);
+
   // --- NEW EFFECT: Ensure Morning Report is shown if not seen today ---
   useEffect(() => {
       if (!currentUser || !isInitialDataLoaded || !hasCompletedOnboarding || !hasRunCatchUp) return;
@@ -1192,7 +1300,42 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
              fetchMealLogsForDate(currentUser.uid, yesterdayUID),
              activeBootcamp ? getEveningReportForDate(activeBootcamp.cohortId, currentUser.uid, yesterdayUID) : Promise.resolve(null)
            ]).then(([meals, bootcampReport]) => {
-               setMorningReportData({ summary, currentStreak: displayStreak, yesterdayMeals: meals, yesterdayBootcampReport: bootcampReport });
+               // Halsningen sparas per dygn. Finns den redan visas rapporten
+               // fardig direkt - ingen vantan alls. Saknas den oppnar vi rutan
+               // anda och fyller pa texten nar den kommer, sa att siffrorna inte
+               // halls gisslan av ett AI-anrop.
+               const cached = userProfileRef.current?.morningBriefing;
+               const cachedText = cached?.date === yesterdayUID ? cached.text : null;
+
+               setMorningReportData({
+                   summary,
+                   currentStreak: displayStreak,
+                   yesterdayMeals: meals,
+                   yesterdayBootcampReport: bootcampReport,
+                   briefingText: cachedText,
+               });
+
+               if (cachedText) return;
+
+               getMorningBriefingText({
+                   userProfile: userProfileRef.current,
+                   goals,
+                   summary,
+                   currentStreak: displayStreak,
+                   yesterdayMeals: meals,
+                   yesterdayBootcampReport: bootcampReport,
+                   activeBootcamp,
+                   pastDaysSummary: Object.values(pastDaysSummaryRef.current),
+                   weightLogs,
+               } as any).then(text => {
+                   if (!text) return;
+                   const stored = { date: yesterdayUID, text };
+                   setUserProfile(prev => ({ ...prev, morningBriefing: stored }));
+                   updateUserDocument(currentUser.uid, { morningBriefing: stored }).catch(console.error);
+                   setMorningReportData(prev => (prev && prev.summary.date === summary.date) ? { ...prev, briefingText: text } : prev);
+               }).catch(e => {
+                   console.error('Kunde inte hamta morgonhalsningen:', e);
+               });
            });
       }
   }, [currentUser, isInitialDataLoaded, hasCompletedOnboarding, hasRunCatchUp, pastDaysSummary, streakData.currentStreak, morningReportData, isSummarizingYesterday, activeBootcamp]);
@@ -1213,6 +1356,16 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
         setHighlightEventId(highlightParam);
       }
       // Fördröj städningen av URL:en så att en eventuell Service Worker-omladdning inte tappar bort parametern
+      setTimeout(() => {
+        window.history.replaceState(window.history.state, '', window.location.pathname);
+      }, 5000);
+    } else if (viewParam === 'main' && params.get('date') === 'yesterday') {
+      // Notisen "din streak är i fara" pekar hit. Utan den har raden nedan
+      // landade man pa dagens datum och maste bladdra tillbaka sjalv.
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      setViewingDate(yesterday);
+      setViewMode('main');
       setTimeout(() => {
         window.history.replaceState(window.history.state, '', window.location.pathname);
       }, 5000);
@@ -1411,6 +1564,41 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
             status: prev.status ?? updatedProfile.status,
         }));
         setGoals(newGoals);
+
+        // Nytt mal i floded. Bara nar SJALVA malet andras - kalorier, makron och
+        // platajusteringar sparas via samma funktion och ska inte posta nagot.
+        // Siffran som visas ar forandringen (-5 kg), aldrig malvikten, sa ingen
+        // rakar skylta med vad de vager eller vill vaga.
+        if (goalChanged && !isProfileModalOnboarding) {
+            try {
+                const { addTimelineEvent } = await import('./services/firestoreService');
+                const parts: string[] = [];
+                const fmt = (v: number) => `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(1).replace('.', ',')} kg`;
+                if (updatedProfile.desiredWeightChangeKg) parts.push(`${fmt(updatedProfile.desiredWeightChangeKg)} i vikt`);
+                if (updatedProfile.desiredFatMassChangeKg) parts.push(`${fmt(updatedProfile.desiredFatMassChangeKg)} fettmassa`);
+                if (updatedProfile.desiredMuscleMassChangeKg) parts.push(`${fmt(updatedProfile.desiredMuscleMassChangeKg)} muskelmassa`);
+
+                let when = '';
+                if (updatedProfile.goalCompletionDate) {
+                    try {
+                        when = ` till ${new Date(`${updatedProfile.goalCompletionDate}T12:00:00`).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' })}`;
+                    } catch { when = ''; }
+                }
+
+                await addTimelineEvent(currentUser.uid, {
+                    type: 'goal_set',
+                    timestamp: Date.now(),
+                    title: 'har satt ett nytt mål!',
+                    description: parts.length > 0
+                        ? `Målet: ${parts.join(', ')}${when}. Nu kör vi.`
+                        : `Ett nytt mål är satt${when}. Nu kör vi.`,
+                    icon: '🎯',
+                    relatedDocId: `goal_set_${updatedProfile.goalStartDate || new Date().toISOString().split('T')[0]}`,
+                });
+            } catch (e) {
+                console.error('Kunde inte skapa inlagg om nytt mal', e);
+            }
+        }
 
         if (isProfileModalOnboarding) {
             setOnboardingStep('feedback');
@@ -1844,8 +2032,90 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
     closeModalState('mentalWellbeing', () => setShowMentalWellbeingModal(false));
   };
 
+  /**
+   * Livbojen. Loggar INGEN mat i efterhand - den markerar dagen som raddad, och
+   * sedan raknas hela kedjan om framat med stepStreak, som later en raddad dag
+   * passera utan att vare sig bryta eller oka streaken.
+   */
   const handleUseStreakSaver = async () => {
-      setDayToPotentiallySave(null);
+      const target = dayToPotentiallySave;
+      if (!currentUser || !target || isUsingStreakSaver) return;
+
+      const todayUID = dayKeySE(new Date());
+      const saver = normalizeStreakSaver(streakSaver, monthKeyOf(todayUID));
+      const check = canRescueDay(target.date, pastDaysSummaryRef.current[target.date], saver, new Date(), summaryStartDate);
+      if (!check.eligible) {
+          setToastNotification({ message: check.reason || 'Dagen går inte att rädda.', type: 'error' });
+          setDayToPotentiallySave(null);
+          return;
+      }
+
+      setIsUsingStreakSaver(true);
+      try {
+          // 1. Streaken fram till dagen fore den raddade dagen.
+          const dayBefore = new Date(`${target.date}T12:00:00`);
+          dayBefore.setDate(dayBefore.getDate() - 1);
+          const streakBefore = pastDaysSummaryRef.current[dayKeySE(dayBefore)]?.streakForThisDay || 0;
+
+          // 2. Skriv den raddade dagen.
+          const rescued = buildRescuedSummary(target.date, pastDaysSummaryRef.current[target.date], goals.calorieGoal, userProfile.goalType, streakBefore);
+          const working: Record<string, PastDaySummary> = { ...pastDaysSummaryRef.current, [target.date]: rescued };
+          await setPastDaySummary(currentUser.uid, target.date, rescued);
+
+          // 3. Rakna om kedjan framat till och med igar.
+          const yesterdayUID = dayKeySE(new Date(Date.now() - 86400000));
+          const changed: Record<string, PastDaySummary> = { [target.date]: rescued };
+          let running = streakBefore;
+          const cursor = new Date(`${target.date}T12:00:00`);
+          cursor.setDate(cursor.getDate() + 1);
+          while (dayKeySE(cursor) <= yesterdayUID) {
+              const uid = dayKeySE(cursor);
+              const existing = working[uid];
+              running = stepStreak(running, existing);
+              if (existing && existing.streakForThisDay !== running) {
+                  const updated = { ...existing, streakForThisDay: running };
+                  working[uid] = updated;
+                  changed[uid] = updated;
+                  await setPastDaySummary(currentUser.uid, uid, updated);
+              }
+              cursor.setDate(cursor.getDate() + 1);
+          }
+
+          // 4. Spara saldot och den nya streaken.
+          const newSaver = {
+              ...saver,
+              available: Math.max(0, saver.available - 1),
+              usedDates: [...saver.usedDates.filter(d => d !== target.date), target.date],
+          };
+          const finalStreak = working[yesterdayUID]?.streakForThisDay ?? running;
+          const newHighest = Math.max(highestStreak, finalStreak);
+
+          await updateUserDocument(currentUser.uid, {
+              streakSaver: newSaver,
+              currentStreak: finalStreak,
+              lastDateStreakChecked: yesterdayUID,
+              ...(newHighest > highestStreak ? { highestStreak: newHighest } : {}),
+          });
+
+          const merged = { ...pastDaysSummaryRef.current, ...changed };
+          setPastDaysSummary(merged);
+          pastDaysSummaryRef.current = merged;
+          setStreakSaver(newSaver);
+          setStreakData({ currentStreak: finalStreak, lastDateStreakChecked: yesterdayUID });
+          streakDataRef.current = { currentStreak: finalStreak, lastDateStreakChecked: yesterdayUID };
+          if (newHighest > highestStreak) setHighestStreak(newHighest);
+
+          setToastNotification({
+              message: finalStreak > 0 ? `Livboj använd! Din streak på ${finalStreak} dagar lever vidare.` : 'Livboj använd. Dagen är räddad.',
+              type: 'success',
+          });
+      } catch (e) {
+          console.error('Kunde inte anvanda livboj:', e);
+          setToastNotification({ message: 'Kunde inte använda livbojen. Försök igen.', type: 'error' });
+      } finally {
+          setIsUsingStreakSaver(false);
+          setDayToPotentiallySave(null);
+      }
   };
 
   const handleBootcampInitialWeightLog = async (data: Omit<WeightLogEntry, 'id'>) => {
@@ -1931,6 +2201,29 @@ const handleSubscribeToPush = async (force: boolean = false): Promise<boolean> =
              }
 
              if (goalMet) {
+                // Appens storsta ogonblick ska inte se ut som vilken bragd som
+                // helst i floded, sa det far ett eget inlagg med vad malet var
+                // och hur lang tid det tog.
+                try {
+                    const { addTimelineEvent } = await import('./services/firestoreService');
+                    let duration = '';
+                    if (userProfile.goalStartDate) {
+                        const days = Math.round((Date.now() - new Date(`${userProfile.goalStartDate}T12:00:00`).getTime()) / 86400000);
+                        if (days >= 14) duration = ` Det tog ${Math.round(days / 7)} veckor.`;
+                        else if (days > 0) duration = ` Det tog ${days} dagar.`;
+                    }
+                    await addTimelineEvent(currentUser.uid, {
+                        type: 'goal_achieved',
+                        timestamp: Date.now(),
+                        title: 'har nått sitt mål!',
+                        description: `${metGoalDescription} är i hamn.${duration}`,
+                        icon: '🏆',
+                        relatedDocId: `goal_achieved_${userProfile.goalStartDate || Date.now()}`,
+                    });
+                } catch (e) {
+                    console.error('Kunde inte skapa inlagg om uppnatt mal', e);
+                }
+
                 const ach = ACHIEVEMENT_DEFINITIONS.find(a => a.id === 'main_goal_reached');
                 if (ach) {
                     const unlocked = await unlockAchievement(currentUser.uid, ach.id, ach.name, ach.icon, ach.description);
@@ -2088,10 +2381,16 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         const prevStreak = prevDaySummary?.streakForThisDay || 0;
         
         const hasLogs = mealsToProcess.length > 0;
+        const existingSummary = pastDaysSummaryRef.current[yesterdayUID];
+
+        // ALLTID räkna ut streaken på nytt baserat på faktiska loggar (självläkande).
+        // En räddad dag (livboj) är undantaget: den bryter inte kedjan, men räknar
+        // inte heller upp den. Utan det här hade nästa omräkning ätit upp livbojen.
         let finalNewStreak = 0;
-        
-        // ALLTID räkna ut streaken på nytt baserat på faktiska loggar (självläkande)
-        if (hasLogs) {
+        const keepRescue = !hasLogs && isRescuedDay(existingSummary);
+        if (keepRescue) {
+             finalNewStreak = prevStreak;
+        } else if (hasLogs) {
              finalNewStreak = prevStreak + 1;
         } else {
              finalNewStreak = 0;
@@ -2113,7 +2412,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             waterGoalMet: yesterdayWater >= DEFAULT_WATER_GOAL_ML,
             streakForThisDay: finalNewStreak, 
             bankedAmount: bankedAmount,
-            savedBy: savedBy
+            savedBy: keepRescue ? 'streakSaver' : savedBy
         };
 
         // --- STATE UPDATE: Force update to streakData ---
@@ -2283,11 +2582,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
 
                         for (const date of dates) {
                             const summary = summaries[date];
-                            if (summary.consumedCalories > 0) {
-                                runningStreak += 1;
-                            } else {
-                                runningStreak = 0;
-                            }
+                            runningStreak = stepStreak(runningStreak, summary);
 
                             if (summary.streakForThisDay !== runningStreak) {
                                 updates[date] = { ...summary, streakForThisDay: runningStreak };
@@ -2742,6 +3037,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
                 initialOpenBootcamp={openBootcampDirectly}
                 onBootcampStateChange={setIsBootcampViewActive}
                 onNavigateHome={() => { pushViewState({ view: 'main' }); setViewMode('main'); }}
+                onNavigateToMainWithDate={handleNavigateToMainWithDate}
                 bootcampFeedSlot={effectiveActiveBootcamp ? (
                   <CommunityView
                     currentUser={currentUser}
@@ -2829,7 +3125,17 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         
         {showLatestUpdateView && <UpdateNoticeModal show={showLatestUpdateView} onClose={() => setShowLatestUpdateView(false)} onNavigateToCourses={handleNavigateToCourses} />}
         {showOnboardingRewardModal && <OnboardingRewardModal show={showOnboardingRewardModal} onClose={handleCloseOnboardingRewardModal} goalType={userProfile.goalType} />}
-        {dayToPotentiallySave && <UseStreakSaverModal show={!!dayToPotentiallySave} onClose={() => setDayToPotentiallySave(null)} onConfirm={handleUseStreakSaver} daySummary={dayToPotentiallySave} />}
+        {dayToPotentiallySave && (
+          <UseStreakSaverModal
+            show={!!dayToPotentiallySave}
+            onClose={() => { try { localStorage.setItem('streakSaverPromptDismissed', dayToPotentiallySave.date); } catch {} setDayToPotentiallySave(null); }}
+            onConfirm={handleUseStreakSaver}
+            daySummary={dayToPotentiallySave}
+            available={normalizeStreakSaver(streakSaver, monthKeyOf(dayKeySE(new Date()))).available}
+            streakAtRisk={highestStreakBeforeGap}
+            isSaving={isUsingStreakSaver}
+          />
+        )}
         {showMotivationModal && <MotivationModal show={!!showMotivationModal} onClose={() => setShowMotivationModal(null)} daySummary={showMotivationModal} />}
         {morningReportData && (
           <MorningReportModal 
@@ -2855,6 +3161,7 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
             }}
             yesterdayMeals={morningReportData.yesterdayMeals} 
             yesterdayBootcampReport={morningReportData.yesterdayBootcampReport} 
+            preloadedBriefing={morningReportData.briefingText}
             activeBootcamp={effectiveActiveBootcamp} 
             pastDaysSummary={Object.values(pastDaysSummary)} 
             weightLogs={weightLogs} 

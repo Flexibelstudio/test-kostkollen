@@ -159,6 +159,31 @@ async function sendNotificationToUser(userId, payload, notificationType) {
 
 // ---- Notis-funktioner ----
 
+/**
+ * Nar en peppkompis-forfragan accepteras far den som skickade den besked.
+ * Tidigare notifierades bara mottagaren nar forfragan kom, sa avsandaren
+ * fick aldrig veta att den blivit godkand.
+ */
+exports.onFriendRequestAccepted = functions.firestore
+  .document("peppkompisRequests/{requestId}")
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!before || !after) return;
+    if (before.status === "accepted" || after.status !== "accepted") return;
+
+    const payload = {
+      notification: {
+        title: `${after.toName || "Din förfrågan"} är nu din peppkompis 🎉`,
+        body: "Ni ser varandras framsteg i flödet.",
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        data: { url: "/?view=community&tab=buddies" },
+      },
+    };
+    await sendNotificationToUser(after.fromUid, payload, "friendRequests");
+  });
+
 exports.onFriendRequestCreated = functions.firestore
   .document("peppkompisRequests/{requestId}")
   .onCreate(async (snapshot) => {
@@ -167,8 +192,8 @@ exports.onFriendRequestCreated = functions.firestore
 
     const payload = {
       notification: {
-        title: "Ny peppkompis-förfrågan! 🎉",
-        body: `${request.fromName} vill bli din peppkompis!`,
+        title: `${request.fromName} vill bli din peppkompis`,
+        body: "Öppna appen för att svara.",
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
         data: { url: "/?view=community&tab=requests" },
@@ -192,14 +217,39 @@ exports.onTimelineEventCreated = functions.firestore
     const payload = {
       notification: {
         title: isSystemOrCoach
-          ? `Nytt meddelande från ${event.userName}!`
-          : "Ny händelse i flödet!",
-        body: `${event.userName} ${event.title}`,
+          ? `Nytt från ${event.userName}`
+          : event.userName,
+        body: event.description || event.title || "Har lagt upp något nytt.",
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
         data: { url: `/?view=community&highlight=${eventId}` },
       },
     };
+
+    // Personen som presterade far sin egen grattis. Flodesnotisen nedan gar
+    // till andra och exkluderar forfattaren, sa utan det har fick den som
+    // faktiskt befordrades eller lasten upp en bragd ingenting alls.
+    if (event.userId && (event.type === "achievement" || event.type === "level")) {
+      const isBootcampRank =
+        typeof event.relatedDocId === "string" &&
+        event.relatedDocId.startsWith("bootcamp_");
+      const ownPayload = {
+        notification: {
+          title: isBootcampRank
+            ? `Befordrad! ${event.icon || "🎖️"}`
+            : `Ny bragd! ${event.icon || "🏅"}`,
+          body: event.description || event.title || "Snyggt jobbat.",
+          icon: "/icons/icon-192x192.png",
+          badge: "/icons/badge-96x96.png",
+          data: { url: `/?view=community&highlight=${eventId}` },
+        },
+      };
+      await sendNotificationToUser(
+        event.userId,
+        ownPayload,
+        isBootcampRank ? "bootcamp" : "progress",
+      );
+    }
 
     if (isSystemOrCoach) {
       let targetUserIds = new Set();
@@ -299,8 +349,12 @@ exports.onCommentCreated = functions.firestore
 
     const payload = {
       notification: {
-        title: "Ny kommentar! 💬",
-        body: `${comment.authorName} kommenterade på inlägget: "${eventData.title}"`,
+        title: `${comment.authorName} kommenterade`,
+        body: comment.text
+          ? (comment.text.length > 120
+              ? `${comment.text.slice(0, 117)}…`
+              : comment.text)
+          : "Öppna appen för att läsa.",
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
         data: { url: `/?view=community&highlight=${eventId}` },
@@ -513,8 +567,8 @@ exports.onReactionAdded = functions.firestore
         const likerName = usersAfter[newUid];
         const payload = {
           notification: {
-            title: `Ny reaktion! ${emoji}`,
-            body: `${likerName} reagerade på ditt inlägg.`,
+            title: `${likerName} gillade ditt inlägg ${emoji}`,
+            body: "Öppna appen för att se.",
             icon: "/icons/icon-192x192.png",
             badge: "/icons/badge-96x96.png",
             data: { url: `/?view=community&highlight=${eventId}` },
@@ -546,8 +600,8 @@ exports.onCommentLikeCreated = functions.firestore
 
     const payload = {
       notification: {
-        title: "Gilla på kommentar ❤️",
-        body: `${likeData.userName} gillade din kommentar.`,
+        title: `${likeData.userName} gillade din kommentar ❤️`,
+        body: "Öppna appen för att se.",
         icon: "/icons/icon-192x192.png",
         badge: "/icons/badge-96x96.png",
         data: { url: `/?view=community&highlight=${eventId}` },
@@ -769,8 +823,8 @@ exports.scheduledNotificationChecker = functions.pubsub
         ) {
           const payload = {
             notification: {
-              title: "Vi saknar dig! 🥺",
-              body: "Det var 3 dagar sedan du loggade. Kom tillbaka och håll dina vanor vid liv!",
+              title: "Vi saknar dig",
+              body: "Tre dagar sedan du loggade senast. Börja om idag – det räcker med en måltid.",
               icon: "/icons/icon-192x192.png",
               badge: "/icons/badge-96x96.png",
               data: { url: "/?view=main" },
@@ -784,6 +838,166 @@ exports.scheduledNotificationChecker = functions.pubsub
         }
       }
 
+      // 1b. Streaken ar i fara (kl 9)
+      // Loggade man inte igar bryts streaken - men retroaktiv loggning kan
+      // fortfarande radda den. Det ar i det har fonstret folk ger upp, sa
+      // notisen ska komma tidigt pa dagen medan det ar mojligt att agera.
+      // Villkoret ar smalt med flit: exakt en missad dag (langre franvaro
+      // hanteras av inaktivitetsnotisen ovan) och en streak vard att radda.
+      if (localHour === 9 && user.lastLogDate && (user.currentStreak || 0) >= 3) {
+        const today = new Date(todayDateString);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayString = yesterday.toISOString().split("T")[0];
+
+        if (
+          user.lastLogDate !== todayDateString &&
+          user.lastLogDate !== yesterdayString &&
+          user.lastStreakRiskSent !== todayDateString
+        ) {
+          const dayBefore = new Date(today);
+          dayBefore.setDate(dayBefore.getDate() - 2);
+          const dayBeforeString = dayBefore.toISOString().split("T")[0];
+
+          // Bara direkt efter den forsta missade dagen.
+          if (user.lastLogDate === dayBeforeString) {
+            const payload = {
+              notification: {
+                title: `Din streak på ${user.currentStreak} dagar är i fara`,
+                body: "Du loggade inte igår – men du kan fortfarande gå tillbaka och logga gårdagen.",
+                icon: "/icons/icon-192x192.png",
+                badge: "/icons/badge-96x96.png",
+                data: { url: "/?view=main&date=yesterday" },
+              },
+            };
+            await sendNotificationToUser(userId, payload, "streakRisk");
+            await db
+              .collection("users")
+              .doc(userId)
+              .update({ lastStreakRiskSent: todayDateString });
+          }
+        }
+      }
+
+      // 1c. Kvallsrapporten saknas (kl 20)
+      // Kvallsrapporten ar sjalva bootcampen - missas den bryts streaken.
+      // Vi letar upp deltagarens aktiva trupp och kollar om dagens rapport
+      // finns. Ingen rapport och det ar kvall: paminn i Borjes ton.
+      if (localHour === 20 && user.lastEveningReportNudgeSent !== todayDateString) {
+        try {
+          const participantSnap = await db
+            .collectionGroup("participants")
+            .where("userId", "==", userId)
+            .get();
+
+          const active = participantSnap.docs.find((d) => {
+            const p = d.data();
+            return p.status === "fas1" || p.status === "fas2";
+          });
+
+          if (active) {
+            const reportSnap = await active.ref
+              .collection("eveningReports")
+              .where("date", "==", todayDateString)
+              .limit(1)
+              .get();
+
+            if (reportSnap.empty) {
+              const payload = {
+                notification: {
+                  title: "Rapport saknas, soldat 🎖️",
+                  body: "Kvällsrapporten är inte inlämnad. Du har till midnatt.",
+                  icon: "/icons/icon-192x192.png",
+                  badge: "/icons/badge-96x96.png",
+                  data: { url: "/?view=courses&openBootcamp=1" },
+                },
+              };
+              await sendNotificationToUser(userId, payload, "bootcamp");
+              await db
+                .collection("users")
+                .doc(userId)
+                .update({ lastEveningReportNudgeSent: todayDateString });
+            }
+          }
+        } catch (error) {
+          logger.warn(`Kunde inte kontrollera kvällsrapport för ${userId}`, error);
+        }
+      }
+
+      // 1d. Veckosammanfattning (sondag kl 19)
+      // En sammanfattning oppnas, till skillnad fran en paminnelse. Vi raknar
+      // gronda dagar ur pastDaySummaries for den vecka som just avslutats.
+      if (dayOfWeek === 0 && localHour === 19 && user.lastWeeklySummarySent !== todayDateString) {
+        try {
+          const weekStart = new Date(todayDateString);
+          weekStart.setDate(weekStart.getDate() - 6);
+          const weekStartString = weekStart.toISOString().split("T")[0];
+
+          const summariesSnap = await db
+            .collection("users")
+            .doc(userId)
+            .collection("pastDaySummaries")
+            .where("date", ">=", weekStartString)
+            .get();
+
+          const loggedDays = summariesSnap.size;
+          if (loggedDays > 0) {
+            const greenDays = summariesSnap.docs.filter(
+              (d) => d.data().goalMet === true,
+            ).length;
+
+            const payload = {
+              notification: {
+                title: "Din vecka",
+                body: `${greenDays} av ${loggedDays} loggade dagar i mål. ${
+                  greenDays >= 5
+                    ? "Stark vecka."
+                    : "Ny vecka imorgon."
+                }`,
+                icon: "/icons/icon-192x192.png",
+                badge: "/icons/badge-96x96.png",
+                data: { url: "/?view=journey" },
+              },
+            };
+            await sendNotificationToUser(userId, payload, "weeklySummary");
+            await db
+              .collection("users")
+              .doc(userId)
+              .update({ lastWeeklySummarySent: todayDateString });
+          }
+        } catch (error) {
+          logger.warn(`Kunde inte bygga veckosammanfattning för ${userId}`, error);
+        }
+      }
+
+      // 1e. Plataanalys (kl 11)
+      // Analysen kors redan i morgonrapporten men syns bara om man gar in i
+      // appen. Har den slagit till ar det vart en notis - det ar da folk ar
+      // som mest benagna att sluta.
+      if (
+        localHour === 11 &&
+        user.plateauAnalysis &&
+        user.plateauAnalysis.lastPlateauAnalysisDate &&
+        user.lastPlateauAlertSent !== user.plateauAnalysis.lastPlateauAnalysisDate
+      ) {
+        const payload = {
+          notification: {
+            title: "Vikten har stått still ett tag",
+            body: "Din coach har tittat på siffrorna och har ett förslag. Det är helt normalt och går att lösa.",
+            icon: "/icons/icon-192x192.png",
+            badge: "/icons/badge-96x96.png",
+            data: { url: "/?view=journey" },
+          },
+        };
+        await sendNotificationToUser(userId, payload, "plateauAlert");
+        await db
+          .collection("users")
+          .doc(userId)
+          .update({
+            lastPlateauAlertSent: user.plateauAnalysis.lastPlateauAnalysisDate,
+          });
+      }
+
       // 2. Milstolpe (kl 19)
       if (localHour === 19 && user.currentStreak > 0) {
         const nextDayStreak = user.currentStreak + 1;
@@ -794,8 +1008,8 @@ exports.scheduledNotificationChecker = functions.pubsub
           ) {
             const payload = {
               notification: {
-                title: "Du är så nära! 🔥",
-                body: `Logga idag för att nå en streak på ${nextDayStreak} dagar! Du fixar det!`,
+                title: "Du är nära 🔥",
+                body: `Logga idag så är din streak uppe i ${nextDayStreak} dagar.`,
                 icon: "/icons/icon-192x192.png",
                 badge: "/icons/badge-96x96.png",
                 data: { url: "/?view=main" },
@@ -825,8 +1039,8 @@ exports.scheduledNotificationChecker = functions.pubsub
         if (needsWaterReminder) {
           const payload = {
             notification: {
-              title: "💧 Glöm inte vattnet!",
-              body: "Kom ihåg att logga ditt vattenintag.",
+              title: "Glöm inte vattnet 💧",
+              body: "Har du fått i dig tillräckligt idag?",
               icon: "/icons/icon-192x192.png",
               badge: "/icons/badge-96x96.png",
               data: { url: "/?view=main" },
@@ -853,8 +1067,8 @@ exports.scheduledNotificationChecker = functions.pubsub
         if (mealLogsSnapshot.empty) {
           const payload = {
             notification: {
-              title: "🍽️ Middagstips!",
-              body: "Har du loggat dagens mat ännu? Missa inte att fylla i din kostlogg.",
+              title: "Har du loggat maten idag?",
+              body: "Det tar en minut, och dagen blir grön.",
               icon: "/icons/icon-192x192.png",
               badge: "/icons/badge-96x96.png",
               data: { url: "/?view=main" },
@@ -903,8 +1117,8 @@ exports.scheduledNotificationChecker = functions.pubsub
               ? "🎖️ General Börje: Upp på vågen!"
               : "⚖️ Dags för vägning!",
             body: isBootcampActive
-              ? "Det är söndag, soldat! Dags för veckans invägning. Inga ursäkter!"
-              : `Idag är din planerade vägdag (${user.preferredWeighInDay || "måndag"}). Kom ihåg att logga din vikt!`,
+              ? "Det är söndag, soldat. Dags för veckans invägning. Inga ursäkter."
+              : `Idag är din vägdag (${user.preferredWeighInDay || "måndag"}). Kom ihåg att logga vikten.`,
             icon: "/icons/icon-192x192.png",
             badge: "/icons/badge-96x96.png",
             data: { url: "/?view=journey" },
@@ -934,8 +1148,8 @@ exports.scheduledNotificationChecker = functions.pubsub
           if (diffDays >= 1 && diffDays <= 3 && user.status !== "archived") {
             const payload = {
               notification: {
-                title: "Din gratisvecka tar snart slut ⚡",
-                body: "Se hur din första vecka gått och allt du hunnit uppnå 💪",
+                title: "Din gratisvecka tar snart slut",
+                body: "Se vad du hunnit göra på en vecka – och vad som händer sen.",
                 icon: "/icons/icon-192x192.png",
                 badge: "/icons/badge-96x96.png",
                 data: { url: "/?showTrialRecap=true" },
@@ -1554,8 +1768,8 @@ exports.onChatMessageUpdated = functions.firestore
           const likerName = usersAfter[newUid];
           const payload = {
             notification: {
-              title: `Ny reaktion! ${emoji}`,
-              body: `${likerName} reagerade på ditt meddelande i ${chatData.name || "chatten"}.`,
+              title: `${likerName} gillade ditt meddelande ${emoji}`,
+              body: `I ${chatData.name || "chatten"}.`,
               icon: "/icons/icon-192x192.png",
               badge: "/icons/badge-96x96.png",
               data: { url: `/?view=chat&chatId=${chatId}` },
@@ -1820,8 +2034,8 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
             : "En användare";
           const payload = {
             notification: {
-              title: "Ny Bootcamp-deltagare! 🪖",
-              body: `${userName} har precis anmält sig till Bootcampen!`,
+              title: `${userName} har mönstrat in 🪖`,
+              body: "Ny deltagare i Bootcampen.",
               icon: "/icons/icon-192x192.png",
               badge: "/icons/badge-96x96.png",
               data: { url: "/" },
@@ -1891,8 +2105,8 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
           // Skicka push-notis till coacher/admins
           const payload = {
             notification: {
-              title: "Ny prenumerant! 🚀",
-              body: `${userName} har precis startat sitt medlemskap!`,
+              title: `${userName} har blivit medlem 🚀`,
+              body: "Nytt medlemskap startat.",
               icon: "/icons/icon-192x192.png",
               badge: "/icons/badge-96x96.png",
               data: { url: "/" },
@@ -1989,8 +2203,8 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
           ) {
             const payload = {
               notification: {
-                title: "Din gratisvecka tar snart slut ⚡",
-                body: "Se hur din första vecka gått och allt du hunnit uppnå 💪",
+                title: "Din gratisvecka tar snart slut",
+                body: "Se vad du hunnit göra på en vecka – och vad som händer sen.",
                 icon: "/icons/icon-192x192.png",
                 badge: "/icons/badge-96x96.png",
                 data: { url: "/?showTrialRecap=true" },

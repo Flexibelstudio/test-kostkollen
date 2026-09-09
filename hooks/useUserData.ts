@@ -62,6 +62,13 @@ export interface UseUserDataReturn {
     
     // Loading states
     isDataLoading: boolean;
+    /**
+     * Vilket datum dailyLog faktiskt laddades for. Utan detta gick det inte att
+     * skilja "dagen ar tom" fran "hamtningen ar inte klar an", och sjalvlakningen
+     * kunde skriva ner en fardigloggad dag till noll.
+     */
+    dailyLogDateUID: string | null;
+    setDailyLogDateUID: React.Dispatch<React.SetStateAction<string | null>>;
     isInitialDataLoaded: boolean;
     setIsInitialDataLoaded: React.Dispatch<React.SetStateAction<boolean>>;
     
@@ -79,6 +86,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
     const [userProfile, setUserProfile] = useState<UserProfileData>(DEFAULT_USER_PROFILE);
     const [dailyLog, setDailyLog] = useState<LoggedMeal[]>([]);
     const [waterLoggedMl, setWaterLoggedMl] = useState<number>(0);
+    const [dailyLogDateUID, setDailyLogDateUID] = useState<string | null>(null);
     const [commonMeals, setCommonMeals] = useState<CommonMeal[]>([]);
     const [weightLogs, setWeightLogs] = useState<WeightLogEntry[]>([]);
     const [pastDaysSummary, setPastDaysSummary] = useState<PastDaysSummaryCollection>({});
@@ -213,6 +221,7 @@ export const useUserData = (userId: string | undefined, currentDate: Date): UseU
         journeyAnalysisFeedback, setJourneyAnalysisFeedback,
         mentalWellbeingLogs, setMentalWellbeingLogs,
         isDataLoading,
+        dailyLogDateUID, setDailyLogDateUID,
         isInitialDataLoaded,
         setIsInitialDataLoaded,
         resetUserData,

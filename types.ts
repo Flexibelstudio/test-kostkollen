@@ -122,10 +122,18 @@ export interface WeeklyCalorieBank {
   endDate: string; // YYYY-MM-DD
 }
 
-// FIX: Define StreakSaver interface
+/**
+ * Livbojar - anvandarens mojlighet att radda en helt missad dag sa att streaken
+ * inte bryts. En livboj loggar INGEN mat i efterhand; den gor bara dagen neutral.
+ * En raddad dag bryter darfor inte streaken, men raknar inte heller upp den.
+ */
 export interface StreakSaver {
-  weekId: string;
-  available: boolean;
+  /** Antal livbojar kvar att anvanda. */
+  available: number;
+  /** Manaden (YYYY-MM) som senast gav pafyllning, sa vi bara fyller pa en gang. */
+  lastGrantedMonth: string;
+  /** Datum (YYYY-MM-DD) som raddats, nyast sist. */
+  usedDates: string[];
 }
 
 export interface PastDaySummary {
@@ -212,6 +220,13 @@ export interface NotificationSettings {
   weighInReminder: boolean;
   inactivityReminder: boolean;
   milestoneNudge: boolean;
+  // Bootcamp: kvallsrapport, Borjes meddelanden, befordran och fasbyten.
+  bootcamp: boolean;
+  // Dina framsteg
+  streakRisk: boolean;
+  progress: boolean;      // ny niva och ny bragd
+  weeklySummary: boolean;
+  plateauAlert: boolean;
 }
 
 export interface CommunitySharingSettings {
@@ -312,6 +327,13 @@ export interface UserProfileData {
   subscriptionStatus?: 'active' | 'trialing' | 'canceling' | 'canceled' | 'inactive';
   currentPeriodEnd?: string; // ISO date string
   stripeCustomerId?: string | null;
+
+  /**
+   * Fardigskriven morgonhalsning for en viss dag. Sparas sa att texten bara
+   * behover genereras en gang per dygn - oppnar man appen igen, pa en annan
+   * enhet eller senare pa dagen, ligger den redan dar.
+   */
+  morningBriefing?: { date: string; text: string };
 
   // Fields for filters/security constraints
   role?: UserRole;

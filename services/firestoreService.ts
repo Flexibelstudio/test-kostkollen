@@ -1,4 +1,3 @@
-
 import { db, functions } from "../firebase";
 import type { User } from '@firebase/auth';
 import { 
@@ -85,13 +84,6 @@ const getDateUID_SE = (d: Date = new Date()): string => {
 };
 
 const getDateUID_SE_Helper_Month = (z: Date) => z.getMonth() + 1;
-
-const formatChange = (change: number | undefined): string => {
-  if (change === undefined || change === null || isNaN(change)) return '-';
-  if (Math.abs(change) < 0.05) return '±0,0';
-  const sign = change > 0 ? '+' : '';
-  return `${sign}${change.toFixed(1).replace('.', ',')}`;
-};
 
 /**
  * Rensar bort undefined-fält från objekt innan de sparas i Firestore.
@@ -400,6 +392,7 @@ export async function fetchInitialAppData(userId: string) {
       bootcampOnboarding: userDocData.bootcampOnboarding ?? undefined,
       highestBootcampStreak: highestBootcampStreak,
       plateauAnalysis: userDocData.plateauAnalysis ?? undefined,
+      morningBriefing: userDocData.morningBriefing ?? undefined,
       role: userDocData.role,
       createdAt: userDocData.createdAt,
     };
@@ -837,7 +830,7 @@ export async function addTimelineEvent(
   const userData = userDocSnap.data() as FirestoreUserDocument;
 
   const sharingSettings = userData.communitySharingSettings || {
-    weight: false,
+    weight: true,
     achievement: true,
     streak: true,
     course: true,
@@ -1285,54 +1278,69 @@ export async function saveWeightLog(userId: string, weightLog: Omit<WeightLogEnt
   await updateDoc(userDocRef, cleanFirestoreData(profileUpdates));
 
   // --- Automatic Timeline Event ---
+  //
+  // Tidigare postades VARJE matning med vikt, muskler och fett utskrivet. Med tio
+  // kompisar blev floded en vecklig siffervagg, och inlagget betydde ingenting nar
+  // det kom. Nu postas bara matningar som faktiskt tar en NARMARE malet an man
+  // nagonsin varit - da ar det verkligen nagot att fira. Inga absoluta vikter
+  // skrivs ut, bara hur langt man kommit och hur mycket som ar kvar.
   try {
-    const logsQuery = query(weightLogsRef, where('loggedAt', '<', weightLog.loggedAt), orderBy('loggedAt', 'desc'), limit(1));
-    const logsSnap = await getDocsSafe(logsQuery);
-    
-    let previousLog: WeightLogEntry | null = null;
-    if (!logsSnap.empty) {
-      previousLog = logsSnap.docs[0].data() as WeightLogEntry;
-    }
+    const userSnap = await getDocSafe(userDocRef);
+    const profile: any = userSnap.exists() ? userSnap.data() : {};
 
-    let weightChange, muscleChange, fatChange;
-    if (previousLog) {
-      weightChange = weightLog.weightKg - previousLog.weightKg;
-      if (weightLog.skeletalMuscleMassKg != null && previousLog.skeletalMuscleMassKg != null) {
-        muscleChange = weightLog.skeletalMuscleMassKg - previousLog.skeletalMuscleMassKg;
-      }
-      if (weightLog.bodyFatMassKg != null && previousLog.bodyFatMassKg != null) {
-        fatChange = weightLog.bodyFatMassKg - previousLog.bodyFatMassKg;
-      }
-    } else {
-      const userSnap = await getDoc(userDocRef);
-      if (userSnap.exists()) {
-        const userProfile = userSnap.data();
-        if (userProfile.goalStartWeight != null) {
-          weightChange = weightLog.weightKg - userProfile.goalStartWeight;
-        }
-        if (weightLog.skeletalMuscleMassKg != null && userProfile.goalStartMuscleMassKg != null) {
-          muscleChange = weightLog.skeletalMuscleMassKg - userProfile.goalStartMuscleMassKg;
-        }
-        if (weightLog.bodyFatMassKg != null && userProfile.goalStartFatMassKg != null) {
-          fatChange = weightLog.bodyFatMassKg - userProfile.goalStartFatMassKg;
-        }
-      }
-    }
+    // Vilket varde handlar malet om? Fettmassa gar fore muskelmassa for den som
+    // har bada, eftersom det ar det de flesta foljer.
+    type Metric = { current?: number | null; start?: number | null; desired?: number | null; label: string };
+    const candidates: Metric[] = [
+      { current: weightLog.bodyFatMassKg, start: profile.goalStartFatMassKg, desired: profile.desiredFatMassChangeKg, label: 'fettmassa' },
+      { current: weightLog.weightKg, start: profile.goalStartWeight, desired: profile.desiredWeightChangeKg, label: 'vikt' },
+      { current: weightLog.skeletalMuscleMassKg, start: profile.goalStartMuscleMassKg, desired: profile.desiredMuscleMassChangeKg, label: 'muskelmassa' },
+    ];
+    const metric = candidates.find(m =>
+      typeof m.current === 'number' && typeof m.start === 'number' && typeof m.desired === 'number' && m.desired !== 0
+    );
 
-    const descriptionParts = [`Vikt: ${weightLog.weightKg.toFixed(1)}kg (${formatChange(weightChange)})`];
-    if (weightLog.skeletalMuscleMassKg != null) {
-      descriptionParts.push(`Muskler: ${weightLog.skeletalMuscleMassKg.toFixed(1)}kg (${formatChange(muscleChange)})`);
-    }
-    if (weightLog.bodyFatMassKg != null) {
-      descriptionParts.push(`Fett: ${weightLog.bodyFatMassKg.toFixed(1)}kg (${formatChange(fatChange)})`);
-    }
+    // Utan ett mal att mata mot finns det inget framsteg att fira.
+    if (!metric || profile.mainGoalCompleted) return newLogId;
+
+    const direction = Math.sign(metric.desired as number);
+    const target = Math.abs(metric.desired as number);
+    // Hur langt man tagit sig i onskad riktning, i kg. Negativt = at fel hall.
+    const progressOf = (value?: number | null) =>
+      typeof value === 'number' ? (value - (metric.start as number)) * direction : null;
+
+    const progress = progressOf(metric.current) as number;
+    if (progress <= 0) return newLogId; // ingen framgang an
+
+    // Ar det har den basta matningen hittills? Bara da postar vi.
+    const fieldOf = (log: any) =>
+      metric.label === 'fettmassa' ? log.bodyFatMassKg
+      : metric.label === 'muskelmassa' ? log.skeletalMuscleMassKg
+      : log.weightKg;
+
+    const earlierQuery = query(weightLogsRef, where('loggedAt', '<', weightLog.loggedAt), orderBy('loggedAt', 'desc'), limit(200));
+    const earlierSnap = await getDocsSafe(earlierQuery);
+    let bestBefore = 0;
+    earlierSnap.forEach(d => {
+      const p = progressOf(fieldOf(d.data()));
+      if (typeof p === 'number' && p > bestBefore) bestBefore = p;
+    });
+
+    // 0,1 kg marginal sa att vagens brus inte raknas som ett nytt rekord.
+    if (progress < bestBefore + 0.1) return newLogId;
+
+    const fmt = (v: number) => v.toFixed(1).replace('.', ',');
+    const remaining = Math.max(0, target - progress);
+    const remainingText = remaining > 0
+      ? ` ${fmt(remaining)} kg kvar till målet.`
+      : ' Målet är i sikte!';
 
     await addTimelineEvent(userId, {
       type: 'weight',
       timestamp: weightLog.loggedAt,
-      title: 'har loggat en ny mätning',
-      description: descriptionParts.join('\n'),
-      icon: '⚖️',
+      title: 'har kommit närmare sitt mål!',
+      description: `Ny bästa mätning: ${fmt(progress)} kg i rätt riktning sedan starten.${remainingText}`,
+      icon: '📉',
       relatedDocId: newLogId
     }, isInitialForGoal ? 0 : undefined);
 
