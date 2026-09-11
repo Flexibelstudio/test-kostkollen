@@ -98,7 +98,27 @@ async function getCoachAndAdminIds() {
   return Array.from(allIds);
 }
 
-async function sendNotificationToUser(userId, payload, notificationType) {
+/**
+ * Standardinstallningar for utskicket.
+ *
+ * urgency saknades helt tidigare, vilket betyder att web-push skickade dem som
+ * "normal". Apple buntar ihop notiser med normal prioritet och delar ut dem nar
+ * det passar batteriet - i praktiken en halvtimme eller mer efter handelsen. Allt
+ * vi skickar ar tidsknutet ("din kompis loggade nyss", "gloem inte kvallsrapporten"),
+ * sa det ska vara hog prioritet.
+ *
+ * TTL begransar hur lange pushtjansten far spara en olevererad notis. Utan varde
+ * gallde fyra veckor, sa en telefon som varit avstangd kunde vakna till en vecka
+ * gammal paminnelse.
+ */
+const DEFAULT_PUSH_OPTIONS = { urgency: "high", TTL: 24 * 60 * 60 };
+
+async function sendNotificationToUser(
+  userId,
+  payload,
+  notificationType,
+  pushOptions = {},
+) {
   initVapidDetails();
   const { vapidPublicKey, vapidPrivateKey } = getVapidKeys();
   if (!vapidPrivateKey || !vapidPublicKey) {
@@ -129,9 +149,11 @@ async function sendNotificationToUser(userId, payload, notificationType) {
   const validSubscriptions = [];
   let dirty = false;
 
+  const options = { ...DEFAULT_PUSH_OPTIONS, ...pushOptions };
+
   const promises = subscriptions.map((sub) =>
     webpush
-      .sendNotification(sub, JSON.stringify(payload))
+      .sendNotification(sub, JSON.stringify(payload), options)
       .then(() => {
         validSubscriptions.push(sub);
       })
