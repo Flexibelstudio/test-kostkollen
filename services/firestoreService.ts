@@ -1183,7 +1183,21 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
 
 /* ===== Gamification: Achievements ===== */
 
-export async function unlockAchievement(userId: string, achievementId: string, achievementName: string, achievementIcon: string, description: string): Promise<boolean> {
+export async function unlockAchievement(
+    userId: string,
+    achievementId: string,
+    achievementName: string,
+    achievementIcon: string,
+    description: string,
+    /**
+     * Satt till true for bragder som redan har ett eget inlagg i floden.
+     * Streak-bragderna ar det: molnfunktionen som postar "Har nu loggat N dagar
+     * i rad" vet sjalv nar N ar en milstolpe och baker in bragden dar. Utan det
+     * har fick man tva inlagg om samma sak, ibland pa olika dagar eftersom
+     * upplasningen sker i appen och streak-inlagget i molnet.
+     */
+    skipTimelineEvent: boolean = false,
+): Promise<boolean> {
     if (!db) return true;
     const userRef = doc(db, 'users', userId);
     const userSnap = await getDocSafe(userRef);
@@ -1204,14 +1218,16 @@ export async function unlockAchievement(userId: string, achievementId: string, a
     }, { merge: true });
 
     // Create a timeline event for the achievement
-    await addTimelineEvent(userId, {
-        type: 'achievement',
-        timestamp: Date.now(),
-        title: 'har låst upp en bragd!',
-        description: `${achievementName} - ${description}`,
-        icon: achievementIcon,
-        relatedDocId: `ach_${achievementId}` // Ensure unique per achievement
-    });
+    if (!skipTimelineEvent) {
+        await addTimelineEvent(userId, {
+            type: 'achievement',
+            timestamp: Date.now(),
+            title: 'har låst upp en bragd!',
+            description: `${achievementName} - ${description}`,
+            icon: achievementIcon,
+            relatedDocId: `ach_${achievementId}` // Ensure unique per achievement
+        });
+    }
 
     return true;
 }
@@ -1231,7 +1247,8 @@ export async function checkAndUnlockAchievements(
     // Check Streak Achievements
     const streakAchs = achievementsDef.filter(a => a.type === 'streak' && a.requiredValue <= currentStreak);
     for (const ach of streakAchs) {
-        const unlocked = await unlockAchievement(userId, ach.id, ach.name, ach.icon, ach.description);
+        // true = hoppa over floedesinlagget. Streak-inlagget bar bragden.
+        const unlocked = await unlockAchievement(userId, ach.id, ach.name, ach.icon, ach.description, true);
         if (unlocked) unlockedNow.push(ach);
     }
     

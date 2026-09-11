@@ -742,8 +742,10 @@ export const TimelineEventCard: FC<{
                     )}
 
                     {/* Streak-inlagg: rubriken "haller i sin streak!" ar
-                        overflodig - 🔥-chipet under visar redan samma sak. */}
-                    {event.type !== 'user_post' && event.type !== 'streak' && event.title && (
+                        overflodig - 🔥-chipet under visar redan samma sak. Men nar
+                        streaken nar en milstolpe bar rubriken sjalva bragden, och
+                        da ska den fram. */}
+                    {event.type !== 'user_post' && (event.type !== 'streak' || event.isMilestone) && event.title && (
                         <p className="text-base text-neutral-dark leading-snug">{event.title}</p>
                     )}
                     

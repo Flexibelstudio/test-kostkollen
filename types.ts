@@ -1005,6 +1005,9 @@ export interface TimelineEvent {
   senderType?: 'kostloggen' | 'coach' | 'user';
   senderName?: string;
   
+  /** Satt pa streak-inlagg som ocksa ar en bragd (10, 20, 30 dagar ...). */
+  isMilestone?: boolean;
+
   // Historical context for posts
   streakAtPost?: number;
   bootcampStreakAtPost?: number;

@@ -2487,7 +2487,8 @@ if (!uid || userStatus !== 'approved' || !hasCompletedOnboarding) return;
         // Streak Achievement Check
         const streakAchs = ACHIEVEMENT_DEFINITIONS.filter(a => a.type === 'streak' && a.requiredValue <= finalNewStreak);
         for (const streakAch of streakAchs) {
-             const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description);
+             // true = inget eget floedesinlagg; streak-inlagget bar bragden.
+             const unlocked = await unlockAchievement(uid, streakAch.id, streakAch.name, streakAch.icon, streakAch.description, true);
              if (unlocked) {
                  setToastNotification({ message: `Bragd upplåst: ${streakAch.name}!`, type: 'success' });
                  setUnlockedAchievements(prev => ({ ...prev, [streakAch.id]: new Date().toISOString() }));

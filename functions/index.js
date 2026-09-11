@@ -390,6 +390,27 @@ exports.onCommentCreated = functions.firestore
     await Promise.all(notificationPromises);
   });
 
+/**
+ * Streak-bragderna, samma trappa som i appens ACHIEVEMENT_DEFINITIONS.
+ *
+ * Tidigare postades tva inlagg pa en milstolpe: ett dagligt "Har nu loggat 10
+ * dagar i rad" harifran, och ett "har last upp en bragd" fran appen. De kunde
+ * dessutom hamna pa olika dagar, eftersom det ena skrivs i molnet och det andra
+ * i webblasaren. Nu bakas bragden in i streak-inlagget och appen postar inget.
+ */
+const STREAK_MILESTONES = {
+  10: "10 Dagar i Följd",
+  20: "20 Dagar i Följd",
+  30: "Månadsstreak!",
+  40: "40 Dagar i Följd",
+  50: "50 Dagar i Följd",
+  60: "Tvåmånadersstreak!",
+  70: "70 Dagar i Följd",
+  80: "80 Dagar i Följd",
+  90: "Kvartalsstreak!",
+  100: "Hundraklubben!",
+};
+
 exports.onUserStreakUpdated = functions.firestore
   .document("users/{userId}")
   .onUpdate(async (change, context) => {
@@ -533,12 +554,20 @@ exports.onUserStreakUpdated = functions.firestore
           logger.warn("Could not fetch bootcamp info for timeline event", e);
         }
 
+        const milestoneName = STREAK_MILESTONES[newStreak];
+        const baseText = `Har nu loggat ${newStreak} ${newStreak === 1 ? "dag" : "dagar"} i rad!`;
+
         const eventData = {
           type: "streak",
           timestamp: Date.now(),
-          title: "håller i sin streak! 🔥",
-          description: `Har nu loggat ${newStreak} ${newStreak === 1 ? "dag" : "dagar"} i rad!`,
-          icon: "🔥",
+          title: milestoneName
+            ? `har låst upp bragden ${milestoneName}! 🏅`
+            : "håller i sin streak! 🔥",
+          description: milestoneName
+            ? `${baseText} Bragd upplåst: ${milestoneName}.`
+            : baseText,
+          icon: milestoneName ? "🏅" : "🔥",
+          isMilestone: !!milestoneName,
           userId: userId,
           userName: after.displayName || "En användare",
           userPhotoURL: after.photoURL || null,
