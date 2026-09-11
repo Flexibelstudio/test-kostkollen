@@ -37,6 +37,7 @@ import type {
     CoachViewMember, 
     UserRole, 
     FirestoreUserDocument, 
+    CommunitySharingSettings,
     WeightLogEntry,
     GoalSettings,
     CommonMeal,
@@ -829,22 +830,23 @@ export async function addTimelineEvent(
   }
   const userData = userDocSnap.data() as FirestoreUserDocument;
 
-  const sharingSettings = userData.communitySharingSettings || {
-    weight: true,
-    achievement: true,
-    streak: true,
-    course: true,
-    level: true,
-    goal: true,
-  };
+  // Reservvardena gallde tidigare bara om HELA objektet saknades. Konton som
+  // sparade sina delningsval innan ett falt fanns har ett objekt DAR NYCKELN
+  // SAKNAS - och da blev varden undefined, alltsa "av". Profilen visade samtidigt
+  // reglaget som pa, eftersom den anvander ?? med samma reservvarden. Resultatet:
+  // anvandaren ser "delning pa" men ingenting hamnar i flodet. Las darfor varje
+  // nyckel for sig, med reservvarde per nyckel.
+  const sharing: Partial<CommunitySharingSettings> = userData.communitySharingSettings || {};
+  const shares = (key: keyof CommunitySharingSettings, fallback: boolean): boolean =>
+    typeof sharing[key] === 'boolean' ? (sharing[key] as boolean) : fallback;
 
   let isAllowed = true;
-  if (eventData.type === 'weight' && !sharingSettings.weight) isAllowed = false;
-  else if (eventData.type === 'achievement' && !sharingSettings.achievement) isAllowed = false;
-  else if (eventData.type === 'streak' && !sharingSettings.streak) isAllowed = false;
-  else if (eventData.type === 'course' && !sharingSettings.course) isAllowed = false;
-  else if (eventData.type === 'level' && !sharingSettings.level) isAllowed = false;
-  else if ((eventData.type === 'goal' || eventData.type === 'goal_achieved' || eventData.type === 'goal_set') && !sharingSettings.goal) isAllowed = false;
+  if (eventData.type === 'weight' && !shares('weight', true)) isAllowed = false;
+  else if (eventData.type === 'achievement' && !shares('achievement', true)) isAllowed = false;
+  else if (eventData.type === 'streak' && !shares('streak', true)) isAllowed = false;
+  else if (eventData.type === 'course' && !shares('course', true)) isAllowed = false;
+  else if (eventData.type === 'level' && !shares('level', true)) isAllowed = false;
+  else if ((eventData.type === 'goal' || eventData.type === 'goal_achieved' || eventData.type === 'goal_set') && !shares('goal', true)) isAllowed = false;
 
   if (!isAllowed) {
     console.log(`Timeline event of type "${eventData.type}" suppressed due to community sharing settings.`);
