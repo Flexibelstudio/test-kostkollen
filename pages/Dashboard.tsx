@@ -1353,10 +1353,21 @@ const Dashboard: React.FC<DashboardProps> = ({
                             />
                         </div>
 
-                        {/* Right: Sparpott */}
+                        {/* Right: Sparpott
+                            Rutan visade tidigare vad som skulle bli KVAR av potten
+                            om den anvandes pa den dag man tittar pa. Samma pott
+                            kunde darfor sta som 0 pa en dag med overskott och som
+                            41 dagen efter, fast ingenting hade forbrukats. Nu visar
+                            rutan alltid potten som den faktiskt ar, och raden under
+                            sager hur mycket av den som gar at just den har dagen. */}
                         <div className="text-center flex-1">
                             <p className="text-sm font-medium text-neutral-dark mb-1">Sparpott</p>
-                            <p className="font-serif text-2xl font-extrabold text-neutral-dark leading-none">{Math.round(remainingBankDisplay)}</p>
+                            <p className="font-serif text-2xl font-extrabold text-neutral-dark leading-none">{Math.round(availableBank)}</p>
+                            {calculatedBankUsage > 0 && (
+                                <p className="text-[11px] font-medium text-[#C05A38] mt-1 leading-tight">
+                                    {Math.round(calculatedBankUsage)} används
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>

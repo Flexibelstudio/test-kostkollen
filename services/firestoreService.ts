@@ -37,6 +37,7 @@ import type {
     CoachViewMember, 
     UserRole, 
     FirestoreUserDocument, 
+    CommunitySharingSettings,
     WeightLogEntry,
     GoalSettings,
     CommonMeal,
@@ -829,22 +830,23 @@ export async function addTimelineEvent(
   }
   const userData = userDocSnap.data() as FirestoreUserDocument;
 
-  const sharingSettings = userData.communitySharingSettings || {
-    weight: true,
-    achievement: true,
-    streak: true,
-    course: true,
-    level: true,
-    goal: true,
-  };
+  // Reservvardena gallde tidigare bara om HELA objektet saknades. Konton som
+  // sparade sina delningsval innan ett falt fanns har ett objekt DAR NYCKELN
+  // SAKNAS - och da blev varden undefined, alltsa "av". Profilen visade samtidigt
+  // reglaget som pa, eftersom den anvander ?? med samma reservvarden. Resultatet:
+  // anvandaren ser "delning pa" men ingenting hamnar i flodet. Las darfor varje
+  // nyckel for sig, med reservvarde per nyckel.
+  const sharing: Partial<CommunitySharingSettings> = userData.communitySharingSettings || {};
+  const shares = (key: keyof CommunitySharingSettings, fallback: boolean): boolean =>
+    typeof sharing[key] === 'boolean' ? (sharing[key] as boolean) : fallback;
 
   let isAllowed = true;
-  if (eventData.type === 'weight' && !sharingSettings.weight) isAllowed = false;
-  else if (eventData.type === 'achievement' && !sharingSettings.achievement) isAllowed = false;
-  else if (eventData.type === 'streak' && !sharingSettings.streak) isAllowed = false;
-  else if (eventData.type === 'course' && !sharingSettings.course) isAllowed = false;
-  else if (eventData.type === 'level' && !sharingSettings.level) isAllowed = false;
-  else if ((eventData.type === 'goal' || eventData.type === 'goal_achieved' || eventData.type === 'goal_set') && !sharingSettings.goal) isAllowed = false;
+  if (eventData.type === 'weight' && !shares('weight', true)) isAllowed = false;
+  else if (eventData.type === 'achievement' && !shares('achievement', true)) isAllowed = false;
+  else if (eventData.type === 'streak' && !shares('streak', true)) isAllowed = false;
+  else if (eventData.type === 'course' && !shares('course', true)) isAllowed = false;
+  else if (eventData.type === 'level' && !shares('level', true)) isAllowed = false;
+  else if ((eventData.type === 'goal' || eventData.type === 'goal_achieved' || eventData.type === 'goal_set') && !shares('goal', true)) isAllowed = false;
 
   if (!isAllowed) {
     console.log(`Timeline event of type "${eventData.type}" suppressed due to community sharing settings.`);
@@ -1183,7 +1185,21 @@ export async function saveProfileAndGoals(userId: string, profile: UserProfileDa
 
 /* ===== Gamification: Achievements ===== */
 
-export async function unlockAchievement(userId: string, achievementId: string, achievementName: string, achievementIcon: string, description: string): Promise<boolean> {
+export async function unlockAchievement(
+    userId: string,
+    achievementId: string,
+    achievementName: string,
+    achievementIcon: string,
+    description: string,
+    /**
+     * Satt till true for bragder som redan har ett eget inlagg i floden.
+     * Streak-bragderna ar det: molnfunktionen som postar "Har nu loggat N dagar
+     * i rad" vet sjalv nar N ar en milstolpe och baker in bragden dar. Utan det
+     * har fick man tva inlagg om samma sak, ibland pa olika dagar eftersom
+     * upplasningen sker i appen och streak-inlagget i molnet.
+     */
+    skipTimelineEvent: boolean = false,
+): Promise<boolean> {
     if (!db) return true;
     const userRef = doc(db, 'users', userId);
     const userSnap = await getDocSafe(userRef);
@@ -1204,14 +1220,16 @@ export async function unlockAchievement(userId: string, achievementId: string, a
     }, { merge: true });
 
     // Create a timeline event for the achievement
-    await addTimelineEvent(userId, {
-        type: 'achievement',
-        timestamp: Date.now(),
-        title: 'har låst upp en bragd!',
-        description: `${achievementName} - ${description}`,
-        icon: achievementIcon,
-        relatedDocId: `ach_${achievementId}` // Ensure unique per achievement
-    });
+    if (!skipTimelineEvent) {
+        await addTimelineEvent(userId, {
+            type: 'achievement',
+            timestamp: Date.now(),
+            title: 'har låst upp en bragd!',
+            description: `${achievementName} - ${description}`,
+            icon: achievementIcon,
+            relatedDocId: `ach_${achievementId}` // Ensure unique per achievement
+        });
+    }
 
     return true;
 }
@@ -1231,7 +1249,8 @@ export async function checkAndUnlockAchievements(
     // Check Streak Achievements
     const streakAchs = achievementsDef.filter(a => a.type === 'streak' && a.requiredValue <= currentStreak);
     for (const ach of streakAchs) {
-        const unlocked = await unlockAchievement(userId, ach.id, ach.name, ach.icon, ach.description);
+        // true = hoppa over floedesinlagget. Streak-inlagget bar bragden.
+        const unlocked = await unlockAchievement(userId, ach.id, ach.name, ach.icon, ach.description, true);
         if (unlocked) unlockedNow.push(ach);
     }
     

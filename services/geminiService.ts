@@ -386,9 +386,19 @@ PÅGÅENDE BOOTCAMP (FAS 2):
       }
     }
 
+    const avgDiff = avgConsumed - avgGoal;
+    // Samma sak för veckan: utan en uttalad dom beskrevs en vecka långt över
+    // budget som att man "ligger bra till i snittet".
+    const weekVerdict = Math.abs(avgDiff) < avgGoal * 0.05
+      ? 'Snittet ligger på målet.'
+      : (avgDiff > 0
+          ? `Snittet ligger ${Math.round(avgDiff)} kcal ÖVER målet per dag. Påstå INTE att veckan ser bra ut i snitt.`
+          : `Snittet ligger ${Math.abs(Math.round(avgDiff))} kcal UNDER målet per dag.`);
+
     recentContext = `
 SENASTE 7 DAGARNA:
 - Snittkalorier: ${avgConsumed.toFixed(0)} kcal (Mål: ${avgGoal.toFixed(0)} kcal)
+- Veckans dom: ${weekVerdict}
 - Har skött kosten: ${hasBeenGood ? 'JA' : 'NEJ'}
 ${weightChangeStr ? `- Viktutveckling: ${weightChangeStr}` : ''}
 ${fatChangeStr ? `- Fettmassa utveckling: ${fatChangeStr}` : ''}
@@ -414,6 +424,17 @@ ${fatChangeStr ? `- Fettmassa utveckling: ${fatChangeStr}` : ''}
     }
   }
 
+  // Modellen fick tidigare bara "Mål uppfyllt: NEJ" plus två siffror, och valde
+  // då ofta den luddiga formuleringen "du nådde inte ditt kalorimål" - vilket
+  // läser som att man ätit för LITE, även när man legat långt över. Domen skrivs
+  // därför ut i klartext, och instruktionerna nedan förbjuder förväxlingen.
+  const calorieDiff = summary.consumedCalories - summary.calorieGoal;
+  const yesterdayVerdict = summary.goalMet
+    ? `INOM MÅLET. Skriv att målet är uppfyllt.`
+    : (calorieDiff > 0
+        ? `ÖVER målet med ${Math.round(calorieDiff)} kcal. Användaren åt FÖR MYCKET. Skriv aldrig att hen "inte nådde" eller "missade" sitt kalorimål - det låter som för lite. Säg rakt ut att intaget hamnade över.`
+        : `UNDER målet med ${Math.abs(Math.round(calorieDiff))} kcal. Användaren åt FÖR LITE.`);
+
   const prompt = `Du är ${persona.label}, ${persona.roleTitle}.
 Tonläge och instruktioner: ${persona.promptTone}
 
@@ -437,6 +458,7 @@ Användaren heter ${name}.
 
 SITUATION IGÅR:
 - Mål uppfyllt: ${summary.goalMet ? 'JA' : 'NEJ'} (Intag: ${summary.consumedCalories.toFixed(0)} / Mål: ${summary.calorieGoal.toFixed(0)} kcal)
+- ÅT ANVÄNDAREN FÖR MYCKET ELLER FÖR LITE IGÅR: ${yesterdayVerdict}
 - Vattenmål uppfyllt: ${summary.waterGoalMet ? 'JA' : 'NEJ'}
 ${typeof summary.consumedFiber === 'number' ? `- Fibrer igår: ${summary.consumedFiber.toFixed(0)} g (riktmärke 25 g)` : '- Fibrer igår: okänt (nämn inte fibrer)'}
 - Streak-status: ${currentStreak > 0 ? `AKTIV (${currentStreak} dagar i rad). Användaren loggade igår!` : 'BRUTEN (0 dagar). Användaren loggade inte igår.'}
@@ -456,6 +478,8 @@ ${plateauContext}
 INSTRUKTIONER:
 1. Ge en kort kommentar (max 2-3 meningar) om gårdagen.
 2. VIKTIGT: Om 'Mål uppfyllt' är NEJ men 'Streak-status' är AKTIV: Beröm användaren tydligt för att hen ändå loggade och höll sin streak vid liv (det är det viktigaste beteendet!). Döm inte det missade målet, utan peppa mjukt att sikta på det idag istället.
+2b. OBLIGATORISKT: Beskriv gårdagen i rätt riktning enligt raden "ÅT ANVÄNDAREN FÖR MYCKET ELLER FÖR LITE IGÅR". Att ligga över budget får ALDRIG beskrivas som att man inte nådde eller missade sitt mål - använd ord som "över", "mer än planerat". Att ligga under får aldrig beskrivas som att man åt för mycket. Var vänlig, men var korrekt.
+2c. Ljug aldrig uppmuntrande om siffrorna. Ligger veckosnittet över målet får du inte skriva att det ser bra ut i snitt - erkänn läget och peka framåt i stället.
 3. Om både mål och streak är positiva, ge stort beröm enligt din persona.
 4. Om streak är bruten, var uppmuntrande kring nystart idag.
 5. Om användaren har skrivit en "Kommentar till Generalen", återkoppla på den!
